@@ -841,6 +841,24 @@ func Migrate(db *sql.DB) error {
 			lease_expires_at_ms integer not null,
 			foreign key(run_id) references codex_inspection_runs(id) on delete set null
 		)`,
+		`create table if not exists codex_reset_credit_ledger (
+			id integer primary key autoincrement,
+			credential_key text not null,
+			cycle_key text not null,
+			redeem_request_id text not null,
+			status text not null,
+			available_count integer,
+			detail_json text,
+			consumed_at_ms integer not null default 0,
+			created_at_ms integer not null,
+			updated_at_ms integer not null,
+			unique (credential_key, cycle_key, redeem_request_id)
+		)`,
+		`create index if not exists idx_codex_reset_credit_ledger_cycle
+			on codex_reset_credit_ledger(credential_key, cycle_key, status)`,
+		`create unique index if not exists idx_codex_reset_credit_ledger_one_consumption
+			on codex_reset_credit_ledger(credential_key, cycle_key)
+			where status in ('claimed', 'consumed')`,
 		`create table if not exists codex_inspection_results (
 			id integer primary key autoincrement,
 			run_id integer not null,

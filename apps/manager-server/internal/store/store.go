@@ -14,6 +14,7 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/accountaction"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/apikeyalias"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/codexinspection"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/codexreset"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/datamigration"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/deadletter"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/modelprice"
@@ -47,6 +48,7 @@ type CodexInspectionResult = model.CodexInspectionResult
 type CodexInspectionLog = model.CodexInspectionLog
 type CodexInspectionDisableOwnership = model.CodexInspectionDisableOwnership
 type CodexInspectionLease = model.CodexInspectionLease
+type CodexResetCreditLedgerEntry = codexreset.LedgerEntry
 type InsertResult = model.InsertResult
 type LegacyQuotaSnapshotBackfillResult = quotasnapshot.LegacyBackfillResult
 type ModelPrice = model.ModelPrice
@@ -155,6 +157,7 @@ type Store struct {
 	ProviderKeyAliases providerkeyalias.Repository
 	AccountActions     accountaction.Repository
 	CodexInspections   codexinspection.Repository
+	CodexResetCredits  codexreset.Repository
 	DataMigrations     datamigration.Repository
 	QuotaCooldowns     quotacooldown.Repository
 	QuotaSnapshots     quotasnapshot.Repository
@@ -184,6 +187,7 @@ func New(db *sql.DB, protector ...*security.Protector) *Store {
 		ProviderKeyAliases: providerkeyalias.New(db),
 		AccountActions:     accountaction.New(db),
 		CodexInspections:   codexinspection.New(db),
+		CodexResetCredits:  codexreset.New(db),
 		DataMigrations:     datamigration.New(db),
 		QuotaCooldowns:     quotacooldown.New(db),
 		QuotaSnapshots:     quotasnapshot.New(db),
