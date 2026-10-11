@@ -35,6 +35,11 @@ const (
 	// cooldown cannot be confirmed recovered (still exhausted, probe unavailable,
 	// or probe error). It keeps the credential disabled and retries later.
 	quotaCooldownRecheckBackoff = 15 * time.Minute
+	// quotaCooldownProviderResetGrace prevents a provider reset timestamp from
+	// being treated as an instantaneous recovery signal. The provider may need
+	// a short bounded interval before its management quota endpoint reflects the
+	// newly available window.
+	quotaCooldownProviderResetGrace = 30 * time.Second
 	// xaiFreeUsageWindow is xAI's rolling free-usage window. It is used only as
 	// a staleness bound for exhaustion evidence that carries no provider reset
 	// timestamp; it is never persisted or displayed as a recovery time.
@@ -783,6 +788,19 @@ func (w *RateLimitAutoDisableWorker) recoverCooldown(ctx context.Context, baseUR
 		}
 		log.Printf("[quota-auto-disable] auth file %q already enabled; marked cooldown recovered", item.AuthFileName)
 		return
+	}
+	if item.RecoverAtKind == model.QuotaCooldownRecoverKindProvider && item.RecoverAtMS > 0 {
+		graceUntil := time.UnixMilli(item.RecoverAtMS).Add(quotaCooldownProviderResetGrace)
+		if now.Before(graceUntil) {
+			reason := "provider reset grace period not elapsed"
+			if err := w.store.RescheduleQuotaCooldown(ctx, item.ID, graceUntil.UnixMilli(), reason); err != nil {
+				_ = w.store.RecordQuotaCooldownFailure(ctx, item.ID, reason+fmt.Sprintf(" (reschedule failed: %v)", err))
+				log.Printf("[quota-auto-disable] failed to reschedule provider reset grace id=%d authFile=%q: %v", item.ID, item.AuthFileName, err)
+				return
+			}
+			log.Printf("[quota-auto-disable] deferring recovery id=%d authFile=%q until provider reset grace expires", item.ID, item.AuthFileName)
+			return
+		}
 	}
 
 	if deferReason, deferred := w.recoveryDeferred(ctx, baseURL, managementKey, target, item); deferred {

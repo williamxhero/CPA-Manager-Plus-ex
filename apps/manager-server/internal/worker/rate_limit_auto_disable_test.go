@@ -2711,7 +2711,14 @@ func TestRateLimitAutoDisableWorkerStartsNewCycleAfterExternalEnable(t *testing.
 		t.Fatalf("active cooldowns after repeated event = %#v, want cycle %d", active, newCycleID)
 	}
 
-	worker.enableDue(ctx, newResetAt.Add(time.Second))
+	worker.enableDue(ctx, newResetAt.Add(quotaCooldownProviderResetGrace-time.Millisecond))
+	mu.Lock()
+	statesBeforeGrace := append([]bool(nil), patchStates...)
+	mu.Unlock()
+	if len(statesBeforeGrace) != 1 {
+		t.Fatalf("patch states before grace = %#v, want disable only", statesBeforeGrace)
+	}
+	worker.enableDue(ctx, newResetAt.Add(quotaCooldownProviderResetGrace))
 	mu.Lock()
 	statesAfterRecovery := append([]bool(nil), patchStates...)
 	disabledAfterRecovery := disabled
