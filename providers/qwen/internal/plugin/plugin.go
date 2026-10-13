@@ -127,7 +127,10 @@ func (m *Manager) HandleCall(method string, request []byte) (resp []byte, err er
 		if json.Unmarshal(request, &req) != nil {
 			return ErrEnvelope("invalid_request", "malformed auth refresh request body"), nil
 		}
-		resp, err := (authProvider{}).RefreshAuth(context.Background(), req.AuthRefreshRequest)
+		m.mu.RLock()
+		cfg := m.cfg
+		m.mu.RUnlock()
+		resp, err := (authProvider{cfg: cfg}).RefreshAuth(context.Background(), req.AuthRefreshRequest)
 		if err != nil {
 			return ErrEnvelope("auth_failure", err.Error()), nil
 		}

@@ -857,11 +857,50 @@ func UpstreamStatusError(status int, body []byte) *errclass.Error {
 	if len(body) > snippetBound {
 		body = body[:snippetBound]
 	}
+	if status == 402 || status == 429 {
+		if msg := quotaErrorMetadata(body); msg != "" {
+			return errclass.FromStatus(status, msg)
+		}
+	}
 	msg := extractErrorMessage(body)
 	if msg == "" {
 		msg = string(body)
 	}
 	return errclass.FromStatus(status, RedactedSnippet(msg))
+}
+
+// quotaErrorMetadata preserves only recognized quota signals through the ABI
+// Message used by host usage events. Free-form messages and unknown fields may
+// contain credentials and must never become structured quota evidence.
+func quotaErrorMetadata(body []byte) string {
+	var upstream struct {
+		Error struct {
+			Code string `json:"code"`
+			Type string `json:"type"`
+		} `json:"error"`
+		ResetAt string `json:"reset_at"`
+	}
+	if json.Unmarshal(body, &upstream) != nil {
+		return ""
+	}
+	known := func(value string) string {
+		switch value {
+		case "insufficient_quota", "quota_exhausted", "quota_exceeded":
+			return value
+		default:
+			return ""
+		}
+	}
+	code, kind := known(upstream.Error.Code), known(upstream.Error.Type)
+	if code == "" && kind == "" {
+		return ""
+	}
+	metadata := map[string]any{"error": map[string]string{"code": code, "type": kind}}
+	if reset, err := time.Parse(time.RFC3339Nano, upstream.ResetAt); err == nil {
+		metadata["reset_at"] = reset.UTC().Format(time.RFC3339Nano)
+	}
+	raw, _ := json.Marshal(metadata)
+	return string(raw)
 }
 
 // ResponsesUsage is the token-usage block of synthesized Responses
