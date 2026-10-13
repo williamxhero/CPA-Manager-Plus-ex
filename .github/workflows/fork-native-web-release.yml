@@ -1,0 +1,341 @@
+name: Fork native/web release
+
+run-name: Fork native/web ${{ inputs.mode }} ${{ inputs.version }} @ ${{ inputs.expected_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      opt_in:
+        description: 'Explicitly enable the unofficial fork native/web release path'
+        required: true
+        type: boolean
+        default: false
+      mode:
+        description: 'Build a review artifact, or publish an approved immutable dry-run artifact'
+        required: true
+        type: choice
+        default: dry-run
+        options:
+          - dry-run
+          - publish
+      version:
+        description: 'Unofficial fork tag (not an upstream version)'
+        required: true
+        type: string
+        default: v1.14.5-williamxhero.1
+      expected_sha:
+        description: 'Exact final main commit SHA approved for this release'
+        required: true
+        type: string
+      frozen_dev_sha:
+        description: 'Exact frozen dev SHA promoted to main by the single release merge'
+        required: true
+        type: string
+      dry_run_id:
+        description: 'Gate 2 approved successful dry-run workflow run ID; required for publish'
+        required: false
+        type: string
+      dry_run_attempt:
+        description: 'Gate 2 approved exact dry-run attempt; required for publish'
+        required: false
+        type: string
+      receipt_sha:
+        description: 'Gate 2 approved receipt.json SHA256 (raw lowercase hex); required for publish'
+        required: false
+        type: string
+      confirm_publish:
+        description: 'Gate 2 approval to create the exact tag and publish the verified prerelease'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: fork-native-web-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ inputs.version }}
+  EXPECTED_SHA: ${{ inputs.expected_sha }}
+  FROZEN_DEV_SHA: ${{ inputs.frozen_dev_sha }}
+
+jobs:
+  authorize:
+    name: Authorize fork dispatch
+    runs-on: ubuntu-latest
+    steps:
+      # Do not job-gate this check: invalid dispatches must fail, not silently skip.
+      - name: Require exact fork, main source, and explicit authorization
+        shell: bash
+        env:
+          OPT_IN: ${{ inputs.opt_in }}
+          MODE: ${{ inputs.mode }}
+          DRY_RUN_ID: ${{ inputs.dry_run_id }}
+          DRY_RUN_ATTEMPT: ${{ inputs.dry_run_attempt }}
+          RECEIPT_SHA: ${{ inputs.receipt_sha }}
+          CONFIRM_PUBLISH: ${{ inputs.confirm_publish }}
+        run: |
+          set -euo pipefail
+          fail() { printf '%s\n' "$1" >&2; exit 1; }
+          [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || fail 'Only workflow_dispatch is authorized.'
+          [ "$GITHUB_REPOSITORY" = williamxhero/CPA-Manager-Plus ] || fail 'Only williamxhero/CPA-Manager-Plus is authorized.'
+          [ "$GITHUB_REF" = refs/heads/main ] && [ "$GITHUB_REF_TYPE" = branch ] || fail 'Dispatch must run from the main branch.'
+          [ "$OPT_IN" = true ] || fail 'Explicit opt_in is required.'
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || fail 'expected_sha must be an exact commit SHA.'
+          [ "$GITHUB_SHA" = "$EXPECTED_SHA" ] || fail 'Actual dispatch SHA differs from expected_sha.'
+          [[ "$FROZEN_DEV_SHA" =~ ^[0-9a-f]{40}$ ]] || fail 'frozen_dev_sha must be an exact commit SHA.'
+          case "$MODE" in
+            dry-run) ;;
+            publish)
+              [ "$CONFIRM_PUBLISH" = true ] || fail 'Publish requires explicit Gate 2 confirmation.'
+              [[ "$DRY_RUN_ID" =~ ^[1-9][0-9]*$ ]] || fail 'Publish requires an approved dry_run_id.'
+              [[ "$DRY_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]] || fail 'Publish requires an approved dry_run_attempt.'
+              [[ "$RECEIPT_SHA" =~ ^[0-9a-f]{64}$ ]] || fail 'Publish requires an approved receipt_sha.'
+              ;;
+            *) fail 'Unsupported mode.' ;;
+          esac
+
+  dry_run:
+    name: Build immutable dry-run artifact
+    needs: authorize
+    if: inputs.mode == 'dry-run'
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Checkout exact approved source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch protected branch refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/dev:refs/remotes/origin/dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: apps/manager-server/go.sum
+
+      - name: Ensure native archive tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v zip >/dev/null || ! command -v unzip >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y zip unzip
+          fi
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Validate, build fresh panel, and package native payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          node bin/release/build-fork-release.mjs \
+            --repository "$GITHUB_REPOSITORY" --tag "$VERSION" \
+            --sha "$EXPECTED_SHA" --dev-sha "$FROZEN_DEV_SHA" \
+            --output "$RUNNER_TEMP/fork-native-web" \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" --opt-in true
+
+      - name: Retain immutable payload and separate receipt
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fork-native-web-${{ inputs.version }}-${{ inputs.expected_sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/fork-native-web/
+          if-no-files-found: error
+          overwrite: false
+          retention-days: 30
+
+      - name: Record Gate 2 artifact and receipt identity
+        shell: bash
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          import path from 'node:path';
+          import { sha256File } from './bin/release/fork-release-contract.mjs';
+          const receiptSha = await sha256File(path.join(process.env.RUNNER_TEMP, 'fork-native-web', 'receipt.json'));
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '## Fork dry-run identity (not publication approval)',
+            `- Tag: ${process.env.VERSION}`,
+            `- Main SHA: ${process.env.EXPECTED_SHA}`,
+            `- Frozen dev SHA: ${process.env.FROZEN_DEV_SHA}`,
+            `- Run/attempt: ${process.env.GITHUB_RUN_ID}/${process.env.GITHUB_RUN_ATTEMPT}`,
+            `- Receipt SHA256: ${receiptSha}`,
+            `- Artifact ID: ${process.env.ARTIFACT_ID}`,
+            `- Artifact digest: ${process.env.ARTIFACT_DIGEST}`,
+            '- Gate 2 requires the entire dry-run, including Windows smoke, to succeed.',
+            '',
+          ].join('\n'));
+          NODE
+
+  windows_smoke:
+    name: Isolated Windows embedding and SQLite compatibility gate
+    needs: [authorize, dry_run]
+    if: inputs.mode == 'dry-run'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact approved source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: apps/manager-server/go.sum
+
+      - name: Download exact current-run dry-run artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.dry_run.outputs.artifact_id }}
+          path: ${{ runner.temp }}/fork-native-web
+          merge-multiple: true
+
+      - name: Validate receipt and all nine payload assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync, readdirSync } from 'node:fs';
+          import path from 'node:path';
+          import { buildForkAssetRecords, createForkGit, validateForkReceipt } from './bin/release/fork-release-contract.mjs';
+          const root = path.join(process.env.RUNNER_TEMP, 'fork-native-web');
+          assert.deepEqual(readdirSync(root).sort(), ['payload', 'receipt.json']);
+          const receipt = JSON.parse(readFileSync(path.join(root, 'receipt.json'), 'utf8'));
+          const assets = await buildForkAssetRecords(path.join(root, 'payload'), process.env.VERSION);
+          await validateForkReceipt(receipt, {
+            tag: process.env.VERSION,
+            sourceCommit: process.env.EXPECTED_SHA,
+            sourceTree: createForkGit(process.cwd())(['rev-parse', 'HEAD^{tree}']),
+            devCommit: process.env.FROZEN_DEV_SHA,
+            runId: process.env.GITHUB_RUN_ID,
+            runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+            assets,
+          });
+          NODE
+
+      - name: Expand Windows amd64 package only into runner temp
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archive = Join-Path $env:RUNNER_TEMP "fork-native-web/payload/cpa-manager-plus_$($env:VERSION)_windows_amd64.zip"
+          $destination = Join-Path $env:RUNNER_TEMP 'fork-native-web-smoke'
+          Expand-Archive -LiteralPath $archive -DestinationPath $destination
+
+      - name: Verify executable version and exact embedded panel source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import path from 'node:path';
+          import { spawnSync } from 'node:child_process';
+          import { verifyBinaryEmbedding } from './bin/release/fork-release-contract.mjs';
+          const { RUNNER_TEMP, VERSION, EXPECTED_SHA } = process.env;
+          const packageDir = path.join(RUNNER_TEMP, 'fork-native-web-smoke', `cpa-manager-plus_${VERSION}_windows_amd64`);
+          const exe = path.join(packageDir, 'cpa-manager-plus.exe');
+          const result = spawnSync(exe, ['--version'], { cwd: packageDir, encoding: 'utf8', timeout: 30000 });
+          assert.ifError(result.error);
+          assert.equal(result.status, 0, result.stderr);
+          assert.equal(result.stdout.trim(), VERSION);
+          const binary = readFileSync(exe);
+          const html = readFileSync(path.join(RUNNER_TEMP, 'fork-native-web', 'payload', 'management.html'));
+          verifyBinaryEmbedding(binary, html, EXPECTED_SHA);
+          NODE
+
+      - name: Run Windows SQLite compatibility tests without weakening the baseline
+        working-directory: apps/manager-server
+        run: go test ./internal/repository/sqlite
+
+  publish:
+    name: Publish Gate 2 approved immutable fork prerelease
+    needs: authorize
+    if: inputs.mode == 'publish' && inputs.confirm_publish == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      DRY_RUN_ID: ${{ inputs.dry_run_id }}
+      DRY_RUN_ATTEMPT: ${{ inputs.dry_run_attempt }}
+      RECEIPT_SHA: ${{ inputs.receipt_sha }}
+    steps:
+      - name: Checkout exact approved main source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Read-only preflight of approved workflow run, attempt, source, and artifact
+        id: preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          node bin/release/publish-fork-release.mjs \
+            --repository "$GITHUB_REPOSITORY" --tag "$VERSION" \
+            --sha "$EXPECTED_SHA" --dev-sha "$FROZEN_DEV_SHA" \
+            --dry-run-id "$DRY_RUN_ID" --dry-run-attempt "$DRY_RUN_ATTEMPT" \
+            --receipt-sha "$RECEIPT_SHA" --opt-in true --confirm-publish true --preflight-only true
+
+      - name: Download exact approved artifact ID from the approved dry-run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.dry_run_id }}
+          artifact-ids: ${{ steps.preflight.outputs.artifact_id }}
+          path: ${{ runner.temp }}/fork-native-web
+          merge-multiple: true
+
+      # Publisher revalidates receipt hashes/source drift/conflicts, creates and rereads
+      # the exact tag, and verifies all nine draft uploads before prerelease=true/latest=false.
+      - name: Publish verified payload without rebuilding
+        shell: bash
+        run: |
+          set -euo pipefail
+          node bin/release/publish-fork-release.mjs \
+            --repository "$GITHUB_REPOSITORY" --tag "$VERSION" \
+            --sha "$EXPECTED_SHA" --dev-sha "$FROZEN_DEV_SHA" \
+            --dry-run-id "$DRY_RUN_ID" --dry-run-attempt "$DRY_RUN_ATTEMPT" \
+            --receipt-sha "$RECEIPT_SHA" --opt-in true --confirm-publish true \
+            --assets-dir "$RUNNER_TEMP/fork-native-web/payload" \
+            --receipt-file "$RUNNER_TEMP/fork-native-web/receipt.json"

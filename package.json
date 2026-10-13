@@ -31,5 +31,8 @@
     "lint:providers": "node bin/release/run-provider-go.mjs vet",
     "test:providers": "node bin/release/run-provider-go.mjs test",
     "build:providers": "node bin/release/build-providers.mjs"
+  },
+  "devDependencies": {
+    "yaml": "^2.9.1"
   }
 }
