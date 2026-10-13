@@ -1,0 +1,90 @@
+{
+    "startedAt":  "2026-10-13T10:27:17.8889086Z",
+    "finishedAt":  "2026-10-13T10:27:19.9401070Z",
+    "durationSeconds":  2.051,
+    "target":  "LocalCPAManagerPlus",
+    "serviceName":  "FakeCPAMP-SpecA",
+    "status":  "deployed",
+    "dryRun":  false,
+    "rollbackOnly":  false,
+    "serviceChanged":  true,
+    "before":  {
+                   "exePath":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\cpa-manager-plus.exe",
+                   "exeSha256":  "BAB3A570ED56480AD006E90FF66EF7995B83384D821C9712A6B95911D6F82A6D",
+                   "panelPath":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\management.html",
+                   "panelSha256":  "754CC4614CC77E863ADD90BED4094080A1195D037B83A61862A800B48D0E632D",
+                   "version":  "0.0.0.0"
+               },
+    "after":  {
+                  "exePath":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\cpa-manager-plus.exe",
+                  "exeSha256":  "C529A638CCC1DD64EDCCFF1BFFABBE1D246D5B19AD105FAD5D777285C3A555A1",
+                  "panelPath":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\management.html",
+                  "panelSha256":  "66172FBE47BE813B7FDFE370E3DBC0FAD29314B59F26E65EA786853643DB7551",
+                  "version":  "0.0.0.0"
+              },
+    "backup":  {
+                   "target":  "LocalCPAManagerPlus",
+                   "serviceName":  "FakeCPAMP-SpecA",
+                   "createdAt":  "2026-10-13T10:27:17.8889086Z",
+                   "before":  {
+                                  "exePath":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\cpa-manager-plus.exe",
+                                  "exeSha256":  "BAB3A570ED56480AD006E90FF66EF7995B83384D821C9712A6B95911D6F82A6D",
+                                  "panelPath":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\management.html",
+                                  "panelSha256":  "754CC4614CC77E863ADD90BED4094080A1195D037B83A61862A800B48D0E632D",
+                                  "version":  "0.0.0.0"
+                              },
+                   "exeBackup":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\backups\\20261013T1027178889086Z-145613fd26e444cf89065a70f0b97923-cpa-manager-plus.exe",
+                   "panelBackup":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\backups\\20261013T1027178889086Z-145613fd26e444cf89065a70f0b97923-management.html"
+               },
+    "steps":  [
+                  {
+                      "name":  "preflight",
+                      "ok":  true,
+                      "detail":  "Paths, target, permissions, inputs and isolated port validated; no credentials read."
+                  },
+                  {
+                      "name":  "backup",
+                      "ok":  true,
+                      "detail":  "Timestamped executable/panel backups and manifest verified."
+                  },
+                  {
+                      "name":  "rehearsal",
+                      "ok":  true,
+                      "detail":  "New executable healthy on isolated loopback port/data; process terminated and temporary data removed."
+                  },
+                  {
+                      "name":  "stop",
+                      "ok":  true,
+                      "detail":  "Service stopped."
+                  },
+                  {
+                      "name":  "replace",
+                      "ok":  true,
+                      "detail":  "Replacement hashes verified."
+                  },
+                  {
+                      "name":  "start",
+                      "ok":  true,
+                      "detail":  "Service running."
+                  },
+                  {
+                      "name":  "health",
+                      "ok":  true,
+                      "detail":  "HTTP 200 and expected marker verified."
+                  }
+              ],
+    "health":  [
+                   {
+                       "at":  "2026-10-13T10:27:19.3392034Z",
+                       "phase":  "rehearsal",
+                       "httpStatus":  200,
+                       "expectedMarkerFound":  true
+                   },
+                   {
+                       "at":  "2026-10-13T10:27:19.9297182Z",
+                       "phase":  "deploy",
+                       "httpStatus":  200,
+                       "expectedMarkerFound":  true
+                   }
+               ]
+}
