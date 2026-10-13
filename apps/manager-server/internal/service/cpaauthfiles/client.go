@@ -1126,7 +1126,14 @@ func verifyFileIdentity(file File, identity Identity) error {
 	} else if identity.AccountIDSnapshot != "" && file.AccountID != strings.TrimSpace(identity.AccountIDSnapshot) {
 		return fmt.Errorf("%w: account_id mismatch (expected %q, got %q)", ErrIdentityMismatch, strings.TrimSpace(identity.AccountIDSnapshot), file.AccountID)
 	}
-	if provider != "codex" && identity.AccountIDSnapshot == "" && identity.AccountSnapshot != "" && file.AccountSnapshot != strings.TrimSpace(identity.AccountSnapshot) {
+	// Non-Codex credentials are located by file name + auth index. The account
+	// snapshot is only supporting evidence, and the CPA auth-files response does
+	// not expose an account/email for plugin-backed providers (for example Qwen,
+	// which publishes only a display label). Comparing against an expected
+	// snapshot when the response carries no account evidence would reject every
+	// such credential and silently disable nothing, so the comparison is
+	// skipped unless the credential actually reports an account.
+	if provider != "codex" && identity.AccountIDSnapshot == "" && identity.AccountSnapshot != "" && strings.TrimSpace(file.AccountSnapshot) != "" && file.AccountSnapshot != strings.TrimSpace(identity.AccountSnapshot) {
 		return fmt.Errorf("%w: account_snapshot mismatch (expected %q, got %q)", ErrIdentityMismatch, strings.TrimSpace(identity.AccountSnapshot), file.AccountSnapshot)
 	}
 	return nil
