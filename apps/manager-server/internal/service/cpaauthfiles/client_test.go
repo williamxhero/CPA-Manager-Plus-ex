@@ -65,6 +65,55 @@ func TestParseAndVerifyIdentity(t *testing.T) {
 	}
 }
 
+func TestVerifyIdentityAllowsNonCodexCredentialWithoutAccountEvidence(t *testing.T) {
+	// A plugin-backed provider (for example Qwen) publishes only a display label
+	// in the CPA auth-files response. The collector falls back to that label for
+	// the event account snapshot, so verification must not treat the absence of
+	// account/email evidence as an identity mismatch: doing so rejects every such
+	// credential and quota auto-disable silently disables nothing.
+	withoutAccount := []File{
+		FromMap(map[string]any{
+			"id":         "runtime-qwen",
+			"name":       "qwen-key-abc.json",
+			"auth_index": "qwen-1",
+			"provider":   "qwen",
+			"label":      "E2E",
+		}),
+	}
+	file, err := VerifyIdentity(withoutAccount, Identity{
+		AuthFileName:    "qwen-key-abc.json",
+		AuthIndex:       "qwen-1",
+		Provider:        "qwen",
+		AccountSnapshot: "E2E",
+	})
+	if err != nil {
+		t.Fatalf("verify identity without account evidence: %v", err)
+	}
+	if file.AuthIndex != "qwen-1" || file.Provider != "qwen" {
+		t.Fatalf("file = %#v", file)
+	}
+
+	// When the core does expose account evidence, a conflicting snapshot must
+	// still be rejected.
+	withAccount := []File{
+		FromMap(map[string]any{
+			"id":         "runtime-qwen",
+			"name":       "qwen-key-abc.json",
+			"auth_index": "qwen-1",
+			"provider":   "qwen",
+			"account":    "alice@example.com",
+		}),
+	}
+	if _, err := VerifyIdentity(withAccount, Identity{
+		AuthFileName:    "qwen-key-abc.json",
+		AuthIndex:       "qwen-1",
+		Provider:        "qwen",
+		AccountSnapshot: "bob@example.com",
+	}); !errors.Is(err, ErrIdentityMismatch) || !strings.Contains(err.Error(), "account_snapshot mismatch") {
+		t.Fatalf("account mismatch err = %v, want ErrIdentityMismatch", err)
+	}
+}
+
 func TestVerifyIdentityKeepsDuplicateCodexSelectorAmbiguous(t *testing.T) {
 	files := []File{
 		FromMap(map[string]any{

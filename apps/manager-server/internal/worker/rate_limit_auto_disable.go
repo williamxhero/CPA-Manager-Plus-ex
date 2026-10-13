@@ -973,95 +973,80 @@ func qwenQuotaExhaustedResetTimeFromEvent(event usage.Event, now time.Time) (tim
 	if provider != "qwen" {
 		return time.Time{}, "", false
 	}
-	matched := false
-	for _, text := range []string{event.FailBody, event.RawJSON, event.FailSummary} {
-		forEachJSONValue(text, func(decoded any) bool {
-			if qwenQuotaExhaustedValue(decoded) {
-				matched = true
-				return true
-			}
-			return false
-		})
-		if matched {
-			break
+	for _, text := range []string{event.FailBody, event.RawJSON} {
+		var object map[string]any
+		decoder := json.NewDecoder(strings.NewReader(text))
+		decoder.UseNumber()
+		if decoder.Decode(&object) != nil {
+			continue
 		}
-	}
-	if !matched {
-		return time.Time{}, "", false
-	}
-	for _, text := range []string{event.FailBody, event.RawJSON, event.FailSummary} {
-		if resetAt, ok := qwenResetTimeFromText(text, now); ok && resetAt.After(now) {
+		// Raw usage records carry the ABI Message as failed.body.
+		for _, key := range []string{"failed", "fail"} {
+			if failure, ok := object[key].(map[string]any); ok {
+				if body, ok := failure["body"].(string); ok {
+					var decoded map[string]any
+					bodyDecoder := json.NewDecoder(strings.NewReader(body))
+					bodyDecoder.UseNumber()
+					if bodyDecoder.Decode(&decoded) == nil {
+						object = decoded
+					}
+				}
+			}
+		}
+		if !qwenQuotaExhaustedValue(object) {
+			continue
+		}
+		if resetAt, ok := qwenResetTimeValue(object, now); ok && resetAt.After(now) {
 			return resetAt, model.QuotaCooldownRecoverKindProvider, true
 		}
+		return time.Time{}, model.QuotaCooldownRecoverKindUnknown, true
 	}
-	return time.Time{}, model.QuotaCooldownRecoverKindUnknown, true
+	return time.Time{}, "", false
 }
 
 func qwenQuotaExhaustedValue(value any) bool {
-	switch typed := value.(type) {
-	case map[string]any:
-		for _, key := range []string{"code", "type", "error", "message", "status"} {
-			text := strings.ToLower(strings.TrimSpace(fmt.Sprint(typed[key])))
-			if strings.Contains(text, "quota_exhausted") || strings.Contains(text, "quota exhausted") || strings.Contains(text, "quota exceeded") || strings.Contains(text, "insufficient_quota") {
-				return true
-			}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return false
+	}
+	for _, key := range []string{"code", "type"} {
+		text, _ := object[key].(string)
+		switch text {
+		case "insufficient_quota", "quota_exhausted", "quota_exceeded":
+			return true
 		}
-		for _, child := range typed {
-			if qwenQuotaExhaustedValue(child) {
-				return true
-			}
-		}
-	case []any:
-		for _, child := range typed {
-			if qwenQuotaExhaustedValue(child) {
-				return true
-			}
-		}
+	}
+	// Only the provider error envelope is evidence. Messages and arbitrary
+	// nested metadata must not turn ordinary rate limits into quota actions.
+	if child, ok := object["error"].(map[string]any); ok {
+		return qwenQuotaExhaustedValue(child)
 	}
 	return false
 }
 
-func qwenResetTimeFromText(text string, now time.Time) (time.Time, bool) {
-	var resetAt time.Time
-	found := false
-	forEachJSONValue(text, func(decoded any) bool {
-		if at, ok := qwenResetTimeValue(decoded, now); ok {
-			resetAt, found = at, true
-			return true
-		}
-		return false
-	})
-	return resetAt, found
-}
-
 func qwenResetTimeValue(value any, now time.Time) (time.Time, bool) {
-	if object, ok := value.(map[string]any); ok {
-		for _, key := range []string{"reset_at", "resetAt", "resets_at", "resetsAt", "reset_time", "resetTime"} {
-			if raw, exists := object[key]; exists {
-				if at, ok := parseResetValue(raw, now, false); ok {
-					return at, true
-				}
-			}
-		}
-		for _, key := range []string{"resets_in_seconds", "resetsInSeconds", "retry_after_seconds", "retryAfterSeconds"} {
-			if raw, exists := object[key]; exists {
-				if at, ok := parseResetValue(raw, now, true); ok {
-					return at, true
-				}
-			}
-		}
-		for _, child := range object {
-			if at, ok := qwenResetTimeValue(child, now); ok {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return time.Time{}, false
+	}
+	for _, key := range []string{"reset_at", "resetAt", "resets_at", "resetsAt", "reset_time", "resetTime"} {
+		if raw, exists := object[key]; exists {
+			if at, ok := parseResetValue(raw, now, false); ok {
 				return at, true
 			}
 		}
 	}
-	if list, ok := value.([]any); ok {
-		for _, child := range list {
-			if at, ok := qwenResetTimeValue(child, now); ok {
+	for _, key := range []string{"resets_in_seconds", "resetsInSeconds", "retry_after_seconds", "retryAfterSeconds"} {
+		if raw, exists := object[key]; exists {
+			if at, ok := parseResetValue(raw, now, true); ok {
 				return at, true
 			}
 		}
+	}
+	// Reset metadata is trusted only at the same error envelope level as the
+	// recognized quota code. Arbitrary nested fields can be unrelated debug data.
+	if child, ok := object["error"].(map[string]any); ok {
+		return qwenResetTimeValue(child, now)
 	}
 	return time.Time{}, false
 }

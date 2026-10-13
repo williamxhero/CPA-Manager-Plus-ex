@@ -1126,8 +1126,16 @@ func verifyFileIdentity(file File, identity Identity) error {
 	} else if identity.AccountIDSnapshot != "" && file.AccountID != strings.TrimSpace(identity.AccountIDSnapshot) {
 		return fmt.Errorf("%w: account_id mismatch (expected %q, got %q)", ErrIdentityMismatch, strings.TrimSpace(identity.AccountIDSnapshot), file.AccountID)
 	}
-	if provider != "codex" && identity.AccountIDSnapshot == "" && identity.AccountSnapshot != "" && file.AccountSnapshot != strings.TrimSpace(identity.AccountSnapshot) {
-		return fmt.Errorf("%w: account_snapshot mismatch (expected %q, got %q)", ErrIdentityMismatch, strings.TrimSpace(identity.AccountSnapshot), file.AccountSnapshot)
+	// Plugin display labels are not account evidence. Missing account evidence
+	// is safe only when an explicit nonempty credential locator matched above.
+	if provider != "codex" && identity.AccountIDSnapshot == "" {
+		if strings.TrimSpace(file.AccountSnapshot) == "" {
+			if strings.TrimSpace(identity.AuthIndex) == "" && strings.TrimSpace(identity.RuntimeID) == "" {
+				return fmt.Errorf("%w: missing account evidence requires a credential locator", ErrIdentityMismatch)
+			}
+		} else if expected := strings.TrimSpace(identity.AccountSnapshot); expected != "" && file.AccountSnapshot != expected {
+			return fmt.Errorf("%w: account_snapshot mismatch (expected %q, got %q)", ErrIdentityMismatch, expected, file.AccountSnapshot)
+		}
 	}
 	return nil
 }
