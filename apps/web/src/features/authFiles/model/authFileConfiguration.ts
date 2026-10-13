@@ -30,6 +30,8 @@ export const AUTH_FILE_WEIGHT_MAX = 1_000_000;
 export type XaiRoutingMode = 'grok-build' | 'official-api';
 
 export type AuthFileConfigurationDraft = {
+  label: string;
+  replacementApiKey: string;
   prefix: string;
   proxyUrl: string;
   priority: string;
@@ -58,6 +60,7 @@ export type AuthFileConfigurationErrorKey =
   | 'accounts.config_error_weight_range'
   | 'accounts.config_error_request_retry_integer'
   | 'accounts.config_error_xai_base_url'
+  | 'accounts.config_error_plan_base_url'
   | 'accounts.config_error_cloak_mode';
 
 export type AuthFileConfigurationErrors = Partial<
@@ -219,9 +222,24 @@ const isValidHttpUrl = (value: string): boolean => {
   }
 };
 
+const isValidPlanBaseUrl = (value: string): boolean => {
+  if (!isValidHttpUrl(value)) return false;
+  const parsed = new URL(value);
+  return !parsed.username && !parsed.password && !value.includes('?') && !value.includes('#');
+};
+
 const normalizeProviderIdentityKey = (value: string): string => {
   const providerKey = normalizeProviderKey(value);
   return providerKey === 'gemini' ? 'gemini-cli' : providerKey;
+};
+
+export const getPlanCredentialDefaultBaseUrl = (provider: string): string | undefined => {
+  const providerKey = normalizeProviderKey(provider);
+  if (providerKey === 'qwen') {
+    return 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1';
+  }
+  if (providerKey === 'opencode-go') return 'https://opencode.ai/zen/go/v1';
+  return undefined;
 };
 
 const isXaiOfficialApiBaseUrl = (value: string): boolean =>
@@ -365,6 +383,8 @@ export const buildAuthFileConfigurationDraft = (
   );
 
   return {
+    label: readTrimmedString(record.label),
+    replacementApiKey: '',
     prefix: readTrimmedString(record.prefix),
     proxyUrl: readTrimmedString(record.proxy_url ?? record.proxyUrl ?? record['proxy-url']),
     priority: readPriorityText(record.priority),
@@ -448,6 +468,22 @@ export const buildAuthFileConfigurationPatch = (
   const patch: AuthFileFieldsPatch = {};
   const errors: AuthFileConfigurationErrors = {};
   const capabilities = getAuthFileConfigurationCapabilities(provider);
+  const planDefaultBaseUrl = getPlanCredentialDefaultBaseUrl(provider);
+  if (planDefaultBaseUrl) {
+    const nextLabel = draft.label.trim();
+    if (nextLabel !== originalDraft.label.trim()) patch.label = nextLabel;
+    const replacementApiKey = draft.replacementApiKey.trim();
+    if (replacementApiKey) patch.api_key = replacementApiKey;
+    const nextBaseUrl = draft.baseUrl.trim();
+    if (nextBaseUrl !== originalDraft.baseUrl.trim()) {
+      if (nextBaseUrl && !isValidPlanBaseUrl(nextBaseUrl)) {
+        errors.baseUrl = 'accounts.config_error_plan_base_url';
+      } else {
+        patch.base_url = nextBaseUrl || planDefaultBaseUrl;
+        tombstoneLegacyAliases(patch, record, ['baseUrl', 'base-url']);
+      }
+    }
+  }
 
   const originalPrefix = originalDraft.prefix.trim();
   const nextPrefix = draft.prefix.trim();

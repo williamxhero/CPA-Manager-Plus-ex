@@ -37,6 +37,8 @@ const readText = (value: unknown): string => {
 const makeDraft = (
   overrides: Partial<AuthFileConfigurationDraft> = {}
 ): AuthFileConfigurationDraft => ({
+  label: '',
+  replacementApiKey: '',
   prefix: '',
   proxyUrl: '',
   priority: '',

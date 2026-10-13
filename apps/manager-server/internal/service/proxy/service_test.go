@@ -63,6 +63,554 @@ func testVerifiedAuthFileWriteRequest(t *testing.T, name string, currentContent 
 	return req
 }
 
+func testAuthFileProxyService(t *testing.T, upstreamURL string, coordinators ...*cpaauthfiles.MutationCoordinator) *Service {
+	t.Helper()
+	st, err := store.Open(filepath.Join(t.TempDir(), "usage.sqlite"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	if err := st.SaveSetup(context.Background(), store.Setup{
+		CPAUpstreamURL: upstreamURL,
+		ManagementKey:  "synthetic-management-key",
+	}); err != nil {
+		t.Fatalf("save setup: %v", err)
+	}
+	var coordinator *cpaauthfiles.MutationCoordinator
+	if len(coordinators) > 0 {
+		coordinator = coordinators[0]
+	}
+	return NewWithMutationCoordinator(managerconfig.New(config.Config{}, st, nil), coordinator, st)
+}
+
+func testProxyAuthFileRequest(service *Service, req *http.Request) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	service.ProxyManagement(recorder, req, func(w http.ResponseWriter, status int, err error) {
+		http.Error(w, err.Error(), status)
+	})
+	return recorder
+}
+
+func TestProxyManagementCreateOnlyRefusesExistingAuthFile(t *testing.T) {
+	for _, listed := range []bool{true, false} {
+		t.Run(fmt.Sprintf("listed=%t", listed), func(t *testing.T) {
+			writes := 0
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+					files := []map[string]any{}
+					if listed {
+						files = append(files, map[string]any{"id": "runtime-1", "name": "existing.json"})
+					}
+					_ = json.NewEncoder(w).Encode(files)
+				case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files/download":
+					if r.URL.Query().Get("name") != "existing.json" {
+						t.Error("preflight did not target the physical file")
+					}
+					_, _ = io.WriteString(w, `{"type":"qwen","api_key":"synthetic"}`)
+				case r.Method == http.MethodPost:
+					writes++
+					_, _ = io.WriteString(w, `{"status":"ok"}`)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer upstream.Close()
+			service := testAuthFileProxyService(t, upstream.URL)
+			req := httptest.NewRequest(http.MethodPost, "/v0/management/auth-files?name=existing.json", strings.NewReader(`{"type":"qwen","api_key":"synthetic-next"}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-CPAMP-Auth-File-Create-Only", "true")
+			response := testProxyAuthFileRequest(service, req)
+			if response.Code != http.StatusConflict || writes != 0 {
+				t.Fatalf("status=%d upstream writes=%d, want 409 without overwriting", response.Code, writes)
+			}
+		})
+	}
+}
+
+func testMutationIdentityHeader(t *testing.T, name string) string {
+	t.Helper()
+	identityJSON, err := json.Marshal([]map[string]any{{
+		"name": name, "runtimeId": "runtime-1", "authIndex": "auth-1", "provider": "codex", "accountId": "account-1",
+	}})
+	if err != nil {
+		t.Fatalf("marshal identity: %v", err)
+	}
+	return url.QueryEscape(string(identityJSON))
+}
+
+func TestProxyManagementCreateOnlyForwardsRawJSONWhenFileIsAbsent(t *testing.T) {
+	var writeCount int
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+			_ = json.NewEncoder(w).Encode([]map[string]any{})
+		case r.Method == http.MethodPost && r.URL.Path == "/v0/management/auth-files":
+			writeCount++
+			if r.URL.Query().Get("name") != "new.json" {
+				t.Errorf("forwarded name = %q", r.URL.Query().Get("name"))
+			}
+			if r.Header.Get("X-CPAMP-Auth-File-Create-Only") != "" {
+				t.Error("create-only header was forwarded upstream")
+			}
+			body, _ := io.ReadAll(r.Body)
+			if string(body) != `{"type":"qwen","api_key":"synthetic"}` {
+				t.Error("raw JSON body changed during preflight")
+			}
+			_, _ = io.WriteString(w, `{"status":"ok"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	req := httptest.NewRequest(http.MethodPost, "/v0/management/auth-files?name=new.json", strings.NewReader(`{"type":"qwen","api_key":"synthetic"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CPAMP-Auth-File-Create-Only", "true")
+	response := testProxyAuthFileRequest(service, req)
+	if response.Code != http.StatusOK || writeCount != 1 {
+		t.Fatalf("status=%d upstream writes=%d, want successful single create", response.Code, writeCount)
+	}
+}
+
+func TestProxyManagementFieldsMutationRejectsChangedContent(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"id": "runtime-1", "name": "auth.json", "auth_index": "auth-1", "provider": "codex", "account_id": "account-1",
+			}})
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files/download":
+			_, _ = io.WriteString(w, `{"type":"codex","access_token":"changed"}`)
+		case r.Method == http.MethodPatch:
+			t.Error("fields mutation reached upstream after content changed")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	req := httptest.NewRequest(http.MethodPatch, "/v0/management/auth-files/fields", strings.NewReader(`{"name":"auth.json","priority":10}`))
+	req.Header.Set(authFileMutationIdentityHeader, testMutationIdentityHeader(t, "auth.json"))
+	req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", testAuthFileContentSHA256([]byte(`{"type":"codex","access_token":"original"}`)))
+	response := testProxyAuthFileRequest(service, req)
+	if response.Code != http.StatusConflict {
+		t.Fatalf("status=%d body=%q, want content conflict", response.Code, response.Body.String())
+	}
+}
+
+func TestProxyManagementDeleteRejectsChangedContent(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"id": "runtime-1", "name": "auth.json", "auth_index": "auth-1", "provider": "codex", "account_id": "account-1",
+			}})
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files/download":
+			_, _ = io.WriteString(w, `{"type":"codex","access_token":"changed"}`)
+		case r.Method == http.MethodDelete:
+			t.Error("delete reached upstream after content changed")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	req := httptest.NewRequest(http.MethodDelete, "/v0/management/auth-files?name=auth.json", nil)
+	req.Header.Set(authFileDeleteIdentitiesHeader, testMutationIdentityHeader(t, "auth.json"))
+	req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", testAuthFileContentSHA256([]byte(`{"type":"codex","access_token":"original"}`)))
+	response := testProxyAuthFileRequest(service, req)
+	if response.Code != http.StatusConflict {
+		t.Fatalf("status=%d body=%q, want content conflict", response.Code, response.Body.String())
+	}
+}
+
+func TestProxyManagementFieldsRollbackUsesExactCurrentContent(t *testing.T) {
+	original := []byte(`{"type":"codex","priority":1}`)
+	patched := []byte(`{"type":"codex","priority":10}`)
+	current := original
+	writes := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"id": "runtime-1", "name": "auth.json", "auth_index": "auth-1", "provider": "codex", "account_id": "account-1",
+			}})
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files/download":
+			if r.URL.Query().Get("name") != "auth.json" {
+				t.Error("CAS downloaded a runtime selector instead of the physical file")
+			}
+			_, _ = w.Write(current)
+		case r.Method == http.MethodPatch:
+			if r.Header.Get("X-CPAMP-Auth-File-Expected-Content-SHA256") != "" || r.Header.Get(authFileMutationIdentityHeader) != "" {
+				t.Error("private precondition header forwarded upstream")
+			}
+			var payload struct {
+				Name string `json:"name"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&payload)
+			if payload.Name != "runtime-1" {
+				t.Error("verified fields mutation did not use runtime selector")
+			}
+			writes++
+			current = patched
+			_, _ = io.WriteString(w, `{"status":"ok"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	patch := func(expected []byte, priority int) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPatch, "/v0/management/auth-files/fields", strings.NewReader(fmt.Sprintf(`{"name":"auth.json","priority":%d}`, priority)))
+		req.Header.Set(authFileMutationIdentityHeader, testMutationIdentityHeader(t, "auth.json"))
+		req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", testAuthFileContentSHA256(expected))
+		return testProxyAuthFileRequest(service, req)
+	}
+	if response := patch(original, 10); response.Code != http.StatusOK {
+		t.Fatalf("initial patch status=%d", response.Code)
+	}
+	// Even JSON-equivalent content is a new raw-file revision. A rollback must
+	// not overwrite it merely because the runtime credential identity is stable.
+	current = []byte(`{ "type":"codex", "priority":10 }`)
+	if response := patch(patched, 1); response.Code != http.StatusConflict || writes != 1 {
+		t.Fatalf("rollback status=%d upstream writes=%d, want content conflict without rollback write", response.Code, writes)
+	}
+}
+
+func TestProxyManagementPhysicalDeleteUsesContentIdentityWithoutRuntimeRow(t *testing.T) {
+	for _, matches := range []bool{true, false} {
+		t.Run(fmt.Sprintf("matches=%t", matches), func(t *testing.T) {
+			content := []byte(`{"type":"qwen","api_key":"synthetic-new"}`)
+			deletes := 0
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+					_ = json.NewEncoder(w).Encode([]map[string]any{})
+				case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files/download":
+					if r.URL.Query().Get("name") != "new.json" {
+						t.Error("rollback downloaded a different physical file")
+					}
+					_, _ = w.Write(content)
+				case r.Method == http.MethodDelete:
+					deletes++
+					if r.URL.Query().Get("name") != "new.json" {
+						t.Error("rollback deleted a different physical file")
+					}
+					if r.Header.Get(authFilePhysicalNameHeader) != "" || r.Header.Get("X-CPAMP-Auth-File-Expected-Content-SHA256") != "" {
+						t.Error("private rollback preconditions forwarded upstream")
+					}
+					_, _ = io.WriteString(w, `{"status":"ok"}`)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer upstream.Close()
+			service := testAuthFileProxyService(t, upstream.URL)
+			req := httptest.NewRequest(http.MethodDelete, "/v0/management/auth-files?name=new.json", nil)
+			req.Header.Set(authFilePhysicalNameHeader, "new.json")
+			expected := content
+			if !matches {
+				expected = []byte(`{"type":"qwen","api_key":"synthetic-old"}`)
+			}
+			req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", testAuthFileContentSHA256(expected))
+			response := testProxyAuthFileRequest(service, req)
+			wantStatus, wantDeletes := http.StatusOK, 1
+			if !matches {
+				wantStatus, wantDeletes = http.StatusConflict, 0
+			}
+			if response.Code != wantStatus || deletes != wantDeletes {
+				t.Fatalf("status=%d deletes=%d, want status=%d deletes=%d", response.Code, deletes, wantStatus, wantDeletes)
+			}
+		})
+	}
+}
+
+func TestProxyManagementDigestOnlyDeleteRejectsRuntimeSelectorCollision(t *testing.T) {
+	content := []byte(`{"type":"qwen"}`)
+	deletes := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{"id": "new.json", "name": "other.json", "provider": "qwen"}})
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files/download":
+			_, _ = w.Write(content)
+		case r.Method == http.MethodDelete:
+			deletes++
+			_, _ = io.WriteString(w, `{"status":"ok"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	req := httptest.NewRequest(http.MethodDelete, "/v0/management/auth-files?name=new.json", nil)
+	req.Header.Set(authFilePhysicalNameHeader, "new.json")
+	req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", testAuthFileContentSHA256(content))
+	response := testProxyAuthFileRequest(service, req)
+	if response.Code != http.StatusConflict || deletes != 0 {
+		t.Fatalf("status=%d deletes=%d, want conflict without deleting another runtime entry", response.Code, deletes)
+	}
+}
+
+func TestProxyManagementDigestOnlyDeleteRequiresMatchingPhysicalSelector(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("ambiguous physical rollback reached upstream")
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	req := httptest.NewRequest(http.MethodDelete, "/v0/management/auth-files?name=runtime-1", nil)
+	req.Header.Set(authFilePhysicalNameHeader, "new.json")
+	req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", strings.Repeat("0", 64))
+	if response := testProxyAuthFileRequest(service, req); response.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want rejection of mismatching physical selector", response.Code)
+	}
+}
+
+func TestProxyManagementConditionalDeleteStripsPreconditions(t *testing.T) {
+	content := []byte(`{"type":"codex"}`)
+	deletes := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"id": "runtime-1", "name": "auth.json", "auth_index": "auth-1", "provider": "codex", "account_id": "account-1",
+			}})
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files/download":
+			_, _ = w.Write(content)
+		case r.Method == http.MethodDelete:
+			deletes++
+			if r.Header.Get("X-CPAMP-Auth-File-Expected-Content-SHA256") != "" || r.Header.Get(authFileDeleteIdentitiesHeader) != "" {
+				t.Error("private delete preconditions forwarded upstream")
+			}
+			_, _ = io.WriteString(w, `{"status":"ok"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	req := httptest.NewRequest(http.MethodDelete, "/v0/management/auth-files?name=auth.json", nil)
+	req.Header.Set(authFileDeleteIdentitiesHeader, testMutationIdentityHeader(t, "auth.json"))
+	req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", testAuthFileContentSHA256(content))
+	response := testProxyAuthFileRequest(service, req)
+	if response.Code != http.StatusOK || deletes != 1 {
+		t.Fatalf("status=%d upstream deletes=%d, want one verified delete", response.Code, deletes)
+	}
+}
+
+func TestProxyManagementRawVerifiedWritePreservesRollbackBody(t *testing.T) {
+	current := []byte(`{"type":"codex","priority":10}`)
+	rollback := `{"type":"codex","priority":1}`
+	writes := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"id": "runtime-1", "name": "auth.json", "auth_index": "auth-1", "provider": "codex", "account_id": "account-1",
+			}})
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files/download":
+			_, _ = w.Write(current)
+		case r.Method == http.MethodPost:
+			writes++
+			if r.URL.Query().Get("name") != "auth.json" || r.Header.Get(authFileWriteIdentitiesHeader) != "" || r.Header.Get(authFileWriteContentSHA256Header) != "" {
+				t.Error("raw verified write query or private headers not preserved/stripped correctly")
+			}
+			body, _ := io.ReadAll(r.Body)
+			if string(body) != rollback {
+				t.Error("raw rollback content changed before forwarding")
+			}
+			current = body
+			_, _ = io.WriteString(w, `{"status":"ok"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	run := func(expected []byte) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/v0/management/auth-files?name=auth.json", strings.NewReader(rollback))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(authFileWriteIdentitiesHeader, testMutationIdentityHeader(t, "auth.json"))
+		req.Header.Set(authFileWriteContentSHA256Header, testAuthFileContentSHA256(expected))
+		return testProxyAuthFileRequest(service, req)
+	}
+	if response := run(current); response.Code != http.StatusOK || writes != 1 {
+		t.Fatalf("rollback status=%d upstream writes=%d, want verified raw write", response.Code, writes)
+	}
+	current = []byte(`{"type":"codex","priority":20}`)
+	if response := run([]byte(rollback)); response.Code != http.StatusConflict || writes != 1 {
+		t.Fatalf("stale rollback status=%d upstream writes=%d, want conflict without write", response.Code, writes)
+	}
+}
+
+func TestProxyManagementRawRestoreUsesContentIdentityWithoutRuntimeRow(t *testing.T) {
+	for _, matches := range []bool{true, false} {
+		t.Run(fmt.Sprintf("matches=%t", matches), func(t *testing.T) {
+			current := []byte(`{"type":"qwen","api_key":"synthetic-edited"}`)
+			original := `{"type":"qwen","api_key":"synthetic-original"}`
+			writes := 0
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+					_ = json.NewEncoder(w).Encode([]map[string]any{})
+				case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files/download":
+					if r.URL.Query().Get("name") != "auth.json" {
+						t.Error("restore CAS downloaded a different physical file")
+					}
+					_, _ = w.Write(current)
+				case r.Method == http.MethodPost:
+					writes++
+					if r.URL.Query().Get("name") != "auth.json" || r.Header.Get("X-CPAMP-Auth-File-Expected-Content-SHA256") != "" {
+						t.Error("restore physical query or private header handled incorrectly")
+					}
+					body, _ := io.ReadAll(r.Body)
+					if string(body) != original {
+						t.Error("restore body changed before forwarding")
+					}
+					_, _ = io.WriteString(w, `{"status":"ok"}`)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer upstream.Close()
+			service := testAuthFileProxyService(t, upstream.URL)
+			req := httptest.NewRequest(http.MethodPost, "/v0/management/auth-files?name=auth.json", strings.NewReader(original))
+			req.Header.Set("Content-Type", "application/json; charset=utf-8")
+			expected := current
+			if !matches {
+				expected = []byte(original)
+			}
+			req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", testAuthFileContentSHA256(expected))
+			response := testProxyAuthFileRequest(service, req)
+			wantStatus, wantWrites := http.StatusOK, 1
+			if !matches {
+				wantStatus, wantWrites = http.StatusConflict, 0
+			}
+			if response.Code != wantStatus || writes != wantWrites {
+				t.Fatalf("status=%d writes=%d, want status=%d writes=%d", response.Code, writes, wantStatus, wantWrites)
+			}
+		})
+	}
+}
+
+func TestProxyManagementRejectsAmbiguousRawRestorePreconditions(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("invalid raw restore reached upstream")
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	for _, tc := range []struct {
+		name, path, contentType, extraHeader string
+	}{
+		{"create-only and expected digest", "/v0/management/auth-files?name=auth.json", "application/json", authFileCreateOnlyHeader},
+		{"verified identities and expected digest", "/v0/management/auth-files?name=auth.json", "application/json", authFileWriteIdentitiesHeader},
+		{"verified write digest and expected digest", "/v0/management/auth-files?name=auth.json", "application/json", authFileWriteContentSHA256Header},
+		{"missing raw media type", "/v0/management/auth-files?name=auth.json", "", ""},
+		{"multipart media type", "/v0/management/auth-files?name=auth.json", "multipart/form-data", ""},
+		{"missing physical query name", "/v0/management/auth-files", "application/json", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(`{"type":"qwen"}`))
+			req.Header.Set("Content-Type", tc.contentType)
+			req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", strings.Repeat("0", 64))
+			switch tc.extraHeader {
+			case authFileCreateOnlyHeader:
+				req.Header.Set(tc.extraHeader, "true")
+			case authFileWriteIdentitiesHeader:
+				req.Header.Set(tc.extraHeader, testMutationIdentityHeader(t, "auth.json"))
+			case authFileWriteContentSHA256Header:
+				req.Header.Set(tc.extraHeader, strings.Repeat("0", 64))
+			}
+			if response := testProxyAuthFileRequest(service, req); response.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d, want rejection of ambiguous restore precondition", response.Code)
+			}
+		})
+	}
+}
+
+func TestProxyManagementRawUploadWaitsForPhysicalFileCoordinator(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("raw upload reached upstream while the physical file was locked")
+	}))
+	defer upstream.Close()
+	coordinator := cpaauthfiles.NewMutationCoordinator()
+	release, err := coordinator.Acquire(context.Background(), "new.json")
+	if err != nil {
+		t.Fatalf("acquire mutation lock: %v", err)
+	}
+	defer release()
+	service := testAuthFileProxyService(t, upstream.URL, coordinator)
+	for _, mode := range []string{"legacy", "create-only", "content-only restore"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
+			req := httptest.NewRequest(http.MethodPost, "/v0/management/auth-files?name=new.json", strings.NewReader(`{"type":"qwen"}`)).WithContext(ctx)
+			req.Header.Set("Content-Type", "application/json")
+			if mode == "create-only" {
+				req.Header.Set("X-CPAMP-Auth-File-Create-Only", "true")
+			}
+			if mode == "content-only restore" {
+				req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", strings.Repeat("0", 64))
+			}
+			response := testProxyAuthFileRequest(service, req)
+			if response.Code != http.StatusRequestTimeout {
+				t.Fatalf("status=%d, want timeout waiting for physical file lock", response.Code)
+			}
+		})
+	}
+}
+
+func TestProxyManagementRejectsIncompleteContentPreconditions(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("invalid precondition reached upstream")
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	for _, tc := range []struct {
+		name, method, path, digest, identityHeader string
+	}{
+		{"fields malformed hash", http.MethodPatch, "/v0/management/auth-files/fields", "not-a-hash", authFileMutationIdentityHeader},
+		{"fields missing identity", http.MethodPatch, "/v0/management/auth-files/fields", strings.Repeat("0", 64), ""},
+		{"delete malformed hash", http.MethodDelete, "/v0/management/auth-files?name=auth.json", "not-a-hash", authFileDeleteIdentitiesHeader},
+		{"delete missing identity", http.MethodDelete, "/v0/management/auth-files?name=auth.json", strings.Repeat("0", 64), ""},
+		{"delete all with hash", http.MethodDelete, "/v0/management/auth-files?all=true", strings.Repeat("0", 64), authFileDeleteIdentitiesHeader},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{"name":"auth.json","priority":10}`))
+			req.Header.Set("X-CPAMP-Auth-File-Expected-Content-SHA256", tc.digest)
+			if tc.identityHeader != "" {
+				req.Header.Set(tc.identityHeader, testMutationIdentityHeader(t, "auth.json"))
+			}
+			if response := testProxyAuthFileRequest(service, req); response.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d, want bad request", response.Code)
+			}
+		})
+	}
+}
+
+func TestProxyManagementCreateOnlyFailsClosedOnUncertainAbsence(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+			_ = json.NewEncoder(w).Encode([]map[string]any{})
+		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files/download":
+			http.Error(w, "synthetic-private-error-body", http.StatusForbidden)
+		default:
+			t.Error("create forwarded without proving physical file absence")
+		}
+	}))
+	defer upstream.Close()
+	service := testAuthFileProxyService(t, upstream.URL)
+	req := httptest.NewRequest(http.MethodPost, "/v0/management/auth-files?name=new.json", strings.NewReader(`{"type":"qwen"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CPAMP-Auth-File-Create-Only", "true")
+	response := testProxyAuthFileRequest(service, req)
+	if response.Code != http.StatusBadGateway || strings.Contains(response.Body.String(), "synthetic-private-error-body") {
+		t.Fatalf("status=%d, want safe preflight failure", response.Code)
+	}
+}
+
 func TestInspectAuthFileOwnershipMutationRestoresStatusBody(t *testing.T) {
 	body := `{"name":"auth-a.json","auth_index":"auth-1","disabled":false}`
 	req, err := http.NewRequest(http.MethodPatch, "/v0/management/auth-files/status", strings.NewReader(body))

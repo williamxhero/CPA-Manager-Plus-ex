@@ -184,9 +184,12 @@ A duplicate key plus normalized base URL returns HTTP 409. Invalid input returns
 return 502 with redacted reasons.
 
 Credentials are persisted through the host auth API as provider `opencode-go`,
-with the supplied label and their own `base_url`. Execution prefers selected auth
-attributes, then stored credential JSON, then the configured `base-url`; quota
-fetches also use the credential URL. Legacy configured quota `key_id` values are
+with the supplied label and their own `base_url`. Execution and quota prefer each
+non-empty `api_key` and `base_url` in selected `StorageJSON`, independently falling
+back to auth attributes, then the configured `base-url` for the URL only. Missing,
+empty, or undecodable storage fields fall back independently; malformed JSON falls
+back to attributes. Invalid effective credentials still fail closed. Debug conflict
+traces contain only boolean flags, never credential values. Legacy configured quota `key_id` values are
 unchanged, and form credentials are included in the compatibility quota list.
 Form credential filenames use the returned hash ID plus `.json`.
 

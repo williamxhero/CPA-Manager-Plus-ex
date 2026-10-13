@@ -1,0 +1,51 @@
+{
+    "startedAt":  "2026-10-13T10:27:14.9514365Z",
+    "finishedAt":  "2026-10-13T10:27:17.2465707Z",
+    "durationSeconds":  2.296,
+    "target":  "LocalCPAManagerPlus",
+    "serviceName":  "FakeCPAMP-SpecA",
+    "status":  "deployed",
+    "dryRun":  true,
+    "rollbackOnly":  false,
+    "serviceChanged":  false,
+    "before":  {
+                   "exePath":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\cpa-manager-plus.exe",
+                   "exeSha256":  "BAB3A570ED56480AD006E90FF66EF7995B83384D821C9712A6B95911D6F82A6D",
+                   "panelPath":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\management.html",
+                   "panelSha256":  "754CC4614CC77E863ADD90BED4094080A1195D037B83A61862A800B48D0E632D",
+                   "version":  "0.0.0.0"
+               },
+    "after":  {
+                  "exePath":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\cpa-manager-plus.exe",
+                  "exeSha256":  "BAB3A570ED56480AD006E90FF66EF7995B83384D821C9712A6B95911D6F82A6D",
+                  "panelPath":  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\management.html",
+                  "panelSha256":  "754CC4614CC77E863ADD90BED4094080A1195D037B83A61862A800B48D0E632D",
+                  "version":  "0.0.0.0"
+              },
+    "backup":  null,
+    "steps":  [
+                  {
+                      "name":  "preflight",
+                      "ok":  true,
+                      "detail":  "Paths, target, permissions, inputs and isolated port validated; no credentials read."
+                  },
+                  {
+                      "name":  "rehearsal",
+                      "ok":  true,
+                      "detail":  "New executable healthy on isolated loopback port/data; process terminated and temporary data removed."
+                  },
+                  {
+                      "name":  "dry_run",
+                      "ok":  true,
+                      "detail":  "DRY RUN PASSED: rehearsal only; no deployment or service changes."
+                  }
+              ],
+    "health":  [
+                   {
+                       "at":  "2026-10-13T10:27:17.2044882Z",
+                       "phase":  "rehearsal",
+                       "httpStatus":  200,
+                       "expectedMarkerFound":  true
+                   }
+               ]
+}

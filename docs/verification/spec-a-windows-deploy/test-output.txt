@@ -1,0 +1,153 @@
+2026-10-13T10:27:15.9855637Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:17.2376073Z [OK] rehearsal: New executable healthy on isolated loopback port/data; process terminated and temporary data removed.
+2026-10-13T10:27:17.2392622Z [OK] dry_run: DRY RUN PASSED: rehearsal only; no deployment or service changes.
+RESULT: deployed; exit=0; dryRun=True
+2026-10-13T10:27:18.1633305Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:18.2181309Z [OK] backup: Timestamped executable/panel backups and manifest verified.
+2026-10-13T10:27:19.3668137Z [OK] rehearsal: New executable healthy on isolated loopback port/data; process terminated and temporary data removed.
+2026-10-13T10:27:19.3933438Z [OK] stop: Service stopped.
+2026-10-13T10:27:19.4015399Z [OK] replace: Replacement hashes verified.
+2026-10-13T10:27:19.4170944Z [OK] start: Service running.
+2026-10-13T10:27:19.9313096Z [OK] health: HTTP 200 and expected marker verified.
+RESULT: deployed; exit=0; dryRun=False
+CASE deployed: exit=0; status=deployed
+2026-10-13T10:27:20.0394813Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:20.0538081Z [OK] rollback_stop: Service stopped.
+2026-10-13T10:27:20.0597769Z [OK] rollback_restore: Executable and panel hashes match the backup (including absent panel).
+2026-10-13T10:27:20.0798566Z [OK] rollback_start: Service running.
+2026-10-13T10:27:20.6327053Z [OK] rollback_health: HTTP 200, expected marker and restored hashes verified.
+RESULT: rolled_back; exit=0; dryRun=False
+CASE rollback-only: exit=0; status=rolled_back
+2026-10-13T10:27:20.7038725Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:20.7288524Z [OK] backup: Timestamped executable/panel backups and manifest verified.
+2026-10-13T10:27:21.6065974Z [OK] rehearsal: New executable healthy on isolated loopback port/data; process terminated and temporary data removed.
+2026-10-13T10:27:21.6186032Z [OK] stop: Service stopped.
+2026-10-13T10:27:21.6238518Z [OK] replace: Replacement hashes verified.
+2026-10-13T10:27:21.6323844Z [OK] start: Service running.
+2026-10-13T10:27:24.6633473Z [FAIL] deploy: Deployment HTTP 200 + expected marker timed out; attempting rollback.
+2026-10-13T10:27:24.6752636Z [OK] rollback_stop: Service stopped.
+2026-10-13T10:27:24.6815200Z [OK] rollback_restore: Executable and panel hashes match the backup (including absent panel).
+2026-10-13T10:27:24.6991587Z [OK] rollback_start: Service running.
+2026-10-13T10:27:25.2196007Z [OK] rollback_health: HTTP 200, expected marker and restored hashes verified.
+RESULT: rolled_back; exit=1; dryRun=False
+CASE rolled-back: exit=1; status=rolled_back
+2026-10-13T10:27:25.3101448Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:25.3810923Z [OK] backup: Timestamped executable/panel backups and manifest verified.
+2026-10-13T10:27:26.6641292Z [OK] rehearsal: New executable healthy on isolated loopback port/data; process terminated and temporary data removed.
+2026-10-13T10:27:26.6827939Z [OK] stop: Service stopped.
+2026-10-13T10:27:26.6954483Z [OK] replace: Replacement hashes verified.
+2026-10-13T10:27:26.7191891Z [OK] start: Service running.
+2026-10-13T10:27:29.7512471Z [FAIL] deploy: Deployment HTTP 200 + expected marker timed out; attempting rollback.
+2026-10-13T10:27:29.7608595Z [OK] rollback_stop: Service stopped.
+2026-10-13T10:27:29.7673808Z [OK] rollback_restore: Executable and panel hashes match the backup (including absent panel).
+2026-10-13T10:27:29.7855498Z [FAIL] rollback: Automatic rollback failed. Manual intervention is required.
+2026-10-13T10:27:29.7921083Z [FAIL] manual_recovery: MANUAL RECOVERY: Open an elevated PowerShell. Stop service FakeCPAMP-SpecA, restore these backup files to D:\WILL\AGENT\CPA\cpamp-deploy-script-wt\tests\windows\.runs\893eaa3686e842f48dc9144fbfd539ba\site\app\cpa-manager-plus.exe / D:\WILL\AGENT\CPA\cpamp-deploy-script-wt\tests\windows\.runs\893eaa3686e842f48dc9144fbfd539ba\site\app\management.html, start the service, then verify HTTP 200 + your expected marker and SHA256 hashes. EXE backup: D:\WILL\AGENT\CPA\cpamp-deploy-script-wt\tests\windows\.runs\893eaa3686e842f48dc9144fbfd539ba\backups\20261013T1027252436292Z-fab617813a7648eea4187344643469ca-cpa-manager-plus.exe; PANEL backup: D:\WILL\AGENT\CPA\cpamp-deploy-script-wt\tests\windows\.runs\893eaa3686e842f48dc9144fbfd539ba\backups\20261013T1027252436292Z-fab617813a7648eea4187344643469ca-management.html
+RESULT: rollback_failed; exit=3; dryRun=False
+CASE rollback-failed: exit=3; status=rollback_failed
+2026-10-13T10:27:29.8915572Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:29.9288663Z [OK] backup: Timestamped executable/panel backups and manifest verified.
+2026-10-13T10:27:29.9413976Z [FAIL] rehearsal: Service, process or file operation failed; raw diagnostics suppressed to protect credentials.
+RESULT: rehearsal_failed; exit=2; dryRun=False
+CASE invalid-artifact: exit=2; status=rehearsal_failed
+2026-10-13T10:27:30.0407092Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:33.6186479Z [FAIL] rehearsal: Rehearsal process exited or HTTP 200 + expected marker timed out; installation unchanged.
+RESULT: rehearsal_failed; exit=2; dryRun=True
+CASE wrong-marker: exit=2; status=rehearsal_failed
+2026-10-13T10:27:33.6799222Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:37.1630053Z [FAIL] rehearsal: Rehearsal process exited or HTTP 200 + expected marker timed out; installation unchanged.
+RESULT: rehearsal_failed; exit=2; dryRun=True
+CASE wrong-status: exit=2; status=rehearsal_failed
+2026-10-13T10:27:37.2334286Z [FAIL] preflight: Core service/port/path requires explicit -Target LocalCPA.
+RESULT: preflight_failed; exit=2; dryRun=False
+CASE blocked-core: exit=2; status=preflight_failed
+2026-10-13T10:27:37.3133048Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:38.1429005Z [OK] rehearsal: New executable healthy on isolated loopback port/data; process terminated and temporary data removed.
+2026-10-13T10:27:38.1444175Z [OK] dry_run: DRY RUN PASSED: rehearsal only; no deployment or service changes.
+RESULT: deployed; exit=0; dryRun=True
+CASE core-opt-in: exit=0; status=deployed
+2026-10-13T10:27:38.1925306Z [FAIL] preflight: DryRun and RollbackOnly cannot be combined.
+RESULT: preflight_failed; exit=2; dryRun=True
+CASE conflicting-modes: exit=2; status=preflight_failed
+2026-10-13T10:27:38.2512171Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:38.2788718Z [OK] backup: Timestamped executable/panel backups and manifest verified.
+2026-10-13T10:27:39.0933713Z [OK] rehearsal: New executable healthy on isolated loopback port/data; process terminated and temporary data removed.
+2026-10-13T10:27:39.1066847Z [OK] stop: Service stopped.
+TEXT LOG UNAVAILABLE: recovery continues; diagnostic content suppressed.
+2026-10-13T10:27:39.1145486Z [OK] replace: Replacement hashes verified.
+TEXT LOG UNAVAILABLE: recovery continues; diagnostic content suppressed.
+2026-10-13T10:27:39.1341141Z [OK] start: Service running.
+TEXT LOG UNAVAILABLE: recovery continues; diagnostic content suppressed.
+2026-10-13T10:27:39.6508753Z [OK] health: HTTP 200 and expected marker verified.
+TEXT LOG UNAVAILABLE: recovery continues; diagnostic content suppressed.
+2026-10-13T10:27:39.6534839Z [FAIL] result_write: Text log became unavailable; attempting rollback if deployment began.
+TEXT LOG UNAVAILABLE: recovery continues; diagnostic content suppressed.
+2026-10-13T10:27:39.6649514Z [OK] rollback_stop: Service stopped.
+TEXT LOG UNAVAILABLE: recovery continues; diagnostic content suppressed.
+2026-10-13T10:27:39.6727247Z [OK] rollback_restore: Executable and panel hashes match the backup (including absent panel).
+TEXT LOG UNAVAILABLE: recovery continues; diagnostic content suppressed.
+2026-10-13T10:27:39.6939776Z [OK] rollback_start: Service running.
+TEXT LOG UNAVAILABLE: recovery continues; diagnostic content suppressed.
+2026-10-13T10:27:40.2104945Z [OK] rollback_health: HTTP 200, expected marker and restored hashes verified.
+TEXT LOG UNAVAILABLE: recovery continues; diagnostic content suppressed.
+RESULT: rolled_back; exit=1; dryRun=False
+CASE locked-log: exit=1; status=rolled_back
+2026-10-13T10:27:40.3069828Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:40.3310421Z [OK] backup: Timestamped executable/panel backups and manifest verified.
+2026-10-13T10:27:41.1805206Z [OK] rehearsal: New executable healthy on isolated loopback port/data; process terminated and temporary data removed.
+2026-10-13T10:27:41.1955519Z [OK] stop: Service stopped.
+2026-10-13T10:27:41.2007556Z [OK] replace: Replacement hashes verified.
+2026-10-13T10:27:41.2198384Z [OK] start: Service running.
+2026-10-13T10:27:41.7412013Z [OK] health: HTTP 200 and expected marker verified.
+2026-10-13T10:27:41.7488272Z [FAIL] result_write: Service, process or file operation failed; raw diagnostics suppressed to protect credentials.
+2026-10-13T10:27:41.7596239Z [OK] rollback_stop: Service stopped.
+2026-10-13T10:27:41.7653634Z [OK] rollback_restore: Executable and panel hashes match the backup (including absent panel).
+2026-10-13T10:27:41.7763539Z [OK] rollback_start: Service running.
+2026-10-13T10:27:42.2889713Z [OK] rollback_health: HTTP 200, expected marker and restored hashes verified.
+RESULT: rolled_back; exit=1; dryRun=False
+CASE result-write-failure: exit=1; status=rolled_back
+2026-10-13T10:27:42.3682619Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:43.2378874Z [OK] rehearsal: New executable healthy on isolated loopback port/data; process terminated and temporary data removed.
+2026-10-13T10:27:43.2395697Z [OK] dry_run: DRY RUN PASSED: rehearsal only; no deployment or service changes.
+2026-10-13T10:27:43.2498010Z [FAIL] result_write: Service, process or file operation failed; raw diagnostics suppressed to protect credentials.
+RESULT: preflight_failed; exit=2; dryRun=True
+CASE dryrun-result-write-failure: exit=2; status=preflight_failed
+2026-10-13T10:27:43.3640863Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:43.4118524Z [OK] backup: Timestamped executable/panel backups and manifest verified.
+2026-10-13T10:27:44.3091012Z [OK] rehearsal: New executable healthy on isolated loopback port/data; process terminated and temporary data removed.
+2026-10-13T10:27:44.3179667Z [OK] stop: Service stopped.
+2026-10-13T10:27:44.3253037Z [OK] replace: Replacement hashes verified.
+2026-10-13T10:27:44.3363070Z [OK] start: Service running.
+2026-10-13T10:27:47.3726203Z [FAIL] deploy: Deployment HTTP 200 + expected marker timed out; attempting rollback.
+2026-10-13T10:27:47.3775903Z [OK] rollback_stop: Service stopped.
+2026-10-13T10:27:47.3842416Z [OK] rollback_restore: Executable and panel hashes match the backup (including absent panel).
+2026-10-13T10:27:47.3950804Z [OK] rollback_start: Service running.
+2026-10-13T10:27:47.9172549Z [OK] rollback_health: HTTP 200, expected marker and restored hashes verified.
+RESULT: rolled_back; exit=1; dryRun=False
+CASE absent-panel: exit=1; status=rolled_back
+2026-10-13T10:27:47.9899737Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:47.9941270Z [OK] rollback_stop: Service stopped.
+2026-10-13T10:27:47.9966788Z [OK] rollback_restore: Executable and panel hashes match the backup (including absent panel).
+2026-10-13T10:27:48.0170073Z [OK] rollback_start: Service running.
+2026-10-13T10:27:48.5288270Z [OK] rollback_health: HTTP 200, expected marker and restored hashes verified.
+RESULT: rolled_back; exit=0; dryRun=False
+CASE missing-installed-exe: exit=0; status=rolled_back
+2026-10-13T10:27:48.5981493Z [FAIL] preflight: Backup manifest must contain valid SHA256 hashes.
+RESULT: preflight_failed; exit=2; dryRun=False
+CASE missing-backup-hash: exit=2; status=preflight_failed
+2026-10-13T10:27:48.6415775Z [FAIL] preflight: Output paths overlap protected runtime/input/backup paths.
+RESULT: preflight_failed; exit=2; dryRun=False
+2026-10-13T10:27:48.6814660Z [FAIL] preflight: PanelPath must name a management.html file, not a directory or another runtime file.
+RESULT: preflight_failed; exit=2; dryRun=False
+2026-10-13T10:27:48.7570143Z [FAIL] preflight: Backup file is missing or does not match its recorded SHA256.
+RESULT: preflight_failed; exit=2; dryRun=False
+CASE damaged-backup: exit=2; status=preflight_failed
+2026-10-13T10:27:48.8098169Z [FAIL] preflight: Refusing to stop running dependent services; stop them separately before retrying.
+RESULT: preflight_failed; exit=2; dryRun=False
+CASE running-dependent: exit=2; status=preflight_failed
+2026-10-13T10:27:48.8571583Z [FAIL] administrator: Run as Administrator: stopping/starting Windows services requires elevation. No service was changed.
+2026-10-13T10:27:48.8589815Z [FAIL] preflight: Administrator privileges required; no service was changed.
+RESULT: preflight_failed; exit=2; dryRun=False
+CASE non-admin: exit=2; status=preflight_failed
+PASS: all isolated assertions. Evidence: D:\WILL\AGENT\CPA\cpamp-deploy-script-wt\tests\windows\.runs\893eaa3686e842f48dc9144fbfd539ba\logs
+
+[exited with code 0]

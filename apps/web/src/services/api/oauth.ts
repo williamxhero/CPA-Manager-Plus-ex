@@ -4,6 +4,7 @@
 
 import { apiClient, createScopedApiRequestConfig, type ApiClientRequestScope } from './client';
 import { isPlanCredentialPlugin } from '@/features/plugins/planPlugins';
+import { planCredentialsApi } from './planCredentials';
 
 export type BuiltInOAuthProvider =
   | 'codex'
@@ -65,6 +66,9 @@ export const oauthApi = {
   ) => {
     const path = getPluginCredentialSubmitPath(pluginId, submitPath);
     if (!path) throw new Error('Invalid plugin credential submit path');
+    if (isPlanCredentialPlugin(pluginId)) {
+      return planCredentialsApi.create(pluginId, fields, requestScope);
+    }
     const response = await apiClient.post<{
       ok?: boolean;
       id?: string;
@@ -80,14 +84,6 @@ export const oauthApi = {
       response?.ok === false
     ) {
       throw new Error(response.error || '添加凭证失败');
-    }
-    if (
-      isPlanCredentialPlugin(pluginId) &&
-      (response?.ok !== true ||
-        typeof response.id !== 'string' ||
-        typeof response.label !== 'string')
-    ) {
-      throw new Error('Invalid plugin credential response');
     }
     return response;
   },

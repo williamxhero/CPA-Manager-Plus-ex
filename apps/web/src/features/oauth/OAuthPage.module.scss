@@ -68,6 +68,20 @@
   }
 }
 
+.planCredentialRow {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(200px, 2fr) minmax(180px, 2fr) auto;
+  align-items: end;
+
+  :global(.status-badge) {
+    grid-column: 1 / -1;
+  }
+
+  @include mobile {
+    grid-template-columns: 1fr;
+  }
+}
+
 .cardHint {
   margin: 0;
   font-size: 13px;

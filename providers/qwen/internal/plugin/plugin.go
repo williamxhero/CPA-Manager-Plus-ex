@@ -67,7 +67,7 @@ func NewManager(bridge *HostBridge) *Manager {
 // failures travel inside the envelope; a recovered panic becomes a
 // "plugin_error" envelope so the host process never dies with us.
 func (m *Manager) HandleCall(method string, request []byte) (resp []byte, err error) {
-	debugTrace("handle method=%s request_bytes=%d", method, len(request))
+	debugTrace("handle method_bytes=%d request_bytes=%d", len(method), len(request))
 	defer func() {
 		// Defensive: host-boundary panics are goroutine-contained (see
 		// HostBridge.callWithTimeout); this guards future handler bugs.
@@ -101,7 +101,7 @@ func (m *Manager) HandleCall(method string, request []byte) (resp []byte, err er
 		if err != nil {
 			return ErrEnvelope("auth_failure", err.Error()), nil
 		}
-		debugTrace("auth parse response provider=%s id=%s attr_api_key_present=%t storage_json_bytes=%d", resp.Auth.Provider, resp.Auth.ID, strings.TrimSpace(resp.Auth.Attributes["api_key"]) != "", len(resp.Auth.StorageJSON))
+		debugTrace("auth parse response provider_match=%t id_present=%t attr_api_key_present=%t storage_json_bytes=%d", resp.Auth.Provider == ProviderID, resp.Auth.ID != "", strings.TrimSpace(resp.Auth.Attributes["api_key"]) != "", len(resp.Auth.StorageJSON))
 		return okEnvelope(resp), nil
 	case pluginabi.MethodAuthLoginStart:
 		var req struct {
@@ -255,12 +255,12 @@ func (m *Manager) handleLifecycle(request []byte) ([]byte, error) {
 	}
 	cfg, err := config.Load(req.ConfigYAML)
 	if err != nil {
-		debugTrace("lifecycle config_error=%s", err.Error())
+		debugTrace("lifecycle config_error_present=%t", err != nil)
 		return ErrEnvelope("invalid_config", err.Error()), nil
 	}
 	m.lifeMu.Lock()
 	defer m.lifeMu.Unlock()
-	debugTrace("lifecycle config_loaded key_count=%d prefix_enabled=%t prefix=%s", len(cfg.APIKeys), cfg.ModelPrefix.Enabled, cfg.ModelPrefix.Value)
+	debugTrace("lifecycle config_loaded key_count=%d prefix_enabled=%t prefix_bytes=%d", len(cfg.APIKeys), cfg.ModelPrefix.Enabled, len(cfg.ModelPrefix.Value))
 	ctx, cancel := context.WithTimeout(context.Background(), registerRefreshTimeout)
 	defer cancel()
 	if err := m.materializeAuthRecords(ctx, cfg); err != nil {
@@ -384,7 +384,7 @@ func (m *Manager) materializeAuthRecords(ctx context.Context, cfg config.Config)
 		}
 		existing[id] = struct{}{}
 		existing[name] = struct{}{}
-		debugTrace("auth materialized id=%s file=%s", id, name)
+		debugTrace("auth materialized id_present=%t file_present=%t", id != "", name != "")
 	}
 	return nil
 }

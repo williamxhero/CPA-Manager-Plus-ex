@@ -38,6 +38,8 @@ const findLoadingSpinners = (renderer: ReactTestRenderer) =>
 const makeDraft = (
   overrides: Partial<AuthFileConfigurationDraft> = {}
 ): AuthFileConfigurationDraft => ({
+  label: '',
+  replacementApiKey: '',
   prefix: '',
   proxyUrl: '',
   priority: '',
@@ -148,6 +150,51 @@ describe('AccountConfigurationTab', () => {
     expect(readText(renderer.toJSON())).not.toContain('common.refresh');
   });
 
+  it.each([
+    ['qwen', 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1'],
+    ['opencode-go', 'https://opencode.ai/zen/go/v1'],
+  ])(
+    'lets %s edit a replacement key, Base URL and label even when disabled',
+    (provider, defaultUrl) => {
+      const editor = makeEditor(
+        provider,
+        makeDraft({ label: 'My plan', baseUrl: 'https://gateway.example/v1' })
+      );
+      editor.errors = { baseUrl: 'accounts.config_error_plan_base_url' };
+      const renderer = renderTab(makeRow(provider, { disabled: true }), editor);
+      const inputs = renderer.root.findAllByType(Input);
+      const keyInput = inputs.find(
+        (input) => input.props.label === 'accounts.config_replacement_api_key'
+      );
+      const urlInput = inputs.find(
+        (input) => input.props.label === 'accounts.config_plan_base_url'
+      );
+      const labelInput = inputs.find((input) => input.props.label === 'accounts.config_label');
+      expect(keyInput?.props).toMatchObject({
+        type: 'password',
+        value: '',
+        autoComplete: 'new-password',
+        disabled: false,
+        hint: 'accounts.config_replacement_api_key_hint',
+      });
+      expect(urlInput?.props).toMatchObject({
+        value: 'https://gateway.example/v1',
+        placeholder: defaultUrl,
+        error: 'accounts.config_error_plan_base_url',
+      });
+      expect(labelInput?.props.value).toBe('My plan');
+      act(() => {
+        keyInput?.props.onChange({ target: { value: 'replacement' } });
+        urlInput?.props.onChange({ target: { value: '' } });
+        labelInput?.props.onChange({ target: { value: 'New label' } });
+      });
+      expect(editor.updateField).toHaveBeenCalledWith('replacementApiKey', 'replacement');
+      expect(editor.updateField).toHaveBeenCalledWith('baseUrl', '');
+      expect(editor.updateField).toHaveBeenCalledWith('label', 'New label');
+      act(() => renderer.unmount());
+    }
+  );
+
   it('shows xAI routing choices, Base URL, and WebSocket controls together', () => {
     const draft = makeDraft({
       xaiRoutingMode: 'official-api',
@@ -176,6 +223,9 @@ describe('AccountConfigurationTab', () => {
     expect(text).toContain('accounts.config_tool_prefix_disabled');
     expect(text).not.toContain('accounts.config_xai_route_mode');
     expect(text).not.toContain('auth_files.websockets_label');
+    expect(text).not.toContain('accounts.config_replacement_api_key');
+    expect(text).not.toContain('accounts.config_plan_base_url');
+    expect(text).not.toContain('accounts.config_label');
   });
 
   it('keeps primary save and reset actions at the top of the hierarchy', () => {

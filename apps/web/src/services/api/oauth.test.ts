@@ -5,6 +5,8 @@ const { mocks } = vi.hoisted(() => ({
     get: vi.fn(),
     post: vi.fn(),
     delete: vi.fn(),
+    getRaw: vi.fn(),
+    patch: vi.fn(),
   },
 }));
 
@@ -13,6 +15,8 @@ vi.mock('./client', () => ({
     get: mocks.get,
     post: mocks.post,
     delete: mocks.delete,
+    getRaw: mocks.getRaw,
+    patch: mocks.patch,
   },
   createScopedApiRequestConfig: (scope: { apiBase: string; managementKey: string }) => ({
     baseURL: `${scope.apiBase.replace(/\/+$/, '')}/v0/management`,
@@ -22,26 +26,73 @@ vi.mock('./client', () => ({
 }));
 
 import { oauthApi } from './oauth';
+import { sha256RawTextHex } from '@/utils/apiKeyHash';
 
 beforeEach(() => {
   mocks.get.mockReset();
   mocks.post.mockReset();
   mocks.delete.mockReset();
+  mocks.getRaw.mockReset();
+  mocks.patch.mockReset();
 });
 
 describe('oauthApi', () => {
   const requestScope = { apiBase: 'http://cpa.example:8317', managementKey: 'test-key' };
 
   it.each(['qwen-cliproxyapi', 'opencode-go-cliproxyapi'])(
-    'posts %s credentials to its scoped management URL and returns the created label',
+    'publishes %s credentials to scoped core file APIs before returning the created label',
     async (pluginId) => {
       const fields = {
         base_url: 'https://upstream.example/v1',
         api_key: 'test-secret',
         name: 'Work',
       };
-      const response = { ok: true, id: 'credential-1', label: 'Work' };
-      mocks.post.mockResolvedValue(response);
+      const provider = pluginId === 'qwen-cliproxyapi' ? 'qwen' : 'opencode-go';
+      const id = `${provider}-key-${sha256RawTextHex(`${fields.api_key}\0${fields.base_url}`)}`;
+      const response = { ok: true, id, label: 'Work' };
+      mocks.get
+        .mockResolvedValueOnce({ files: [] })
+        .mockResolvedValueOnce({
+          files: [
+            {
+              name: `${id}.json`,
+              id,
+              type: provider,
+              auth_index: 'synthetic-index',
+              disabled: false,
+              status: 'active',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          files: [
+            {
+              name: `${id}.json`,
+              id,
+              type: provider,
+              auth_index: 'synthetic-index',
+              disabled: false,
+              status: 'active',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ models: [{ id: 'synthetic-model' }] });
+      mocks.getRaw
+        .mockRejectedValueOnce(Object.assign(new Error('not found'), { status: 404 }))
+        .mockResolvedValue({
+          data: new Blob([
+            JSON.stringify({
+              type: provider,
+              id,
+              api_key: fields.api_key,
+              base_url: fields.base_url,
+              label: 'Work',
+              disabled: false,
+            }),
+          ]),
+        });
+      mocks.post.mockResolvedValue({ status: 'ok' });
+      mocks.patch.mockResolvedValue({ status: 'ok' });
       await expect(
         oauthApi.submitPluginCredential(
           pluginId,
@@ -50,11 +101,27 @@ describe('oauthApi', () => {
           requestScope
         )
       ).resolves.toEqual(response);
-      expect(mocks.post).toHaveBeenCalledWith(`/plugins/${pluginId}/credentials`, fields, {
-        baseURL: 'http://cpa.example:8317/v0/management',
-        headers: { Authorization: 'Bearer test-key' },
-        cpampScopedRequest: true,
-      });
+      expect(mocks.post).toHaveBeenCalledWith(
+        `/auth-files?name=${id}.json`,
+        {
+          type: provider,
+          id,
+          api_key: fields.api_key,
+          base_url: fields.base_url,
+          label: 'Work',
+          disabled: false,
+        },
+        {
+          baseURL: 'http://cpa.example:8317/v0/management',
+          headers: { Authorization: 'Bearer test-key', 'X-CPAMP-Auth-File-Create-Only': 'true' },
+          cpampScopedRequest: true,
+        }
+      );
+      expect(mocks.patch).toHaveBeenCalledWith(
+        '/auth-files/fields',
+        expect.objectContaining({ name: `${id}.json`, api_key: fields.api_key }),
+        expect.objectContaining({ baseURL: 'http://cpa.example:8317/v0/management' })
+      );
     }
   );
 
@@ -65,8 +132,8 @@ describe('oauthApi', () => {
       mocks.post.mockRejectedValue(error);
       await expect(
         oauthApi.submitPluginCredential(
-          'opencode-go-cliproxyapi',
-          '/v0/management/plugins/opencode-go-cliproxyapi/credentials',
+          'sample-plugin',
+          '/v0/management/plugins/sample-plugin/credentials',
           { base_url: 'https://upstream.example', api_key: 'test-secret', name: '' },
           requestScope
         )
@@ -78,21 +145,22 @@ describe('oauthApi', () => {
     { ok: false, error: 'invalid credential' },
     { status: 'error', error: 'plugin failure' },
     {},
-    { ok: true },
+    { status: 'ok', uploaded: 0 },
   ])(
     'does not mistake an unsuccessful/malformed plan response for credential creation: %j',
     async (response) => {
+      mocks.get.mockResolvedValue({ files: [] });
+      mocks.getRaw.mockRejectedValue(Object.assign(new Error('not found'), { status: 404 }));
       mocks.post.mockResolvedValue(response);
       await expect(
         oauthApi.submitPluginCredential(
           'qwen-cliproxyapi',
           '/v0/management/plugins/qwen-cliproxyapi/credentials',
-          {},
+          { api_key: 'synthetic-key-a' },
           requestScope
         )
-      ).rejects.toThrow(
-        'error' in response ? response.error : 'Invalid plugin credential response'
-      );
+      ).rejects.toThrow('rollback could not be confirmed');
+      expect(mocks.patch).not.toHaveBeenCalled();
     }
   );
 
