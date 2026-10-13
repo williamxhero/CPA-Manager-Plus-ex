@@ -1,0 +1,13 @@
+{
+    "before":  [
+                   "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\config.json:09E7BF7D9D6C5FB0C33791581257220E3478524AE2408325F844E76D0125258F",
+                   "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\cpa-manager-plus.exe:BAB3A570ED56480AD006E90FF66EF7995B83384D821C9712A6B95911D6F82A6D",
+                   "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\management.html:754CC4614CC77E863ADD90BED4094080A1195D037B83A61862A800B48D0E632D"
+               ],
+    "after":  [
+                  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\config.json:09E7BF7D9D6C5FB0C33791581257220E3478524AE2408325F844E76D0125258F",
+                  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\cpa-manager-plus.exe:BAB3A570ED56480AD006E90FF66EF7995B83384D821C9712A6B95911D6F82A6D",
+                  "D:\\WILL\\AGENT\\CPA\\cpamp-deploy-script-wt\\tests\\windows\\.runs\\893eaa3686e842f48dc9144fbfd539ba\\site\\app\\management.html:754CC4614CC77E863ADD90BED4094080A1195D037B83A61862A800B48D0E632D"
+              ],
+    "equal":  true
+}
