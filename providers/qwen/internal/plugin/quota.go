@@ -63,6 +63,14 @@ func (m *Manager) FetchQuota(ctx context.Context, req pluginapi.QuotaFetchReques
 	m.mu.RLock()
 	cfg := m.cfg
 	m.mu.RUnlock()
+	if req.AuthIndex != "" {
+		seed, err := credentialIndexSeed(key, req.Attributes["base_url"], cfg)
+		// The host can preserve Index on file updates/refresh. Never use quota
+		// for a new key or endpoint to release ownership of an older credential.
+		if err != nil || req.Attributes["auth_index_seed"] != seed || req.AuthIndex != credentialAuthIndex(seed) {
+			return empty, fmt.Errorf("quota credential identity does not match current key and endpoint")
+		}
+	}
 	raw, err := fetchCommandQuota(ctx, cfg, key)
 	if err != nil {
 		return empty, err
