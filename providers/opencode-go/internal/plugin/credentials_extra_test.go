@@ -132,9 +132,12 @@ func TestCredentialStorageURLAndInvalidExecution(t *testing.T) {
 			ok                             bool
 		}{
 			{"storage", "", `{"base_url":"https://storage.test/v1"}`, "https://storage.test/v1/chat/completions", true},
-			{"attribute beats storage", "https://attribute.test/v1", `{"base_url":"https://storage.test/v1"}`, "https://attribute.test/v1/chat/completions", true},
-			{"attribute beats malformed storage", "https://attribute.test/v1", `{`, "https://attribute.test/v1/chat/completions", true},
-			{"bad storage", "", `{`, "", false},
+			{"storage beats attribute", "https://attribute.test/v1", `{"base_url":"https://storage.test/v1"}`, "https://storage.test/v1/chat/completions", true},
+			{"malformed storage falls back", "https://attribute.test/v1", `{`, "https://attribute.test/v1/chat/completions", true},
+			{"invalid storage URL cannot fall back", "https://attribute.test/v1", `{"base_url":"https://user:synthetic@host/v1"}`, "", false},
+			{"invalid storage key cannot fall back", "https://attribute.test/v1", `{"api_key":"synthetic\nkey"}`, "", false},
+			{"key in storage URL", "https://attribute.test/v1", `{"base_url":"https://host/dummy-selected/v1"}`, "", false},
+			{"malformed storage uses config URL", "", `{`, config.DefaultBaseURL + "/chat/completions", true},
 			{"bad URL", "https://user:dummy@host/v1", `{}`, "", false},
 			{"http disallowed", "http://host/v1", `{}`, "", false},
 		} {

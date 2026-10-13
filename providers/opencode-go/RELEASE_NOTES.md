@@ -1,5 +1,7 @@
 ## What's Changed
 
+- Resolve execution and quota credentials from current `StorageJSON` before stale auth attributes, with independent field fallback and value-free debug conflict flags.
+
 - Support CLIProxyAPI v8 and its generic plugin quota API.
 - Return rolling, weekly, and monthly quotas for the credential selected by CLIProxyAPI.
 - Advertise the quota provider as **OpenCode Go**.

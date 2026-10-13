@@ -240,6 +240,59 @@ func TestLoginStartManualFormMetadata(t *testing.T) {
 	}
 }
 
+func TestExecutorUsesCurrentStorageCredential(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		for _, tc := range []struct {
+			name, storage, key, base string
+			attrs                    map[string]string
+		}{
+			{"upload without plugin attributes", `{"api_key":"synthetic-current-key","base_url":"https://current.test/v1/"}`, "synthetic-current-key", "https://current.test/v1", nil},
+			{"storage key with configured URL fallback", `{"api_key":"synthetic-current-key"}`, "synthetic-current-key", "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1", nil},
+			{"edited credential with stale attributes", `{"api_key":"synthetic-current-key","base_url":"https://current.test/v1"}`, "synthetic-current-key", "https://current.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"key only edit", `{"api_key":"synthetic-current-key"}`, "synthetic-current-key", "https://old.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"URL only edit", `{"base_url":"https://current.test/v1"}`, "synthetic-old-key", "https://current.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"malformed storage falls back", `{`, "synthetic-old-key", "https://old.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"undecodable storage key keeps storage URL", `{"api_key":42,"base_url":"https://current.test/v1"}`, "synthetic-old-key", "https://current.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"undecodable storage URL keeps storage key", `{"api_key":"synthetic-current-key","base_url":42}`, "synthetic-current-key", "https://old.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"blank storage fields fall back independently", `{"api_key":"  ","base_url":"  "}`, "synthetic-old-key", "https://old.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+		} {
+			t.Run(fmt.Sprintf("%s/stream=%t", tc.name, stream), func(t *testing.T) {
+				m, f := newExecutorManager(t, func(method string, _ []byte) ([]byte, error) {
+					switch method {
+					case pluginabi.MethodHostHTTPDo:
+						return hostOK(pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)}), nil
+					case pluginabi.MethodHostHTTPDoStream:
+						return hostOK(map[string]any{"status_code": 200, "stream_id": "upstream"}), nil
+					case pluginabi.MethodHostHTTPStreamRead:
+						return hostOK(hostStreamReadResp{Payload: []byte("data: [DONE]\n\n"), Done: true}), nil
+					}
+					return hostOK(map[string]any{}), nil
+				})
+				var req executorRequest
+				_ = json.Unmarshal(executionBody("openai", `{"messages":[{"role":"user","content":"hi"}]}`, stream), &req)
+				req.AuthAttributes, req.StorageJSON = tc.attrs, []byte(tc.storage)
+				method, hostMethod := pluginabi.MethodExecutorExecute, pluginabi.MethodHostHTTPDo
+				if stream {
+					method, hostMethod = pluginabi.MethodExecutorExecuteStream, pluginabi.MethodHostHTTPDoStream
+				}
+				raw, err := m.HandleCall(method, mustJSON(req))
+				if err != nil || !decodeEnv(t, raw).OK {
+					t.Fatalf("execution rejected current storage credential: %s %v", raw, err)
+				}
+				calls := f.callsOf(hostMethod)
+				if len(calls) != 1 {
+					t.Fatalf("upstream requests = %d, want 1", len(calls))
+				}
+				var upstream pluginapi.HTTPRequest
+				_ = json.Unmarshal(calls[0].payload, &upstream)
+				if upstream.URL != tc.base+"/chat/completions" || upstream.Headers.Get("Authorization") != "Bearer "+tc.key {
+					t.Fatal("execution used stale key or endpoint instead of current storage")
+				}
+			})
+		}
+	}
+}
+
 func TestExecutorCredentialBaseURLPrecedenceAndFallback(t *testing.T) {
 	for name, storage := range map[string]string{"credential": `{"base_url":"https://credential.test/v1"}`, "legacy": `{"type":"qwen"}`} {
 		t.Run(name, func(t *testing.T) {

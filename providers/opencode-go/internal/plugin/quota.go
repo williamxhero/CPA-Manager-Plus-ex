@@ -23,14 +23,10 @@ func (m *Manager) FetchQuota(ctx context.Context, req pluginapi.QuotaFetchReques
 	if req.Provider != ProviderID {
 		return empty, fmt.Errorf("unsupported quota provider")
 	}
-	key := strings.TrimSpace(req.Attributes["api_key"])
-	if key == "" {
-		return empty, fmt.Errorf("quota credential has no API key")
-	}
 	m.mu.RLock()
 	cfg := m.cfg
 	m.mu.RUnlock()
-	baseURL, err := credentialBaseURL(req.Attributes, nil, cfg)
+	key, baseURL, err := resolveCredential(req.Attributes, req.StorageJSON, cfg)
 	if err != nil {
 		return empty, err
 	}

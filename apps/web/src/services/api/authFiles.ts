@@ -47,6 +47,9 @@ type AuthFileModelApiItem = {
   owned_by?: string;
 };
 export type AuthFileFieldsPatch = {
+  api_key?: string;
+  label?: string;
+  disabled?: boolean;
   expired?: string;
   last_refresh?: string;
   prefix?: string;
@@ -707,6 +710,9 @@ export const applyAuthFileFieldsPatchToRecord = (
   if (fields.proxyUrl === null) delete next.proxyUrl;
   if (fields['proxy-url'] === null) delete next['proxy-url'];
 
+  applyTrimmedString('api_key', fields.api_key);
+  if (fields.label !== undefined) next.label = fields.label.trim();
+  if (fields.disabled !== undefined) next.disabled = fields.disabled;
   applyTrimmedString('base_url', fields.base_url);
   if (fields.baseUrl === null) delete next.baseUrl;
   if (fields['base-url'] === null) delete next['base-url'];

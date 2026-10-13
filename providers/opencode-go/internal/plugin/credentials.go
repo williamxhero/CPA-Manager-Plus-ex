@@ -176,27 +176,43 @@ func (m *Manager) quotaCredentials(ctx context.Context, cfg config.Config, stric
 	return records, nil
 }
 
-// Selected auth attributes take precedence over persisted storage, then config.
-func credentialBaseURL(attributes map[string]string, storage []byte, cfg config.Config) (string, error) {
-	base := attributes["base_url"]
-	if base == "" && len(storage) > 0 {
-		var record struct {
-			BaseURL string `json:"base_url"`
-		}
-		if json.Unmarshal(storage, &record) != nil {
-			return "", fmt.Errorf("selected auth has invalid storage")
-		}
-		base = record.BaseURL
+// Storage is the current persisted credential; host attributes may lag an edit
+// or omit plugin fields on upload. Fall back per field, never to a config key.
+func resolveCredential(attributes map[string]string, storage []byte, cfg config.Config) (string, string, error) {
+	var fields map[string]json.RawMessage
+	var key, base string
+	if json.Unmarshal(storage, &fields) == nil {
+		// Decode independently: an absent or undecodable field falls back without
+		// discarding the other field's current persisted value.
+		_ = json.Unmarshal(fields["api_key"], &key)
+		_ = json.Unmarshal(fields["base_url"], &base)
+	}
+	key, base = strings.TrimSpace(key), strings.TrimSpace(base)
+	attrKey, attrBase := strings.TrimSpace(attributes["api_key"]), strings.TrimSpace(attributes["base_url"])
+	debugTrace("credential storage_attributes_conflict api_key=%t base_url=%t", key != "" && attrKey != "" && key != attrKey, base != "" && attrBase != "" && strings.TrimRight(base, "/") != strings.TrimRight(attrBase, "/"))
+	if key == "" {
+		key = attrKey
+	}
+	if key == "" {
+		return "", "", fmt.Errorf("selected auth has no api key")
+	}
+	if strings.ContainsAny(key, "\r\n\x00") {
+		return "", "", fmt.Errorf("selected auth has invalid api key")
 	}
 	if base == "" {
-		return cfg.BaseURL, nil
+		base = attrBase
+	}
+	if base == "" {
+		base = cfg.BaseURL
 	}
 	base = strings.TrimRight(strings.TrimSpace(base), "/")
-	if config.ValidateCredentialBaseURL(base, cfg.AllowHTTP) != nil {
-		return "", fmt.Errorf("selected auth has invalid base_url")
+	if config.ValidateCredentialBaseURL(base, cfg.AllowHTTP) != nil || strings.Contains(base, key) {
+		return "", "", fmt.Errorf("selected auth has invalid base_url")
 	}
-	if key := strings.TrimSpace(attributes["api_key"]); key != "" && strings.Contains(base, key) {
-		return "", fmt.Errorf("selected auth has invalid base_url")
-	}
-	return base, nil
+	return key, base, nil
+}
+
+func credentialBaseURL(attributes map[string]string, storage []byte, cfg config.Config) (string, error) {
+	_, base, err := resolveCredential(attributes, storage, cfg)
+	return base, err
 }

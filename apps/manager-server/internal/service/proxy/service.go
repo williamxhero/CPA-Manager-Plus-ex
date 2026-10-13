@@ -39,6 +39,7 @@ type authFileOwnershipMutation struct {
 	fieldsMutation   *authFileFieldsMutation
 	deleteMutation   *authFileDeleteMutation
 	writeMutation    *authFileWriteMutation
+	createMutation   *authFileCreateMutation
 }
 
 type authFileStatusMutation struct {
@@ -64,20 +65,27 @@ type authFileSourceIdentityPayload struct {
 }
 
 type authFileDeleteMutation struct {
-	selector     string
-	physicalName string
-	identities   []cpaauthfiles.Identity
+	selector      string
+	physicalName  string
+	identities    []cpaauthfiles.Identity
+	contentSHA256 string
 }
 
 type authFileFieldsMutation struct {
-	selector string
-	identity cpaauthfiles.Identity
+	selector      string
+	identity      cpaauthfiles.Identity
+	contentSHA256 string
+}
+
+type authFileCreateMutation struct {
+	physicalName string
 }
 
 type authFileWriteMutation struct {
 	physicalName  string
 	identities    []cpaauthfiles.Identity
 	contentSHA256 string
+	contentOnly   bool
 }
 
 const cpaPluginResourcePrefix = "/v0/resource/plugins"
@@ -89,6 +97,8 @@ const authFileDeleteIdentitiesHeader = "X-CPAMP-Auth-File-Delete-Identities"
 const authFileMutationIdentityHeader = "X-CPAMP-Auth-File-Mutation-Identity"
 const authFileWriteIdentitiesHeader = "X-CPAMP-Auth-File-Write-Identities"
 const authFileWriteContentSHA256Header = "X-CPAMP-Auth-File-Write-Content-SHA256"
+const authFileCreateOnlyHeader = "X-CPAMP-Auth-File-Create-Only"
+const authFileExpectedContentSHA256Header = "X-CPAMP-Auth-File-Expected-Content-SHA256"
 
 const maxAuthFileMutationRequestBytes int64 = 10*1024*1024 + 64*1024
 const maxAuthFileMutationResponseBytes int64 = 1024 * 1024
@@ -260,6 +270,8 @@ func (s *Service) proxyToSavedSetup(w http.ResponseWriter, r *http.Request, writ
 		req.Header.Del(authFileMutationIdentityHeader)
 		req.Header.Del(authFileWriteIdentitiesHeader)
 		req.Header.Del(authFileWriteContentSHA256Header)
+		req.Header.Del(authFileCreateOnlyHeader)
+		req.Header.Del(authFileExpectedContentSHA256Header)
 		if ownershipMutation.clearAll || len(ownershipMutation.fileNames) > 0 || len(ownershipMutation.ownershipTargets) > 0 {
 			req.Header.Set("Accept-Encoding", "identity")
 		}
@@ -370,7 +382,56 @@ func (s *Service) prepareAuthFileMutation(
 	if err != nil {
 		return authFileOwnershipMutation{}, err
 	}
+	prepared, err = s.prepareAuthFileCreateMutation(ctx, setup, prepared)
+	if err != nil {
+		return authFileOwnershipMutation{}, err
+	}
 	return s.prepareAuthFileWriteMutation(ctx, setup, prepared)
+}
+
+func (s *Service) prepareAuthFileCreateMutation(ctx context.Context, setup store.Setup, mutation authFileOwnershipMutation) (authFileOwnershipMutation, error) {
+	if mutation.createMutation == nil {
+		return mutation, nil
+	}
+	physicalName := mutation.createMutation.physicalName
+	client := cpaauthfiles.New(nil)
+	files, err := client.Fetch(ctx, setup.CPAUpstreamURL, setup.ManagementKey)
+	if err != nil {
+		return authFileOwnershipMutation{}, errors.New("auth file create-only existence check failed")
+	}
+	for _, file := range files {
+		if strings.EqualFold(strings.TrimSpace(file.Name), physicalName) {
+			return authFileOwnershipMutation{}, fmt.Errorf("%w: auth file create target already exists", cpaauthfiles.ErrIdentityMismatch)
+		}
+	}
+	// The runtime list can omit a physical file (for example an invalid credential).
+	// Only a definite download 404 proves absence; all other failures fail closed.
+	_, err = client.Download(ctx, setup.CPAUpstreamURL, setup.ManagementKey, physicalName)
+	if err == nil {
+		return authFileOwnershipMutation{}, fmt.Errorf("%w: auth file create target already exists", cpaauthfiles.ErrIdentityMismatch)
+	}
+	if !errors.Is(err, cpaauthfiles.ErrAuthFileNotFound) {
+		return authFileOwnershipMutation{}, errors.New("auth file create-only existence check failed")
+	}
+	return mutation, nil
+}
+
+func verifyAuthFileContent(ctx context.Context, setup store.Setup, physicalName, expectedSHA256 string) error {
+	if expectedSHA256 == "" {
+		return nil
+	}
+	content, err := cpaauthfiles.New(nil).Download(ctx, setup.CPAUpstreamURL, setup.ManagementKey, physicalName)
+	if err != nil {
+		// Upstream error bodies can contain credentials; do not expose them here.
+		if errors.Is(err, cpaauthfiles.ErrAuthFileNotFound) {
+			return cpaauthfiles.ErrAuthFileNotFound
+		}
+		return errors.New("auth file content preflight download failed")
+	}
+	if fmt.Sprintf("%x", sha256.Sum256(content)) != expectedSHA256 {
+		return fmt.Errorf("%w: auth file content changed", cpaauthfiles.ErrIdentityMismatch)
+	}
+	return nil
 }
 
 func (s *Service) revokeInspectionOwnership(ctx context.Context, mutation authFileOwnershipMutation) ([]store.CodexInspectionDisableOwnership, error) {
@@ -488,7 +549,25 @@ func (s *Service) prepareAuthFileDeleteMutation(
 		return mutation, nil
 	}
 	if len(deleteMutation.identities) == 0 {
-		return authFileOwnershipMutation{}, fmt.Errorf("%w: delete identity is required", cpaauthfiles.ErrAuthFileNotFound)
+		// A newly uploaded file can fail runtime registration. Its explicit physical
+		// selector and exact saved-content digest still fence a rollback delete;
+		// never resolve a runtime selector or fall back to another file here.
+		if deleteMutation.contentSHA256 == "" || deleteMutation.physicalName == "" || deleteMutation.selector != deleteMutation.physicalName {
+			return authFileOwnershipMutation{}, fmt.Errorf("%w: delete identity is required", cpaauthfiles.ErrAuthFileNotFound)
+		}
+		files, err := cpaauthfiles.New(nil).Fetch(ctx, setup.CPAUpstreamURL, setup.ManagementKey)
+		if err != nil {
+			return authFileOwnershipMutation{}, errors.New("auth file physical delete selector check failed")
+		}
+		for _, file := range files {
+			if strings.EqualFold(strings.TrimSpace(file.ID), deleteMutation.physicalName) && !strings.EqualFold(strings.TrimSpace(file.Name), deleteMutation.physicalName) {
+				return authFileOwnershipMutation{}, fmt.Errorf("%w: physical delete selector matches another runtime file", cpaauthfiles.ErrDeleteMutationScopeAmbiguous)
+			}
+		}
+		if err := verifyAuthFileContent(ctx, setup, deleteMutation.physicalName, deleteMutation.contentSHA256); err != nil {
+			return authFileOwnershipMutation{}, err
+		}
+		return mutation, nil
 	}
 
 	requestedSelector := strings.TrimSpace(deleteMutation.selector)
@@ -535,6 +614,9 @@ func (s *Service) prepareAuthFileDeleteMutation(
 		return authFileOwnershipMutation{}, fmt.Errorf("%w: delete selector is empty", cpaauthfiles.ErrAuthFileNotFound)
 	}
 
+	if err := verifyAuthFileContent(ctx, setup, target.File.Name, deleteMutation.contentSHA256); err != nil {
+		return authFileOwnershipMutation{}, err
+	}
 	query := r.URL.Query()
 	query.Set("name", forwardSelector)
 	r.URL.RawQuery = query.Encode()
@@ -582,6 +664,9 @@ func (s *Service) prepareAuthFileFieldsMutation(
 			requestedSelector,
 		)
 	}
+	if err := verifyAuthFileContent(ctx, setup, target.File.Name, fieldsMutation.contentSHA256); err != nil {
+		return authFileOwnershipMutation{}, err
+	}
 	if err := rewriteAuthFileFieldsMutationRequest(r, target.Selector); err != nil {
 		return authFileOwnershipMutation{}, err
 	}
@@ -595,6 +680,16 @@ func (s *Service) prepareAuthFileWriteMutation(
 ) (authFileOwnershipMutation, error) {
 	writeMutation := mutation.writeMutation
 	if writeMutation == nil {
+		return mutation, nil
+	}
+	if writeMutation.contentOnly {
+		// Rollback can restore a physical file after the preceding patch removed
+		// its runtime registration. The exact persisted bytes fence that restore.
+		if err := verifyAuthFileContent(ctx, setup, writeMutation.physicalName, writeMutation.contentSHA256); err != nil {
+			return authFileOwnershipMutation{}, err
+		}
+		mutation.fileNames = nil
+		mutation.ownershipTargets = nil
 		return mutation, nil
 	}
 	if len(writeMutation.identities) == 0 {
@@ -685,12 +780,25 @@ func inspectAuthFileOwnershipMutation(r *http.Request) (authFileOwnershipMutatio
 	case http.MethodPatch:
 		return readJSONAuthFileOwnershipMutation(r, path == "/v0/management/auth-files/status")
 	case http.MethodDelete:
+		contentSHA256, err := readAuthFileSHA256Header(r, authFileExpectedContentSHA256Header, "expected content")
+		if err != nil {
+			return authFileOwnershipMutation{}, err
+		}
 		if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("all")), "true") {
+			if contentSHA256 != "" {
+				return authFileOwnershipMutation{}, errors.New("auth file content precondition cannot be used with delete all")
+			}
 			return authFileOwnershipMutation{clearAll: true}, nil
 		}
 		identities, err := readAuthFileDeleteIdentities(r)
 		if err != nil {
 			return authFileOwnershipMutation{}, err
+		}
+		if contentSHA256 != "" && len(identities) == 0 {
+			physicalName := strings.TrimSpace(r.Header.Get(authFilePhysicalNameHeader))
+			if physicalName == "" || physicalName != strings.TrimSpace(r.URL.Query().Get("name")) {
+				return authFileOwnershipMutation{}, errors.New("auth file content precondition requires delete identities or an explicit matching physical selector")
+			}
 		}
 		physicalNameProvided := strings.TrimSpace(r.Header.Get(authFilePhysicalNameHeader)) != ""
 		fileNames := normalizeFileNames([]string{r.Header.Get(authFilePhysicalNameHeader)})
@@ -702,14 +810,18 @@ func inspectAuthFileOwnershipMutation(r *http.Request) (authFileOwnershipMutatio
 				fileNames: fileNames,
 				lockAll:   !physicalNameProvided && len(identities) == 0,
 			}
-			if len(identities) > 0 {
+			if len(identities) > 0 || contentSHA256 != "" {
 				mutation.deleteMutation = &authFileDeleteMutation{
-					selector:     strings.TrimSpace(r.URL.Query().Get("name")),
-					physicalName: fileNames[0],
-					identities:   identities,
+					selector:      strings.TrimSpace(r.URL.Query().Get("name")),
+					physicalName:  fileNames[0],
+					identities:    identities,
+					contentSHA256: contentSHA256,
 				}
 			}
 			return mutation, nil
+		}
+		if contentSHA256 != "" {
+			return authFileOwnershipMutation{}, errors.New("auth file content precondition requires a delete selector")
 		}
 		return readJSONAuthFileOwnershipMutation(r, false)
 	case http.MethodPost:
@@ -717,7 +829,27 @@ func inspectAuthFileOwnershipMutation(r *http.Request) (authFileOwnershipMutatio
 		if err != nil {
 			return authFileOwnershipMutation{}, err
 		}
+		// CPA's raw JSON upload selects its physical file using the query name,
+		// whereas multipart uploads select it using the part's filename.
+		mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if !strings.HasPrefix(strings.ToLower(mediaType), "multipart/") {
+			fileNames = normalizeFileNames([]string{r.URL.Query().Get("name")})
+		}
+		expectedSHA256, err := readAuthFileSHA256Header(r, authFileExpectedContentSHA256Header, "expected content")
+		if err != nil {
+			return authFileOwnershipMutation{}, err
+		}
+		if expectedSHA256 != "" && (path != "/v0/management/auth-files" || mediaType != "application/json" || len(fileNames) != 1) {
+			return authFileOwnershipMutation{}, errors.New("auth file content-only restore requires raw application/json and one query file name")
+		}
 		mutation := authFileOwnershipMutation{fileNames: fileNames}
+		createOnly := strings.TrimSpace(r.Header.Get(authFileCreateOnlyHeader))
+		if createOnly != "" {
+			if !strings.EqualFold(createOnly, "true") || len(fileNames) != 1 {
+				return authFileOwnershipMutation{}, errors.New("auth file create-only requires true and exactly one file")
+			}
+			mutation.createMutation = &authFileCreateMutation{physicalName: fileNames[0]}
+		}
 		identities, identityErr := readAuthFileIdentitiesHeader(
 			r,
 			authFileWriteIdentitiesHeader,
@@ -729,6 +861,18 @@ func inspectAuthFileOwnershipMutation(r *http.Request) (authFileOwnershipMutatio
 		contentSHA256, contentSHA256Err := readAuthFileContentSHA256Header(r)
 		if contentSHA256Err != nil {
 			return authFileOwnershipMutation{}, contentSHA256Err
+		}
+		if expectedSHA256 != "" {
+			if mutation.createMutation != nil || len(identities) > 0 || contentSHA256 != "" {
+				return authFileOwnershipMutation{}, errors.New("auth file content-only restore cannot be combined with create-only or verified write")
+			}
+			mutation.writeMutation = &authFileWriteMutation{
+				physicalName: fileNames[0], contentSHA256: expectedSHA256, contentOnly: true,
+			}
+			return mutation, nil
+		}
+		if mutation.createMutation != nil && (len(identities) > 0 || contentSHA256 != "") {
+			return authFileOwnershipMutation{}, errors.New("auth file create-only cannot be combined with verified write")
 		}
 		if len(identities) > 0 {
 			if len(fileNames) != 1 {
@@ -752,16 +896,20 @@ func inspectAuthFileOwnershipMutation(r *http.Request) (authFileOwnershipMutatio
 }
 
 func readAuthFileContentSHA256Header(r *http.Request) (string, error) {
+	return readAuthFileSHA256Header(r, authFileWriteContentSHA256Header, "write content")
+}
+
+func readAuthFileSHA256Header(r *http.Request, headerName, description string) (string, error) {
 	if r == nil {
 		return "", nil
 	}
-	raw := strings.TrimSpace(r.Header.Get(authFileWriteContentSHA256Header))
+	raw := strings.TrimSpace(r.Header.Get(headerName))
 	if raw == "" {
 		return "", nil
 	}
 	decoded, err := hex.DecodeString(raw)
 	if err != nil || len(decoded) != sha256.Size {
-		return "", errors.New("auth file write content SHA-256 is invalid")
+		return "", fmt.Errorf("auth file %s SHA-256 is invalid", description)
 	}
 	return strings.ToLower(raw), nil
 }
@@ -822,6 +970,10 @@ func readAuthFileIdentitiesHeader(
 }
 
 func readAuthFileFieldsMutation(r *http.Request) (authFileOwnershipMutation, error) {
+	contentSHA256, err := readAuthFileSHA256Header(r, authFileExpectedContentSHA256Header, "expected content")
+	if err != nil {
+		return authFileOwnershipMutation{}, err
+	}
 	identities, err := readAuthFileIdentitiesHeader(
 		r,
 		authFileMutationIdentityHeader,
@@ -831,6 +983,9 @@ func readAuthFileFieldsMutation(r *http.Request) (authFileOwnershipMutation, err
 		return authFileOwnershipMutation{}, err
 	}
 	if len(identities) == 0 {
+		if contentSHA256 != "" {
+			return authFileOwnershipMutation{}, errors.New("auth file content precondition requires mutation identity")
+		}
 		// Legacy callers do not identify the physical file before forwarding the
 		// fields mutation. Serialize it globally so a runtime selector cannot race
 		// a worker that coordinates by physical file name.
@@ -855,8 +1010,9 @@ func readAuthFileFieldsMutation(r *http.Request) (authFileOwnershipMutation, err
 	}
 	return authFileOwnershipMutation{
 		fieldsMutation: &authFileFieldsMutation{
-			selector: selector,
-			identity: identities[0],
+			selector:      selector,
+			identity:      identities[0],
+			contentSHA256: contentSHA256,
 		},
 	}, nil
 }

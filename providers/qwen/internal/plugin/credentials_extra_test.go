@@ -52,29 +52,29 @@ func TestCredentialRouteUnreadableOrInvalidExistingStorage(t *testing.T) {
 	}
 }
 
-func TestExecutorCredentialAttributesOverrideStorageAndRejectInvalidURL(t *testing.T) {
+func TestExecutorRejectsInvalidCurrentCredential(t *testing.T) {
 	for _, stream := range []bool{false, true} {
-		t.Run(map[bool]string{false: "nonstream", true: "stream"}[stream], func(t *testing.T) {
-			m, _ := newExecutorManager(t, nil)
-			var req executorRequest
-			_ = json.Unmarshal(executionBody("openai", `{"messages":[]}`, stream), &req)
-			req.AuthAttributes["base_url"] = "http://attribute.test/v1/"
-			req.StorageJSON = []byte(`{"base_url":"https://storage.test/v1"}`)
-			resolved, fail := m.resolveExecution(req)
-			if resolved == nil || resolved.cfg.BaseURL != "http://attribute.test/v1" {
-				t.Fatalf("attribute lost: %s", fail)
-			}
-			req.AuthAttributes["base_url"] = "https://user:dummy-selected-key@example.test"
-			resolved, fail = m.resolveExecution(req)
-			if resolved != nil || strings.Contains(string(fail), "dummy-selected-key") {
-				t.Fatal("invalid URL accepted or key leaked")
-			}
-			delete(req.AuthAttributes, "base_url")
-			req.StorageJSON = []byte(`{`)
-			if resolved, _ = m.resolveExecution(req); resolved != nil {
-				t.Fatal("malformed storage accepted")
-			}
-		})
+		for name, storage := range map[string]string{
+			"invalid storage URL": `{"base_url":"https://user:dummy-selected-key@example.test"}`,
+			"key in storage URL":  `{"base_url":"https://example.test/dummy-selected-key/v1"}`,
+			"invalid storage key": `{"api_key":"synthetic\nkey"}`,
+		} {
+			t.Run(map[bool]string{false: "nonstream/", true: "stream/"}[stream]+name, func(t *testing.T) {
+				m, f := newExecutorManager(t, nil)
+				var req executorRequest
+				_ = json.Unmarshal(executionBody("openai", `{"messages":[]}`, stream), &req)
+				req.AuthAttributes["base_url"] = "https://attribute.test/v1"
+				req.StorageJSON = []byte(storage)
+				raw, err := m.HandleCall(pluginabi.MethodExecutorExecute, mustJSON(req))
+				env := decodeEnv(t, raw)
+				if err != nil || env.OK || env.Error == nil || env.Error.Code != "auth_failure" || strings.Contains(string(raw), "dummy-selected-key") {
+					t.Fatalf("invalid current credential accepted or secret leaked: %s %v", raw, err)
+				}
+				if len(f.callsOf(pluginabi.MethodHostHTTPDo))+len(f.callsOf(pluginabi.MethodHostHTTPDoStream)) != 0 {
+					t.Fatal("invalid credential reached upstream")
+				}
+			})
+		}
 	}
 }
 

@@ -93,6 +93,45 @@ func (m *Manager) writeCredential(ctx context.Context, body []byte) (pluginapi.M
 	}{OK: true, ID: id, Label: label})
 }
 
+// Storage is the current persisted credential; host attributes may lag an edit
+// or omit plugin fields on upload. Fall back per field, never to a config key.
+func resolveCredential(attributes map[string]string, storage []byte, cfg config.Config) (string, string, error) {
+	var fields map[string]json.RawMessage
+	var key, base string
+	if json.Unmarshal(storage, &fields) == nil {
+		// Decode independently: an absent or undecodable field falls back without
+		// discarding the other field's current persisted value.
+		_ = json.Unmarshal(fields["api_key"], &key)
+		_ = json.Unmarshal(fields["base_url"], &base)
+	}
+	key, base = strings.TrimSpace(key), strings.TrimSpace(base)
+	attrKey, attrBase := strings.TrimSpace(attributes["api_key"]), strings.TrimSpace(attributes["base_url"])
+	debugTrace("credential storage_attributes_conflict api_key=%t base_url=%t", key != "" && attrKey != "" && key != attrKey, base != "" && attrBase != "" && strings.TrimRight(base, "/") != strings.TrimRight(attrBase, "/"))
+	if key == "" {
+		key = attrKey
+	}
+	if key == "" {
+		return "", "", fmt.Errorf("selected auth has no api key")
+	}
+	if strings.ContainsAny(key, "\r\n\x00") {
+		return "", "", fmt.Errorf("selected auth has invalid api key")
+	}
+	if base == "" {
+		base = attrBase
+	}
+	if base == "" {
+		base = cfg.BaseURL
+	}
+	if base == "" {
+		base = config.DefaultBaseURL
+	}
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	if config.ValidateCredentialBaseURL(base) != nil || strings.Contains(base, key) {
+		return "", "", fmt.Errorf("selected auth has invalid base_url")
+	}
+	return key, base, nil
+}
+
 func (m *Manager) credentialExists(ctx context.Context, cfg config.Config, key, baseURL string) (bool, error) {
 	entries, err := m.bridge.AuthList(ctx)
 	if err != nil {

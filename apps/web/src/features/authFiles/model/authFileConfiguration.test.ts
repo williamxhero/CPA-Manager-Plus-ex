@@ -184,6 +184,69 @@ describe('parseAuthFileConfigurationSource', () => {
 });
 
 describe('buildAuthFileConfigurationPatch', () => {
+  it.each(['qwen', 'opencode-go'])(
+    'edits %s plan credentials without copying the old key or metadata',
+    (provider) => {
+      const record = {
+        type: provider,
+        api_key: 'old-secret',
+        label: 'Old label',
+        base_url: 'https://gateway.example/v1',
+        disabled: true,
+        account_id: 'account-1',
+        quota: { remaining: 42 },
+      };
+      const original = buildAuthFileConfigurationDraft(record, provider);
+      expect(original).toMatchObject({ label: 'Old label', replacementApiKey: '' });
+      expect(
+        buildAuthFileConfigurationPatch(record, provider, original, {
+          ...original,
+          label: ' New label ',
+          replacementApiKey: ' new-secret ',
+          baseUrl: 'https://gateway.example/v2',
+          note: 'updated',
+        })
+      ).toEqual({
+        errors: {},
+        patch: {
+          label: 'New label',
+          api_key: 'new-secret',
+          base_url: 'https://gateway.example/v2',
+          note: 'updated',
+        },
+      });
+      expect(
+        buildAuthFileConfigurationPatch(record, provider, original, {
+          ...original,
+          label: '',
+          replacementApiKey: '  ',
+        })
+      ).toEqual({ errors: {}, patch: { label: '' } });
+    }
+  );
+
+  it.each([
+    ['qwen', 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1'],
+    ['opencode-go', 'https://opencode.ai/zen/go/v1'],
+  ])('restores the %s plugin default and rejects unsafe plan endpoints', (provider, defaultUrl) => {
+    const record = { baseUrl: 'https://gateway.example/v1' };
+    const original = buildAuthFileConfigurationDraft(record, provider);
+    expect(
+      buildAuthFileConfigurationPatch(record, provider, original, { ...original, baseUrl: '  ' })
+    ).toEqual({ errors: {}, patch: { base_url: defaultUrl, baseUrl: null } });
+    for (const baseUrl of [
+      'not-a-url',
+      'file:///tmp/key',
+      'https://user:secret@api.example/v1',
+      'https://api.example/v1?key=secret',
+      'https://api.example/v1#',
+    ]) {
+      expect(
+        buildAuthFileConfigurationPatch(record, provider, original, { ...original, baseUrl })
+      ).toEqual({ errors: { baseUrl: 'accounts.config_error_plan_base_url' }, patch: {} });
+    }
+  });
+
   it.each([
     [{ disable_cooling: true }, 'disabled'],
     [{ disable_cooling: false }, 'enabled'],
@@ -221,6 +284,26 @@ describe('buildAuthFileConfigurationPatch', () => {
 
     expect(result.errors).toEqual({});
     expect(result.patch.disable_cooling).toBe(expected);
+  });
+
+  it('does not expose a key or patch plan-only fields for an OAuth provider', () => {
+    const record = {
+      type: 'codex',
+      api_key: 'old-secret',
+      label: 'old',
+      base_url: 'https://gateway.example/v1',
+    };
+    const original = buildAuthFileConfigurationDraft(record, 'codex');
+    expect(original.replacementApiKey).toBe('');
+    expect(
+      buildAuthFileConfigurationPatch(record, 'codex', original, {
+        ...original,
+        replacementApiKey: 'replacement',
+        label: 'new',
+        baseUrl: '',
+        note: 'new note',
+      })
+    ).toEqual({ errors: {}, patch: { note: 'new note' } });
   });
 
   it('normalizes stored zero priority to the empty default representation', () => {

@@ -160,6 +160,22 @@ afterEach(async () => {
 });
 
 describe('PlanCredentialsPage', () => {
+  it('allows a blank URL to use the provider default and shows alias before URL and key', async () => {
+    await render();
+    expect(
+      section()
+        .findAllByType(Input)
+        .map((node) => node.props.name)
+    ).toEqual(['name', 'base_url', 'api_key']);
+    await fill('api_key', 'synthetic-key-a');
+    await submit();
+    expect(mocks.submit).toHaveBeenCalledWith(
+      ids[0],
+      expect.any(String),
+      { name: '', base_url: '', api_key: 'synthetic-key-a' },
+      expect.anything()
+    );
+  });
   it('renders one module per plan plugin with host field names, labels, placeholders and zh-CN title', async () => {
     mocks.plugins.push(plugin('other-plugin', 'other'));
     await render();
@@ -184,10 +200,17 @@ describe('PlanCredentialsPage', () => {
           required: node.props.required,
         }));
       expect(fields).toEqual(
-        metadata(id).fields.map((field) => ({
-          ...field,
-          type: field.name === 'api_key' ? 'password' : 'text',
-        }))
+        [...metadata(id).fields]
+          .sort(
+            (left, right) =>
+              ['name', 'base_url', 'api_key'].indexOf(left.name) -
+              ['name', 'base_url', 'api_key'].indexOf(right.name)
+          )
+          .map((field) => ({
+            ...field,
+            required: field.name === 'base_url' ? false : field.required,
+            type: field.name === 'api_key' ? 'password' : 'text',
+          }))
       );
       expect(text(section(index).findByType('button'))).toBe('添加');
     }
@@ -213,9 +236,9 @@ describe('PlanCredentialsPage', () => {
               placeholder: node.props.placeholder,
             }))
         ).toEqual([
+          { name: 'name', label: '别名 (Alias)', placeholder: '留空则显示脱敏 API Key' },
           { name: 'base_url', label: 'Base URL', placeholder },
           { name: 'api_key', label: 'API Key', placeholder: undefined },
-          { name: 'name', label: '别名 (Alias)', placeholder: '留空则显示脱敏 API Key' },
         ]);
         expect(text(section(index).findByType('button'))).toBe('添加凭证');
       }
@@ -223,7 +246,7 @@ describe('PlanCredentialsPage', () => {
   );
 
   it.each([
-    ['missing Base URL', '', 'key', 'Base URL'],
+    ['Base URL containing whitespace', 'https://bad host/v1', 'key', 'Base URL'],
     ['missing API Key', 'https://valid.example', '  ', 'API Key'],
     ['invalid Base URL', 'not-a-url', 'key', 'Base URL'],
     ['non-HTTP URL', 'javascript:alert(1)', 'key', 'Base URL'],
