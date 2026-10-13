@@ -151,11 +151,13 @@ describe('auth file credential refresh demo API', () => {
         await handleDemoRawRequest(`/auth-files/download?name=${name}`)
       ).data.text() as Promise<string>;
     expect(await read()).toBe(original);
+    // The real core lists an uploaded credential immediately (verified against an
+    // isolated Manager), so the runtime locator is available right after the write.
     expect(
       (await handleDemoApiRequest<AuthFilesResponse>('get', '/auth-files')).files.some(
         (file) => file.name === name
       )
-    ).toBe(false);
+    ).toBe(true);
     await handleDemoApiRequest('patch', '/auth-files/fields', { name, label: 'Edited' });
     const current = await read();
     await expect(

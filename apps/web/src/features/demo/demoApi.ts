@@ -644,7 +644,9 @@ export async function handleDemoApiRequest<T = unknown>(
         assertDemoPlanSourceDigest(demoPlanAuthFileSources.get(name)?.text, config);
         demoPlanAuthFileSources.set(name, {
           text: typeof data === 'string' ? data : JSON.stringify(record),
-          published: Boolean(existing),
+          // The real core lists a freshly uploaded credential immediately, so the runtime
+          // locator is available for the plugin-aware publish PATCH.
+          published: true,
         });
       }
     }

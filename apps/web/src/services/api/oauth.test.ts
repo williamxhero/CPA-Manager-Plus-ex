@@ -64,6 +64,18 @@ describe('oauthApi', () => {
             },
           ],
         })
+        .mockResolvedValueOnce({
+          files: [
+            {
+              name: `${id}.json`,
+              id,
+              type: provider,
+              auth_index: 'synthetic-index',
+              disabled: false,
+              status: 'active',
+            },
+          ],
+        })
         .mockResolvedValueOnce({ models: [{ id: 'synthetic-model' }] });
       mocks.getRaw
         .mockRejectedValueOnce(Object.assign(new Error('not found'), { status: 404 }))

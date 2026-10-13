@@ -9,6 +9,7 @@ import { sha256RawTextHex } from '@/utils/apiKeyHash';
 import {
   readAuthFileStatusAuthIndex,
   readAuthFileStatusProvider,
+  readAuthFileStatusRuntimeId,
 } from '@/utils/authFileStatusMutation';
 
 export const PLAN_CREDENTIAL_DEFAULT_URLS: Readonly<Record<string, string>> = {
@@ -339,13 +340,28 @@ export const planCredentialsApi = {
       ) {
         throw new Error('Credential changed before runtime publication');
       }
+      // A freshly created credential has no account evidence, so the Manager requires an
+      // explicit credential locator in the mutation identity or it fails closed with 409.
+      const registered = (await authFilesApi.list(scope)).files.find((file) => file.name === name);
+      const runtimeId = registered ? readAuthFileStatusRuntimeId(registered) : '';
+      const authIndex = registered ? readAuthFileStatusAuthIndex(registered) : '';
+      if (!runtimeId && !authIndex) {
+        throw new Error('Credential was not registered in the runtime; reload before retrying');
+      }
       requireOK(
         await apiClient.patch(
           '/auth-files/fields',
           { name, api_key: key, base_url: baseURL, label, disabled: false },
           requestConfig(scope, {
             'X-CPAMP-Auth-File-Mutation-Identity': encodeURIComponent(
-              JSON.stringify([{ name, provider }])
+              JSON.stringify([
+                {
+                  name,
+                  provider,
+                  ...(runtimeId ? { runtimeId } : {}),
+                  ...(authIndex ? { authIndex } : {}),
+                },
+              ])
             ),
             'X-CPAMP-Auth-File-Expected-Content-SHA256': sha256RawTextHex(publishedText),
           })

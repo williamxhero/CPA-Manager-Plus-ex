@@ -379,6 +379,7 @@ describe('plan credential runtime activation', () => {
     mocks.get
       .mockResolvedValueOnce({ files: [] })
       .mockResolvedValueOnce({ files: [runtime] })
+      .mockResolvedValueOnce({ files: [runtime] })
       .mockResolvedValueOnce({ models: [{ id: 'synthetic-model' }] });
     mocks.getRaw
       .mockRejectedValueOnce(Object.assign(new Error('not found'), { status: 404 }))
@@ -405,16 +406,23 @@ describe('plan credential runtime activation', () => {
         headers: expect.objectContaining({ 'X-CPAMP-Auth-File-Create-Only': 'true' }),
       })
     );
-    expect(mocks.patch).toHaveBeenCalledWith(
-      '/auth-files/fields',
-      expect.objectContaining({
-        name,
-        api_key: key,
-        base_url: baseURL,
-        label: 'Synthetic alias',
-        disabled: false,
-      }),
-      expect.objectContaining({ baseURL: `${scope.apiBase}/v0/management` })
+    const patchCalls = mocks.patch.mock.calls;
+    const patchCall = patchCalls[patchCalls.length - 1];
+    expect(patchCall[0]).toBe('/auth-files/fields');
+    expect(patchCall[1]).toMatchObject({
+      name,
+      api_key: key,
+      base_url: baseURL,
+      label: 'Synthetic alias',
+      disabled: false,
+    });
+    expect(patchCall[2].baseURL).toBe(`${scope.apiBase}/v0/management`);
+    expect(patchCall[2].headers['X-CPAMP-Auth-File-Mutation-Identity']).toBe(
+      encodeURIComponent(
+        JSON.stringify([
+          { name, provider: 'qwen', runtimeId: id, authIndex: 'synthetic-index' },
+        ])
+      )
     );
   });
 });
