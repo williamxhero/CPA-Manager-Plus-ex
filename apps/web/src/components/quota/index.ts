@@ -7,6 +7,7 @@ export {
   KIMI_CONFIG,
   META_CONFIG,
   OPENCODE_GO_CONFIG,
+  QWEN_CONFIG,
   XAI_CONFIG,
   buildObservedCodexQuotaState,
   buildQuotaFailureState,

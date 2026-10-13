@@ -5,4 +5,5 @@ export {
 } from './antigravity';
 export { CLAUDE_PLAN_DESCRIPTORS, resolveClaudePlanDescriptor } from './claude';
 export { CODEX_PLAN_DESCRIPTORS, resolveCodexPlanDescriptor } from './codex';
+export { OPENCODE_GO_PLAN_DESCRIPTORS, resolveOpenCodeGoPlanDescriptor } from './opencodeGo';
 export type { PlanResolverDescriptor } from './types';

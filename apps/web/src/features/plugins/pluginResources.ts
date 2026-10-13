@@ -1,5 +1,6 @@
 import type { PluginListEntry, PluginMenu, PluginStoreEntry } from '@/types';
 import { normalizeApiBase } from '@/utils/connection';
+import { isPlanCredentialPlugin } from './planPlugins';
 
 export const PLUGIN_RESOURCES_REFRESH_EVENT = 'plugin-resources-refresh';
 export const PLUGIN_RESOURCES_SETTLE_REFRESH_DELAY_MS = 1600;
@@ -120,3 +121,9 @@ export const collectPluginResourceEntries = (
       })
       .filter((entry): entry is PluginResourceEntry => Boolean(entry));
   });
+
+// Keep direct resource URLs available while plan credentials use a single built-in nav entry.
+export const collectPluginResourceNavEntries = (
+  plugins: PluginListEntry[]
+): PluginResourceEntry[] =>
+  collectPluginResourceEntries(plugins).filter((entry) => !isPlanCredentialPlugin(entry.pluginID));

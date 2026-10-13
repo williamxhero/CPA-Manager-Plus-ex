@@ -5,6 +5,7 @@ import { CODEX_SPARK_MODEL_ID } from '@/utils/quota/codexQuota';
 import { buildQuotaCredentialIdentity } from '@/utils/quota/credentialScope';
 import {
   hasConfirmedXaiBillingEntitlement,
+  normalizeAccountProvider,
   resolveAccountQuota,
   type AccountQuotaStores,
 } from './accountQuotaSummary';
@@ -34,6 +35,63 @@ const makeXaiBilling = (overrides: Partial<XaiBillingSummary> = {}): XaiBillingS
 });
 
 describe('resolveAccountQuota', () => {
+  describe('Qwen quota', () => {
+    const file: AuthFileItem = { name: 'qwen.json', quota_provider: ' QWEN ' };
+    const quota = {
+      ...buildQuotaCredentialIdentity(file),
+      status: 'success' as const,
+      plan: 'Qwen Pro',
+      planStatus: 'active',
+      planStartMs: null,
+      planEndMs: null,
+      daysLeft: 12,
+      observedAtMs: 1_770_000_000_000,
+      windows: [
+        { id: 'monthly', label: 'Monthly', usedPercent: 30, remainingPercent: 70, resetAtMs: null, resetsInDays: 10 },
+        { id: 'weekly', label: 'Weekly', usedPercent: 90, remainingPercent: 10, resetAtMs: 1_780_000_000_000, resetsInDays: null },
+      ],
+      metrics: [],
+    };
+
+    it.each([
+      { provider: ' QWEN ' },
+      { quota_provider: ' QwEn ' },
+      { type: ' qwen ' },
+      { provider: 'plugin', quota_provider: 'QWEN', type: 'runtime' },
+      { provider: 'plugin', type: ' QWEN ' },
+    ])('recognizes Qwen metadata %s', (metadata) => {
+      expect(normalizeAccountProvider({ name: 'qwen.json', ...metadata })).toBe('qwen');
+    });
+
+    it('leaves non-Qwen metadata provider precedence unchanged', () => {
+      expect(normalizeAccountProvider({ name: 'other.json', provider: 'claude', quota_provider: 'meta', type: 'codex' })).toBe('claude');
+    });
+
+    it('summarizes the limiting real window and provider plan', () => {
+      expect(resolveAccountQuota(file, { ...emptyStores(), qwenQuota: { [file.name]: quota } })).toMatchObject({
+        status: 'low', remainingPercent: 10, usedPercent: 90, planType: 'Qwen Pro', resetAtMs: 1_780_000_000_000,
+      });
+    });
+
+    it('keeps metrics-only snapshots unknown rather than inventing zero usage', () => {
+      expect(resolveAccountQuota(file, {
+        ...emptyStores(), qwenQuota: { [file.name]: { ...quota, windows: [], metrics: [{ key: 'credits', label: 'Credits', value: 123, unit: null, format: null }] } },
+      })).toMatchObject({ status: 'unknown', usedPercent: null, remainingPercent: null, planType: 'Qwen Pro' });
+    });
+
+    it('keeps upstream failures honest even when old windows are present', () => {
+      expect(resolveAccountQuota(file, {
+        ...emptyStores(), qwenQuota: { [file.name]: { ...quota, status: 'error', error: 'credential expired', errorStatus: 401 } },
+      })).toMatchObject({ status: 'error', error: 'credential expired', errorStatus: 401, remainingPercent: null, usedPercent: null, planType: null });
+    });
+
+    it('rejects a same-name cache belonging to another credential', () => {
+      expect(resolveAccountQuota(file, {
+        ...emptyStores(), qwenQuota: { [file.name]: { ...quota, authFileKey: 'other-credential' } },
+      })).toMatchObject({ status: 'unknown', remainingPercent: null, source: 'none' });
+    });
+  });
+
   it.each([
     {
       label: 'weekly current-period data',

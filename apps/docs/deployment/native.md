@@ -40,7 +40,7 @@ v6.10.8+
 
 ## 下载
 
-从 [GitHub Releases](https://github.com/seakee/CPA-Manager-Plus/releases/latest) 下载对应平台包。
+从 [GitHub Releases](https://github.com/williamxhero/CPA-Manager-Plus-ex/releases/latest) 下载对应平台包。
 
 常见包名：
 

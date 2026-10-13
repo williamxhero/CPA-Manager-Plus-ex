@@ -13,4 +13,9 @@
   <path d="m175.5 188-27.5 29v-57l27.5 28Z" fill="#003BB8"/>
   <path d="m148 217-27.5-29 27.5-28v57Z" fill="#075EDC"/>
   <path d="m120.5 188-27.5-28h55l-27.5 28Z" fill="#078DF3"/>
+
+  <g data-cpamp-ex="1" shape-rendering="geometricPrecision">
+    <rect x="196.96" y="222.96" width="81.6" height="81.6" rx="16.32" fill="#005CFF" stroke="#FFFFFF" stroke-width="5.71"/>
+    <text x="237.76" y="263.76" font-family="Arial, Helvetica, sans-serif" font-size="47.33" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">EX</text>
+  </g>
 </svg>

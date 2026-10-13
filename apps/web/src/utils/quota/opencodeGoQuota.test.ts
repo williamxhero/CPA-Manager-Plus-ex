@@ -10,6 +10,8 @@ import { isQuotaRefreshSupportedProvider } from '@/features/authFiles/constants'
 import { OPENCODE_GO_CONFIG } from '@/components/quota/quotaConfigs';
 import { buildAccountRows } from '@/features/accounts/model/accountRows';
 import { buildAccountQuotaDisplayWindows } from '@/features/accounts/model/accountQuotaDisplayWindows';
+import { buildAccountSubscriptionPresentation } from '@/features/accounts/model/accountSubscriptionPresentation';
+import { getCredentialScopedQuotaState } from './credentialScope';
 import {
   fetchOpenCodeGoQuota,
   OPENCODE_GO_QUOTA_PATH,
@@ -53,6 +55,12 @@ describe('OpenCode Go account quota', () => {
     expect(windows.map((window) => window.remainingPercent)).toEqual([87.6, 91.9, 94.3]);
     expect(row.quota.remainingPercent).toBe(87.6);
     expect(windows.every((window) => window.resetAtMs !== null)).toBe(true);
+    const subscription = buildAccountSubscriptionPresentation({
+      row,
+      opencodeGoQuota: getCredentialScopedQuotaState(stores.opencodeGoQuota, row.raw),
+      nowMs: Date.parse('2026-10-05T10:00:00Z'),
+    });
+    expect(subscription.remainingDays).toBe(27);
   });
 
   it('uses the selected credential and sends only its key identity to the plugin route', async () => {

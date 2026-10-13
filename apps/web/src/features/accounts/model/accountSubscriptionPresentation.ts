@@ -1,5 +1,7 @@
 import type { TFunction } from 'i18next';
-import type { CodexQuotaState } from '@/types';
+import type { ClaudeQuotaState, CodexQuotaState } from '@/types';
+import type { QwenQuotaState } from '@/utils/quota/qwenQuota';
+import { isValidQuotaResetAtMs } from '@/utils/quota/formatters';
 import { normalizeStringValue, parseIdTokenPayload } from '@/utils/quota/parsers';
 import { parseTimestampMs } from '@/utils/timestamp';
 import { getPlanPresentation, resolveAuthFilePlanType, type PlanPresentation } from '@/utils/plans';
@@ -95,21 +97,44 @@ export const resolveCodexSubscriptionUntilMs = (
   };
 };
 
+const QWEN_PLAN_PRODUCT_PREFIX = /^\s*token\s*plan\s*[-–—:：]?\s*/i;
+
+// The upstream plan string is the product plus the tier ("Token Plan 个人版 Standard").
+// The 套餐 cell shows the tier alone on one line; the full name stays in the tooltip.
+const qwenPlanTierLabel = (plan: string | null | undefined): string | null => {
+  const value = normalizeStringValue(plan);
+  if (!value) return null;
+  const tier = value.replace(QWEN_PLAN_PRODUCT_PREFIX, '').trim();
+  return tier || value;
+};
+
 export const buildAccountSubscriptionPresentation = (input: {
   row: Pick<AccountRow, 'provider' | 'planType' | 'raw'>;
   codexQuota?: CodexQuotaState | null;
+  opencodeGoQuota?: ClaudeQuotaState | null;
+  qwenQuota?: QwenQuotaState | null;
   t?: TFunction;
   nowMs?: number;
 }): AccountSubscriptionPresentation => {
-  const { row, codexQuota, t, nowMs = Date.now() } = input;
-  const effectivePlanType = normalizeStringValue(
-    codexQuota?.planType ?? row.planType ?? resolveAuthFilePlanType(row.raw)
-  );
+  const { row, codexQuota, opencodeGoQuota, t, nowMs = Date.now() } = input;
+  const qwenQuota = input.qwenQuota?.status === 'success' ? input.qwenQuota : null;
+  const effectivePlanType =
+    row.provider === 'qwen' && input.qwenQuota?.status === 'error'
+      ? null
+      : normalizeStringValue(
+          (row.provider === 'qwen' ? qwenPlanTierLabel(qwenQuota?.plan) : codexQuota?.planType) ??
+            row.planType ?? resolveAuthFilePlanType(row.raw)
+        );
   const planPresentation = getPlanPresentation({
     provider: row.provider,
     planType: effectivePlanType,
     t,
   });
+  // The 套餐 cell shows the tier alone (个人版 Standard); hovering still reveals the
+  // full upstream plan name (Token Plan 个人版 Standard).
+  if (planPresentation && row.provider === 'qwen' && qwenQuota?.plan) {
+    planPresentation.fullLabel = qwenQuota.plan;
+  }
 
   const isPaidCodex =
     row.provider === 'codex' &&
@@ -125,6 +150,16 @@ export const buildAccountSubscriptionPresentation = (input: {
     liveSubscriptionUntilMs = resolved.liveSubscriptionUntilMs;
     tokenSubscriptionUntilMs = resolved.tokenSubscriptionUntilMs;
     subscriptionUntilMs = resolved.subscriptionUntilMs;
+  } else if (row.provider === 'opencode-go') {
+    // Go's monthly reset is the plan boundary; rolling and weekly resets are not.
+    const resetAtMs = opencodeGoQuota?.windows.find((window) => window.id === 'monthly')?.resetAtMs;
+    liveSubscriptionUntilMs = isValidQuotaResetAtMs(resetAtMs) ? resetAtMs : null;
+    subscriptionUntilMs = liveSubscriptionUntilMs;
+  } else if (row.provider === 'qwen') {
+    // Quota window resets are not subscription boundaries.
+    const planEndMs = qwenQuota?.planEndMs;
+    liveSubscriptionUntilMs = isValidQuotaResetAtMs(planEndMs) ? planEndMs : null;
+    subscriptionUntilMs = liveSubscriptionUntilMs;
   }
 
   const subscriptionUntilLabelKey =
@@ -133,9 +168,14 @@ export const buildAccountSubscriptionPresentation = (input: {
       : 'accounts.detail_subscription_until_token';
 
   const remainingDays =
-    isPaidCodex && subscriptionUntilMs !== null && subscriptionUntilMs > nowMs
-      ? Math.max(1, Math.ceil((subscriptionUntilMs - nowMs) / 86400000))
-      : null;
+    row.provider === 'qwen' &&
+    typeof qwenQuota?.daysLeft === 'number' &&
+    Number.isFinite(qwenQuota.daysLeft) &&
+    qwenQuota.daysLeft >= 0
+      ? qwenQuota.daysLeft
+      : subscriptionUntilMs !== null && subscriptionUntilMs > nowMs
+        ? Math.max(1, Math.ceil((subscriptionUntilMs - nowMs) / 86400000))
+        : null;
 
   return {
     effectivePlanType,

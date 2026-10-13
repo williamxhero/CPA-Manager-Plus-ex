@@ -7380,7 +7380,7 @@ export const getDemoLatestVersion = () => ({
 export const getDemoManagerLatestRelease = () => ({
   tag_name: 'v7.1.18',
   name: 'CPA Manager Plus v7.1.18',
-  html_url: 'https://github.com/seakee/CPA-Manager-Plus/releases/tag/v7.1.18',
+  html_url: 'https://github.com/williamxhero/CPA-Manager-Plus-ex/releases/tag/v7.1.18',
   published_at: startOfLocalDayIso(),
 });
 

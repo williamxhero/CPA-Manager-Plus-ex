@@ -95,6 +95,30 @@ const scopeTestQuotaStores = (files: AuthFileItem[], stores: AccountQuotaStores)
   return stores;
 };
 
+describe('account label resolution', () => {
+  it('never renders a raw credential as the credential name', () => {
+    const rows = buildAccountRows(
+      [
+        {
+          name: 'opencode-go-key-dbbf.json',
+          provider: 'opencode-go',
+          account: 'oc_sk_c4e216a8dccb_lmlSu7XariCO-nYqAzF1YrY1F_xIRaBb',
+        },
+        { name: 'qwen.json', provider: 'qwen', label: 'Qwen', account: 'sk-sp-abcdefghijklmnop' },
+        { name: 'claude.json', provider: 'claude', email: 'someone@example.com' },
+      ],
+      emptyStores()
+    );
+    const byName = new Map(rows.map((row) => [row.fileName, row.accountLabel]));
+    // The host puts the raw key in `account` for plugin credentials: mask it.
+    expect(byName.get('opencode-go-key-dbbf.json')).toBe('oc_s...RaBb');
+    // An alias always wins over the credential value.
+    expect(byName.get('qwen.json')).toBe('Qwen');
+    // Ordinary identities are untouched.
+    expect(byName.get('claude.json')).toBe('someone@example.com');
+  });
+});
+
 const buildAccountRows = (
   files: AuthFileItem[],
   stores: AccountQuotaStores,

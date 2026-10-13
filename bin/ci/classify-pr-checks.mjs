@@ -10,6 +10,7 @@ const CHECK_NAMES = [
   'docker',
   'demo_docs',
   'release_content',
+  'providers',
 ];
 
 const FORBIDDEN_INVISIBLE_CODE_POINTS = new Set([
@@ -80,6 +81,25 @@ const triggersReleaseContent = (filePath) =>
   filePath === 'bin/release/validate-release.mjs' ||
   filePath === 'bin/release/validate-release-contributors.mjs';
 
+// SPEC5-D: single-repo provider build/CI surface (providers/{opencode-go,qwen}).
+const PROVIDER_TRIGGER_FILES = new Set([
+  'NOTICE',
+  'package.json',
+  'docs/providers-layout-contract.md',
+  'bin/release/check-provider-import-boundary.mjs',
+  'bin/release/run-provider-go.mjs',
+  'bin/release/build-providers.mjs',
+  'bin/release/sync-opencode-subtree.sh',
+  'tests/providerImportBoundary.test.mjs',
+  'tests/providerBuildScripts.test.mjs',
+]);
+
+const triggersProviders = (filePath) =>
+  startsWithPath(filePath, 'providers') ||
+  filePath === 'go.work' ||
+  filePath === 'go.work.sum' ||
+  PROVIDER_TRIGGER_FILES.has(filePath);
+
 export const classifyChangedFiles = (changedFiles) => {
   const files = normalizeChangedFiles(changedFiles);
   if (files.length === 0 || files.some(triggersAllChecks)) return allChecks(true);
@@ -95,6 +115,7 @@ export const classifyChangedFiles = (changedFiles) => {
     docker: files.some(triggersDocker),
     demo_docs: files.some(triggersDemoDocs),
     release_content: files.some(triggersReleaseContent),
+    providers: files.some(triggersProviders),
   };
 };
 

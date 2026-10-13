@@ -11,7 +11,7 @@ Most users only need four steps: run the script, choose the install scope, choos
 Download the script, then run it:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh
+curl -fsSLO https://raw.githubusercontent.com/williamxhero/CPA-Manager-Plus-ex/main/bin/install-cpamp.sh
 bash install-cpamp.sh
 ```
 

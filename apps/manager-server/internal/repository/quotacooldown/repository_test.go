@@ -166,6 +166,73 @@ func TestUpsertActiveKeepsMetadataForWinningRecovery(t *testing.T) {
 	}
 }
 
+// TestUpsertActiveSupportsConservativeNextCheck guards the schema extension: a
+// cooldown with no provider reset timestamp is stored with recover_at_ms=0 and
+// recover_at_kind=unknown, is picked up by ListDue via next_check_at_ms, and can
+// be rescheduled without ever gaining a fabricated recovery time.
+func TestUpsertActiveSupportsConservativeNextCheck(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "usage.sqlite"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	ctx := context.Background()
+	now := int64(1_700_000_000_000)
+	seeded, err := st.QuotaCooldowns.UpsertActive(ctx, model.QuotaCooldownUpsert{
+		AuthFileName:  "xai-unknown.json",
+		AuthIndex:     "auth-1",
+		Provider:      "xai",
+		RecoverAtKind: model.QuotaCooldownRecoverKindUnknown,
+		NextCheckAtMS: now - 1_000,
+		Owner:         model.QuotaCooldownOwnerXAIFreeUsage,
+	})
+	if err != nil {
+		t.Fatalf("insert unknown-reset cooldown: %v", err)
+	}
+	if seeded.RecoverAtMS != 0 || seeded.RecoverAtKind != model.QuotaCooldownRecoverKindUnknown || seeded.NextCheckAtMS != now-1_000 {
+		t.Fatalf("seeded cooldown = %#v", seeded)
+	}
+
+	if _, err := st.QuotaCooldowns.UpsertActive(ctx, model.QuotaCooldownUpsert{
+		AuthFileName: "codex-future.json",
+		AuthIndex:    "auth-2",
+		Provider:     "codex",
+		RecoverAtMS:  now + 10_000_000,
+		Owner:        model.QuotaCooldownOwnerUsage429,
+	}); err != nil {
+		t.Fatalf("insert provider cooldown: %v", err)
+	}
+
+	due, err := st.QuotaCooldowns.ListDue(ctx, now, 10)
+	if err != nil {
+		t.Fatalf("list due: %v", err)
+	}
+	if len(due) != 1 || due[0].ID != seeded.ID {
+		t.Fatalf("due cooldowns = %#v, want only the unknown-reset cooldown via next_check_at_ms", due)
+	}
+
+	if err := st.QuotaCooldowns.Reschedule(ctx, seeded.ID, now+60_000, "still exhausted"); err != nil {
+		t.Fatalf("reschedule: %v", err)
+	}
+	active, err := st.QuotaCooldowns.ListActive(ctx)
+	if err != nil {
+		t.Fatalf("list active: %v", err)
+	}
+	var found model.QuotaCooldown
+	for _, item := range active {
+		if item.ID == seeded.ID {
+			found = item
+		}
+	}
+	if found.ID == 0 {
+		t.Fatalf("rescheduled cooldown missing: %#v", active)
+	}
+	if found.NextCheckAtMS != now+60_000 || found.RecoverAtMS != 0 || found.LastError != "still exhausted" {
+		t.Fatalf("rescheduled cooldown = %#v", found)
+	}
+}
+
 func TestUpsertActiveBeginsNewCycleAfterObservedEnable(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "usage.sqlite")
 	st, err := store.Open(dbPath)

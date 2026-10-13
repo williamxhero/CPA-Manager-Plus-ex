@@ -284,12 +284,38 @@ const readPlanType = (file: AuthFileItem): string | null => {
   return resolveAuthFilePlanType(file);
 };
 
-const resolveAccountLabel = (file: AuthFileItem): string =>
-  readString(file.email) ||
-  readString(file.account) ||
-  readString(file.label) ||
-  readString(file.note) ||
-  file.name;
+// A credential identifier ("oc_sk_c4e2…", "sk-sp-…", a long opaque token) must never be
+// rendered as a display name: show it masked as first4...last4 instead. This keeps the
+// panel honest for plugin credentials whose host-supplied `account` is the raw key.
+const CREDENTIAL_LIKE_LABEL = /^(?:sk|oc_sk|sk-sp|sk-ant|sk-or|ak|xai)[-_]/i;
+
+const looksLikeCredentialLabel = (value: string): boolean => {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.includes('@') || /\s/.test(trimmed)) return false;
+  if (CREDENTIAL_LIKE_LABEL.test(trimmed)) return true;
+  return trimmed.length >= 32 && /^[A-Za-z0-9_-]+$/.test(trimmed);
+};
+
+const maskCredentialLabel = (value: string): string => {
+  const trimmed = value.trim();
+  if (trimmed.length >= 12) return `${trimmed.slice(0, 4)}...${trimmed.slice(-4)}`;
+  if (trimmed.length >= 8) return `${trimmed.slice(0, 2)}...${trimmed.slice(-2)}`;
+  return '...';
+};
+
+const resolveAccountLabel = (file: AuthFileItem): string => {
+  const candidates = [
+    readString(file.email),
+    readString(file.account),
+    readString(file.label),
+    readString(file.note),
+  ];
+  const name = candidates.find((value) => value && !looksLikeCredentialLabel(value));
+  if (name) return name;
+  const credential = candidates.find((value) => value && looksLikeCredentialLabel(value));
+  if (credential) return maskCredentialLabel(credential);
+  return file.name;
+};
 
 const resolveStatusMessage = (file: AuthFileItem): string =>
   readString(file.statusMessage ?? file['status_message']);

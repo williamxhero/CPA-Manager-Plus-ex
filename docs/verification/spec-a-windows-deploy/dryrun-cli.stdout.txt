@@ -1,0 +1,5 @@
+2026-10-13T10:27:15.9855637Z [OK] preflight: Paths, target, permissions, inputs and isolated port validated; no credentials read.
+2026-10-13T10:27:17.2376073Z [OK] rehearsal: New executable healthy on isolated loopback port/data; process terminated and temporary data removed.
+2026-10-13T10:27:17.2392622Z [OK] dry_run: DRY RUN PASSED: rehearsal only; no deployment or service changes.
+RESULT: deployed; exit=0; dryRun=True
+exit=0

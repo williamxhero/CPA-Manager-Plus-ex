@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -20,17 +21,25 @@ import (
 )
 
 type Status struct {
-	Collector      string `json:"collector"`
-	Upstream       string `json:"upstream"`
-	Mode           string `json:"mode"`
-	Transport      string `json:"transport"`
-	Queue          string `json:"queue"`
-	LastConsumedAt int64  `json:"lastConsumedAt"`
-	LastInsertedAt int64  `json:"lastInsertedAt"`
-	TotalInserted  int64  `json:"totalInserted"`
-	TotalSkipped   int64  `json:"totalSkipped"`
-	DeadLetters    int64  `json:"deadLetters"`
-	LastError      string `json:"lastError,omitempty"`
+	Collector          string `json:"collector"`
+	Upstream           string `json:"upstream"`
+	Mode               string `json:"mode"`
+	Transport          string `json:"transport"`
+	Queue              string `json:"queue"`
+	LastAttemptAt      int64  `json:"lastAttemptAt"`
+	LastActivityAt     int64  `json:"lastActivityAt"`
+	LastConsumedAt     int64  `json:"lastConsumedAt"`
+	LastInsertedAt     int64  `json:"lastInsertedAt"`
+	LastSuccessAt      int64  `json:"lastSuccessAt"`
+	StalledMS          int64  `json:"stalledMs"`
+	LastBatchSize      int    `json:"lastBatchSize"`
+	Reconnects         int64  `json:"reconnects"`
+	WatchdogReconnects int64  `json:"watchdogReconnects"`
+	TotalInserted      int64  `json:"totalInserted"`
+	TotalSkipped       int64  `json:"totalSkipped"`
+	DeadLetters        int64  `json:"deadLetters"`
+	LastError          string `json:"lastError,omitempty"`
+	LastErrorAt        int64  `json:"lastErrorAt,omitempty"`
 }
 
 type RuntimeConfig struct {
@@ -62,14 +71,25 @@ type Manager struct {
 	cancel            context.CancelFunc
 	status            Status
 	runtimeCfg        RuntimeConfig
+	// watchdog tuning; kept as fields (not constants) so tests can drive the
+	// watchdog with sub-second intervals. Zero values fall back to the defaults.
+	subscribePingInterval time.Duration
+	subscribePongTimeout  time.Duration
 }
+
+const (
+	defaultSubscribePingInterval = 30 * time.Second
+	defaultSubscribePongTimeout  = 15 * time.Second
+)
 
 func NewManager(base config.Config, store *store.Store) *Manager {
 	return &Manager{
-		base:             base,
-		store:            store,
-		snapshotResolver: newAuthSnapshotResolver(),
-		quotaSnapshots:   quotasnapshotsvc.New(store),
+		base:                  base,
+		store:                 store,
+		snapshotResolver:      newAuthSnapshotResolver(),
+		quotaSnapshots:        quotasnapshotsvc.New(store),
+		subscribePingInterval: defaultSubscribePingInterval,
+		subscribePongTimeout:  defaultSubscribePongTimeout,
 		status: Status{
 			Collector: "stopped",
 			Mode:      collectorMode(base.CollectorMode),
@@ -87,12 +107,17 @@ func (m *Manager) Start(ctx context.Context, cfg RuntimeConfig) {
 	}
 	m.runtimeCfg = cfg
 	handler := m.usageEventHandler
+	now := time.Now().UnixMilli()
 	m.status.Collector = "starting"
 	m.status.Upstream = cfg.CPAUpstreamURL
 	m.status.Mode = collectorMode(valueOr(cfg.CollectorMode, m.base.CollectorMode))
 	m.status.Transport = ""
 	m.status.Queue = valueOr(cfg.Queue, m.base.Queue)
 	m.status.LastError = ""
+	m.status.LastErrorAt = 0
+	m.status.LastAttemptAt = now
+	m.status.LastActivityAt = now
+	m.status.StalledMS = 0
 
 	runCtx, cancel := context.WithCancel(ctx)
 	m.cancel = cancel
@@ -115,7 +140,13 @@ func (m *Manager) Stop() {
 func (m *Manager) Status() Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.status
+	status := m.status
+	if status.LastActivityAt > 0 {
+		if stalled := time.Now().UnixMilli() - status.LastActivityAt; stalled > 0 {
+			status.StalledMS = stalled
+		}
+	}
+	return status
 }
 
 func (m *Manager) SetUsageEventHandler(handler UsageEventHandler) {
@@ -219,6 +250,13 @@ func (m *Manager) runSubscribe(ctx context.Context, cfg RuntimeConfig, mode stri
 			return true
 		}
 		if err != nil {
+			var stall *stallError
+			if errors.As(err, &stall) {
+				m.setStatus(func(status *Status) {
+					status.WatchdogReconnects++
+				})
+			}
+			m.recordReconnect()
 			m.markError("subscribe", err)
 			sleep(ctx, backoff)
 			backoff = nextBackoff(backoff)
@@ -227,8 +265,12 @@ func (m *Manager) runSubscribe(ctx context.Context, cfg RuntimeConfig, mode stri
 }
 
 func (m *Manager) consumeSubscribe(ctx context.Context, cfg RuntimeConfig, client *resp.Client) error {
-	const pingInterval = 30 * time.Second
-	const readWindow = pingInterval + 10*time.Second
+	pingInterval := m.effectiveSubscribePingInterval()
+	pongTimeout := m.effectiveSubscribePongTimeout()
+	// Wait at most pongTimeout for a frame before deciding whether a keepalive
+	// ping is due and re-checking the watchdog. A shorter read window keeps the
+	// stall detection responsive without busy-looping.
+	readWindow := pongTimeout
 
 	done := make(chan struct{})
 	defer close(done)
@@ -240,31 +282,49 @@ func (m *Manager) consumeSubscribe(ctx context.Context, cfg RuntimeConfig, clien
 		}
 	}()
 
-	lastPing := time.Now()
+	var pingSentAt time.Time
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		m.setStatus(func(status *Status) {
+			status.LastAttemptAt = time.Now().UnixMilli()
+		})
 		if err := client.SetReadDeadline(time.Now().Add(readWindow)); err != nil {
 			return err
 		}
 		_, payload, err := client.ReadMessage()
+		m.recordActivity(client.LastActivity())
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
 			var ne net.Error
 			if errors.As(err, &ne) && ne.Timeout() {
-				if time.Since(lastPing) >= pingInterval {
+				now := time.Now()
+				if pingSentAt.IsZero() || now.Sub(pingSentAt) >= pingInterval {
 					if perr := client.SendSubscribePing(); perr != nil {
 						return perr
 					}
-					lastPing = time.Now()
+					pingSentAt = now
+				}
+				// A pong (or any other frame) advances the connection's last
+				// activity. If nothing at all has arrived since the ping we
+				// sent, the subscription is silently dead even though the TCP
+				// socket may still be open: reconnect instead of spinning on
+				// read-deadline timeouts while reporting "running".
+				if !pingSentAt.IsZero() &&
+					now.Sub(pingSentAt) >= pongTimeout &&
+					client.LastActivity().Before(pingSentAt) {
+					return &stallError{reason: fmt.Sprintf(
+						"no upstream frame for %s after keepalive ping",
+						now.Sub(pingSentAt).Round(time.Millisecond))}
 				}
 				continue
 			}
 			return err
 		}
+		pingSentAt = time.Time{}
 		if strings.TrimSpace(payload) == "" {
 			continue
 		}
@@ -295,6 +355,7 @@ func (m *Manager) runHTTP(ctx context.Context, cfg RuntimeConfig, mode string) b
 			return false
 		}
 		if err != nil {
+			m.recordReconnect()
 			m.markError("http", err)
 			sleep(ctx, backoff)
 			backoff = nextBackoff(backoff)
@@ -338,6 +399,7 @@ func (m *Manager) runRESP(ctx context.Context, cfg RuntimeConfig) {
 			return
 		}
 		if err != nil {
+			m.recordReconnect()
 			m.markError("consume", err)
 			sleep(ctx, backoff)
 			backoff = nextBackoff(backoff)
@@ -357,11 +419,13 @@ func (m *Manager) consumeHTTP(ctx context.Context, cfg RuntimeConfig, client *ht
 			status.Collector = "running"
 			status.Transport = "http"
 			status.LastError = ""
+			status.LastAttemptAt = time.Now().UnixMilli()
 		})
 		items, err := client.Pop(ctx, m.batchSize(cfg))
 		if err != nil {
 			return err
 		}
+		m.recordActivity(time.Now())
 		if len(items) == 0 {
 			select {
 			case <-ctx.Done():
@@ -384,10 +448,14 @@ func (m *Manager) consumeRESP(ctx context.Context, cfg RuntimeConfig, client *re
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		m.setStatus(func(status *Status) {
+			status.LastAttemptAt = time.Now().UnixMilli()
+		})
 		items, err := client.Pop(queue, popSide, m.batchSize(cfg))
 		if err != nil {
 			return err
 		}
+		m.recordActivity(time.Now())
 		if len(items) == 0 {
 			select {
 			case <-ctx.Done():
@@ -408,6 +476,7 @@ func (m *Manager) processItems(ctx context.Context, cfg RuntimeConfig, items []s
 	}
 	m.setStatus(func(status *Status) {
 		status.LastConsumedAt = time.Now().UnixMilli()
+		status.LastBatchSize = len(items)
 	})
 	events := make([]usage.Event, 0, len(items))
 	for _, item := range items {
@@ -444,8 +513,10 @@ func (m *Manager) processItems(ctx context.Context, cfg RuntimeConfig, items []s
 		m.handleUsageEvents(ctx, cfg, inserted)
 	}
 	if result.Inserted > 0 || result.Skipped > 0 {
+		now := time.Now().UnixMilli()
 		m.setStatus(func(status *Status) {
-			status.LastInsertedAt = time.Now().UnixMilli()
+			status.LastInsertedAt = now
+			status.LastSuccessAt = now
 			status.TotalInserted += int64(result.Inserted)
 			status.TotalSkipped += int64(result.Skipped)
 		})
@@ -639,10 +710,75 @@ func codexSnapshotCanEnrichEvent(event usage.Event, snapshot authSnapshot) bool 
 }
 
 func (m *Manager) markError(stage string, err error) {
+	message := describeError(err)
 	m.setStatus(func(status *Status) {
 		status.Collector = "error"
-		status.LastError = stage + ": " + err.Error()
+		status.LastError = stage + ": " + message
+		status.LastErrorAt = time.Now().UnixMilli()
 	})
+}
+
+// stallError signals that the subscribe consumer stopped making progress and
+// the watchdog asked for a reconnect. It is intentionally a distinct type so
+// the reconnect loop can account for watchdog-driven reconnections.
+type stallError struct {
+	reason string
+}
+
+func (e *stallError) Error() string {
+	return "usage collector watchdog: " + e.reason
+}
+
+// describeError produces a bounded, redacted error string for the /status
+// payload. HTTP status errors carry an upstream response body that may echo
+// request content, so only the status line is kept. Newlines are collapsed and
+// the result is truncated to keep the status endpoint small.
+func describeError(err error) string {
+	if err == nil {
+		return ""
+	}
+	var statusErr *httpqueue.StatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.Status
+	}
+	message := strings.Join(strings.Fields(err.Error()), " ")
+	const maxLen = 300
+	if len(message) > maxLen {
+		message = message[:maxLen] + "..."
+	}
+	return message
+}
+
+func (m *Manager) recordActivity(at time.Time) {
+	if at.IsZero() {
+		return
+	}
+	ms := at.UnixMilli()
+	m.setStatus(func(status *Status) {
+		if ms > status.LastActivityAt {
+			status.LastActivityAt = ms
+		}
+	})
+}
+
+func (m *Manager) recordReconnect() {
+	m.setStatus(func(status *Status) {
+		status.Reconnects++
+	})
+}
+
+func (m *Manager) effectiveSubscribePingInterval() time.Duration {
+	if m.subscribePingInterval > 0 {
+		return m.subscribePingInterval
+	}
+	return defaultSubscribePingInterval
+}
+
+func (m *Manager) effectiveSubscribePongTimeout() time.Duration {
+	if m.subscribePongTimeout > 0 {
+		return m.subscribePongTimeout
+	}
+	return defaultSubscribePongTimeout
 }
 
 func sleep(ctx context.Context, duration time.Duration) {

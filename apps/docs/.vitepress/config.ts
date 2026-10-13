@@ -188,7 +188,7 @@ const enSearchTranslations = {
   },
 };
 
-const editLinkPattern = 'https://github.com/seakee/CPA-Manager-Plus/edit/main/apps/docs/:path';
+const editLinkPattern = 'https://github.com/williamxhero/CPA-Manager-Plus-ex/edit/main/apps/docs/:path';
 
 const commonThemeConfig: DefaultTheme.Config = {
   search: {
@@ -204,7 +204,7 @@ const commonThemeConfig: DefaultTheme.Config = {
       },
     },
   },
-  socialLinks: [{ icon: 'github', link: 'https://github.com/seakee/CPA-Manager-Plus' }],
+  socialLinks: [{ icon: 'github', link: 'https://github.com/williamxhero/CPA-Manager-Plus-ex' }],
   footer: {
     message: 'Released under the MIT License.',
     copyright: 'Copyright 2026 Seakee.',

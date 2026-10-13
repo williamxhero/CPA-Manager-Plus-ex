@@ -38,7 +38,7 @@ const release = (version = 'v1.12.11'): ReleaseInfo => ({
     migration_required: false,
     minimum_direct_upgrade_version: null,
     upgrade_guide_url:
-      'https://github.com/seakee/CPA-Manager-Plus/blob/' + version + '/docs/update-check.md',
+      'https://github.com/williamxhero/CPA-Manager-Plus-ex/blob/' + version + '/docs/update-check.md',
   },
   distribution: {
     docker: { image: 'seakee/cpa-manager-plus', version_tag: version },
@@ -105,7 +105,7 @@ describe('ManagerUpdatePage', () => {
       (node) => node.type === 'a' && text(node).includes('manager_updates.native_download')
     );
     expect(download.props.href).toBe(
-      'https://github.com/seakee/CPA-Manager-Plus/releases/tag/v1.12.11'
+      'https://github.com/williamxhero/CPA-Manager-Plus-ex/releases/tag/v1.12.11'
     );
     expect(renderer!.root.findByProps({ role: 'tabpanel' }).props['aria-labelledby']).toBe(
       'manager-deployment-native'

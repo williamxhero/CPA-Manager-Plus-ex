@@ -37,6 +37,37 @@ describe('authFiles constants - devin', () => {
   });
 });
 
+describe('authFiles constants - opencode-go', () => {
+  it('maps light/dark to the matching OpenCode assets without inverting them', () => {
+    const light = getAuthFileIcon('opencode-go', 'light');
+    const dark = getAuthFileIcon('opencode-go', 'dark');
+
+    expect(light).toBeTruthy();
+    expect(dark).toBeTruthy();
+    expect(light).not.toBe(dark);
+    expect(light).toContain('opencode-light');
+    expect(dark).toContain('opencode-dark');
+  });
+
+  it('resolves the opencode-go provider alias and null for unknown providers', () => {
+    expect(getAuthFileIcon('opencode-go', 'light')).toBe(getAuthFileIcon('OPENCODE_GO', 'light'));
+    expect(getAuthFileIcon('not-a-provider', 'light')).toBeNull();
+  });
+
+  it('returns the neutral slate type colors for opencode-go', () => {
+    expect(getTypeColor('opencode-go', 'light')).toEqual({
+      bg: '#eef0f4',
+      text: '#333a45',
+      border: '1px solid #d6dae1',
+    });
+    expect(getTypeColor('opencode-go', 'dark')).toEqual({
+      bg: '#242a33',
+      text: '#c7cfda',
+      border: '1px solid #3b424d',
+    });
+  });
+});
+
 describe('authFiles constants - meta', () => {
   it('returns valid icon for meta in light and dark mode and resolves muse alias', () => {
     const light = getAuthFileIcon('meta', 'light');
@@ -101,10 +132,11 @@ describe('authFiles constants - meta', () => {
     expect(isQuotaRefreshSupportedProvider('xai')).toBe(true);
     expect(isQuotaRefreshSupportedProvider('x-ai')).toBe(true);
     expect(isQuotaRefreshSupportedProvider('grok')).toBe(true);
+    expect(isQuotaRefreshSupportedProvider('qwen')).toBe(true);
+    expect(isQuotaRefreshSupportedProvider(' QWEN ')).toBe(true);
 
     // Other non-quota providers
     expect(isQuotaRefreshSupportedProvider('vertex')).toBe(false);
-    expect(isQuotaRefreshSupportedProvider('qwen')).toBe(false);
     expect(isQuotaRefreshSupportedProvider('iflow')).toBe(false);
     expect(isQuotaRefreshSupportedProvider('')).toBe(false);
   });

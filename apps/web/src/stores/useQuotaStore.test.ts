@@ -9,6 +9,8 @@ import type {
   XaiQuotaState,
 } from '@/types';
 
+import type { QwenQuotaState } from '@/utils/quota/qwenQuota';
+
 type StorageLike = {
   getItem: (key: string) => string | null;
   setItem: (key: string, value: string) => void;
@@ -43,6 +45,7 @@ const readPersistedQuotaState = async () => {
       devinQuota?: Record<string, DevinQuotaState>;
       kimiQuota?: Record<string, KimiQuotaState>;
       metaQuota?: Record<string, MetaQuotaState>;
+      qwenQuota?: Record<string, QwenQuotaState>;
       xaiQuota?: Record<string, XaiQuotaState>;
     };
   }>(STORAGE_KEY_QUOTA_CACHE);
@@ -69,6 +72,71 @@ describe('useQuotaStore persistence', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('refreshes credential-scoped Qwen data with context and clears failed snapshot payloads', async () => {
+    const { useQuotaStore } = await import('./useQuotaStore');
+    const { QWEN_CONFIG } = await import('@/components/quota/quotaConfigs');
+    const { refreshQuotaWithConfig } = await import('@/components/quota/quotaRefresh');
+    const file = { name: 'shared.json', type: 'qwen', authIndex: 'qwen-1' };
+    const data = {
+      plan: 'Qwen Pro', planStatus: 'active', planStartMs: null,
+      planEndMs: null, daysLeft: 12, observedAtMs: 1_770_000_000_000,
+      windows: [{ id: 'monthly', label: 'Monthly', usedPercent: 20, remainingPercent: 80, resetAtMs: null, resetsInDays: 10 }],
+      metrics: [{ key: 'credits', label: 'Credits', value: 123, unit: null, format: 'number' }],
+    };
+    const fetchQuota = vi.fn(QWEN_CONFIG.fetchQuota).mockResolvedValue(data);
+    const config = { ...QWEN_CONFIG, fetchQuota };
+    const t = ((key: string) => key) as import('i18next').TFunction;
+    const success = await refreshQuotaWithConfig({
+      config, file, setQuota: useQuotaStore.getState().setQwenQuota, t, isCurrent: () => true,
+    });
+    expect(fetchQuota.mock.calls[0]?.[3]?.isCurrent?.()).toBe(true);
+    expect(success?.state).toMatchObject({ ...data, status: 'success', authFileKey: 'shared.json::qwen-1' });
+    expect(success?.state.fetchedAtMs).not.toBe(data.observedAtMs);
+    expect(QWEN_CONFIG.scopeState?.({ ...file, authIndex: 'qwen-2' }, success?.state)).toBeUndefined();
+
+    fetchQuota.mockRejectedValue(Object.assign(new Error('upstream credential expired'), { status: 401 }));
+    const failure = await refreshQuotaWithConfig({
+      config, file, setQuota: useQuotaStore.getState().setQwenQuota, t, isCurrent: () => true,
+      currentState: success?.state,
+    });
+    expect(failure?.state).toMatchObject({
+      status: 'error', error: 'upstream credential expired', errorStatus: 401,
+      windows: [], metrics: [], plan: null, planStatus: null, planEndMs: null,
+      daysLeft: null, observedAtMs: null, authFileKey: 'shared.json::qwen-1',
+    });
+    expect(failure?.state.fetchedAtMs).toBeUndefined();
+    expect(useQuotaStore.getState().qwenQuota['shared.json::qwen-1']).toEqual(failure?.state);
+  });
+
+  it('persists and hydrates only credential-verified Qwen states, and clears on scope changes', async () => {
+    const { useQuotaStore } = await import('./useQuotaStore');
+    const quota: QwenQuotaState = {
+      status: 'success', windows: [], metrics: [], plan: 'Qwen Pro', planStatus: 'active',
+      planStartMs: null, planEndMs: null, daysLeft: 12, observedAtMs: 1_770_000_000_000,
+      authFileKey: 'qwen-success', authFileIdentityVerified: true,
+    };
+    useQuotaStore.getState().activateQuotaCacheScope('qwen-scope');
+    useQuotaStore.getState().setQwenQuota({
+      oldFilename: quota,
+      failed: { ...quota, authFileKey: 'qwen-error', status: 'error', error: 'credential expired', errorStatus: 401 },
+      unverified: { ...quota, authFileKey: 'unverified', authFileIdentityVerified: false },
+      loading: { ...quota, authFileKey: 'loading', status: 'loading' },
+    });
+    const persisted = await readPersistedQuotaState();
+    expect(Object.keys(persisted.qwenQuota ?? {})).toEqual(['qwen-success', 'qwen-error']);
+    vi.resetModules();
+    const { useQuotaStore: hydrated } = await import('./useQuotaStore');
+    expect(hydrated.getState().qwenQuota['qwen-success']).toMatchObject({ plan: 'Qwen Pro', daysLeft: 12 });
+    expect(hydrated.getState().qwenQuota['qwen-error']).toMatchObject({ status: 'error', error: 'credential expired', errorStatus: 401 });
+    hydrated.getState().activateQuotaCacheScope('another-scope');
+    expect(hydrated.getState().qwenQuota).toEqual({});
+    expect((await readPersistedQuotaState()).qwenQuota).toEqual({});
+    hydrated.getState().setQwenQuota((previous) => ({ ...previous, 'qwen-success': quota }));
+    hydrated.getState().clearQuotaCache();
+    expect(hydrated.getState().qwenQuota).toEqual({});
+    expect((await readPersistedQuotaState()).qwenQuota).toEqual({});
   });
 
   it('persists manually fetched Codex success and error states', async () => {

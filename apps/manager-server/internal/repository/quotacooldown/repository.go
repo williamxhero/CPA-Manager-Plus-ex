@@ -19,6 +19,7 @@ type Repository interface {
 	MarkRecovered(ctx context.Context, id int64, recoveredAtMS int64) error
 	MarkSkipped(ctx context.Context, id int64, reason string) error
 	RecordFailure(ctx context.Context, id int64, reason string) error
+	Reschedule(ctx context.Context, id int64, nextCheckAtMS int64, reason string) error
 }
 
 type repository struct {
@@ -44,8 +45,15 @@ func (r *repository) UpsertActive(ctx context.Context, cooldown model.QuotaCoold
 	if cooldown.Owner == "" {
 		return model.QuotaCooldown{}, errors.New("quota cooldown owner is required")
 	}
-	if cooldown.RecoverAtMS <= 0 {
-		return model.QuotaCooldown{}, errors.New("quota cooldown recover_at_ms is required")
+	if cooldown.RecoverAtMS < 0 {
+		return model.QuotaCooldown{}, errors.New("quota cooldown recover_at_ms must not be negative")
+	}
+	cooldown.RecoverAtKind = model.NormalizeQuotaCooldownRecoverKind(cooldown.RecoverAtKind, cooldown.RecoverAtMS)
+	if cooldown.RecoverAtKind == model.QuotaCooldownRecoverKindProvider && cooldown.RecoverAtMS <= 0 {
+		return model.QuotaCooldown{}, errors.New("quota cooldown recover_at_ms is required for a provider recovery schedule")
+	}
+	if cooldown.NextCheckAtMS < 0 {
+		return model.QuotaCooldown{}, errors.New("quota cooldown next_check_at_ms must not be negative")
 	}
 	cooldown.EvidenceJSON = normalizeEvidenceJSON(cooldown.EvidenceJSON)
 	now := time.Now().UnixMilli()
@@ -135,9 +143,10 @@ func (r *repository) UpsertActive(ctx context.Context, cooldown model.QuotaCoold
 	if !found {
 		res, execErr := tx.ExecContext(ctx, `insert into quota_cooldowns (
 			auth_file_name, auth_index, account_snapshot, provider, reason_code, window_kind, evidence_json, recover_at_ms,
+			recover_at_kind, next_check_at_ms,
 			owner, event_hash, pre_disabled_state, status, disabled_at_ms,
 			created_at_ms, updated_at_ms
-		) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			cooldown.AuthFileName,
 			nullString(cooldown.AuthIndex),
 			nullString(cooldown.AccountSnapshot),
@@ -146,6 +155,8 @@ func (r *repository) UpsertActive(ctx context.Context, cooldown model.QuotaCoold
 			nullString(cooldown.WindowKind),
 			nullString(cooldown.EvidenceJSON),
 			cooldown.RecoverAtMS,
+			cooldown.RecoverAtKind,
+			nullInt64(cooldown.NextCheckAtMS),
 			cooldown.Owner,
 			nullString(cooldown.EventHash),
 			boolInt(cooldown.PreDisabledState),
@@ -179,6 +190,11 @@ func (r *repository) UpsertActive(ctx context.Context, cooldown model.QuotaCoold
 				else evidence_json
 			end,
 			recover_at_ms = max(recover_at_ms, ?),
+			recover_at_kind = case
+				when ? = 'provider' then 'provider'
+				else coalesce(nullif(recover_at_kind, ''), ?)
+			end,
+			next_check_at_ms = max(coalesce(next_check_at_ms, 0), coalesce(?, 0)),
 			event_hash = case
 				when ? >= recover_at_ms then coalesce(nullif(?, ''), event_hash)
 				else event_hash
@@ -186,7 +202,7 @@ func (r *repository) UpsertActive(ctx context.Context, cooldown model.QuotaCoold
 			disabled_at_ms = min(disabled_at_ms, ?),
 			last_error = null,
 			updated_at_ms = ?
-		where id = ?`,
+			where id = ?`,
 			nullString(cooldown.AuthIndex),
 			nullString(cooldown.AccountSnapshot),
 			nullString(cooldown.Provider),
@@ -197,6 +213,9 @@ func (r *repository) UpsertActive(ctx context.Context, cooldown model.QuotaCoold
 			cooldown.RecoverAtMS,
 			cooldown.EvidenceJSON,
 			cooldown.RecoverAtMS,
+			cooldown.RecoverAtKind,
+			cooldown.RecoverAtKind,
+			cooldown.NextCheckAtMS,
 			cooldown.RecoverAtMS,
 			cooldown.EventHash,
 			cooldown.DisabledAtMS,
@@ -269,7 +288,7 @@ func (r *repository) ListDue(ctx context.Context, nowMS int64, limit int) ([]mod
 	if limit <= 0 {
 		limit = 100
 	}
-	rows, err := r.db.QueryContext(ctx, selectQuotaCooldowns+` where status = ? and recover_at_ms <= ? order by recover_at_ms asc, id asc limit ?`, model.QuotaCooldownStatusActive, nowMS, limit)
+	rows, err := r.db.QueryContext(ctx, selectQuotaCooldowns+` where status = ? and (recover_at_ms <= ? or (next_check_at_ms is not null and next_check_at_ms <= ?)) order by recover_at_ms asc, id asc limit ?`, model.QuotaCooldownStatusActive, nowMS, nowMS, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -306,8 +325,22 @@ func (r *repository) RecordFailure(ctx context.Context, id int64, reason string)
 	return err
 }
 
+// Reschedule moves the conservative next-check time for a still-disabled
+// cooldown forward without granting recovery. It never touches recover_at_ms so
+// a cooldown with an unknown provider reset keeps no fabricated recovery ETA.
+func (r *repository) Reschedule(ctx context.Context, id int64, nextCheckAtMS int64, reason string) error {
+	now := time.Now().UnixMilli()
+	_, err := r.db.ExecContext(ctx, `update quota_cooldowns set
+		next_check_at_ms = max(coalesce(next_check_at_ms, 0), ?),
+		last_error = ?,
+		updated_at_ms = ?
+		where id = ? and status = ?`, nextCheckAtMS, nullString(reason), now, id, model.QuotaCooldownStatusActive)
+	return err
+}
+
 const selectQuotaCooldowns = `select
 	id, auth_file_name, auth_index, account_snapshot, provider, reason_code, window_kind, evidence_json, recover_at_ms,
+	recover_at_kind, next_check_at_ms,
 	owner, event_hash, pre_disabled_state, status, disabled_at_ms,
 	recovered_at_ms, last_error, created_at_ms, updated_at_ms
 from quota_cooldowns`
@@ -357,6 +390,8 @@ func scanScanner(row scanner) (model.QuotaCooldown, error) {
 	var accountSnapshot sql.NullString
 	var provider sql.NullString
 	var reasonCode, windowKind, evidenceJSON, eventHash sql.NullString
+	var recoverAtKind sql.NullString
+	var nextCheckAtMS sql.NullInt64
 	var recoveredAtMS sql.NullInt64
 	var lastError sql.NullString
 	var preDisabled int
@@ -370,6 +405,8 @@ func scanScanner(row scanner) (model.QuotaCooldown, error) {
 		&windowKind,
 		&evidenceJSON,
 		&item.RecoverAtMS,
+		&recoverAtKind,
+		&nextCheckAtMS,
 		&item.Owner,
 		&eventHash,
 		&preDisabled,
@@ -390,6 +427,10 @@ func scanScanner(row scanner) (model.QuotaCooldown, error) {
 	item.WindowKind = windowKind.String
 	item.EvidenceJSON = evidenceJSON.String
 	item.EventHash = eventHash.String
+	item.RecoverAtKind = model.NormalizeQuotaCooldownRecoverKind(recoverAtKind.String, item.RecoverAtMS)
+	if nextCheckAtMS.Valid {
+		item.NextCheckAtMS = nextCheckAtMS.Int64
+	}
 	item.PreDisabledState = preDisabled != 0
 	if recoveredAtMS.Valid {
 		item.RecoveredAtMS = recoveredAtMS.Int64
@@ -401,6 +442,13 @@ func scanScanner(row scanner) (model.QuotaCooldown, error) {
 func nullString(value string) any {
 	value = strings.TrimSpace(value)
 	if value == "" {
+		return nil
+	}
+	return value
+}
+
+func nullInt64(value int64) any {
+	if value <= 0 {
 		return nil
 	}
 	return value

@@ -40,7 +40,7 @@ v6.10.8+
 
 ## Download
 
-Download the package for your platform from [GitHub Releases](https://github.com/seakee/CPA-Manager-Plus/releases/latest).
+Download the package for your platform from [GitHub Releases](https://github.com/williamxhero/CPA-Manager-Plus-ex/releases/latest).
 
 Common package names:
 

@@ -30,6 +30,8 @@ type cooldownItem struct {
 	WindowKind      string                       `json:"windowKind,omitempty"`
 	Evidence        *usage.ProviderUsageMetadata `json:"evidence,omitempty"`
 	RecoverAtMs     int64                        `json:"recoverAtMs"`
+	RecoverAtKind   string                       `json:"recoverAtKind,omitempty"`
+	NextCheckAtMs   int64                        `json:"nextCheckAtMs,omitempty"`
 	DisabledAtMs    int64                        `json:"disabledAtMs"`
 	CreatedAtMs     int64                        `json:"createdAtMs"`
 }
@@ -74,6 +76,15 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func mapCooldown(c model.QuotaCooldown) cooldownItem {
+	recoverAtKind := model.NormalizeQuotaCooldownRecoverKind(c.RecoverAtKind, c.RecoverAtMS)
+	// Only a provider-supplied reset time is a real recovery ETA. A conservative
+	// check schedule must never be presented to the panel as a recovery time.
+	recoverAtMs := c.RecoverAtMS
+	evidence := parseCooldownEvidence(c.EvidenceJSON, c.RecoverAtMS)
+	if recoverAtKind != model.QuotaCooldownRecoverKindProvider {
+		recoverAtMs = 0
+		evidence = nil
+	}
 	return cooldownItem{
 		AuthFileName:    c.AuthFileName,
 		AuthIndex:       c.AuthIndex,
@@ -82,8 +93,10 @@ func mapCooldown(c model.QuotaCooldown) cooldownItem {
 		Owner:           c.Owner,
 		ReasonCode:      c.ReasonCode,
 		WindowKind:      c.WindowKind,
-		Evidence:        parseCooldownEvidence(c.EvidenceJSON, c.RecoverAtMS),
-		RecoverAtMs:     c.RecoverAtMS,
+		Evidence:        evidence,
+		RecoverAtMs:     recoverAtMs,
+		RecoverAtKind:   recoverAtKind,
+		NextCheckAtMs:   c.NextCheckAtMS,
 		DisabledAtMs:    c.DisabledAtMS,
 		CreatedAtMs:     c.CreatedAtMS,
 	}

@@ -1,0 +1,144 @@
+package plugin
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"opencode-go-cliproxyapi/internal/config"
+	"regexp"
+	"strings"
+
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
+)
+
+type authProvider struct{ cfg config.Config }
+
+var _ pluginapi.AuthProvider = authProvider{}
+
+func (authProvider) Identifier() string { return ProviderID }
+
+func (p authProvider) ParseAuth(_ context.Context, req pluginapi.AuthParseRequest) (pluginapi.AuthParseResponse, error) {
+	debugTrace("auth parse request provider=%s file=%s raw_bytes=%d", req.Provider, req.FileName, len(req.RawJSON))
+	var raw struct {
+		Type     string `json:"type"`
+		Provider string `json:"provider"`
+		ID       string `json:"id"`
+		Label    string `json:"label"`
+		APIKey   string `json:"api_key"`
+		BaseURL  string `json:"base_url"`
+	}
+	if err := json.Unmarshal(req.RawJSON, &raw); err != nil {
+		if req.Provider == ProviderID {
+			return pluginapi.AuthParseResponse{}, fmt.Errorf("opencode-go auth record has invalid JSON")
+		}
+		return pluginapi.AuthParseResponse{}, nil
+	}
+	if (req.Provider != "" && req.Provider != ProviderID) || (raw.Type != ProviderID && raw.Provider != ProviderID) {
+		return pluginapi.AuthParseResponse{Handled: false}, nil
+	}
+	if strings.TrimSpace(raw.APIKey) == "" {
+		return pluginapi.AuthParseResponse{}, fmt.Errorf("opencode-go auth record has no api key")
+	}
+	if raw.ID == "" {
+		raw.ID = req.FileName
+	}
+	attributes := map[string]string{"api_key": raw.APIKey}
+	label := accountLabel(p.cfg, raw.APIKey, raw.Label, 0)
+	if raw.BaseURL != "" {
+		base, err := credentialBaseURL(map[string]string{"base_url": raw.BaseURL, "api_key": raw.APIKey}, nil, p.cfg)
+		if err != nil {
+			return pluginapi.AuthParseResponse{}, err
+		}
+		attributes["base_url"] = base
+		label = strings.TrimSpace(raw.Label)
+		if label == "" {
+			label = "OpenCode Go"
+		}
+		// The save callback registers panel credentials by filename. Match it
+		// when the watcher reparses, while preserving legacy configured IDs.
+		if req.FileName != "" {
+			raw.ID = req.FileName
+		}
+	}
+	debugTrace("auth parse handled provider=%s file=%s id=%s api_key_present=%t api_key_length=%d", req.Provider, req.FileName, raw.ID, strings.TrimSpace(raw.APIKey) != "", len(raw.APIKey))
+	return pluginapi.AuthParseResponse{Handled: true, Auth: pluginapi.AuthData{
+		Provider: ProviderID, ID: raw.ID, FileName: req.FileName, Label: label, StorageJSON: req.RawJSON,
+		Attributes: attributes,
+	}}, nil
+}
+
+func (authProvider) StartLogin(context.Context, pluginapi.AuthLoginStartRequest) (pluginapi.AuthLoginStartResponse, error) {
+	return pluginapi.AuthLoginStartResponse{}, fmt.Errorf("opencode-go login is unsupported; configure a manual api key")
+}
+
+func (authProvider) PollLogin(context.Context, pluginapi.AuthLoginPollRequest) (pluginapi.AuthLoginPollResponse, error) {
+	return pluginapi.AuthLoginPollResponse{}, fmt.Errorf("opencode-go login is unsupported; configure a manual api key")
+}
+
+func (authProvider) RefreshAuth(_ context.Context, req pluginapi.AuthRefreshRequest) (pluginapi.AuthRefreshResponse, error) {
+	debugTrace("auth refresh request provider=%s id=%s storage_json_bytes=%d attr_names=%v metadata_names=%v", req.AuthProvider, req.AuthID, len(req.StorageJSON), mapKeys(req.Attributes), mapKeys(req.Metadata))
+	return pluginapi.AuthRefreshResponse{Auth: pluginapi.AuthData{Provider: req.AuthProvider, ID: req.AuthID, StorageJSON: req.StorageJSON, Metadata: req.Metadata, Attributes: req.Attributes}}, nil
+}
+
+func mapKeys[T any](values map[string]T) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+// Labels are presentation only. Stable auth IDs and stored host metadata are preserved.
+func accountLabel(cfg config.Config, key, existing string, fallbackIndex int) string {
+	index := fallbackIndex
+	for i, entry := range cfg.APIKeys {
+		if entry.Value == key {
+			if name := strings.TrimSpace(entry.Name); name != "" {
+				return name
+			}
+			index = i
+			break
+		}
+	}
+	label := strings.TrimSpace(existing)
+	if label != "" && !strings.HasPrefix(label, "OpenCode Go credential ") && !strings.HasPrefix(label, "opencode-go-key-") && !generatedOpenCodeLabel(label) {
+		return label
+	}
+	if masked := maskAPIKey(key); masked != "" {
+		return masked
+	}
+	if len(cfg.APIKeys) > 1 {
+		return fmt.Sprintf("OpenCode Go %d", index+1)
+	}
+	return "OpenCode Go"
+}
+
+// Label presentation rule (matches the Qwen plugin): an alias wins, otherwise the
+// key is shown masked as first4...last4 so two credentials stay distinguishable in
+// the panel without the secret being readable.
+func maskAPIKey(key string) string {
+	runes := []rune(strings.TrimSpace(key))
+	switch {
+	case len(runes) >= 12:
+		return string(runes[:4]) + "..." + string(runes[len(runes)-4:])
+	case len(runes) >= 8:
+		return string(runes[:2]) + "..." + string(runes[len(runes)-2:])
+	case len(runes) >= 2:
+		return string(runes[:1]) + "..." + string(runes[len(runes)-1:])
+	case len(runes) == 1:
+		return "..."
+	default:
+		return ""
+	}
+}
+
+// generatedOpenCodeLabel reports labels this plugin produced by itself (never a
+// user alias), so they are replaced by the mask on the next materialisation.
+func generatedOpenCodeLabel(label string) bool {
+	if label == "OpenCode Go" {
+		return true
+	}
+	return generatedOpenCodeLabelRe.MatchString(label)
+}
+
+var generatedOpenCodeLabelRe = regexp.MustCompile(`^OpenCode Go \d+$`)

@@ -3,6 +3,8 @@
  */
 
 import { apiClient, createScopedApiRequestConfig, type ApiClientRequestScope } from './client';
+import { isPlanCredentialPlugin } from '@/features/plugins/planPlugins';
+import { planCredentialsApi } from './planCredentials';
 
 export type BuiltInOAuthProvider =
   | 'codex'
@@ -20,7 +22,18 @@ export interface OAuthStartResponse {
   user_code?: string;
   flow?: string;
   expires_in?: number;
+  metadata?: unknown;
 }
+
+// Only plugin-owned management paths may receive credentials and management authorization.
+export const getPluginCredentialSubmitPath = (pluginId: string, value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const prefix = `/v0/management/plugins/${encodeURIComponent(pluginId)}/`;
+  if (!value.startsWith(prefix) || /[?#\\\s]/.test(value)) return null;
+  const url = new URL(value, 'https://management.invalid');
+  if (url.pathname !== value) return null;
+  return value.slice('/v0/management'.length);
+};
 
 export interface OAuthCallbackResponse {
   status: 'ok';
@@ -43,6 +56,36 @@ export const oauthApi = {
       ...(requestScope ? createScopedApiRequestConfig(requestScope) : {}),
       params: Object.keys(params).length ? params : undefined,
     });
+  },
+
+  submitPluginCredential: async (
+    pluginId: string,
+    submitPath: string,
+    fields: Record<string, string>,
+    requestScope: ApiClientRequestScope
+  ) => {
+    const path = getPluginCredentialSubmitPath(pluginId, submitPath);
+    if (!path) throw new Error('Invalid plugin credential submit path');
+    if (isPlanCredentialPlugin(pluginId)) {
+      return planCredentialsApi.create(pluginId, fields, requestScope);
+    }
+    const response = await apiClient.post<{
+      ok?: boolean;
+      id?: string;
+      label?: string;
+      status?: string;
+      error?: string;
+      success?: boolean;
+    }>(path, fields, createScopedApiRequestConfig(requestScope));
+    if (
+      response?.error ||
+      response?.status === 'error' ||
+      response?.success === false ||
+      response?.ok === false
+    ) {
+      throw new Error(response.error || '添加凭证失败');
+    }
+    return response;
   },
 
   getAuthStatus: (state: string, requestScope?: ApiClientRequestScope) =>

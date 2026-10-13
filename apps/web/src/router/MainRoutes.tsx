@@ -19,6 +19,7 @@ import { AiProvidersOpenAIEditPage } from '@/pages/AiProvidersOpenAIEditPage';
 import { AiProvidersOpenAIModelsPage } from '@/pages/AiProvidersOpenAIModelsPage';
 import { AiProvidersVertexEditPage } from '@/pages/AiProvidersVertexEditPage';
 import { OAuthPage } from '@/pages/OAuthPage';
+import { PlanCredentialsPage } from '@/pages/PlanCredentialsPage';
 import { UsageAnalyticsPage } from '@/pages/UsageAnalyticsPage';
 import { UsageMaintenancePage } from '@/pages/UsageMaintenancePage';
 import { MonitoringCenterPage } from '@/pages/MonitoringCenterPage';
@@ -166,6 +167,7 @@ const mainRoutes: RouteObject[] = [
   { path: '/ai-providers', element: <AiProvidersPage /> },
   { path: '/ai-providers/*', element: <AiProvidersPage /> },
   { path: '/accounts', element: <AccountsPage /> },
+  { path: '/plan-credentials', element: <PlanCredentialsPage /> },
   { path: '/oauth', element: <OAuthPage /> },
   {
     path: '/usage-analytics',

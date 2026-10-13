@@ -437,6 +437,43 @@
   flex-shrink: 0;
 }
 
+.sidebar-brand-symbol-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+// Crisp, theme-independent "EX" fork tag anchored to the sidebar logo's
+// bottom-right corner. The 30x32 raster carries a baked-in EX chip that is
+// only ~5px tall at this size, so the sidebar renders the tag as real DOM text
+// (vector-crisp at any DPI) nuzzled onto the corner instead of relying on the
+// unreadable baked pixels. Dark themes need no separate asset: the chip keeps
+// the CPAMP primary blue + white pairing that reads on both backgrounds.
+.sidebar-brand-ex {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  min-width: 14px;
+  height: 11px;
+  padding: 0 2px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: #005cff;
+  border: 1px solid #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 28%);
+  color: #ffffff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  user-select: none;
+}
+
 .sidebar-brand-wordmark {
   width: 79px;
   height: 16px;

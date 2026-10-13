@@ -12,7 +12,7 @@ Choose a path based on what you need. Both use the CPAMP interface, but installa
 
 Use this when CPA already runs and you only want to replace the official Management Center. It needs no additional service, database, or port.
 
-1. Set CPA `panel-github-repository` to `seakee/CPA-Manager-Plus`.
+1. Set CPA `panel-github-repository` to `williamxhero/CPA-Manager-Plus-ex`.
 2. Restart or reload CPA.
 3. Open:
 
@@ -27,7 +27,7 @@ Log in with the CPA Management Key. See [Install Lightweight Panel](../deploymen
 Full Mode runs Manager Server for request history, cost analytics, server-side inspection, and automation. The installer is the recommended path for most users:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh
+curl -fsSLO https://raw.githubusercontent.com/williamxhero/CPA-Manager-Plus-ex/main/bin/install-cpamp.sh
 bash install-cpamp.sh
 ```
 

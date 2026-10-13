@@ -442,6 +442,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.compactUsed {
+  grid-column: 2 / -1;
+  color: var(--color-text-secondary, var(--gray-600));
+}
+
 .compactReset {
   color: var(--color-text-secondary, var(--gray-600));
   font-size: 11px;

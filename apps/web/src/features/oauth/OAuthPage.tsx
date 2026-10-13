@@ -49,6 +49,12 @@ import {
   type OAuthPollingScope,
 } from './oauthProviderHelpers';
 import { validateDevinCallback } from './devinOAuth';
+import { PluginCredentialForm } from './PluginCredentialForm';
+import {
+  getPluginCredentialFormFallback,
+  readPluginCredentialForm,
+  type PluginCredentialFormDefinition,
+} from './pluginCredentialMetadata';
 import styles from './OAuthPage.module.scss';
 import iconCodex from '@/assets/icons/codex.svg';
 import iconClaude from '@/assets/icons/claude.svg';
@@ -114,6 +120,7 @@ interface OAuthProviderDefinition {
   icon?: string | { light: string; dark: string };
   supportsCallback: boolean;
   isPlugin: boolean;
+  pluginId?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -300,6 +307,10 @@ export function OAuthPage() {
   );
   const [states, setStates] = useState<Record<string, ProviderState>>({});
   const [pluginOAuthPlugins, setPluginOAuthPlugins] = useState<PluginListEntry[]>([]);
+  const [credentialForms, setCredentialForms] = useState<
+    Record<string, PluginCredentialFormDefinition>
+  >({});
+  const [credentialMetadataLoading, setCredentialMetadataLoading] = useState<Record<string, boolean>>({});
   const [vertexState, setVertexState] = useState<VertexImportState>({
     fileName: '',
     location: '',
@@ -340,6 +351,8 @@ export function OAuthPage() {
     clearTimers();
     setStates((prev) => (Object.keys(prev).length === 0 ? prev : {}));
     setPluginOAuthPlugins([]);
+    setCredentialForms({});
+    setCredentialMetadataLoading({});
     setVertexState({ fileName: '', location: '', loading: false });
   }, [clearTimers, oauthPollingScope]);
 
@@ -367,6 +380,7 @@ export function OAuthPage() {
               icon: logo || undefined,
               supportsCallback: false,
               isPlugin: true,
+              pluginId: plugin.id,
             };
           })
       : [];
@@ -399,9 +413,37 @@ export function OAuthPage() {
     const loadConnectionFingerprint = connectionFingerprint;
     pluginsApi
       .list(requestScope)
-      .then((response) => {
+      .then(async (response) => {
         if (cancelled || connectionFingerprintRef.current !== loadConnectionFingerprint) return;
-        setPluginOAuthPlugins(response.plugins.filter((plugin) => plugin.supportsOAuth));
+        const plugins = response.plugins.filter((plugin) =>
+          shouldShowPluginOAuthProvider(plugin, BUILT_IN_PROVIDER_IDS)
+        );
+        const forms: Record<string, PluginCredentialFormDefinition> = {};
+        for (const plugin of plugins) {
+          const fallback = getPluginCredentialFormFallback(plugin.id);
+          if (fallback) forms[resolvePluginOAuthProviderId(plugin)] = fallback;
+        }
+        setCredentialForms(forms);
+        setCredentialMetadataLoading(Object.fromEntries(Object.keys(forms).map((id) => [id, true])));
+        setPluginOAuthPlugins(plugins);
+        await Promise.all(
+          plugins.map(async (plugin) => {
+            const provider = resolvePluginOAuthProviderId(plugin);
+            const fallback = forms[provider];
+            if (!fallback) return;
+            let definition = fallback;
+            // Only known manual providers are probed eagerly; never start browser OAuth on page load.
+            try {
+              const start = await oauthApi.startAuth(provider, requestScope);
+              definition = readPluginCredentialForm(plugin.id, start.metadata) ?? fallback;
+            } catch {
+              // Hosts without login-start metadata support still expose the allowlisted form.
+            }
+            if (cancelled || connectionFingerprintRef.current !== loadConnectionFingerprint) return;
+            setCredentialForms((previous) => ({ ...previous, [provider]: definition }));
+            setCredentialMetadataLoading((previous) => ({ ...previous, [provider]: false }));
+          })
+        );
       })
       .catch(() => {
         if (cancelled || connectionFingerprintRef.current !== loadConnectionFingerprint) return;
@@ -747,6 +789,17 @@ export function OAuthPage() {
       }
       const res = await oauthApi.startAuth(provider, attempt.requestScope);
       if (!isProviderAttemptCurrent(provider, attempt)) return;
+      const definition = getProviderDefinition(provider);
+      const credentialForm =
+        definition?.isPlugin && definition.pluginId
+          ? readPluginCredentialForm(definition.pluginId, res.metadata)
+          : undefined;
+      if (credentialForm) {
+        finishProviderAttempt(provider, attempt);
+        setCredentialForms((previous) => ({ ...previous, [provider]: credentialForm }));
+        updateProviderState(provider, { status: 'idle', polling: false });
+        return;
+      }
       if (!res.state) {
         const message = t('auth_login.missing_state');
         finishProviderAttempt(provider, attempt);
@@ -1089,6 +1142,7 @@ export function OAuthPage() {
       <div className={styles.content}>
         {providers.map((provider) => {
           const state = states[provider.id] || {};
+          const credentialForm = provider.isPlugin ? credentialForms[provider.id] : undefined;
           const canSubmitCallback = provider.supportsCallback && Boolean(state.url);
           const loginButtonLabel =
             state.status === 'success'
@@ -1104,6 +1158,7 @@ export function OAuthPage() {
           return (
             <div key={provider.id} id={`oauth-provider-${provider.id}`}>
               <Card
+                className={provider.isPlugin ? styles.pluginCard : undefined}
                 title={
                   <span className={styles.cardTitle}>
                     {provider.icon ? (
@@ -1117,10 +1172,12 @@ export function OAuthPage() {
                         {provider.title.slice(0, 1).toUpperCase()}
                       </span>
                     )}
-                    {provider.title}
+                    {provider.isPlugin ? (
+                      <span className={styles.pluginTitleText}>{provider.title}</span>
+                    ) : provider.title}
                   </span>
                 }
-                extra={
+                extra={credentialForm ? undefined : (
                   <Button
                     onClick={() => startAuth(provider.id)}
                     loading={state.polling}
@@ -1128,8 +1185,32 @@ export function OAuthPage() {
                   >
                     {loginButtonLabel}
                   </Button>
-                }
+                )}
               >
+                {credentialForm && provider.pluginId ? (
+                  <PluginCredentialForm
+                    key={`${connectionFingerprint}:${provider.id}`}
+                    pluginId={provider.pluginId}
+                    definition={credentialForm}
+                    loadingMetadata={credentialMetadataLoading[provider.id]}
+                    requestScope={requestScope}
+                    onCreated={() => {
+                      if (
+                        !connectionFingerprint ||
+                        connectionFingerprintRef.current !== connectionFingerprint
+                      ) return;
+                      recordAccountCredentialMutationMarker({
+                        connectionFingerprint,
+                        provider: provider.id,
+                      });
+                      publishAccountCredentialMutationRevision({
+                        connectionFingerprint,
+                        provider: provider.id,
+                        kind: 'credential',
+                      });
+                    }}
+                  />
+                ) : (
                 <div className={styles.cardContent}>
                   <div className={styles.cardHint}>{provider.hint}</div>
                   {state.url && (
@@ -1267,6 +1348,7 @@ export function OAuthPage() {
                     </div>
                   )}
                 </div>
+                )}
               </Card>
             </div>
           );

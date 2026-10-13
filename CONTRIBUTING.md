@@ -8,7 +8,7 @@ work is integrated through `dev` before it is promoted to `main`.
 
 1. Fork the repository and add the upstream remote.
 2. Fetch `upstream/dev` and create your working branch from it.
-3. Open your pull request against `seakee/CPA-Manager-Plus:dev`.
+3. Open your pull request against `williamxhero/CPA-Manager-Plus-ex:dev`.
 4. Address review feedback and keep the branch current with `upstream/dev`.
 5. A maintainer promotes the tested repository `dev` branch to `main`.
 
@@ -60,6 +60,6 @@ requires it.
 ## Maintainer Promotion
 
 After `dev` is reviewed and tested, open a pull request from
-`seakee/CPA-Manager-Plus:dev` to `main`. The promotion must pass the same CI,
+`williamxhero/CPA-Manager-Plus-ex:dev` to `main`. The promotion must pass the same CI,
 the source-branch gate, required review, and branch-protection rules before it
 is merged. Create release tags only from the verified `main` commit.

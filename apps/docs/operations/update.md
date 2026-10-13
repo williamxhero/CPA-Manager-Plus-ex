@@ -223,7 +223,7 @@ CPAMP 轻量面板由 CPA 下载和托管。更新它只会更新浏览器前端
 
 ```yaml
 remote-management:
-  panel-github-repository: 'https://github.com/seakee/CPA-Manager-Plus'
+  panel-github-repository: 'https://github.com/williamxhero/CPA-Manager-Plus-ex'
 ```
 
 CPA 通常会自动更新缓存面板。如果仍显示旧版本，删除 CPA 工作目录中的缓存文件并重新加载或重启 CPA：

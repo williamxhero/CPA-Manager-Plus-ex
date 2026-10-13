@@ -59,7 +59,7 @@ Save this value now. It will not be shown again.
 If `install-cpamp.sh` created the Docker deployment, prefer letting the installer stop the service, reset the credential, restart, and verify login:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh
+curl -fsSLO https://raw.githubusercontent.com/williamxhero/CPA-Manager-Plus-ex/main/bin/install-cpamp.sh
 CPAMP_OPERATION=repair \
 CPAMP_INSTALL_DIR="$HOME/cpa-manager-plus" \
 bash install-cpamp.sh
@@ -70,7 +70,7 @@ The repair flow synchronizes the SQLite admin credential with `secrets/cpamp-adm
 Non-interactive environments require explicit confirmation:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh
+curl -fsSLO https://raw.githubusercontent.com/williamxhero/CPA-Manager-Plus-ex/main/bin/install-cpamp.sh
 CPAMP_OPERATION=repair \
 CPAMP_INSTALL_DIR="$HOME/cpa-manager-plus" \
 CPAMP_NON_INTERACTIVE=1 \

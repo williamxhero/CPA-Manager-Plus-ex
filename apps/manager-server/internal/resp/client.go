@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -18,6 +19,12 @@ type Client struct {
 	reader     *bufio.Reader
 	timeout    time.Duration
 	subscribed bool
+	// lastActivity holds the UnixNano timestamp of the most recent frame read
+	// from (or confirmation received over) the connection. It is written from
+	// the single consumer goroutine and read from the same goroutine's
+	// watchdog, so an atomic is used only to make the intent explicit and the
+	// read safe under the race detector.
+	lastActivity int64
 }
 
 var ErrUnsupportedSubscribe = errors.New("RESP server does not support SUBSCRIBE")
@@ -50,7 +57,29 @@ func Dial(rawURL string, skipTLSVerify bool) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{conn: conn, reader: bufio.NewReader(conn), timeout: 30 * time.Second}, nil
+	client := &Client{conn: conn, reader: bufio.NewReader(conn), timeout: 30 * time.Second}
+	client.touch()
+	return client, nil
+}
+
+// LastActivity reports the time of the most recent frame observed on the
+// connection. It returns the zero time when no frame has been observed yet.
+func (c *Client) LastActivity() time.Time {
+	if c == nil {
+		return time.Time{}
+	}
+	nanos := atomic.LoadInt64(&c.lastActivity)
+	if nanos == 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, nanos)
+}
+
+func (c *Client) touch() {
+	if c == nil {
+		return
+	}
+	atomic.StoreInt64(&c.lastActivity, time.Now().UnixNano())
 }
 
 func (c *Client) Close() error {
@@ -149,6 +178,7 @@ func (c *Client) Subscribe(channel string) error {
 		return fmt.Errorf("unexpected SUBSCRIBE response: %v", value)
 	}
 	c.subscribed = true
+	c.touch()
 	return c.conn.SetDeadline(time.Time{})
 }
 
@@ -164,6 +194,9 @@ func (c *Client) ReadMessage() (string, string, error) {
 		if err != nil {
 			return "", "", err
 		}
+		// Any successfully decoded frame (message, PONG, subscribe/unsubscribe
+		// confirmation) proves the connection is still delivering data.
+		c.touch()
 		switch frame := value.(type) {
 		case []any:
 			if len(frame) == 0 {

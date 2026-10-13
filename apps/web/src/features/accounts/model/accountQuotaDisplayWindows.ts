@@ -47,6 +47,7 @@ export type AccountQuotaWindowSource =
   | 'kimi'
   | 'meta'
   | 'opencode-go'
+  | 'qwen'
   | 'xai'
   | 'summary';
 
@@ -848,6 +849,10 @@ export const buildAccountQuotaDisplayWindows = (
     if (windows.length) return windows;
   }
 
+  if (row.provider === 'qwen') {
+    return buildQwenQuotaDisplayWindows(row, options);
+  }
+
   if (row.provider === 'antigravity') {
     const windows = buildAntigravityQuotaDisplayWindows(row, options);
     if (windows.length) return windows;
@@ -874,6 +879,53 @@ export const buildAccountQuotaDisplayWindows = (
   }
 
   return buildSummaryQuotaDisplayWindow(row, options);
+};
+
+const buildQwenQuotaDisplayWindows = (
+  row: AccountRow,
+  options: BuildAccountQuotaDisplayWindowsOptions
+): AccountQuotaDisplayWindow[] => {
+  const quota = getCredentialScopedQuotaState(options.stores.qwenQuota ?? {}, row.raw);
+  if (!quota || quota.status === 'error') return [];
+  return quota.windows.map((window) => {
+    const remainingPercent =
+      typeof window.remainingPercent === 'number' && Number.isFinite(window.remainingPercent)
+        ? clampDisplayPercent(window.remainingPercent)
+        : remainingPercentFromUsed(window.usedPercent);
+    const usedPercent =
+      typeof window.usedPercent === 'number' && Number.isFinite(window.usedPercent)
+        ? clampDisplayPercent(window.usedPercent)
+        : remainingPercent === null ? null : clampDisplayPercent(100 - remainingPercent);
+    const hasReset = isValidQuotaResetAtMs(window.resetAtMs);
+    // Mirror the OpenCode Go mapping so Qwen windows qualify as standard list windows
+    // (a bare reset countdown would otherwise be filtered out of the shared list).
+    const normalizedId = window.id.trim().toLowerCase().replace(/_/g, '-');
+    const kind: AccountQuotaWindowKind | undefined =
+      ['1month', 'monthly', 'month'].includes(normalizedId)
+        ? 'monthly'
+        : ['5h', '5hour', '5hours', 'five-hour', 'rolling'].includes(normalizedId)
+          ? 'five_hour'
+          : ['1week', '7d', 'weekly', 'week'].includes(normalizedId)
+            ? 'weekly'
+            : undefined;
+    const limitWindowSeconds =
+      kind === 'five_hour' ? 5 * 60 * 60 : kind === 'weekly' ? 7 * 24 * 60 * 60 : null;
+    return buildAccountQuotaDisplayWindow({
+      key: `qwen:${window.id}`,
+      label: options.translateQuotaWindowLabel(window.label),
+      kind,
+      remainingPercent,
+      usedPercent,
+      resetLabel: hasReset ? formatQuotaResetTime(window.resetAtMs) : '-',
+      resetAtMs: window.resetAtMs,
+      resetAccuracy: hasReset ? 'exact' : 'unknown',
+      limitWindowSeconds,
+      windowMode: kind === 'monthly' ? 'calendar' : limitWindowSeconds ? 'fixed' : 'unknown',
+      source: 'qwen',
+      observedAtMs: quota.observedAtMs ?? null,
+      nowMs: options.nowMs,
+    });
+  });
 };
 
 const buildDevinQuotaDisplayWindows = (

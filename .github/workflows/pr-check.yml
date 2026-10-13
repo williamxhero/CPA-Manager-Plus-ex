@@ -35,6 +35,7 @@ jobs:
       docker: ${{ steps.classify.outputs.docker }}
       demo_docs: ${{ steps.classify.outputs.demo_docs }}
       release_content: ${{ steps.classify.outputs.release_content }}
+      providers: ${{ steps.classify.outputs.providers }}
 
     steps:
       - name: Checkout code
@@ -149,6 +150,45 @@ jobs:
       - name: Test SQLite repository
         working-directory: apps/manager-server
         run: go test ./internal/repository/sqlite
+
+  providers:
+    name: Providers (${{ matrix.os }}, go ${{ matrix.go }})
+    needs: changes
+    if: needs.changes.outputs.providers == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+        go:
+          - '1.26.x'
+          - '1.27.x'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: |
+            providers/opencode-go/go.sum
+            providers/qwen/go.sum
+
+      - name: Check provider import boundary (no secrets, binaries, or large files)
+        run: node bin/release/check-provider-import-boundary.mjs
+
+      - name: Lint provider modules
+        run: node bin/release/run-provider-go.mjs vet
+
+      - name: Test provider modules
+        run: node bin/release/run-provider-go.mjs test
+
+      - name: Build provider artifacts (DLLs skipped without a Windows C toolchain)
+        run: node bin/release/build-providers.mjs
 
   native-control:
     name: Native Control (${{ matrix.os }})
@@ -309,6 +349,7 @@ jobs:
       - frontend
       - manager-server
       - manager-server-windows-sqlite
+      - providers
       - native-control
       - docker-build
       - demo-docs
@@ -323,6 +364,7 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           MANAGER_SERVER_RESULT: ${{ needs['manager-server'].result }}
           WINDOWS_SQLITE_RESULT: ${{ needs['manager-server-windows-sqlite'].result }}
+          PROVIDERS_RESULT: ${{ needs.providers.result }}
           NATIVE_CONTROL_RESULT: ${{ needs['native-control'].result }}
           DOCKER_BUILD_RESULT: ${{ needs['docker-build'].result }}
           DEMO_DOCS_RESULT: ${{ needs['demo-docs'].result }}
@@ -336,6 +378,7 @@ jobs:
             "Frontend:${FRONTEND_RESULT}"
             "Manager Server:${MANAGER_SERVER_RESULT}"
             "Manager Server SQLite (Windows):${WINDOWS_SQLITE_RESULT}"
+            "Providers:${PROVIDERS_RESULT}"
             "Native Control:${NATIVE_CONTROL_RESULT}"
             "Docker Build:${DOCKER_BUILD_RESULT}"
             "Demo and Docs:${DEMO_DOCS_RESULT}"

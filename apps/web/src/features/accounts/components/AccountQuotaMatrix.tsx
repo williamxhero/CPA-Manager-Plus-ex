@@ -5,6 +5,7 @@ import {
   type AntigravityQuotaMatrix,
 } from '@/features/accounts/model/accountsPagePresentation';
 import { useTranslation } from 'react-i18next';
+import { formatQuotaUnitFraction } from '../model/quotaUnitFraction';
 import styles from '../AccountsPage.module.scss';
 
 interface AccountQuotaMatrixProps {
@@ -53,8 +54,13 @@ export function AccountQuotaMatrix({
                 cell.window.resetLabel,
                 i18n.language
               );
+              const usedFraction = formatQuotaUnitFraction(cell.window);
+              const valueText =
+                usedFraction !== null
+                  ? usedFraction === '-' ? '-' : `${t('accounts.detail_used')} ${usedFraction}`
+                  : formatPercent(windowRemaining);
               const title = [
-                `${cell.groupLabel} ${cell.window.label}: ${formatPercent(windowRemaining)}`,
+                `${cell.groupLabel} ${cell.window.label}: ${valueText}`,
                 resetDisplay !== '-' ? `${t('accounts.col_reset')}: ${resetDisplay}` : '',
               ]
                 .filter(Boolean)
@@ -82,7 +88,7 @@ export function AccountQuotaMatrix({
                     />
                   </span>
                   <strong className={styles.quotaMatrixPercent}>
-                    {windowRemaining !== null ? formatPercent(windowRemaining) : '-'}
+                    {valueText}
                   </strong>
                 </span>
               );

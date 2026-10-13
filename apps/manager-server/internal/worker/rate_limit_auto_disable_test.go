@@ -106,6 +106,31 @@ func TestQuotaAutoDisableCandidateRequiresStrictCodexUsageLimit(t *testing.T) {
 	}
 }
 
+func TestQuotaAutoDisableCandidateDetectsQwenExhaustion(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	event := usage.Event{Failed: true, FailStatusCode: http.StatusTooManyRequests, FailBody: `{"error":{"code":"quota_exhausted","resets_in_seconds":60}}`, AuthFileSnapshot: "qwen.json", AuthIndex: "qwen-1", Provider: "qwen"}
+	candidate, ok := quotaAutoDisableCandidateFromEvent(event, "http://cpa", "key", now)
+	if !ok || candidate.Provider != "qwen" || candidate.Owner != model.QuotaCooldownOwnerUsage429 {
+		t.Fatalf("candidate = %#v, ok=%t", candidate, ok)
+	}
+	if candidate.ResetAt.Unix() != now.Unix()+60 || candidate.RecoverAtKind != model.QuotaCooldownRecoverKindProvider {
+		t.Fatalf("schedule = %#v", candidate)
+	}
+}
+
+func TestQuotaAutoDisableCandidateQwenRequiresIdentityAndFailsClosed(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	base := usage.Event{Failed: true, FailStatusCode: http.StatusTooManyRequests, FailBody: `{"error":{"message":"quota exhausted"}}`, AuthFileSnapshot: "qwen.json", Provider: "qwen"}
+	if _, ok := quotaAutoDisableCandidateFromEvent(base, "http://cpa", "key", now); ok {
+		t.Fatal("missing auth index should not be accepted")
+	}
+	base.AuthIndex = "qwen-1"
+	base.Provider = "openai"
+	if _, ok := quotaAutoDisableCandidateFromEvent(base, "http://cpa", "key", now); ok {
+		t.Fatal("non-Qwen provider should not be accepted")
+	}
+}
+
 func TestQuotaAutoDisableCandidateAcceptsXAIIncludedFreeUsageExhausted(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	for _, statusCode := range []int{http.StatusPaymentRequired, http.StatusTooManyRequests} {
@@ -131,8 +156,11 @@ func TestQuotaAutoDisableCandidateAcceptsXAIIncludedFreeUsageExhausted(t *testin
 			if candidate.FileName != "xai-auth.json" || candidate.AuthIndex != "auth-xai-1" {
 				t.Fatalf("candidate identity = %#v", candidate)
 			}
-			if got, want := candidate.ResetAt, now.Add(24*time.Hour); !got.Equal(want) {
-				t.Fatalf("reset time = %s, want %s", got, want)
+			if !candidate.ResetAt.IsZero() || candidate.RecoverAtKind != model.QuotaCooldownRecoverKindUnknown {
+				t.Fatalf("no provider reset should yield an unknown-reset cooldown: %#v", candidate)
+			}
+			if candidate.NextCheckAtMS <= 0 {
+				t.Fatalf("unknown-reset cooldown must schedule a conservative quota check: %#v", candidate)
 			}
 			if candidate.ReasonCode != quotaReasonXAIFreeUsage || candidate.WindowKind != quotaWindowRolling24H {
 				t.Fatalf("candidate metadata = %#v", candidate)
@@ -165,28 +193,37 @@ func TestQuotaAutoDisableCandidateUsesEventTimestampForXAIEstimate(t *testing.T)
 	if !ok {
 		t.Fatal("xAI event should produce a candidate")
 	}
-	want := eventAt.Add(24 * time.Hour)
-	if !candidate.ResetAt.Equal(want) {
-		t.Fatalf("reset time = %s, want event time + 24h %s", candidate.ResetAt, want)
+	// The provider published no reset timestamp, so no recovery time may be
+	// fabricated. Recovery is driven by conservative periodic checks scheduled
+	// from the observed event time.
+	if !candidate.ResetAt.IsZero() {
+		t.Fatalf("reset time = %s, want zero (unknown provider reset)", candidate.ResetAt)
 	}
-	if candidate.ResetAt.Equal(now.Add(24 * time.Hour)) {
-		t.Fatal("reset time was incorrectly based on processing time")
+	if candidate.RecoverAtKind != model.QuotaCooldownRecoverKindUnknown {
+		t.Fatalf("recover kind = %q, want unknown", candidate.RecoverAtKind)
+	}
+	wantNext := eventAt.Add(quotaCooldownConservativeCheckInterval).UnixMilli()
+	if candidate.NextCheckAtMS != wantNext {
+		t.Fatalf("next check = %d, want event time + conservative interval %d", candidate.NextCheckAtMS, wantNext)
+	}
+	if candidate.NextCheckAtMS == now.Add(quotaCooldownConservativeCheckInterval).UnixMilli() {
+		t.Fatal("next check was incorrectly based on processing time")
 	}
 
 	stale := event
 	stale.TimestampMS = now.Add(-25 * time.Hour).UnixMilli()
 	if _, ok := quotaAutoDisableCandidateFromEvent(stale, "http://cpa", "key", now); ok {
-		t.Fatal("an already expired event-time estimate must not create a cooldown")
+		t.Fatal("an exhaustion event older than the rollover window must not create a cooldown")
 	}
 }
 
 func TestQuotaAutoDisableCandidatePrefersXAIExplicitResetSignals(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	cases := []struct {
-		name      string
-		event     usage.Event
-		want      time.Time
-		estimated bool
+		name     string
+		event    usage.Event
+		want     time.Time
+		wantKind string
 	}{
 		{
 			name: "retry after header ignored for free usage",
@@ -195,8 +232,7 @@ func TestQuotaAutoDisableCandidatePrefersXAIExplicitResetSignals(t *testing.T) {
 					"Retry-After": []any{"90"},
 				}, now),
 			},
-			want:      now.Add(24 * time.Hour),
-			estimated: true,
+			wantKind: model.QuotaCooldownRecoverKindUnknown,
 		},
 		{
 			name: "billing period end",
@@ -206,8 +242,8 @@ func TestQuotaAutoDisableCandidatePrefersXAIExplicitResetSignals(t *testing.T) {
 					now.Add(6*time.Hour).Unix(),
 				),
 			},
-			want:      now.Add(6 * time.Hour),
-			estimated: false,
+			want:     now.Add(6 * time.Hour),
+			wantKind: model.QuotaCooldownRecoverKindProvider,
 		},
 		{
 			name: "code and reset split across event fields",
@@ -218,8 +254,8 @@ func TestQuotaAutoDisableCandidatePrefersXAIExplicitResetSignals(t *testing.T) {
 					now.Add(8*time.Hour).Unix(),
 				),
 			},
-			want:      now.Add(8 * time.Hour),
-			estimated: false,
+			want:     now.Add(8 * time.Hour),
+			wantKind: model.QuotaCooldownRecoverKindProvider,
 		},
 		{
 			name: "absolute reset wins over nested relative reset",
@@ -229,16 +265,15 @@ func TestQuotaAutoDisableCandidatePrefersXAIExplicitResetSignals(t *testing.T) {
 					now.Add(10*time.Hour).Unix(),
 				),
 			},
-			want:      now.Add(10 * time.Hour),
-			estimated: false,
+			want:     now.Add(10 * time.Hour),
+			wantKind: model.QuotaCooldownRecoverKindProvider,
 		},
 		{
 			name: "retry after body backoff ignored",
 			event: usage.Event{
 				FailBody: `{"code":"subscription:free-usage-exhausted","retry_after":60}`,
 			},
-			want:      now.Add(24 * time.Hour),
-			estimated: true,
+			wantKind: model.QuotaCooldownRecoverKindUnknown,
 		},
 	}
 
@@ -259,6 +294,9 @@ func TestQuotaAutoDisableCandidatePrefersXAIExplicitResetSignals(t *testing.T) {
 			if !ok {
 				t.Fatal("xAI free-usage-exhausted candidate not detected")
 			}
+			if candidate.RecoverAtKind != tc.wantKind {
+				t.Fatalf("recover kind = %q, want %q", candidate.RecoverAtKind, tc.wantKind)
+			}
 			if !candidate.ResetAt.Equal(tc.want) {
 				t.Fatalf("reset time = %s, want %s", candidate.ResetAt, tc.want)
 			}
@@ -266,8 +304,20 @@ func TestQuotaAutoDisableCandidatePrefersXAIExplicitResetSignals(t *testing.T) {
 			if err := json.Unmarshal([]byte(candidate.EvidenceJSON), &evidence); err != nil {
 				t.Fatalf("decode evidence: %v", err)
 			}
-			if evidence.RecoverAtMS != tc.want.UnixMilli() || evidence.RecoverAtEstimated != tc.estimated {
-				t.Fatalf("evidence recovery = %#v, estimated want %v", evidence, tc.estimated)
+			if tc.wantKind == model.QuotaCooldownRecoverKindUnknown {
+				if evidence.RecoverAtMS != 0 || evidence.RecoverAtEstimated {
+					t.Fatalf("unknown reset must not carry a fabricated recovery time: %#v", evidence)
+				}
+				if candidate.NextCheckAtMS <= 0 {
+					t.Fatalf("unknown reset must schedule a conservative check: %#v", candidate)
+				}
+				return
+			}
+			if evidence.RecoverAtMS != tc.want.UnixMilli() || evidence.RecoverAtEstimated {
+				t.Fatalf("evidence recovery = %#v, want %d", evidence, tc.want.UnixMilli())
+			}
+			if candidate.NextCheckAtMS != tc.want.UnixMilli() {
+				t.Fatalf("provider reset must schedule the next check at the reset time, got %d", candidate.NextCheckAtMS)
 			}
 		})
 	}
@@ -342,16 +392,15 @@ func TestXAIResetMatchesSharedFixture(t *testing.T) {
 			Provider:         "xai",
 			ResponseMetadata: usage.ParseResponseHeaderMetadata(headerValues, now),
 		}
-		resetAt, ok := xaiFreeUsageResetTimeFromEvent(event, now)
+		resetAt, kind, ok := xaiFreeUsageResetTimeFromEvent(event, now)
 		if !ok {
-			t.Fatalf("fixture %q did not produce reset time", fixture.Name)
+			t.Fatalf("fixture %q did not produce a cooldown", fixture.Name)
 		}
-		// Fixture RetryAfterSeconds is transport backoff only. Free-usage
-		// credential cooldown uses the rolling 24h estimate unless the body
-		// publishes an explicit quota reset field.
-		want := now.Add(xaiFreeUsageCooldown)
-		if !resetAt.Equal(want) {
-			t.Fatalf("fixture %q reset = %s, want %s", fixture.Name, resetAt, want)
+		// These fixtures publish only a transport Retry-After header, never a
+		// quota reset timestamp, so the cooldown must be scheduled conservatively
+		// with no fabricated recovery ETA.
+		if !resetAt.IsZero() || kind != model.QuotaCooldownRecoverKindUnknown {
+			t.Fatalf("fixture %q reset = %s kind = %q, want zero/unknown", fixture.Name, resetAt, kind)
 		}
 	}
 }
@@ -1530,6 +1579,8 @@ func TestRateLimitAutoDisableWorkerDoesNotRecoverAmbiguousStatusMutationScope(t 
 		case r.URL.Path == "/v0/management/auth-files/status" && r.Method == http.MethodPatch:
 			patchCalls++
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+		case r.URL.Path == "/v0/management/quota/fetch" && r.Method == http.MethodPost:
+			authoritativeRecoveredQuota(w, "weekly")
 		default:
 			http.NotFound(w, r)
 		}
@@ -1772,6 +1823,8 @@ func TestRateLimitAutoDisableWorkerRecoversLegacyCodexCooldownWithoutIdentityEvi
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+		case "POST /v0/management/quota/fetch":
+			authoritativeRecoveredQuota(w, "weekly")
 		default:
 			http.NotFound(w, r)
 		}
@@ -2093,6 +2146,12 @@ func TestRateLimitAutoDisableWorkerRecoversDueCooldownFromManagerRuntimeConfigAf
 		case "/v0/management/usage-queue":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`[]`))
+		case "/v0/management/quota/fetch":
+			if r.Method != http.MethodPost {
+				http.NotFound(w, r)
+				return
+			}
+			authoritativeRecoveredQuota(w, "weekly")
 		default:
 			http.NotFound(w, r)
 		}
@@ -2214,6 +2273,14 @@ func TestRateLimitAutoDisableWorkerXAIEventDisablesAndRecoversEndToEnd(t *testin
 			disabled = item.Disabled
 			patches = append(patches, item.Disabled)
 			w.WriteHeader(http.StatusOK)
+		case r.URL.Path == "/v0/management/quota/fetch" && r.Method == http.MethodPost:
+			// Fresh, authoritative quota showing every window recovered. The
+			// recovery gate must confirm this before re-enabling the credential.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"groups": []map[string]any{{
+					"buckets": []map[string]any{{"window": "rolling_24h", "remainingFraction": 1}},
+				}},
+			})
 		default:
 			http.NotFound(w, r)
 		}
@@ -2235,6 +2302,9 @@ func TestRateLimitAutoDisableWorkerXAIEventDisablesAndRecoversEndToEnd(t *testin
 	}
 	if candidate.EvidenceJSON == "" {
 		t.Fatal("xAI candidate has no evidence")
+	}
+	if !candidate.ResetAt.IsZero() || candidate.RecoverAtKind != model.QuotaCooldownRecoverKindUnknown {
+		t.Fatalf("xAI event without a provider reset must not fabricate a recovery time: %#v", candidate)
 	}
 
 	worker := NewRateLimitAutoDisableWorker(st, collectorpkg.RuntimeConfig{CPAUpstreamURL: server.URL, ManagementKey: "test-management-key"})
@@ -2299,6 +2369,8 @@ func TestRateLimitAutoDisableWorkerRecoversXAICooldownWithoutTouchingManualDisab
 			state.disabled = item.Disabled
 			state.patches++
 			w.WriteHeader(http.StatusOK)
+		case r.URL.Path == "/v0/management/quota/fetch" && r.Method == http.MethodPost:
+			authoritativeRecoveredQuota(w, "rolling_24h")
 		default:
 			http.NotFound(w, r)
 		}
@@ -2366,6 +2438,8 @@ func TestRateLimitAutoDisableWorkerRollsBackEnableWhenRecoveryPersistenceFails(t
 			disabled = payload.Disabled
 			patches = append(patches, payload.Disabled)
 			w.WriteHeader(http.StatusOK)
+		case r.URL.Path == "/v0/management/quota/fetch" && r.Method == http.MethodPost:
+			authoritativeRecoveredQuota(w, "weekly")
 		default:
 			http.NotFound(w, r)
 		}
@@ -2426,7 +2500,8 @@ func TestRateLimitAutoDisableWorkerPersistsAndRecoversAfterRestart(t *testing.T)
 			http.Error(w, "missing auth", http.StatusUnauthorized)
 			return
 		}
-		if r.URL.Path != "/v0/management/auth-files" && r.URL.Path != "/v0/management/auth-files/status" {
+		if r.URL.Path != "/v0/management/auth-files" && r.URL.Path != "/v0/management/auth-files/status" &&
+			!(r.Method == http.MethodPost && r.URL.Path == "/v0/management/quota/fetch") {
 			http.NotFound(w, r)
 			return
 		}
@@ -2459,6 +2534,12 @@ func TestRateLimitAutoDisableWorkerPersistsAndRecoversAfterRestart(t *testing.T)
 			actions = append(actions, item)
 			mu.Unlock()
 			w.WriteHeader(http.StatusOK)
+		case http.MethodPost:
+			if r.URL.Path != "/v0/management/quota/fetch" {
+				http.NotFound(w, r)
+				return
+			}
+			authoritativeRecoveredQuota(w, "weekly")
 		default:
 			http.NotFound(w, r)
 		}
@@ -2567,6 +2648,8 @@ func TestRateLimitAutoDisableWorkerStartsNewCycleAfterExternalEnable(t *testing.
 			patchStates = append(patchStates, payload.Disabled)
 			mu.Unlock()
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+		case r.URL.Path == "/v0/management/quota/fetch" && r.Method == http.MethodPost:
+			authoritativeRecoveredQuota(w, "weekly")
 		default:
 			http.NotFound(w, r)
 		}
@@ -2628,7 +2711,14 @@ func TestRateLimitAutoDisableWorkerStartsNewCycleAfterExternalEnable(t *testing.
 		t.Fatalf("active cooldowns after repeated event = %#v, want cycle %d", active, newCycleID)
 	}
 
-	worker.enableDue(ctx, newResetAt.Add(time.Second))
+	worker.enableDue(ctx, newResetAt.Add(quotaCooldownProviderResetGrace-time.Millisecond))
+	mu.Lock()
+	statesBeforeGrace := append([]bool(nil), patchStates...)
+	mu.Unlock()
+	if len(statesBeforeGrace) != 1 {
+		t.Fatalf("patch states before grace = %#v, want disable only", statesBeforeGrace)
+	}
+	worker.enableDue(ctx, newResetAt.Add(quotaCooldownProviderResetGrace))
 	mu.Lock()
 	statesAfterRecovery := append([]bool(nil), patchStates...)
 	disabledAfterRecovery := disabled
@@ -2692,6 +2782,123 @@ func TestRateLimitAutoDisableWorkerSkipsSameNameCredentialWithoutAuthIndex(t *te
 	}
 }
 
+func TestRateLimitAutoDisableWorkerPausesAutomaticActionsWhenPolicyDisabled(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "usage.sqlite"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	var mu sync.Mutex
+	disabled := false
+	type action struct {
+		Name     string `json:"name"`
+		Disabled bool   `json:"disabled"`
+	}
+	actions := make([]action, 0)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-management-key" {
+			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		if r.URL.Path != "/v0/management/auth-files" && r.URL.Path != "/v0/management/auth-files/status" &&
+			!(r.Method == http.MethodPost && r.URL.Path == "/v0/management/quota/fetch") {
+			http.NotFound(w, r)
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			mu.Lock()
+			currentDisabled := disabled
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"id":         "runtime-codex-auth-1",
+				"name":       "codex-auth.json",
+				"authIndex":  "auth-1",
+				"provider":   "codex",
+				"account":    "user@example.com",
+				"account_id": "workspace-1",
+				"disabled":   currentDisabled,
+			}})
+		case http.MethodPatch:
+			if r.URL.Path != "/v0/management/auth-files/status" {
+				http.NotFound(w, r)
+				return
+			}
+			var item action
+			if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			mu.Lock()
+			disabled = item.Disabled
+			actions = append(actions, item)
+			mu.Unlock()
+			w.WriteHeader(http.StatusOK)
+		case http.MethodPost:
+			if r.URL.Path != "/v0/management/quota/fetch" {
+				http.NotFound(w, r)
+				return
+			}
+			authoritativeRecoveredQuota(w, "five_hour")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	worker := NewRateLimitAutoDisableWorker(st, collectorpkg.RuntimeConfig{CPAUpstreamURL: server.URL, ManagementKey: "test-management-key"})
+	candidate := quotaAutoDisableCandidate{
+		BaseURL:         server.URL,
+		ManagementKey:   "test-management-key",
+		FileName:        "codex-auth.json",
+		AuthIndex:       "auth-1",
+		DisplayAccount:  "user@example.com",
+		AccountSnapshot: "user@example.com",
+		AccountID:       "workspace-1",
+		Provider:        "codex",
+		ResetAt:         time.Now().Add(time.Minute),
+		EventHash:       "evt-quota",
+	}
+
+	// OFF pauses both a queued disable candidate and a due recovery.
+	worker.SetEnabled(false)
+	worker.handleCandidate(ctx, candidate)
+	worker.enableDue(ctx, time.Now().Add(2*time.Minute))
+	mu.Lock()
+	if len(actions) != 0 {
+		t.Fatalf("actions while policy OFF = %#v, want none", actions)
+	}
+	mu.Unlock()
+	active, err := st.QuotaCooldowns.ListActive(ctx)
+	if err != nil {
+		t.Fatalf("list active cooldowns: %v", err)
+	}
+	if len(active) != 0 {
+		t.Fatalf("active cooldowns while policy OFF = %#v, want none", active)
+	}
+
+	// ON resumes both disable and recovery.
+	worker.SetEnabled(true)
+	worker.handleCandidate(ctx, candidate)
+	mu.Lock()
+	if len(actions) != 1 || actions[0].Name != "runtime-codex-auth-1" || !actions[0].Disabled || !disabled {
+		t.Fatalf("disable actions after policy ON = %#v disabled=%v", actions, disabled)
+	}
+	mu.Unlock()
+
+	worker.enableDue(ctx, time.Now().Add(2*time.Minute))
+	mu.Lock()
+	defer mu.Unlock()
+	if len(actions) != 2 {
+		t.Fatalf("actions = %#v, want disable then enable", actions)
+	}
+	if actions[1].Name != "runtime-codex-auth-1" || actions[1].Disabled || disabled {
+		t.Fatalf("enable action = %#v disabled=%v", actions[1], disabled)
+	}
+}
+
 func waitForWorkerTest(t *testing.T, condition func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -2716,4 +2923,205 @@ func (r *failMarkRecoveredQuotaCooldownRepository) MarkRecovered(ctx context.Con
 		return r.err
 	}
 	return r.Repository.MarkRecovered(ctx, id, recoveredAtMS)
+}
+
+// TestRateLimitAutoDisableWorkerDefersRecoveryUntilAllQuotaWindowsRecover drives
+// the recovery gate with a fake CPA: at the provider reset time the 5h window is
+// recovered but the weekly window is still exhausted, so the credential must
+// stay disabled and the cooldown must be rescheduled. Once every window
+// recovers, a single enable is issued.
+func TestRateLimitAutoDisableWorkerDefersRecoveryUntilAllQuotaWindowsRecover(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "usage.sqlite"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	var mu sync.Mutex
+	quotaRecovered := false
+	patchCalls := 0
+	patchedDisabled := []bool{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /v0/management/auth-files":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"id":         "runtime-codex",
+				"name":       "codex-auth.json",
+				"auth_index": "auth-1",
+				"provider":   "codex",
+				"account":    "alice@example.com",
+				"account_id": "workspace-1",
+				"disabled":   true,
+			}})
+		case "PATCH /v0/management/auth-files/status":
+			var payload struct {
+				Disabled bool `json:"disabled"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if payload.Disabled {
+				http.Error(w, "expected enable", http.StatusBadRequest)
+				return
+			}
+			mu.Lock()
+			patchCalls++
+			patchedDisabled = append(patchedDisabled, payload.Disabled)
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+		case "POST /v0/management/quota/fetch":
+			mu.Lock()
+			recovered := quotaRecovered
+			mu.Unlock()
+			weeklyFraction := 0.0
+			if recovered {
+				weeklyFraction = 1.0
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"groups": []map[string]any{{
+					"buckets": []map[string]any{
+						{"window": "five_hour", "remainingFraction": 1.0},
+						{"window": "weekly", "remainingFraction": weeklyFraction},
+					},
+				}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	now := time.Now()
+	seeded, err := st.UpsertQuotaCooldown(ctx, store.QuotaCooldownUpsert{
+		AuthFileName:     "codex-auth.json",
+		AuthIndex:        "auth-1",
+		Provider:         "codex",
+		RecoverAtMS:      now.Add(-time.Minute).UnixMilli(),
+		Owner:            model.QuotaCooldownOwnerUsage429,
+		PreDisabledState: false,
+		DisabledAtMS:     now.Add(-time.Hour).UnixMilli(),
+	})
+	if err != nil {
+		t.Fatalf("seed cooldown: %v", err)
+	}
+	if seeded.RecoverAtKind != model.QuotaCooldownRecoverKindProvider {
+		t.Fatalf("seeded recover kind = %q, want provider", seeded.RecoverAtKind)
+	}
+
+	worker := NewRateLimitAutoDisableWorker(st, collectorpkg.RuntimeConfig{CPAUpstreamURL: server.URL, ManagementKey: "mgmt"})
+	worker.enableDue(ctx, now)
+
+	mu.Lock()
+	calls := patchCalls
+	mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("patch calls = %d, want no enable while a window is still exhausted", calls)
+	}
+	active, err := st.QuotaCooldowns.ListActive(ctx)
+	if err != nil {
+		t.Fatalf("list active cooldowns: %v", err)
+	}
+	if len(active) != 1 || !strings.Contains(active[0].LastError, "exhausted") {
+		t.Fatalf("active cooldowns = %#v, want retained exhaustion deferral", active)
+	}
+	if active[0].NextCheckAtMS <= seeded.RecoverAtMS {
+		t.Fatalf("next check = %d, want advanced beyond recoverAt %d", active[0].NextCheckAtMS, seeded.RecoverAtMS)
+	}
+
+	mu.Lock()
+	quotaRecovered = true
+	mu.Unlock()
+	worker.enableDue(ctx, now.Add(20*time.Minute))
+
+	mu.Lock()
+	calls = patchCalls
+	disabled := append([]bool(nil), patchedDisabled...)
+	mu.Unlock()
+	if calls != 1 || len(disabled) != 1 || disabled[0] {
+		t.Fatalf("patch calls = %d disabled = %#v, want exactly one enable after recovery", calls, disabled)
+	}
+	remaining, err := st.QuotaCooldowns.ListActive(ctx)
+	if err != nil {
+		t.Fatalf("list active cooldowns: %v", err)
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("active cooldowns = %#v, want recovered", remaining)
+	}
+}
+
+// TestRateLimitAutoDisableWorkerDefersUnknownResetRecoveryWithoutQuotaSource
+// verifies the conservative path: a cooldown with no provider reset timestamp
+// must never be auto-enabled just because a timer elapsed. With no authoritative
+// quota source it is rescheduled and left disabled.
+func TestRateLimitAutoDisableWorkerDefersUnknownResetRecoveryWithoutQuotaSource(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "usage.sqlite"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	patchCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /v0/management/auth-files":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"id":         "runtime-xai",
+				"name":       "xai-auth.json",
+				"auth_index": "auth-xai-1",
+				"provider":   "xai",
+				"disabled":   true,
+			}})
+		case "PATCH /v0/management/auth-files/status":
+			patchCalls++
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+		case "POST /v0/management/quota/fetch":
+			http.Error(w, `{"error":"no quota provider available for credential"}`, http.StatusNotImplemented)
+		case "POST /v0/management/api-call":
+			http.Error(w, "not found", http.StatusNotFound)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	now := time.Now()
+	seeded, err := st.UpsertQuotaCooldown(ctx, store.QuotaCooldownUpsert{
+		AuthFileName:     "xai-auth.json",
+		AuthIndex:        "auth-xai-1",
+		Provider:         "xai",
+		RecoverAtKind:    model.QuotaCooldownRecoverKindUnknown,
+		NextCheckAtMS:    now.Add(-time.Minute).UnixMilli(),
+		Owner:            model.QuotaCooldownOwnerXAIFreeUsage,
+		PreDisabledState: false,
+		DisabledAtMS:     now.Add(-time.Hour).UnixMilli(),
+	})
+	if err != nil {
+		t.Fatalf("seed cooldown: %v", err)
+	}
+	if seeded.RecoverAtMS != 0 {
+		t.Fatalf("unknown-reset cooldown recoverAtMs = %d, want 0", seeded.RecoverAtMS)
+	}
+
+	worker := NewRateLimitAutoDisableWorker(st, collectorpkg.RuntimeConfig{CPAUpstreamURL: server.URL, ManagementKey: "mgmt"})
+	worker.enableDue(ctx, now)
+
+	if patchCalls != 0 {
+		t.Fatalf("patch calls = %d, want no enable without a confirmed recovery", patchCalls)
+	}
+	active, err := st.QuotaCooldowns.ListActive(ctx)
+	if err != nil {
+		t.Fatalf("list active cooldowns: %v", err)
+	}
+	if len(active) != 1 {
+		t.Fatalf("active cooldowns = %#v, want retained cooldown", active)
+	}
+	if !strings.Contains(active[0].LastError, "not confirmed") {
+		t.Fatalf("last error = %q, want a conservative not-confirmed reason", active[0].LastError)
+	}
+	if active[0].NextCheckAtMS <= seeded.NextCheckAtMS {
+		t.Fatalf("next check = %d, want advanced beyond %d", active[0].NextCheckAtMS, seeded.NextCheckAtMS)
+	}
 }

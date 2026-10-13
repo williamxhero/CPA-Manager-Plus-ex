@@ -841,6 +841,24 @@ func Migrate(db *sql.DB) error {
 			lease_expires_at_ms integer not null,
 			foreign key(run_id) references codex_inspection_runs(id) on delete set null
 		)`,
+		`create table if not exists codex_reset_credit_ledger (
+			id integer primary key autoincrement,
+			credential_key text not null,
+			cycle_key text not null,
+			redeem_request_id text not null,
+			status text not null,
+			available_count integer,
+			detail_json text,
+			consumed_at_ms integer not null default 0,
+			created_at_ms integer not null,
+			updated_at_ms integer not null,
+			unique (credential_key, cycle_key, redeem_request_id)
+		)`,
+		`create index if not exists idx_codex_reset_credit_ledger_cycle
+			on codex_reset_credit_ledger(credential_key, cycle_key, status)`,
+		`create unique index if not exists idx_codex_reset_credit_ledger_one_consumption
+			on codex_reset_credit_ledger(credential_key, cycle_key)
+			where status in ('claimed', 'consumed')`,
 		`create table if not exists codex_inspection_results (
 			id integer primary key autoincrement,
 			run_id integer not null,
@@ -901,6 +919,8 @@ func Migrate(db *sql.DB) error {
 			window_kind text,
 			evidence_json text,
 			recover_at_ms integer not null,
+			recover_at_kind text,
+			next_check_at_ms integer,
 			owner text not null,
 			event_hash text,
 			pre_disabled_state integer not null default 0,
@@ -2712,6 +2732,8 @@ func ensureQuotaCooldownColumns(db *sql.DB) error {
 		{name: "reason_code", definition: "text"},
 		{name: "window_kind", definition: "text"},
 		{name: "evidence_json", definition: "text"},
+		{name: "recover_at_kind", definition: "text"},
+		{name: "next_check_at_ms", definition: "integer"},
 	} {
 		if _, ok := existing[column.name]; ok {
 			continue

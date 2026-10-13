@@ -83,6 +83,60 @@ func TestServerCompatQuotaCooldownsList(t *testing.T) {
 	}
 }
 
+// TestServerCompatQuotaCooldownsHidesUnknownResetETAs guards the SPEC rule that
+// a cooldown without a provider reset timestamp must never surface a fabricated
+// recovery time. The conservative next-check schedule is exposed separately.
+func TestServerCompatQuotaCooldownsHidesUnknownResetETAs(t *testing.T) {
+	cfg := testutil.NewConfig(t)
+	db := testutil.NewStore(t, cfg)
+	manager := collector.NewManager(cfg, db)
+	handler := New(cfg, db, manager).Handler()
+
+	now := int64(1_700_000_000_000)
+	persisted, err := db.QuotaCooldowns.UpsertActive(context.Background(), model.QuotaCooldownUpsert{
+		AuthFileName:  "xai-unknown.json",
+		AuthIndex:     "0",
+		Provider:      "xai",
+		Owner:         model.QuotaCooldownOwnerXAIFreeUsage,
+		RecoverAtKind: model.QuotaCooldownRecoverKindUnknown,
+		NextCheckAtMS: now + 3_600_000,
+		DisabledAtMS:  now,
+	})
+	if err != nil {
+		t.Fatalf("seed unknown-reset cooldown: %v", err)
+	}
+	if persisted.RecoverAtMS != 0 || persisted.RecoverAtKind != model.QuotaCooldownRecoverKindUnknown || persisted.NextCheckAtMS != now+3_600_000 {
+		t.Fatalf("persisted cooldown = %#v", persisted)
+	}
+
+	rr := testutil.Request(t, handler, http.MethodGet, "/usage-service/quota-cooldowns", "", testutil.AdminKey)
+	testutil.RequireStatus(t, rr, http.StatusOK)
+
+	var resp struct {
+		Items []struct {
+			Provider      string `json:"provider"`
+			RecoverAtMs   int64  `json:"recoverAtMs"`
+			RecoverAtKind string `json:"recoverAtKind"`
+			NextCheckAtMs int64  `json:"nextCheckAtMs"`
+			Evidence      any    `json:"evidence"`
+		} `json:"items"`
+	}
+	testutil.DecodeJSON(t, rr, &resp)
+	if len(resp.Items) != 1 {
+		t.Fatalf("items = %d, want 1, body = %s", len(resp.Items), rr.Body.String())
+	}
+	item := resp.Items[0]
+	if item.RecoverAtMs != 0 {
+		t.Fatalf("recoverAtMs = %d, want 0 (no fabricated ETA), body = %s", item.RecoverAtMs, rr.Body.String())
+	}
+	if item.RecoverAtKind != model.QuotaCooldownRecoverKindUnknown || item.NextCheckAtMs != now+3_600_000 {
+		t.Fatalf("item = %#v, want unknown kind with a conservative next check", item)
+	}
+	if item.Evidence != nil {
+		t.Fatalf("evidence = %#v, want omitted for an unknown-reset cooldown", item.Evidence)
+	}
+}
+
 func TestServerCompatQuotaCooldownsRequiresPanelAuth(t *testing.T) {
 	cfg := testutil.NewConfig(t)
 	db := testutil.NewStore(t, cfg)

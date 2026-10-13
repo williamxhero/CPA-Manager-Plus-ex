@@ -1,4 +1,5 @@
 import type { PluginListEntry } from '@/types';
+import { isPlanCredentialPlugin } from '@/features/plugins/planPlugins';
 
 export interface OAuthPollingScope {
   connectionFingerprint: string | null;
@@ -33,4 +34,6 @@ export const shouldShowPluginOAuthProvider = (
   plugin: Pick<PluginListEntry, 'id' | 'oauthProvider' | 'supportsOAuth'>,
   builtInProviderIds: ReadonlySet<string>
 ): boolean =>
-  plugin.supportsOAuth && !builtInProviderIds.has(resolvePluginOAuthProviderId(plugin));
+  plugin.supportsOAuth &&
+  !isPlanCredentialPlugin(plugin.id) &&
+  !builtInProviderIds.has(resolvePluginOAuthProviderId(plugin));

@@ -1,12 +1,17 @@
 package collector
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -869,6 +874,222 @@ func TestManagerSkipsUsageControlPayloadsAndRefreshesSnapshots(t *testing.T) {
 	}
 }
 
+// fakeSubscribeUpstream is a deterministic RESP server that speaks just enough
+// of the wire protocol the subscribe collector uses (AUTH/SUBSCRIBE/PING). The
+// test can flip respondPing to simulate an upstream that keeps the TCP socket
+// open but silently stops delivering frames, and deliverOnConnect to hand a
+// usage event to whichever connection subscribes next.
+type fakeSubscribeUpstream struct {
+	listener         net.Listener
+	mu               sync.Mutex
+	conns            int
+	respondPing      atomic.Bool
+	deliverOnConnect atomic.Bool
+}
+
+func newFakeSubscribeUpstream(t *testing.T) *fakeSubscribeUpstream {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen fake upstream: %v", err)
+	}
+	upstream := &fakeSubscribeUpstream{listener: listener}
+	upstream.respondPing.Store(true)
+	go upstream.serve()
+	t.Cleanup(func() { _ = listener.Close() })
+	return upstream
+}
+
+func (f *fakeSubscribeUpstream) URL() string {
+	return "http://" + f.listener.Addr().String()
+}
+
+func (f *fakeSubscribeUpstream) connectionCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.conns
+}
+
+func (f *fakeSubscribeUpstream) serve() {
+	for {
+		conn, err := f.listener.Accept()
+		if err != nil {
+			return
+		}
+		f.mu.Lock()
+		f.conns++
+		f.mu.Unlock()
+		go f.handle(conn)
+	}
+}
+
+func (f *fakeSubscribeUpstream) handle(conn net.Conn) {
+	defer func() { _ = conn.Close() }()
+	reader := bufio.NewReader(conn)
+	for {
+		args, err := readRESPCommand(reader)
+		if err != nil {
+			return
+		}
+		if len(args) == 0 {
+			continue
+		}
+		switch strings.ToUpper(args[0]) {
+		case "AUTH":
+			_, _ = conn.Write([]byte("+OK\r\n"))
+		case "SUBSCRIBE":
+			channel := "usage"
+			if len(args) > 1 {
+				channel = args[1]
+			}
+			_, _ = conn.Write([]byte("*3\r\n$9\r\nsubscribe\r\n$" + strconv.Itoa(len(channel)) + "\r\n" + channel + "\r\n:1\r\n"))
+			if f.deliverOnConnect.Load() {
+				_, _ = conn.Write(encodeSubscribeMessage(channel, `{"timestamp":"2026-05-06T00:00:00Z","model":"gpt-test","endpoint":"POST /v1/chat/completions","input_tokens":1,"output_tokens":2}`))
+			}
+		case "PING":
+			if f.respondPing.Load() {
+				_, _ = conn.Write([]byte("*2\r\n$4\r\npong\r\n$0\r\n\r\n"))
+			}
+		default:
+			_, _ = conn.Write([]byte("-ERR unknown command\r\n"))
+		}
+	}
+}
+
+func readRESPCommand(reader *bufio.Reader) ([]string, error) {
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, err
+	}
+	line = strings.TrimRight(line, "\r\n")
+	if len(line) == 0 || line[0] != '*' {
+		return nil, fmt.Errorf("unexpected command prefix %q", line)
+	}
+	count, err := strconv.Atoi(line[1:])
+	if err != nil {
+		return nil, err
+	}
+	args := make([]string, 0, count)
+	for i := 0; i < count; i++ {
+		lengthLine, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		lengthLine = strings.TrimRight(lengthLine, "\r\n")
+		if len(lengthLine) == 0 || lengthLine[0] != '$' {
+			return nil, fmt.Errorf("unexpected argument prefix %q", lengthLine)
+		}
+		length, err := strconv.Atoi(lengthLine[1:])
+		if err != nil {
+			return nil, err
+		}
+		data := make([]byte, length+2)
+		if _, err := io.ReadFull(reader, data); err != nil {
+			return nil, err
+		}
+		args = append(args, string(data[:length]))
+	}
+	return args, nil
+}
+
+func encodeSubscribeMessage(channel string, payload string) []byte {
+	return []byte("*3\r\n$7\r\nmessage\r\n$" + strconv.Itoa(len(channel)) + "\r\n" + channel +
+		"\r\n$" + strconv.Itoa(len(payload)) + "\r\n" + payload + "\r\n")
+}
+
+// TestManagerSubscribeWatchdogReconnectsOnSilentUpstream reproduces the
+// reported "fake running" failure: the subscribe connection stays open at the
+// TCP level but the upstream goes silent, so lastConsumedAt/lastInsertedAt stop
+// advancing while the collector still reports "running". The watchdog must
+// detect the stall, reconnect, and resume consumption without duplicating the
+// consumer.
+func TestManagerSubscribeWatchdogReconnectsOnSilentUpstream(t *testing.T) {
+	upstream := newFakeSubscribeUpstream(t)
+	db := newTestStore(t)
+	manager := NewManager(testConfig(t, "subscribe"), db)
+	manager.subscribePingInterval = 80 * time.Millisecond
+	manager.subscribePongTimeout = 60 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	manager.Start(ctx, RuntimeConfig{CPAUpstreamURL: upstream.URL(), ManagementKey: "management-key"})
+
+	waitForWithin(t, 3*time.Second, func() bool {
+		status := manager.Status()
+		return status.Transport == "subscribe" && status.Collector == "running"
+	})
+	if got := upstream.connectionCount(); got != 1 {
+		t.Fatalf("connections before stall = %d, want 1", got)
+	}
+
+	// The upstream stops answering keepalive pings and stops pushing messages,
+	// but keeps the socket open. Any event delivered to the next subscription
+	// proves the watchdog reconnected to a fresh transport.
+	upstream.respondPing.Store(false)
+	upstream.deliverOnConnect.Store(true)
+
+	waitForWithin(t, 8*time.Second, func() bool {
+		events, _, err := db.Counts(context.Background())
+		return err == nil && events >= 1
+	})
+
+	status := manager.Status()
+	if status.WatchdogReconnects < 1 {
+		t.Fatalf("watchdog reconnects = %d, want >= 1 (status=%+v)", status.WatchdogReconnects, status)
+	}
+	if status.Reconnects < 1 {
+		t.Fatalf("reconnects = %d, want >= 1 (status=%+v)", status.Reconnects, status)
+	}
+	if status.Transport != "subscribe" {
+		t.Fatalf("transport = %q, want subscribe", status.Transport)
+	}
+	if status.LastInsertedAt == 0 {
+		t.Fatalf("lastInsertedAt not advanced after recovery (status=%+v)", status)
+	}
+	if got := upstream.connectionCount(); got < 2 {
+		t.Fatalf("connections after watchdog = %d, want >= 2", got)
+	}
+}
+
+// TestManagerSubscribeWatchdogKeepsIdleQueueAlive verifies acceptance
+// criterion 3: a genuinely empty queue on a healthy subscribe must not be
+// treated as a stall. The upstream answers keepalive pings with PONGs but never
+// sends a message, so the watchdog must not reconnect or spawn a second
+// consumer.
+func TestManagerSubscribeWatchdogKeepsIdleQueueAlive(t *testing.T) {
+	upstream := newFakeSubscribeUpstream(t)
+	db := newTestStore(t)
+	manager := NewManager(testConfig(t, "subscribe"), db)
+	manager.subscribePingInterval = 80 * time.Millisecond
+	manager.subscribePongTimeout = 60 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	manager.Start(ctx, RuntimeConfig{CPAUpstreamURL: upstream.URL(), ManagementKey: "management-key"})
+
+	waitForWithin(t, 3*time.Second, func() bool {
+		status := manager.Status()
+		return status.Transport == "subscribe" && status.Collector == "running"
+	})
+
+	// Let several keepalive cycles elapse with no data.
+	time.Sleep(500 * time.Millisecond)
+
+	status := manager.Status()
+	if status.Collector != "running" {
+		t.Fatalf("collector = %q, want running", status.Collector)
+	}
+	if status.WatchdogReconnects != 0 || status.Reconnects != 0 {
+		t.Fatalf("healthy idle subscription triggered a reconnect: %+v", status)
+	}
+	if got := upstream.connectionCount(); got != 1 {
+		t.Fatalf("connections = %d, want 1 (no duplicate consumer)", got)
+	}
+	if status.StalledMS > 2000 {
+		t.Fatalf("stalledMs = %d, want a small value for a healthy idle subscription", status.StalledMS)
+	}
+}
+
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
 	db, err := store.Open(filepath.Join(t.TempDir(), "usage.sqlite"))
@@ -895,7 +1116,12 @@ func testConfig(t *testing.T, mode string) config.Config {
 
 func waitFor(t *testing.T, condition func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	waitForWithin(t, 2*time.Second, condition)
+}
+
+func waitForWithin(t *testing.T, timeout time.Duration, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if condition() {
 			return

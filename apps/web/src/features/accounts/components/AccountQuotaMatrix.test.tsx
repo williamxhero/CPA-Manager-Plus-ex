@@ -1,5 +1,5 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AccountQuotaDisplayWindow } from '@/features/accounts/model/accountQuotaDisplayWindows';
 import type {
   AccountQuotaLifecycleBarOverride,
@@ -37,6 +37,7 @@ const makeQuotaWindow = (
     observedAtMs: Date.now(),
     windowMode: 'fixed',
     groupLabel: 'Gemini Models',
+    modelScope: { kind: 'family', key: 'gemini', complete: true },
     ...overrides,
   }) as AccountQuotaDisplayWindow;
 
@@ -58,7 +59,103 @@ const renderMatrix = (
   return renderer;
 };
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('AccountQuotaMatrix', () => {
+  it.each([
+    ['five_hour', '3.0/5'],
+    ['daily', '0.6/1'],
+    ['weekly', '4.2/7'],
+    ['monthly', '18.6/31'],
+    ['unknown', null],
+  ] as const)('renders provider-level %s windows with used units when supported', (kind, fraction) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 15, 12));
+    const renderer = renderMatrix('provider-test', {
+      windowKeys: new Set(['known', 'unknown']),
+      rows: [{
+        key: 'five_hour',
+        label: kind,
+        cells: [
+          {
+            groupLabel: 'Known',
+            displayLabel: 'Known',
+            window: makeQuotaWindow({
+              key: 'known', kind, usedPercent: 60, remainingPercent: 40,
+              modelScope: { kind: 'all', complete: true },
+            }),
+          },
+          {
+            groupLabel: 'Unknown',
+            displayLabel: 'Unknown',
+            window: makeQuotaWindow({
+              key: 'unknown', kind, usedPercent: null, remainingPercent: null,
+              modelScope: { kind: 'all', complete: true },
+            }),
+          },
+        ],
+      }],
+    });
+    const known = renderer.root.findByProps({ 'data-account-quota-matrix-cell': 'five_hour:Known' });
+    const expected = fraction === null ? '40%' : `accounts.detail_used ${fraction}`;
+    expect(known.findByType('strong').children).toEqual([expected]);
+    expect(known.props.title).toContain(expected);
+    if (fraction !== null) expect(known.props.title).not.toContain('40%');
+    const unknown = renderer.root.findByProps({ 'data-account-quota-matrix-cell': 'five_hour:Unknown' });
+    expect(unknown.findByType('strong').children).toEqual(['-']);
+    act(() => renderer.unmount());
+  });
+
+  it.each(['five_hour', 'weekly', 'monthly', 'unknown'] as const)(
+    'preserves remaining percentages for model-scoped %s windows',
+    (kind) => {
+      const rowKind = kind === 'weekly' ? 'weekly' : 'five_hour';
+      const renderer = renderMatrix('remaining-test', {
+        windowKeys: new Set(['known', 'unknown']),
+        rows: [
+          {
+            key: rowKind,
+            label: kind,
+            cells: [
+              {
+                groupLabel: 'Known',
+                displayLabel: 'Known',
+                window: makeQuotaWindow({
+                  key: 'known',
+                  kind,
+                  usedPercent: 60,
+                  remainingPercent: 40,
+                }),
+              },
+              {
+                groupLabel: 'Unknown',
+                displayLabel: 'Unknown',
+                window: makeQuotaWindow({
+                  key: 'unknown',
+                  kind,
+                  usedPercent: null,
+                  remainingPercent: null,
+                }),
+              },
+            ],
+          },
+        ],
+      });
+      const known = renderer.root.findByProps({
+        'data-account-quota-matrix-cell': `${rowKind}:Known`,
+      });
+      expect(known.findByType('strong').children).toEqual(['40%']);
+      expect(known.props.title).toContain('40%');
+      const unknown = renderer.root.findByProps({
+        'data-account-quota-matrix-cell': `${rowKind}:Unknown`,
+      });
+      expect(unknown.findByType('strong').children).toEqual(['-']);
+      act(() => renderer.unmount());
+    }
+  );
+
   it('renders only phrasing-compatible span elements', () => {
     const renderer = renderMatrix('test-account', {
       windowKeys: new Set(['gemini-5h', 'claude-5h']),

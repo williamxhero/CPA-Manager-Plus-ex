@@ -8,6 +8,7 @@ import {
   resolveAntigravityPlanDescriptor,
   resolveClaudePlanDescriptor,
   resolveCodexPlanDescriptor,
+  resolveOpenCodeGoPlanDescriptor,
 } from './providers';
 import type { PlanResolverDescriptor } from './providers/types';
 import type { GetPlanPresentationInput, PlanDisplayMode, PlanPresentation } from './types';
@@ -18,6 +19,7 @@ const PLAN_RESOLVERS: Readonly<Record<string, PlanResolver>> = {
   codex: resolveCodexPlanDescriptor,
   claude: resolveClaudePlanDescriptor,
   antigravity: resolveAntigravityPlanDescriptor,
+  'opencode-go': resolveOpenCodeGoPlanDescriptor,
 };
 
 const RESERVED_UNKNOWN_PLAN = 'unknown';

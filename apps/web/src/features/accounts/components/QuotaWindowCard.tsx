@@ -33,6 +33,7 @@ import type {
   AccountDetailWindowUsageSummary,
 } from '@/features/accounts/model/accountDetailViewModel';
 import { formatQuotaResetDisplay } from '@/features/accounts/model/accountsPagePresentation';
+import { formatQuotaUnitFraction } from '@/features/accounts/model/quotaUnitFraction';
 import { formatCompactNumber, formatUsd } from '@/utils/usage';
 import { QuotaProgressBar } from './QuotaProgressBar';
 import styles from './QuotaWindowCard.module.scss';
@@ -369,6 +370,13 @@ export const QuotaWindowCard = ({
   const { t, i18n } = useTranslation();
   const resolvedLocale = locale ?? i18n.language;
   const resolvedMode = mode ?? inferCardMode(q);
+  const usedFraction = resolvedMode === 'model' ? null : formatQuotaUnitFraction(q);
+  const usedFractionDisplay =
+    usedFraction !== null ? (
+      <span data-quota-used-fraction="true">
+        {t('accounts.detail_used')}: {usedFraction}
+      </span>
+    ) : null;
   const usage = q.currentUsage ?? q.usage;
   const previousUsage = q.previousUsage;
   const resetTimestamp =
@@ -441,7 +449,9 @@ export const QuotaWindowCard = ({
       <div className={styles.compactCard} title={compactTitle || q.label}>
         <span className={styles.compactLabel}>{q.label}</span>
         <QuotaProgress className={styles.compactBar} percent={q.remainingPercent} />
-        <span className={styles.compactValue}>{formatPercent(q.remainingPercent)}</span>
+        <span className={styles.compactValue}>
+          {usedFractionDisplay ?? formatPercent(q.remainingPercent)}
+        </span>
         <span className={styles.compactReset}>{q.amountLabel ?? boundaryDisplay}</span>
       </div>
     );
@@ -605,8 +615,14 @@ export const QuotaWindowCard = ({
       </div>
       <div className={styles.headerAside}>
         <div className={styles.remaining}>
-          <span>{t('accounts.detail_quota_remaining_label', { defaultValue: '剩余' })}</span>
-          <strong>{formatPercent(q.remainingPercent)}</strong>
+          {usedFractionDisplay ? (
+            <strong>{usedFractionDisplay}</strong>
+          ) : (
+            <>
+              <span>{t('accounts.detail_quota_remaining_label', { defaultValue: '剩余' })}</span>
+              <strong>{formatPercent(q.remainingPercent)}</strong>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -626,9 +642,11 @@ export const QuotaWindowCard = ({
         {progress}
         <div className={styles.meta}>
           {q.amountLabel ? <span className={styles.amountLabel}>{q.amountLabel}</span> : null}
-          <span>
-            {t('accounts.detail_used')}: {formatPercent(q.usedPercent)}
-          </span>
+          {usedFractionDisplay === null ? (
+            <span>
+              {t('accounts.detail_used')}: {formatPercent(q.usedPercent)}
+            </span>
+          ) : null}
           {q.windowMode === 'unknown' ? (
             <span className={styles.metaEmpty}>
               {t('accounts.detail_window_boundary_incomplete')}

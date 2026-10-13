@@ -6,6 +6,7 @@ import {
   type AuthFileLookupTarget,
   type AuthFilesApiRequestScope,
 } from '@/services/api';
+import { planCredentialsApi } from '@/services/api/planCredentials';
 import type { AuthFileItem } from '@/types';
 import { useNotificationStore } from '@/stores';
 import {
@@ -14,6 +15,7 @@ import {
   buildAuthFileConfigurationDraft,
   buildAuthFileConfigurationPatch,
   buildRedactedAuthFileConfigurationText,
+  getPlanCredentialDefaultBaseUrl,
   parseAuthFileConfigurationSource,
   type AuthFileConfigurationDraft,
   type AuthFileConfigurationErrors,
@@ -331,7 +333,18 @@ export function useAuthFileConfigurationEditor(
       const sourceIdentities = currentFiles
         .filter((entry) => readAuthFileStatusPhysicalName(entry) === targetPhysicalName)
         .map(getAuthFilePatchTarget);
-      if (patch['excluded-models'] !== undefined && hasLegacyExcludedModelsAlias(recordSnapshot)) {
+      if (getPlanCredentialDefaultBaseUrl(providerKeySnapshot)) {
+        // Plan credentials must pass the runtime activation/rollback checks;
+        // send common edits in the same PATCH, never rewrite the source file.
+        if (requestScope) {
+          await planCredentialsApi.update(patchTarget, patch, requestScope);
+        } else {
+          await planCredentialsApi.update(patchTarget, patch);
+        }
+      } else if (
+        patch['excluded-models'] !== undefined &&
+        hasLegacyExcludedModelsAlias(recordSnapshot)
+      ) {
         // CPA currently reads `excluded_models` before `excluded-models` and
         // treats PATCH null values as retained metadata keys. Rewrite the
         // verified source JSON so the legacy key is actually removed; this

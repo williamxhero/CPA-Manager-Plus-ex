@@ -24,6 +24,17 @@ const formatTimestamp = (value: number | undefined, locale: string) => {
   });
 };
 
+const formatDuration = (value: number | undefined) => {
+  if (!Number.isFinite(value) || (value as number) <= 0) return '-';
+  const totalSeconds = Math.floor((value as number) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+};
+
 export function CollectorStatusCard({
   enabled,
   status,
@@ -45,9 +56,13 @@ export function CollectorStatusCard({
 
   const rows = [
     { label: t('dashboard.collector_mode'), value: collector?.mode || collector?.collector || '-' },
+    { label: t('dashboard.collector_transport'), value: collector?.transport || '-' },
     { label: t('dashboard.health_queue_status'), value: queueStatus, isStatus: true },
     { label: t('dashboard.collector_events'), value: formatCount(status?.events) },
     { label: t('dashboard.collector_dead_letters'), value: formatCount(status?.deadLetters ?? collector?.deadLetters) },
+    { label: t('dashboard.collector_last_activity'), value: formatTimestamp(collector?.lastActivityAt, i18n.language) },
+    { label: t('dashboard.collector_stalled_for'), value: formatDuration(collector?.stalledMs) },
+    { label: t('dashboard.collector_reconnects'), value: formatCount(collector?.reconnects) },
     { label: t('dashboard.collector_last_consumed'), value: formatTimestamp(collector?.lastConsumedAt, i18n.language) },
     { label: t('dashboard.collector_last_inserted'), value: formatTimestamp(collector?.lastInsertedAt, i18n.language) },
     { label: t('dashboard.collector_total_inserted'), value: formatCount(collector?.totalInserted) },

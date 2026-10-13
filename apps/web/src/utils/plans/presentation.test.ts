@@ -12,6 +12,7 @@ import {
   ANTIGRAVITY_PLAN_DESCRIPTORS,
   CLAUDE_PLAN_DESCRIPTORS,
   CODEX_PLAN_DESCRIPTORS,
+  OPENCODE_GO_PLAN_DESCRIPTORS,
 } from './providers';
 import { resolveAntigravityPlanType } from './providers/antigravity';
 import { resolveAuthFilePlanType } from './source';
@@ -96,6 +97,45 @@ describe('Plan Presentation', () => {
     });
   });
 
+  it.each(['OpenCode Go', 'opencode-go', 'opencode go', 'go', ' OPENCODE GO '])(
+    'resolves OpenCode Go %s without changing the raw plan value',
+    (raw) => {
+      const presentation = getPlanPresentation({ provider: 'opencode-go', planType: raw, t });
+      expect(presentation).toEqual({
+        provider: 'opencode-go',
+        rawPlanType: raw.trim(),
+        canonicalPlanType: 'go',
+        shortLabel: 'Go',
+        fullLabel: 'Go',
+        known: true,
+      });
+      expect(getCanonicalPlanType('opencode-go', raw)).toBe('go');
+      expect(getPlanLabel(presentation, 'compact')).toBe('Go');
+      expect(getPlanLabel(presentation, 'full')).toBe('Go');
+    }
+  );
+
+  it('uses the existing Go locale key and fallback for OpenCode Go', () => {
+    for (const translate of [undefined, strictT]) {
+      const presentation = getPlanPresentation({
+        provider: 'opencode-go',
+        planType: 'OpenCode Go',
+        t: translate,
+      });
+      expect(presentation?.shortLabel).toBe('Go');
+      expect(presentation?.shortLabel).toBe(getCanonicalPlanFilterLabel('go', translate));
+    }
+  });
+
+  it('keeps Codex Plus and an absent Claude plan unchanged', () => {
+    expect(getPlanPresentation({ provider: 'codex', planType: 'plus', t })).toMatchObject({
+      canonicalPlanType: 'plus',
+      shortLabel: 'Plus',
+      fullLabel: 'Plus',
+    });
+    expect(getPlanPresentation({ provider: 'claude', planType: null, t })).toBeNull();
+  });
+
   it.each([
     ['free', 'free', 'Free'],
     ['pro', 'pro', 'Pro'],
@@ -116,6 +156,7 @@ describe('Plan Presentation', () => {
     ['codex', 'future_plan_x'],
     ['claude', 'future_plan_x'],
     ['antigravity', 'future_plan_x'],
+    ['opencode-go', 'future_plan_x'],
     ['kimi', 'future_plan_x'],
     ['xai', 'future_plan_x'],
   ])('keeps unknown %s plans visible without a translation key', (provider, raw) => {
@@ -248,6 +289,7 @@ describe('Plan Presentation', () => {
       ...Object.values(CODEX_PLAN_DESCRIPTORS),
       ...Object.values(CLAUDE_PLAN_DESCRIPTORS),
       ...Object.values(ANTIGRAVITY_PLAN_DESCRIPTORS),
+      ...Object.values(OPENCODE_GO_PLAN_DESCRIPTORS),
     ];
     const seen = new Set<string>();
     descriptors.forEach((descriptor) => {

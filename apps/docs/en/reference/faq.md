@@ -370,7 +370,7 @@ Check that CPA configuration points at this project:
 
 ```yaml
 remote-management:
-  panel-github-repository: 'https://github.com/seakee/CPA-Manager-Plus'
+  panel-github-repository: 'https://github.com/williamxhero/CPA-Manager-Plus-ex'
 ```
 
 If the new panel still does not load, clear CPA's cached panel file and reload or restart CPA:

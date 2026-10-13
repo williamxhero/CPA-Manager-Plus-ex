@@ -7,7 +7,7 @@ import {
 describe('dashboard version release links', () => {
   it('builds the Manager release URL from a tagged version', () => {
     expect(buildDashboardVersionReleaseURL('manager', 'v1.12.0')).toBe(
-      'https://github.com/seakee/CPA-Manager-Plus/releases/tag/v1.12.0'
+      'https://github.com/williamxhero/CPA-Manager-Plus-ex/releases/tag/v1.12.0'
     );
   });
 

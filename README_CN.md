@@ -5,10 +5,10 @@
   <img src="logo.svg" alt="CPAMP" width="480">
 </picture>
 
-[![Release](https://img.shields.io/github/v/release/seakee/CPA-Manager-Plus?style=flat-square)](https://github.com/seakee/CPA-Manager-Plus/releases/latest)
-[![License](https://img.shields.io/github/license/seakee/CPA-Manager-Plus?style=flat-square&color=blue)](https://github.com/seakee/CPA-Manager-Plus/blob/main/LICENSE)
+[![Release](https://img.shields.io/github/v/release/williamxhero/CPA-Manager-Plus-ex?style=flat-square)](https://github.com/williamxhero/CPA-Manager-Plus-ex/releases/latest)
+[![License](https://img.shields.io/github/license/williamxhero/CPA-Manager-Plus-ex?style=flat-square&color=blue)](https://github.com/williamxhero/CPA-Manager-Plus-ex/blob/main/LICENSE)
 [![Docker Pulls](https://img.shields.io/docker/pulls/seakee/cpa-manager-plus?style=flat-square)](https://hub.docker.com/r/seakee/cpa-manager-plus)
-[![Stars](https://img.shields.io/github/stars/seakee/CPA-Manager-Plus?style=flat-square&label=stars)](https://github.com/seakee/CPA-Manager-Plus/stargazers)
+[![Stars](https://img.shields.io/github/stars/williamxhero/CPA-Manager-Plus-ex?style=flat-square&label=stars)](https://github.com/williamxhero/CPA-Manager-Plus-ex/stargazers)
 
 面向 CPA / CLIProxyAPI 的自托管管理面板与 AI Gateway 可观测性仪表盘，覆盖请求、用量、成本、配额、失败诊断和账号健康。
 
@@ -16,7 +16,16 @@
 
 [English](README.md) ｜ [在线演示](https://seakee.github.io/CPA-Manager-Plus/) ｜ [在线文档](https://seakee.github.io/CPA-Manager-Plus/docs/) ｜ [快速安装](#快速开始)
 
+> 本仓库是 **CPAMP-EX** fork。fork 自有定制与上游合并清单见 [docs/FORK-MAINTENANCE.md](docs/FORK-MAINTENANCE.md)（含 provider 同步手册）。本 fork 还把 OpenCode Go 与 Qwen 两个 CLIProxyAPI 插件源码（含 Qwen `bailian-quota` CLI）收进 [`providers/`](providers/README.md)：同一仓库构建面板与插件，并由导入边界守卫与 `providers` CI job 把关。
+
 </div>
+
+## 本 fork 新增（CPAMP-EX）
+
+上游 `seakee/CPA-Manager-Plus` 仍是基线；本 fork 在其上新增以下内容。完整清单、上游合并检查表和 provider 同步手册见 [docs/FORK-MAINTENANCE.md](docs/FORK-MAINTENANCE.md)。
+
+- **插件源码单仓**：OpenCode Go 与 Qwen 的 CLIProxyAPI 插件源码（含 Qwen 的 `bailian-quota` CLI）位于 [`providers/`](providers/README.md)。同一仓库既构建面板也构建插件，并有导入边界守卫与 `providers` CI job。布局/许可证/导入契约见 [docs/providers-layout-contract.md](docs/providers-layout-contract.md)。
+- **面板侧新增**：OpenCode Go 凭证管理与额度、Qwen 计划/额度渲染、Provider key 别名、手写插件凭证表单、受保护的计划凭证编辑、统一 `/plan-credentials` 页面，以及 CPAMP-EX 品牌角标。
 
 ## CPAMP 可以帮你回答什么问题？
 
@@ -128,7 +137,7 @@ CPAMP 管理和观测经过 CPA / CLIProxyAPI 的流量，本身不是模型代�
 按向导执行完整安装或仅安装 CPAMP：
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh
+curl -fsSLO https://raw.githubusercontent.com/williamxhero/CPA-Manager-Plus-ex/main/bin/install-cpamp.sh
 bash install-cpamp.sh
 ```
 
@@ -263,4 +272,4 @@ docker compose -f docker-compose.manager.yml up --build
 
 ## 许可证
 
-[MIT](https://github.com/seakee/CPA-Manager-Plus/blob/main/LICENSE) — Copyright 2026 Seakee。
+[MIT](https://github.com/williamxhero/CPA-Manager-Plus-ex/blob/main/LICENSE) — Copyright 2026 Seakee。

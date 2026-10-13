@@ -203,6 +203,7 @@ func runServer() {
 		serverApp.AppContext().AuthFileMutationCoordinator,
 		runtimeSettings.AccountActionsAutoDisable,
 	)
+	codexResetCreditWorker := worker.NewCodexResetCreditWorker(serverApp.AppContext().Store)
 	accountHistoryRollupWorker := worker.NewAccountHistoryRollupWorker(db)
 	usageDerivedRollupWorker := worker.NewUsagePricingRollupWorker(db)
 	serverApp.AppContext().ModelPriceService.SetPricesChangedNotifier(usageDerivedRollupWorker.Wake)
@@ -229,6 +230,7 @@ func runServer() {
 		manager,
 		rateLimitAutoDisableWorker,
 		accountActionWorker,
+		codexResetCreditWorker,
 	)
 	serverApp.AppContext().AutomationRuntimeService = automationRuntime
 	manager.SetUsageEventHandler(worker.NewUsageEventFanout(

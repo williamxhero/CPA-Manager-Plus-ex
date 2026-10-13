@@ -58,7 +58,7 @@ remote-management:
   disable-auto-update-panel: false
 
   # 让 CPA 从 CPAMP Release 下载 management.html。
-  panel-github-repository: 'https://github.com/seakee/CPA-Manager-Plus'
+  panel-github-repository: 'https://github.com/williamxhero/CPA-Manager-Plus-ex'
 ```
 
 `allow-remote: true` 会开放远程 Management API。只在可信网络、VPN 或受保护的反向代理后使用，不要把管理端口和密钥暴露到不可信网络。

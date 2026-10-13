@@ -61,7 +61,9 @@ import {
   scopeQuotaStateToCredential,
 } from '@/utils/quota/credentialScope';
 
-type QuotaType = 'antigravity' | 'claude' | 'codex' | 'kimi' | 'xai' | 'devin' | 'meta' | 'opencode-go';
+import { fetchQwenQuota, type QwenQuotaData, type QwenQuotaState } from '@/utils/quota/qwenQuota';
+
+type QuotaType = 'antigravity' | 'claude' | 'codex' | 'kimi' | 'xai' | 'devin' | 'meta' | 'opencode-go' | 'qwen';
 
 export type { QuotaFetchContext };
 
@@ -896,6 +898,51 @@ export const META_CONFIG: QuotaConfig<MetaQuotaState, MetaQuotaData> = {
     errorStatus: status,
     ...buildQuotaCredentialIdentity(file),
     failedAtMs: Date.now(),
+  }),
+  scopeState: scopeCredentialQuotaState,
+};
+
+export const QWEN_CONFIG: QuotaConfig<QwenQuotaState, QwenQuotaData> = {
+  type: 'qwen',
+  i18nPrefix: 'qwen_quota',
+  fetchQuota: fetchQwenQuota,
+  getStoreKey: getQuotaCredentialStoreKey,
+  buildLoadingState: (file) => ({
+    status: 'loading',
+    windows: [],
+    metrics: [],
+    plan: null,
+    planStatus: null,
+    planStartMs: null,
+    planEndMs: null,
+    daysLeft: null,
+    observedAtMs: null,
+    ...buildQuotaCredentialIdentity(file),
+  }),
+  buildSuccessState: (data, file) => ({
+    ...data,
+    status: 'success',
+    ...buildQuotaCredentialIdentity(file),
+    fetchedAtMs: Date.now(),
+  }),
+  buildErrorState: (message, status, file) => ({
+    status: 'error',
+    windows: [],
+    metrics: [],
+    plan: null,
+    planStatus: null,
+    planStartMs: null,
+    planEndMs: null,
+    daysLeft: null,
+    observedAtMs: null,
+    error: message,
+    errorStatus: status,
+    ...buildQuotaCredentialIdentity(file),
+    failedAtMs: Date.now(),
+  }),
+  buildFailureState: (message, status, file, _activeState, failedAtMs) => ({
+    ...QWEN_CONFIG.buildErrorState(message, status, file),
+    failedAtMs,
   }),
   scopeState: scopeCredentialQuotaState,
 };

@@ -7,10 +7,10 @@
 
 # CPA Manager Plus
 
-[![Release](https://img.shields.io/github/v/release/seakee/CPA-Manager-Plus?style=flat-square)](https://github.com/seakee/CPA-Manager-Plus/releases/latest)
-[![License](https://img.shields.io/github/license/seakee/CPA-Manager-Plus?style=flat-square&color=blue)](https://github.com/seakee/CPA-Manager-Plus/blob/main/LICENSE)
+[![Release](https://img.shields.io/github/v/release/williamxhero/CPA-Manager-Plus-ex?style=flat-square)](https://github.com/williamxhero/CPA-Manager-Plus-ex/releases/latest)
+[![License](https://img.shields.io/github/license/williamxhero/CPA-Manager-Plus-ex?style=flat-square&color=blue)](https://github.com/williamxhero/CPA-Manager-Plus-ex/blob/main/LICENSE)
 [![Docker Pulls](https://img.shields.io/docker/pulls/seakee/cpa-manager-plus?style=flat-square)](https://hub.docker.com/r/seakee/cpa-manager-plus)
-[![Stars](https://img.shields.io/github/stars/seakee/CPA-Manager-Plus?style=flat-square&label=stars)](https://github.com/seakee/CPA-Manager-Plus/stargazers)
+[![Stars](https://img.shields.io/github/stars/williamxhero/CPA-Manager-Plus-ex?style=flat-square&label=stars)](https://github.com/williamxhero/CPA-Manager-Plus-ex/stargazers)
 
 A self-hosted CPA / CLIProxyAPI management panel and AI gateway observability dashboard for requests, usage, cost, quota, failures, and account health.
 
@@ -18,7 +18,16 @@ Operate providers, credentials, OAuth, plugins, and configuration while keeping 
 
 [中文](README_CN.md) ｜ [Live Demo](https://seakee.github.io/CPA-Manager-Plus/) ｜ [Documentation](https://seakee.github.io/CPA-Manager-Plus/docs/en/) ｜ [Install](#quick-start)
 
+> This repository is the **CPAMP-EX** fork. Fork-specific customizations and the upstream-merge checklist live in [docs/FORK-MAINTENANCE.md](docs/FORK-MAINTENANCE.md). The fork also bundles the OpenCode Go and Qwen CLIProxyAPI provider plugins under [`providers/`](providers/README.md): one repository builds the panel and the plugin sources, guarded by an import boundary and a providers CI job.
+
 </div>
+
+## Fork Additions (CPAMP-EX)
+
+Upstream `seakee/CPA-Manager-Plus` stays the base; this fork adds the items below. The full list, the upstream-merge checklist, and the provider sync runbooks live in [docs/FORK-MAINTENANCE.md](docs/FORK-MAINTENANCE.md).
+
+- **Single-repository providers** — the OpenCode Go and Qwen CLIProxyAPI plugin sources (with the Qwen `bailian-quota` CLI) live under [`providers/`](providers/README.md). The same repo builds the panel and the plugins, with an import-boundary guard and a `providers` CI job. Layout/licence/import contract: [docs/providers-layout-contract.md](docs/providers-layout-contract.md).
+- **Panel-side additions** — OpenCode Go credential management and quota, Qwen plan/quota rendering, provider key aliases, manual plugin credential forms, protected plan-credential editing, and the unified `/plan-credentials` page, plus the CPAMP-EX branding.
 
 ## What Can CPAMP Help You Answer?
 
@@ -130,7 +139,7 @@ CPAMP manages and observes traffic through CPA / CLIProxyAPI. It is not a replac
 For a guided full-stack or CPAMP-only deployment:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh
+curl -fsSLO https://raw.githubusercontent.com/williamxhero/CPA-Manager-Plus-ex/main/bin/install-cpamp.sh
 bash install-cpamp.sh
 ```
 
@@ -263,4 +272,4 @@ docker compose -f docker-compose.manager.yml up --build
 
 ## License
 
-[MIT](https://github.com/seakee/CPA-Manager-Plus/blob/main/LICENSE) — Copyright 2026 Seakee.
+[MIT](https://github.com/williamxhero/CPA-Manager-Plus-ex/blob/main/LICENSE) — Copyright 2026 Seakee.

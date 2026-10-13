@@ -2,6 +2,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthFileItem } from '@/types';
+import type { AuthFilesApiRequestScope } from '@/services/api';
 import {
   useAuthFileConfigurationEditor,
   type UseAuthFileConfigurationEditorResult,
@@ -19,6 +20,7 @@ const createDeferred = <T,>() => {
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
+    updatePlanCredential: vi.fn(),
     downloadText: vi.fn(),
     list: vi.fn(),
     lookup: vi.fn(),
@@ -52,6 +54,10 @@ vi.mock('@/services/api', async (importOriginal) => {
     },
   };
 });
+
+vi.mock('@/services/api/planCredentials', () => ({
+  planCredentialsApi: { update: mocks.updatePlanCredential },
+}));
 
 vi.mock('@/stores', () => ({
   useNotificationStore: (
@@ -91,11 +97,13 @@ describe('useAuthFileConfigurationEditor', () => {
     activeFile = file,
     connectionKey = 'connection-a',
     sourceMemberCount = 1,
+    requestScope,
   }: {
     enabled?: boolean;
     activeFile?: AuthFileItem;
     connectionKey?: string;
     sourceMemberCount?: number;
+    requestScope?: AuthFilesApiRequestScope;
   }) {
     const editor = useAuthFileConfigurationEditor({
       file: activeFile,
@@ -103,6 +111,7 @@ describe('useAuthFileConfigurationEditor', () => {
       disableControls: false,
       sourceMemberCount,
       connectionKey,
+      requestScope,
       reconcileSource: mocks.reconcileSource,
       onSaved: mocks.onSaved,
     });
@@ -115,6 +124,8 @@ describe('useAuthFileConfigurationEditor', () => {
   beforeEach(() => {
     latest = null;
     renderer = null;
+    mocks.updatePlanCredential.mockReset();
+    mocks.updatePlanCredential.mockResolvedValue(undefined);
     mocks.downloadText.mockReset();
     mocks.list.mockReset();
     mocks.lookup.mockReset();
@@ -142,6 +153,157 @@ describe('useAuthFileConfigurationEditor', () => {
 
   afterEach(() => {
     act(() => renderer?.unmount());
+  });
+
+  it.each(['qwen', 'opencode-go'])(
+    'saves %s key, URL, label and common edits in one verified plan update',
+    async (provider) => {
+      const planFile = { ...file, type: provider, provider, disabled: true } as AuthFileItem;
+      const record = {
+        type: provider,
+        auth_index: 'auth-1',
+        account_id: 'account-1',
+        api_key: 'old-secret',
+        label: 'old',
+        base_url: 'https://old.example/v1',
+        disabled: true,
+        quota: { remaining: 42 },
+        excluded_models: ['old-model'],
+      };
+      setDownloadedRecord(record);
+      mocks.lookup.mockResolvedValue([planFile]);
+      await act(async () => {
+        renderer = create(<Harness activeFile={planFile} />);
+      });
+      await flush();
+      expect(latest?.draft?.replacementApiKey).toBe('');
+      act(() => {
+        latest?.updateField('replacementApiKey', 'replacement-secret');
+        latest?.updateField('baseUrl', 'https://new.example/v1');
+        latest?.updateField('label', 'new');
+        latest?.updateField('note', 'new note');
+        latest?.updateField('excludedModelsText', 'new-model');
+      });
+      setDownloadedRecord({
+        ...record,
+        api_key: 'replacement-secret',
+        base_url: 'https://new.example/v1',
+        label: 'new',
+        note: 'new note',
+        excluded_models: ['new-model'],
+      });
+      await act(async () => {
+        await latest?.save();
+      });
+      expect(mocks.updatePlanCredential).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          name: file.name,
+          runtimeId: file.id,
+          authIndex: 'auth-1',
+          provider,
+        }),
+        {
+          api_key: 'replacement-secret',
+          base_url: 'https://new.example/v1',
+          label: 'new',
+          note: 'new note',
+          'excluded-models': ['new-model'],
+          excluded_models: null,
+        }
+      );
+      expect(mocks.patchFieldsWithPluginSourceFallback).not.toHaveBeenCalled();
+      expect(mocks.patchFieldsForAuthIndexes).not.toHaveBeenCalled();
+      expect(latest?.draft?.replacementApiKey).toBe('');
+      expect(latest?.dirty).toBe(false);
+      expect(latest?.state?.record).toMatchObject({ disabled: true, quota: { remaining: 42 } });
+      expect(latest?.rawDataText).not.toContain('replacement-secret');
+      expect(mocks.onSaved).toHaveBeenCalledWith(file.name);
+    }
+  );
+
+  it('preserves a plan key on empty replacement and forwards the captured connection scope', async () => {
+    const planFile = { ...file, type: 'opencode-go', provider: 'opencode-go' } as AuthFileItem;
+    const requestScope = { apiBase: 'https://cpa.example', managementKey: 'test-management-key' };
+    const record = {
+      type: 'opencode-go',
+      auth_index: 'auth-1',
+      account_id: 'account-1',
+      api_key: 'old-secret',
+      label: 'old',
+      base_url: 'https://custom.example/v1',
+      disabled: true,
+    };
+    setDownloadedRecord(record);
+    mocks.lookup.mockResolvedValue([planFile]);
+    await act(async () => {
+      renderer = create(<Harness activeFile={planFile} requestScope={requestScope} />);
+    });
+    await flush();
+    act(() => {
+      latest?.updateField('replacementApiKey', '  ');
+      latest?.updateField('baseUrl', '');
+      latest?.updateField('label', '');
+    });
+    mocks.downloadText.mockRejectedValueOnce(new Error('refresh unavailable'));
+    await act(async () => {
+      await latest?.save();
+    });
+    expect(mocks.updatePlanCredential).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ provider: 'opencode-go' }),
+      { base_url: 'https://opencode.ai/zen/go/v1', label: '' },
+      requestScope
+    );
+    expect(latest?.draft).toMatchObject({
+      replacementApiKey: '',
+      label: '',
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+    });
+    expect(latest?.state?.record).toMatchObject({ api_key: 'old-secret', disabled: true });
+    expect(latest?.dirty).toBe(false);
+  });
+
+  it('keeps failed plan edits available for retry without reporting success', async () => {
+    const planFile = { ...file, type: 'qwen', provider: 'qwen' } as AuthFileItem;
+    setDownloadedRecord({
+      type: 'qwen',
+      auth_index: 'auth-1',
+      account_id: 'account-1',
+      api_key: 'old-secret',
+      label: 'old',
+    });
+    mocks.lookup.mockResolvedValue([planFile]);
+    mocks.updatePlanCredential.mockRejectedValueOnce(new Error('runtime activation rolled back'));
+    await act(async () => {
+      renderer = create(<Harness activeFile={planFile} />);
+    });
+    await flush();
+    act(() => {
+      latest?.updateField('replacementApiKey', 'replacement-secret');
+      latest?.updateField('label', 'new');
+    });
+    await act(async () => {
+      await latest?.save();
+    });
+    expect(latest?.draft).toMatchObject({ replacementApiKey: 'replacement-secret', label: 'new' });
+    expect(latest?.state).toMatchObject({
+      saving: false,
+      record: { api_key: 'old-secret', label: 'old' },
+    });
+    expect(latest?.dirty).toBe(true);
+    expect(latest?.canSave).toBe(true);
+    expect(mocks.onSaved).not.toHaveBeenCalled();
+    expect(mocks.reconcileSource).not.toHaveBeenCalled();
+    expect(mocks.showNotification).toHaveBeenCalledWith(
+      'notification.update_failed: runtime activation rolled back',
+      'error'
+    );
+    expect(mocks.showNotification).not.toHaveBeenCalledWith(
+      'accounts.config_saved_success',
+      'success'
+    );
+    act(() => latest?.reset());
+    expect(latest?.draft?.replacementApiKey).toBe('');
+    expect(latest?.dirty).toBe(false);
   });
 
   it('loads, saves a minimal identity-verified patch, and keeps the editor open', async () => {

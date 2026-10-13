@@ -4,8 +4,8 @@ When reviewing a new version, focus on three things: what changed, whether anyth
 
 ## View The Latest Version
 
-- [Latest GitHub Release](https://github.com/seakee/CPA-Manager-Plus/releases/latest)
-- [All Releases](https://github.com/seakee/CPA-Manager-Plus/releases)
+- [Latest GitHub Release](https://github.com/williamxhero/CPA-Manager-Plus-ex/releases/latest)
+- [All Releases](https://github.com/williamxhero/CPA-Manager-Plus-ex/releases)
 
 Each Release lists major features, fixes, downloads, and any required upgrade notes.
 

@@ -1,6 +1,9 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AccountDetailViewModel } from '@/features/accounts/model/accountDetailViewModel';
+import type {
+  AccountDetailQuotaWindow,
+  AccountDetailViewModel,
+} from '@/features/accounts/model/accountDetailViewModel';
 import { AccountQuotaTab } from './AccountQuotaTab';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -28,6 +31,95 @@ vi.mock('react-i18next', async (importOriginal) => {
       },
     }),
   };
+});
+
+const readText = (value: unknown): string => {
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (Array.isArray(value)) return value.map(readText).join('');
+  if (value && typeof value === 'object' && 'children' in value) {
+    return readText((value as { children?: unknown }).children);
+  }
+  return '';
+};
+
+describe('AccountQuotaTab quota units', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders account-wide used fractions instead of remaining while preserving other quota values', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2024, 1, 15, 12));
+    const makeWindow = (
+      overrides: Partial<AccountDetailQuotaWindow>
+    ): AccountDetailQuotaWindow => ({
+      key: 'five-hour',
+      label: '5H',
+      kind: 'five_hour',
+      usedPercent: 60,
+      remainingPercent: 40,
+      resetLabel: '-',
+      resetAtMs: null,
+      resetAccuracy: 'unknown',
+      windowMode: 'unknown',
+      modelScope: { kind: 'all', complete: true },
+      usage: null,
+      currentUsage: null,
+      previousUsage: null,
+      previousPeriod: null,
+      forecast: null,
+      ...overrides,
+    });
+    const detailView = {
+      identity: { provider: 'test' },
+      quota: {
+        windows: [
+          makeWindow({}),
+          makeWindow({ key: 'weekly', kind: 'weekly' }),
+          makeWindow({ key: 'monthly', kind: 'monthly' }),
+          makeWindow({ key: 'missing', kind: 'weekly', usedPercent: null }),
+          makeWindow({ key: 'billing', kind: 'billing', amountLabel: '$100 / $250' }),
+          makeWindow({
+            key: 'model',
+            modelScope: { kind: 'models', models: ['test-model'], complete: true },
+          }),
+        ],
+        resetCreditsAvailableCount: null,
+        resetCreditExpiries: [],
+        cooldown: null,
+      },
+      history: null,
+    } as unknown as AccountDetailViewModel;
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <AccountQuotaTab
+          detailView={detailView}
+          windowUsageError=""
+          historyAvailable={false}
+          historyRefreshing={false}
+          onRefreshHistory={vi.fn()}
+          onResetQuota={vi.fn()}
+          resetQuotaDisabled={false}
+        />
+      );
+    });
+    const standard = renderer.root.findByProps({ 'data-quota-window-group': 'standard' });
+    expect(standard.findAllByProps({ 'data-quota-used-fraction': 'true' }).map(readText)).toEqual([
+      'accounts.detail_used: 3.0/5',
+      'accounts.detail_used: 4.2/7',
+      'accounts.detail_used: 17.4/29',
+      'accounts.detail_used: -',
+    ]);
+    expect(readText(standard)).not.toContain('40%');
+    const other = renderer.root.findByProps({ 'data-quota-window-group': 'other' });
+    expect(readText(other)).toContain('accounts.detail_used: 60%');
+    expect(readText(other)).toContain('$100 / $250');
+    const model = renderer.root.findByProps({ 'data-quota-window-group': 'model' });
+    expect(model.findAllByProps({ 'data-quota-used-fraction': 'true' })).toHaveLength(0);
+    expect(readText(model)).toContain('40%');
+    act(() => renderer.unmount());
+  });
 });
 
 describe('AccountQuotaTab timer crossing expiry', () => {

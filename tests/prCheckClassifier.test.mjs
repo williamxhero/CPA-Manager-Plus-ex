@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   classifyChangedFiles,
@@ -9,6 +10,8 @@ import {
   parseChangedFilesInput,
   scanChangedTextFiles,
 } from '../bin/ci/classify-pr-checks.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const noChecks = {
   frontend: false,
@@ -18,6 +21,7 @@ const noChecks = {
   docker: false,
   demo_docs: false,
   release_content: false,
+  providers: false,
 };
 
 describe('PR check classifier', () => {
@@ -30,6 +34,7 @@ describe('PR check classifier', () => {
       docker: true,
       demo_docs: true,
       release_content: true,
+      providers: true,
     });
   });
 
@@ -61,6 +66,51 @@ describe('PR check classifier', () => {
       docker: true,
       demo_docs: true,
     });
+  });
+
+  it('runs the provider build/CI checks for provider and boundary changes', () => {
+    for (const filePath of [
+      'providers/qwen/main.go',
+      'providers/opencode-go/go.mod',
+      'providers/import-boundary.json',
+      'providers/README.md',
+      'bin/release/check-provider-import-boundary.mjs',
+      'bin/release/build-providers.mjs',
+      'bin/release/run-provider-go.mjs',
+      'bin/release/sync-opencode-subtree.sh',
+      'tests/providerImportBoundary.test.mjs',
+      'tests/providerBuildScripts.test.mjs',
+      'docs/providers-layout-contract.md',
+      'NOTICE',
+      'package.json',
+      'go.work',
+    ]) {
+      expect(classifyChangedFiles([filePath]).providers, `${filePath} should run providers`).toBe(true);
+    }
+  });
+
+  it('does not run provider checks for unrelated changes', () => {
+    for (const filePath of [
+      'apps/web/src/App.tsx',
+      'apps/manager-server/internal/repository/sqlite/database.go',
+      'package-lock.json',
+      'docs/release.md',
+      'README.md',
+    ]) {
+      expect(classifyChangedFiles([filePath]).providers, `${filePath} should skip providers`).toBe(
+        false
+      );
+    }
+  });
+
+  it('exports a providers flag from the CLI classifier', () => {
+    const output = execFileSync(
+      process.execPath,
+      ['bin/ci/classify-pr-checks.mjs', '--null'],
+      { cwd: repoRoot, input: 'providers/qwen/main.go\0', encoding: 'utf8' }
+    );
+
+    expect(output).toContain('providers=true');
   });
 
   it('runs release validation for release content and its validators', () => {
@@ -163,6 +213,7 @@ describe('PR check classifier', () => {
         docker: true,
         demo_docs: true,
         release_content: true,
+        providers: true,
       });
     }
   });

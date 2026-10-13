@@ -4,8 +4,8 @@
 
 ## 查看最新版本
 
-- [最新 GitHub Release](https://github.com/seakee/CPA-Manager-Plus/releases/latest)
-- [全部历史版本](https://github.com/seakee/CPA-Manager-Plus/releases)
+- [最新 GitHub Release](https://github.com/williamxhero/CPA-Manager-Plus-ex/releases/latest)
+- [全部历史版本](https://github.com/williamxhero/CPA-Manager-Plus-ex/releases)
 
 每个 Release 会列出主要功能、修复、下载文件和必要的升级说明。
 

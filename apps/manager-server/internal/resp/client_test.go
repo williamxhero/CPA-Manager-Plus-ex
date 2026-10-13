@@ -169,6 +169,33 @@ func TestSendSubscribePingWritesCommand(t *testing.T) {
 	}
 }
 
+func TestReadMessageTracksLastActivity(t *testing.T) {
+	client, server := newPipeClient(t)
+	client.subscribed = true
+	if !client.LastActivity().IsZero() {
+		t.Fatalf("LastActivity = %v before any frame, want zero", client.LastActivity())
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := client.ReadMessage()
+		done <- err
+	}()
+
+	// A control frame alone must advance activity so the collector watchdog can
+	// distinguish a live idle subscription from a silently dead one.
+	writeResponse(t, server, "*1\r\n$4\r\npong\r\n")
+	payload := `{"ok":true}`
+	writeResponse(t, server, "*3\r\n$7\r\nmessage\r\n$5\r\nusage\r\n$"+itoa(len(payload))+"\r\n"+payload+"\r\n")
+
+	if err := <-done; err != nil {
+		t.Fatalf("ReadMessage error: %v", err)
+	}
+	if client.LastActivity().IsZero() {
+		t.Fatal("LastActivity was not updated after reading a frame")
+	}
+}
+
 func TestDoRejectedInSubscribeMode(t *testing.T) {
 	client, _ := newPipeClient(t)
 	client.subscribed = true

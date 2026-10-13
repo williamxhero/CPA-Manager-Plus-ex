@@ -12,7 +12,7 @@
 
 适合已经运行 CPA、只想替换官方 Management Center 的用户。不需要额外服务、数据库或端口。
 
-1. 在 CPA 配置中将 `panel-github-repository` 指向 `seakee/CPA-Manager-Plus`。
+1. 在 CPA 配置中将 `panel-github-repository` 指向 `williamxhero/CPA-Manager-Plus-ex`。
 2. 重启或重新加载 CPA。
 3. 打开：
 
@@ -27,7 +27,7 @@ http://<cpa-host>:8317/management.html
 完整模式会运行 Manager Server，提供请求历史、成本分析、服务端巡检和自动化。大多数用户建议使用安装向导：
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh
+curl -fsSLO https://raw.githubusercontent.com/williamxhero/CPA-Manager-Plus-ex/main/bin/install-cpamp.sh
 bash install-cpamp.sh
 ```
 

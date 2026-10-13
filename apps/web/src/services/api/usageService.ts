@@ -112,12 +112,20 @@ export interface UsageServiceCollectorStatus {
   mode?: string;
   transport?: string;
   queue?: string;
+  lastAttemptAt?: number;
+  lastActivityAt?: number;
   lastConsumedAt?: number;
   lastInsertedAt?: number;
+  lastSuccessAt?: number;
+  stalledMs?: number;
+  lastBatchSize?: number;
+  reconnects?: number;
+  watchdogReconnects?: number;
   totalInserted?: number;
   totalSkipped?: number;
   deadLetters?: number;
   lastError?: string;
+  lastErrorAt?: number;
 }
 
 export interface UsageServiceCheckpointStatus {

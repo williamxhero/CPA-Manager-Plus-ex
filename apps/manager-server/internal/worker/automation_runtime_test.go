@@ -67,14 +67,59 @@ func TestAutomationRuntimeReloadUpdatesAutoDisable(t *testing.T) {
 	}
 }
 
+func TestAutomationRuntimeAppliesPersistedPolicyToWorkers(t *testing.T) {
+	st, err := store.Open(t.TempDir() + "/usage.sqlite")
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	settings := automationsvc.New(config.Config{}, st)
+	quota := &recordingQuotaAutomationWorker{}
+	account := &recordingAccountAutomationWorker{}
+	runtime := NewAutomationRuntime(settings, nil, quota, account)
+
+	// Persisted OFF: startup must not let the workers take automatic actions.
+	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{
+		QuotaCooldownEnabled:      boolPtr(false),
+		AccountActionsEnabled:     boolPtr(true),
+		AccountActionsAutoDisable: boolPtr(false),
+	}); err != nil {
+		t.Fatalf("persist policy: %v", err)
+	}
+	runtime.Start(ctx)
+	if quota.enabled {
+		t.Fatalf("quota worker enabled on startup despite persisted OFF")
+	}
+	if account.autoDisable {
+		t.Fatalf("account auto-disable enabled on startup despite persisted OFF")
+	}
+
+	// ON resumes the quota worker through the same PATCH-driven reload path.
+	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{QuotaCooldownEnabled: boolPtr(true)}); err != nil {
+		t.Fatalf("enable quota: %v", err)
+	}
+	if err := runtime.Reload(ctx); err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if !quota.enabled {
+		t.Fatalf("quota worker not enabled after ON reload")
+	}
+}
+
 type recordingQuotaAutomationWorker struct {
 	startCount   int
 	handleCount  int
 	runtimeCount int
+	enabled      bool
 }
 
 func (w *recordingQuotaAutomationWorker) Start(context.Context) {
 	w.startCount++
+}
+
+func (w *recordingQuotaAutomationWorker) SetEnabled(enabled bool) {
+	w.enabled = enabled
 }
 
 func (w *recordingQuotaAutomationWorker) HandleUsageEvents(context.Context, collectorpkg.RuntimeConfig, []usage.Event) {

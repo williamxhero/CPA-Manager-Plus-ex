@@ -20,4 +20,9 @@
       <path d="m120.5 188-27.5-28h55l-27.5 28Z" fill="#078DF3"/>
     </g>
   </g>
+
+  <g data-cpamp-ex="1" shape-rendering="geometricPrecision">
+    <rect x="696.32" y="696.32" width="307.2" height="307.2" rx="61.44" fill="#005CFF" stroke="#FFFFFF" stroke-width="21.5"/>
+    <text x="849.92" y="849.92" font-family="Arial, Helvetica, sans-serif" font-size="178.18" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">EX</text>
+  </g>
 </svg>

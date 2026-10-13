@@ -58,7 +58,7 @@ remote-management:
   disable-auto-update-panel: false
 
   # Download management.html from CPAMP Releases.
-  panel-github-repository: 'https://github.com/seakee/CPA-Manager-Plus'
+  panel-github-repository: 'https://github.com/williamxhero/CPA-Manager-Plus-ex'
 ```
 
 `allow-remote: true` exposes the remote Management API. Use it only on a trusted network, through a VPN, or behind a protected reverse proxy. Do not expose the management port and key to an untrusted network.

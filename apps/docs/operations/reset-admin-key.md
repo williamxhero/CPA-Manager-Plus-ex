@@ -59,7 +59,7 @@ Save this value now. It will not be shown again.
 如果 Docker 部署由 `install-cpamp.sh` 创建，优先让安装器完成停止、重置、重启和登录验证：
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh
+curl -fsSLO https://raw.githubusercontent.com/williamxhero/CPA-Manager-Plus-ex/main/bin/install-cpamp.sh
 CPAMP_OPERATION=repair \
 CPAMP_INSTALL_DIR="$HOME/cpa-manager-plus" \
 bash install-cpamp.sh
@@ -70,7 +70,7 @@ bash install-cpamp.sh
 非交互环境需要明确确认：
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh
+curl -fsSLO https://raw.githubusercontent.com/williamxhero/CPA-Manager-Plus-ex/main/bin/install-cpamp.sh
 CPAMP_OPERATION=repair \
 CPAMP_INSTALL_DIR="$HOME/cpa-manager-plus" \
 CPAMP_NON_INTERACTIVE=1 \

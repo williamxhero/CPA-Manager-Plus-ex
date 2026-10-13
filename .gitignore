@@ -49,3 +49,18 @@ TODO.md
 
 # Local temp scratch files
 .tmp-*
+
+# Provider plugin imports (SPEC5-A): keep plugin build outputs and workspace junk
+# out of git. Paths that still arrive through `git subtree` must be removed in a
+# maintenance commit; see docs/providers-layout-contract.md.
+/providers/**/bin/*.dll
+/providers/**/bin/*.exe
+/providers/**/bin/*.h
+/providers/**/*.dll
+/providers/**/*.exe
+/providers/**/*.so
+/providers/**/*.dylib
+/providers/**/*.pdb
+/providers/**/plugins/windows/
+/providers/**/__pycache__/
+/providers/**/.cache/

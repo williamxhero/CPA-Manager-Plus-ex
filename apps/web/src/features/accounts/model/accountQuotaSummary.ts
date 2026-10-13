@@ -15,6 +15,7 @@ import {
   parseQuotaResetLabelMs,
   resolveAbsoluteQuotaReset,
 } from '@/utils/quota/formatters';
+import { isQwenQuotaFile, type QwenQuotaState } from '@/utils/quota/qwenQuota';
 import type { UsageHeaderSnapshot } from '@/services/api/usageService';
 import { getAuthFileSelectionKey } from '@/features/authFiles/model/credentialStatus';
 import {
@@ -80,6 +81,7 @@ export interface AccountQuotaStores {
   kimiQuota: Record<string, KimiQuotaState>;
   metaQuota: Record<string, MetaQuotaState>;
   opencodeGoQuota?: Record<string, ClaudeQuotaState>;
+  qwenQuota?: Record<string, QwenQuotaState>;
   xaiQuota: Record<string, XaiQuotaState>;
 }
 
@@ -248,6 +250,7 @@ export const readAuthFileCredentialRefreshAtMs = (file: AuthFileItem): number | 
 };
 
 export const normalizeAccountProvider = (file: AuthFileItem): string => {
+  if (isQwenQuotaFile(file)) return 'qwen';
   const raw = readString(file.provider) || readString(file.type) || 'unknown';
   const key = raw.toLowerCase().replace(/_/g, '-');
   if (key === 'x-ai' || key === 'grok') return 'xai';
@@ -973,6 +976,29 @@ export const resolveAccountQuota = (
         quotaObservationFields(quota)
       ),
       headerObservationFields
+    );
+  }
+
+  if (provider === 'qwen') {
+    const quota = getCredentialScopedQuotaState(stores.qwenQuota ?? {}, file);
+    if (!quota) return emptyQuota(filePlanType);
+    const planType = quota.plan ?? filePlanType;
+    if (quota.status === 'loading') return loadingQuota(planType);
+    if (quota.status === 'error') {
+      return quotaFromError(quota.error, null, quota.errorStatus, quota.failedAtMs);
+    }
+    return quotaFromRemainingWindows(
+      quota.windows.map((window) => ({
+        remainingPercent: window.remainingPercent,
+        usedPercent: window.usedPercent,
+        resetAtMs: window.resetAtMs,
+        resetAccuracy: isValidQuotaResetAtMs(window.resetAtMs) ? 'exact' : 'unknown',
+      })),
+      planType,
+      {
+        fetchedAtMs: quota.fetchedAtMs,
+        observedAtMs: quota.observedAtMs ?? undefined,
+      }
     );
   }
 

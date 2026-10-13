@@ -368,7 +368,7 @@ http://<cpamp-host>:18317/management.html
 
 ```yaml
 remote-management:
-  panel-github-repository: 'https://github.com/seakee/CPA-Manager-Plus'
+  panel-github-repository: 'https://github.com/williamxhero/CPA-Manager-Plus-ex'
 ```
 
 如果新面板仍未加载，清理 CPA 缓存的面板文件，然后重新载入或重启 CPA：

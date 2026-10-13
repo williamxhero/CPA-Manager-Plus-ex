@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PluginListEntry, PluginStoreEntry } from '@/types';
 import {
   collectPluginResourceEntries,
+  collectPluginResourceNavEntries,
   getPluginConfirmToken,
   getPluginRepositorySlug,
   isDefaultPluginStoreSource,
@@ -129,6 +130,81 @@ describe('plugin resource helpers', () => {
       label: 'Demo Plugin',
       route: '/plugin-pages/demo-plugin/0',
     });
+  });
+
+  it('suppresses both plan plugins only in navigation and keeps every direct resource entry', () => {
+    const plugins = [
+      createPlugin({ id: 'qwen-cliproxyapi' }),
+      createPlugin({
+        id: 'opencode-go-cliproxyapi',
+        menus: [
+          { path: '/opencode/quota', menu: 'OpenCode Go Quota', description: '' },
+          { path: '/opencode/details', menu: 'Details', description: '' },
+        ],
+      }),
+      createPlugin(),
+    ];
+    const directEntries = collectPluginResourceEntries(plugins);
+
+    expect(collectPluginResourceNavEntries(plugins)).toEqual([directEntries[3]]);
+    expect(
+      directEntries.map(({ pluginID, menuIndex, route, menu }) => ({
+        pluginID,
+        menuIndex,
+        route,
+        path: menu.path,
+      }))
+    ).toEqual([
+      {
+        pluginID: 'qwen-cliproxyapi',
+        menuIndex: 0,
+        route: '/plugin-pages/qwen-cliproxyapi/0',
+        path: '/v0/resource/plugins/demo-plugin/page',
+      },
+      {
+        pluginID: 'opencode-go-cliproxyapi',
+        menuIndex: 0,
+        route: '/plugin-pages/opencode-go-cliproxyapi/0',
+        path: '/opencode/quota',
+      },
+      {
+        pluginID: 'opencode-go-cliproxyapi',
+        menuIndex: 1,
+        route: '/plugin-pages/opencode-go-cliproxyapi/1',
+        path: '/opencode/details',
+      },
+      {
+        pluginID: 'demo-plugin',
+        menuIndex: 0,
+        route: '/plugin-pages/demo-plugin/0',
+        path: '/v0/resource/plugins/demo-plugin/page',
+      },
+    ]);
+  });
+
+  it.each([
+    'Qwen-cliproxyapi',
+    'qwen-cliproxyapi-extra',
+    ' qwen-cliproxyapi',
+    'opencode-go-cliproxyapi-extra',
+    'OpenCode-go-cliproxyapi',
+    'other-plugin',
+  ])('keeps non-exact plugin IDs in resource navigation: %s', (id) => {
+    const plugins = [createPlugin({ id })];
+    expect(collectPluginResourceNavEntries(plugins)).toEqual(
+      collectPluginResourceEntries(plugins)
+    );
+    expect(collectPluginResourceNavEntries(plugins)).toHaveLength(1);
+  });
+
+  it('keeps resource eligibility rules in the nav-only collector', () => {
+    expect(
+      collectPluginResourceNavEntries([
+        createPlugin({ effectiveEnabled: false }),
+        createPlugin({ menus: [{ path: ' ', menu: 'Empty', description: '' }] }),
+      ])
+    ).toEqual([]);
+    expect(collectPluginResourceNavEntries([])).toEqual([]);
   });
 
   it('normalizes repository slugs for plugin install confirmation', () => {

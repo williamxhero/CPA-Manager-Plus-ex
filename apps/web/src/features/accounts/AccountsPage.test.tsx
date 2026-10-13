@@ -14,6 +14,8 @@ import {
   CODEX_CONFIG,
   CODEX_SUMMARY_CONFIG,
   META_CONFIG,
+  OPENCODE_GO_CONFIG,
+  QWEN_CONFIG,
   XAI_CONFIG,
 } from '@/components/quota';
 import { accountQuotaSnapshotApi, type ApiCallResult } from '@/services/api';
@@ -60,6 +62,9 @@ import {
   type CodexQuotaData,
 } from '@/utils/quota';
 import { buildKimiQuotaRows } from '@/utils/quota/builders';
+import { parseOpenCodeGoQuota } from '@/utils/quota/opencodeGoQuota';
+import { parseQwenQuota } from '@/utils/quota/qwenQuota';
+import type { TFunction } from 'i18next';
 import type {
   CredentialInspectionSnapshot,
   CredentialInspectionTarget,
@@ -83,6 +88,7 @@ import {
   listPendingAccountDirectReauths,
 } from './model/accountDirectReauth';
 import { useUsageHeaderSnapshotStore } from '@/stores/useUsageHeaderSnapshotStore';
+import { useAccountCredentialMutationRevisionStore } from '@/stores/useAccountCredentialMutationRevisionStore';
 import { publishAccountCredentialMutationRevision } from '@/stores';
 import { AccountsPage } from './AccountsPage';
 
@@ -567,6 +573,8 @@ const { mocks } = vi.hoisted(() => {
         devinQuota: {},
         kimiQuota: {},
         metaQuota: {},
+        opencodeGoQuota: {},
+        qwenQuota: {},
         xaiQuota: {},
         setAntigravityQuota: vi.fn(),
         setClaudeQuota: vi.fn(),
@@ -574,10 +582,13 @@ const { mocks } = vi.hoisted(() => {
         setDevinQuota: vi.fn(),
         setKimiQuota: vi.fn(),
         setMetaQuota: vi.fn(),
+        setOpencodeGoQuota: vi.fn(),
+        setQwenQuota: vi.fn(),
         setXaiQuota: vi.fn(),
       },
       t: (key: string, options?: Record<string, unknown>) => {
         if (key === 'auth_files.codex_plan_filter_unknown') return 'Unknown plan';
+        if (key === 'accounts.detail_used' && mocks.language === 'zh-CN') return '已用';
         if (!options) return key;
         const parts: string[] = [];
         if (typeof options.name === 'string') parts.push(options.name);
@@ -871,6 +882,23 @@ vi.mock('@/features/oauth/CodexReauthDialog', () => ({
   },
 }));
 
+// Isolate the credential-toolbar auto start/stop switch so this page suite does
+// not depend on the Manager account-processing-policy network lifecycle.
+// Its states and persistence wiring are covered by
+// CredentialAutoStartStopToggle.test.tsx.
+vi.mock('@/features/accounts/components/CredentialAutoStartStopToggle', () => ({
+  CredentialAutoStartStopToggle: (props: {
+    managerServiceBase: string;
+    managementKey: string;
+  }) => (
+    <span
+      data-credential-auto-start-stop-stub
+      data-manager-service-base={props.managerServiceBase}
+      data-management-key={props.managementKey}
+    />
+  ),
+}));
+
 vi.mock('@/services/api/apiCall', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api/apiCall')>();
   return {
@@ -971,6 +999,8 @@ vi.mock('@/stores', () => ({
       devinQuota: Record<string, never>;
       kimiQuota: Record<string, never>;
       metaQuota: Record<string, never>;
+      opencodeGoQuota: Record<string, never>;
+      qwenQuota: Record<string, never>;
       xaiQuota: Record<string, never>;
       setAntigravityQuota: () => void;
       setClaudeQuota: () => void;
@@ -978,6 +1008,8 @@ vi.mock('@/stores', () => ({
       setDevinQuota: () => void;
       setKimiQuota: () => void;
       setMetaQuota: () => void;
+      setOpencodeGoQuota: () => void;
+      setQwenQuota: () => void;
       setXaiQuota: () => void;
     }) => unknown
   ) => selector(mocks.quotaState as Parameters<typeof selector>[0]),
@@ -1301,6 +1333,7 @@ describe('AccountsPage replacement flows', () => {
   beforeEach(() => {
     clearAccountCredentialEvidenceBoundaryStateCache();
     clearAccountCredentialMutationMarkersForTests();
+    useAccountCredentialMutationRevisionStore.getState().clearForTests();
     clearPendingAccountDirectReauthsForTests();
     if (typeof window !== 'undefined') {
       window.localStorage.clear();
@@ -1445,6 +1478,8 @@ describe('AccountsPage replacement flows', () => {
     mocks.quotaState.devinQuota = {};
     mocks.quotaState.kimiQuota = {};
     mocks.quotaState.metaQuota = {};
+    mocks.quotaState.opencodeGoQuota = {};
+    mocks.quotaState.qwenQuota = {};
     mocks.quotaState.xaiQuota = {};
     mocks.quotaDisplayWindowsOverride = null;
     mocks.quotaState.setAntigravityQuota.mockReset();
@@ -1453,6 +1488,8 @@ describe('AccountsPage replacement flows', () => {
     mocks.quotaState.setDevinQuota.mockReset();
     mocks.quotaState.setKimiQuota.mockReset();
     mocks.quotaState.setMetaQuota.mockReset();
+    mocks.quotaState.setOpencodeGoQuota.mockReset();
+    mocks.quotaState.setQwenQuota.mockReset();
     mocks.quotaState.setXaiQuota.mockReset();
     mocks.loadFiles.mockReset();
     mocks.loadFiles.mockImplementation(async () => mocks.files);
@@ -8733,7 +8770,7 @@ describe('AccountsPage replacement flows', () => {
     const quotaRegion = findAccountDetailRegion(renderer, selectionKey, 'quota');
 
     expect(readText(card)).toContain('Weekly');
-    expect(readText(card)).toContain('98%');
+    expect(readText(card)).toContain('accounts.detail_used 0.1/7');
     expect(readText(card)).not.toContain('Billing');
     expect(readText(card)).not.toContain('Pay-As-You-Go');
     expect(readText(card)).not.toContain('SuperGrok');
@@ -8750,7 +8787,8 @@ describe('AccountsPage replacement flows', () => {
     const standardGroup = renderer.root.findAllByProps({ 'data-quota-window-group': 'standard' });
     expect(standardGroup.length).toBeGreaterThan(0);
     expect(readText(standardGroup[0])).toContain('xai_quota.weekly_credits');
-    expect(readText(standardGroup[0])).toContain('98%');
+    expect(readText(standardGroup[0])).toContain('accounts.detail_used: 0.1/7');
+    expect(readText(standardGroup[0])).not.toContain('98%');
 
     const otherGroup = renderer.root.findByProps({ 'data-quota-window-group': 'other' });
     expect(readText(otherGroup)).toContain('GrokBuild');
@@ -9059,7 +9097,8 @@ describe('AccountsPage replacement flows', () => {
     const cardText = readText(card);
     expect(cardText).toContain('80%');
     expect(cardText).toContain('Weekly');
-    expect(cardText).toContain('60%');
+    expect(cardText).toContain('accounts.detail_used 2.8/7');
+    expect(cardText).not.toContain('60%');
     expect(cardText).not.toContain('accounts.quota_details_only');
   });
 
@@ -9113,7 +9152,8 @@ describe('AccountsPage replacement flows', () => {
     const cardText = readText(card);
     expect(cardText).toContain('75%');
     expect(cardText).toContain('Weekly');
-    expect(cardText).toContain('50%');
+    expect(cardText).toContain('accounts.detail_used 3.5/7');
+    expect(cardText).not.toContain('50%');
     expect(cardText).not.toContain('accounts.quota_details_only');
   });
 
@@ -9945,7 +9985,8 @@ describe('AccountsPage replacement flows', () => {
     const quotaLabel = quotaRegion.props['aria-label'] as string;
     expect(quotaLabel).toContain('accounts.list_header_quota');
     expect(quotaLabel).toContain('5h');
-    expect(quotaLabel).toContain('80%');
+    expect(quotaLabel).toContain('accounts.detail_used 1.0/5');
+    expect(quotaLabel).not.toContain('80%');
     expect(quotaLabel).toContain('accounts.open_detail:codex.json');
     expect(quotaLabel).toContain('accounts.detail_tab_quota');
     expect(quotaRegion.findAllByType('div')).toHaveLength(0);
@@ -13083,7 +13124,271 @@ describe('AccountsPage replacement flows', () => {
     expect(mocks.getAccountWindowUsage).toHaveBeenCalledTimes(1);
   });
 
-  it('presents quota window with remaining in header, used and forecast in fixed slots, and reset at bottom right', async () => {
+  it.each(['table', 'grid'] as const)(
+    'renders the Qwen credential through the shared quota list in %s layout',
+    async (layout) => {
+      mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-08T12:00:00Z'));
+      mocks.language = 'zh-CN';
+      const file: AuthFileItem = {
+        name: 'qwen.json',
+        label: 'Qwen',
+        provider: 'qwen',
+        auth_index: 'qwen-test',
+        supports_quota: true,
+        quota_provider: 'qwen',
+      };
+      mocks.files = [file];
+      const data = parseQwenQuota(
+        {
+          cards: [
+            {
+              auth_index: 'qwen-test',
+              plan: 'Token Plan 个人版 Standard',
+              planStatus: '生效中',
+              planEnd: '2027-09-18T00:00:00+08:00',
+              daysLeft: 345,
+              observedAt: '2026-10-08T19:15:43+08:00',
+              windows: [
+                {
+                  window: '1month',
+                  usedPercent: 100,
+                  remainingPercent: 0,
+                  resetTime: '2026-10-18T00:00:00+08:00',
+                  resetsInDays: 10,
+                },
+              ],
+              metrics: [
+                {
+                  key: 'addon_remaining_credits',
+                  label: '加购包剩余额度',
+                  value: 0,
+                  unit: 'credits',
+                  format: 'number',
+                },
+              ],
+              error: null,
+            },
+          ],
+        },
+        mocks.t as TFunction
+      );
+      mocks.quotaState.qwenQuota = {
+        [QWEN_CONFIG.getStoreKey!(file)]: QWEN_CONFIG.buildSuccessState(data, file),
+      };
+      const quotaFetch = vi.spyOn(QWEN_CONFIG, 'fetchQuota').mockResolvedValue({
+        ...data,
+        windows: data.windows.map((window) => ({
+          ...window,
+          usedPercent: 25,
+          remainingPercent: 75,
+        })),
+      });
+      mocks.quotaState.setQwenQuota.mockImplementation((updater) => {
+        mocks.quotaState.qwenQuota =
+          typeof updater === 'function' ? updater(mocks.quotaState.qwenQuota) : updater;
+      });
+      const renderer = await renderAccountsPage();
+      await flushPromises();
+      const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
+
+      // Qwen must not render a card of its own: it uses the same shared window list as
+      // every other provider, so content and styling stay identical.
+      expect(card.findAllByProps({ 'data-qwen-quota-card': 'true' })).toHaveLength(0);
+      const windows = card.findAll(
+        (node) => typeof node.props['data-account-quota-window'] === 'string'
+      );
+      expect(windows.map((window) => window.props['data-account-quota-window'])).toEqual([
+        'qwen:1month',
+      ]);
+      const text = readText(card);
+      // Same usage wording and unit fraction as every other provider
+      // (OpenCode Go renders 3.1/31 for the same calendar-month window).
+      expect(text).toContain('已用');
+      expect(text).toMatch(/31\.0\/31/);
+      // The 套餐 cell shows the tier alone - never the whole product name.
+      expect(text).toContain('个人版 Standard');
+      expect(text).not.toContain('Token Plan 个人版 Standard');
+      expect(text).toContain('accounts.list_plan_remaining_days:345');
+
+      await act(async () => {
+        findButtonByText(renderer, 'accounts.refresh_quota').props.onClick();
+        await Promise.resolve();
+      });
+      await flushPromises();
+      expect(quotaFetch).toHaveBeenCalledWith(
+        file,
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ isCurrent: expect.any(Function) })
+      );
+
+      quotaFetch.mockRejectedValue(new Error('Qwen console session expired - login required'));
+      await act(async () => {
+        findButtonByText(renderer, 'accounts.refresh_quota').props.onClick();
+        await Promise.resolve();
+      });
+      await flushPromises();
+      expect(
+        card.findAll((node) => typeof node.props['data-account-quota-window'] === 'string')
+      ).toHaveLength(0);
+      expect(card.findByProps({ 'data-account-quota-empty': 'true' })).toBeTruthy();
+    }
+  );
+
+  it.each(['table', 'grid'] as const)('does not show another Qwen credential quota in %s layout', async (layout) => {
+    mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+    const file: AuthFileItem = { name: 'qwen-replaced.json', provider: 'qwen', auth_index: 'new-qwen' };
+    const previous = { ...file, auth_index: 'old-qwen' };
+    mocks.files = [file];
+    mocks.quotaState.qwenQuota = {
+      [file.name]: QWEN_CONFIG.buildSuccessState({
+        plan: 'Someone else plan', planStatus: null, planStartMs: null, planEndMs: null, daysLeft: 10,
+        observedAtMs: null, windows: [], metrics: [],
+      }, previous),
+    };
+    const renderer = await renderAccountsPage();
+    await flushPromises();
+    const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
+    expect(readText(card)).not.toContain('Someone else plan');
+    expect(
+      card.findAll((node) => typeof node.props['data-account-quota-window'] === 'string')
+    ).toHaveLength(0);
+  });
+
+  it.each(['table', 'grid'] as const)('renders OpenCode Go name, Go plan and used-unit windows in %s layout', async (layout) => {
+    mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-07T12:00:00Z'));
+    mocks.language = 'zh-CN';
+    const file: AuthFileItem = {
+      name: 'opencode-go.json',
+      label: 'OpenCode Go',
+      provider: 'opencode-go',
+      auth_index: 'go-1',
+      supports_quota: true,
+      quota_provider: 'opencode-go',
+    };
+    mocks.files = [file];
+    const data = parseOpenCodeGoQuota(
+      {
+        usage: {
+          rolling: { status: 'ok', percent: 2, resets_at: '2026-10-07T15:00:00Z' },
+          weekly: { status: 'ok', percent: 31, resetsAt: '2026-10-11T00:00:00Z' },
+          monthly: { status: 'ok', percent: 10, resets_at: '2026-11-01T00:00:00Z' },
+        },
+      },
+      mocks.t as TFunction
+    );
+    mocks.quotaState.opencodeGoQuota = {
+      [OPENCODE_GO_CONFIG.getStoreKey!(file)]: OPENCODE_GO_CONFIG.buildSuccessState(data, file),
+    };
+
+    const renderer = await renderAccountsPage();
+    await flushPromises();
+    const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
+    const windows = card.findAll(
+      (node) => typeof node.props['data-account-quota-window'] === 'string'
+    );
+    expect(windows).toHaveLength(layout === 'table' ? 3 : 2);
+    const expectedWindows = [
+      ['rolling', '0.1/5', '98%'],
+      ['weekly', '2.2/7', '69%'],
+      ...(layout === 'table' ? [['monthly', '3.1/31', '90%']] : []),
+    ];
+    for (const [key, fraction, percent] of expectedWindows) {
+      const window = card.findByProps({ 'data-account-quota-window': key });
+      const value = window.findByType('strong');
+      expect(readText(value)).toBe(`已用 ${fraction}`);
+      expect(readText(window)).not.toContain(percent);
+      expect(window.props.title).toContain(`已用 ${fraction}`);
+      expect(window.props.title).not.toContain(percent);
+      expect(findQuotaBarByWindow(card, window.props['data-account-quota-window']).props.style.width)
+        .toBe(percent);
+    }
+    const summary = layout === 'grid'
+      ? findGridQuotaRegion(renderer, getAuthFileSelectionKey(file))
+      : findAccountDetailRegion(renderer, getAuthFileSelectionKey(file), 'quota');
+    expect(summary.props.title).toContain('已用 0.1/5');
+    expect(summary.props.title).toContain('已用 2.2/7');
+    expect(summary.props.title).not.toMatch(/98%|69%/);
+    expect(readText(card)).toContain('accounts.list_plan_remaining_days:25');
+    expect(readText(card.findByProps({ title: 'OpenCode Go' }))).toBe('OpenCode Go');
+    expect(card.findByProps({ title: 'Go' }).children[0]).toBe('Go');
+
+    await act(async () => {
+      findDetailButtonByName(renderer, file.name).props.onClick();
+      await Promise.resolve();
+    });
+    await flushPromises();
+    const drawer = renderer.root.findByType(Drawer);
+    expect(readText(drawer.props.title)).toContain('accounts.list_plan_remaining_days:25');
+    expect(drawer.findByProps({ title: 'accounts.list_plan_remaining_days_tooltip:25' })).toBeTruthy();
+    expect(readText(drawer.findByProps({ title: 'OpenCode Go' }))).toBe('OpenCode Go');
+    expect(readText(drawer.findByProps({ title: 'Go' }))).toBe('Go');
+  });
+
+  it.each(['table', 'grid'] as const)(
+    'does not show OpenCode Go remaining days for missing, expired or another credential quota in %s layout',
+    async (layout) => {
+      mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-07T12:00:00Z'));
+      const missingFile: AuthFileItem = {
+        name: 'opencode-missing.json',
+        provider: 'opencode-go',
+        auth_index: 'missing',
+      };
+      const expiredFile: AuthFileItem = {
+        name: 'opencode-expired.json',
+        provider: 'opencode-go',
+        auth_index: 'expired',
+      };
+      const replacedFile: AuthFileItem = {
+        name: 'opencode-replaced.json',
+        provider: 'opencode-go',
+        auth_index: 'new-credential',
+      };
+      const previousFile = { ...replacedFile, auth_index: 'old-credential' };
+      const quotaFor = (file: AuthFileItem, resetAtMs: number) =>
+        OPENCODE_GO_CONFIG.buildSuccessState(
+          {
+            planType: 'OpenCode Go',
+            quotaInventoryObserved: true,
+            windows: [{ id: 'monthly', label: 'Monthly', usedPercent: 10, resetLabel: '-', resetAtMs }],
+          },
+          file
+        );
+      const staleQuota = quotaFor(previousFile, Date.now() + 20 * 86_400_000);
+      mocks.files = [missingFile, expiredFile, replacedFile];
+      mocks.quotaState.opencodeGoQuota = {
+        [OPENCODE_GO_CONFIG.getStoreKey!(expiredFile)]: quotaFor(expiredFile, Date.now() - 1000),
+        [OPENCODE_GO_CONFIG.getStoreKey!(previousFile)]: staleQuota,
+        [replacedFile.name]: staleQuota,
+      };
+
+      const renderer = await renderAccountsPage();
+      await flushPromises();
+      for (const file of mocks.files) {
+        expect(readText(findAccountCardByKey(renderer, getAuthFileSelectionKey(file))))
+          .not.toContain('accounts.list_plan_remaining_days:');
+        await act(async () => {
+          findDetailButtonByName(renderer, file.name).props.onClick();
+          await Promise.resolve();
+        });
+        await flushPromises();
+        const drawer = renderer.root.findByType(Drawer);
+        expect(readText(drawer.props.title)).not.toContain('accounts.list_plan_remaining_days:');
+        await act(async () => {
+          drawer.props.onClose();
+          await Promise.resolve();
+        });
+      }
+    }
+  );
+
+  it('presents quota window with used units in header, used and forecast in fixed slots, and reset at bottom right', async () => {
     const file = makeCodexFile('codex-slots.json', 'auth-slots', 'slots@example.com');
     mocks.files = [file];
     mocks.panelFeatureAvailability = {
@@ -13149,10 +13454,10 @@ describe('AccountsPage replacement flows', () => {
     const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
     const cardText = readText(card);
 
-    // 1. Header shows window label and percentage (without reset time)
+    // 1. Header shows window label and used units (without reset time)
     expect(cardText).toContain('5h');
-    expect(cardText).toContain('Rem');
-    expect(cardText).toContain('60%');
+    expect(cardText).toContain('accounts.detail_used 2.0/5');
+    expect(cardText).not.toContain('60%');
     expect(cardText).toContain(expectedRelativeReset);
 
     // 2. Second line displays "used" icon, current cost and token separated by slash
@@ -13170,7 +13475,7 @@ describe('AccountsPage replacement flows', () => {
     const windowCards = card.findAll((node) => typeof node.props['data-account-quota-window'] === 'string');
     expect(windowCards).toHaveLength(1);
     const windowCard = windowCards[0];
-    expect(windowCard.props.title).toContain('5h: Rem 60%');
+    expect(windowCard.props.title).toContain('5h: accounts.detail_used 2.0/5');
     const headerNode = windowCard.children[0];
     const headerText = readText(headerNode);
     expect(headerText).not.toContain(expectedRelativeReset);
@@ -13214,13 +13519,13 @@ describe('AccountsPage replacement flows', () => {
     expect(windowCards).toHaveLength(1);
     const windowCard = windowCards[0];
 
-    // Header contains label and percentage, but NOT reset time
+    // Header contains label and used units, but NOT reset time
     const headerNode = windowCard.children[0];
     const headerText = readText(headerNode);
     expect(headerText).toContain('5h');
-    expect(headerText).toContain('剩余');
-    expect(headerText).toContain('80%');
-    expect(windowCard.props.title).toContain('5h: 剩余 80%');
+    expect(headerText).toContain('已用 1.0/5');
+    expect(headerText).not.toContain('80%');
+    expect(windowCard.props.title).toContain('5h: 已用 1.0/5');
     expect(headerText).not.toContain('5 天后');
 
     // Usage line contains reset time at bottom right
@@ -14323,7 +14628,7 @@ describe('AccountsPage replacement flows', () => {
     await flushPromises();
 
     expect(treeText(renderer)).toContain('Five hours');
-    expect(treeText(renderer)).toContain('accounts.detail_quota_remaining_label');
+    expect(treeText(renderer)).toContain('accounts.detail_used: 1.0/5');
     expect(accountQuotaSnapshotApi.write).not.toHaveBeenCalled();
     expect(accountQuotaSnapshotApi.query).not.toHaveBeenCalled();
     expect(mocks.getAccountWindowUsage).not.toHaveBeenCalled();
@@ -15916,6 +16221,39 @@ describe('AccountsPage replacement flows', () => {
 
     expect(treeText(renderer)).toContain('req-second');
     expect(treeText(renderer)).not.toContain('req-first');
+  });
+
+  it('synchronizes a credential mutation published after Accounts loaded the old list', async () => {
+    const connectionFingerprint = 'http://cpa-a.local:8317:manager-key';
+    await renderAccountsPage();
+    await flushPromises();
+    expect(mocks.loadFiles).toHaveBeenCalledTimes(1);
+
+    const createdFile = makeCodexFile('created.json', 'auth-created', 'created@example.com');
+    mocks.loadFiles.mockResolvedValueOnce([...mocks.files, createdFile]);
+    recordAccountCredentialMutationMarker({
+      connectionFingerprint,
+      provider: 'codex',
+      requireObservedMutation: true,
+      baseline: createAccountCredentialMutationBaseline(mocks.files, 'codex'),
+    });
+
+    await act(async () => {
+      useAccountCredentialMutationRevisionStore.getState().publish({
+        connectionFingerprint,
+        provider: 'codex',
+        kind: 'credential',
+      });
+      await Promise.resolve();
+    });
+    await flushPromises();
+
+    expect(mocks.loadFiles).toHaveBeenCalledTimes(2);
+    expect(mocks.getActiveQuotaCooldowns).toHaveBeenCalledTimes(1);
+    expect(mocks.listAccountActionCandidates).toHaveBeenCalledTimes(1);
+    expect(listAccountCredentialMutationMarkers(connectionFingerprint)).toEqual([]);
+    expect(mocks.getHeaderSnapshots).not.toHaveBeenCalled();
+    expect(mocks.apiRequest).not.toHaveBeenCalled();
   });
 
   it('consumes a scoped OAuth mutation marker and suppresses stale credential status', async () => {
@@ -20044,5 +20382,32 @@ describe('AccountsPage replacement flows', () => {
         vi.useRealTimers();
       }
     });
+  });
+
+  it('renders the credential auto start/stop switch to the left of the select / full / refresh-quota actions', async () => {
+    const renderer = await renderAccountsPage();
+    const ordered = renderer.root.findAll(() => true);
+    const stub = renderer.root.findByProps({ 'data-credential-auto-start-stop-stub': true });
+    const stubIndex = ordered.indexOf(stub);
+
+    expect(stubIndex).toBeGreaterThanOrEqual(0);
+    expect(stub.props['data-manager-service-base']).toBe('http://manager.local:18317');
+    expect(stub.props['data-management-key']).toBe('manager-key');
+
+    const selectButton = findButtonByText(renderer, 'accounts.selection_mode_enter');
+    const refreshButton = findButtonByText(renderer, 'accounts.refresh_quota');
+    expect(stubIndex).toBeLessThan(ordered.indexOf(selectButton));
+    expect(stubIndex).toBeLessThan(ordered.indexOf(refreshButton));
+
+    const hasBatchActionsAncestor = (node: ReactTestInstance | null): boolean => {
+      let current = node;
+      while (current) {
+        const className = (current.props as { className?: unknown }).className;
+        if (typeof className === 'string' && className.includes('batchActions')) return true;
+        current = current.parent;
+      }
+      return false;
+    };
+    expect(hasBatchActionsAncestor(stub.parent)).toBe(true);
   });
 });

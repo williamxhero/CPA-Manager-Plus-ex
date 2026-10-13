@@ -55,6 +55,7 @@ import {
   KIMI_CONFIG,
   META_CONFIG,
   OPENCODE_GO_CONFIG,
+  QWEN_CONFIG,
   XAI_CONFIG,
   buildObservedCodexQuotaState,
   buildQuotaFailureState,
@@ -84,9 +85,11 @@ import {
   useCredentialInspectionSnapshot,
 } from '@/features/accounts/hooks/useCredentialInspectionSnapshot';
 import { useAccountsWorkspaceRefresh } from '@/features/accounts/hooks/useAccountsWorkspaceRefresh';
+import { useAccountCredentialMutationSubscription } from '@/features/accounts/hooks/useAccountCredentialMutationSubscription';
 import { useHeaderSnapshotsLoader } from '@/features/monitoring/hooks/useHeaderSnapshotsLoader';
 import { PaginationControls } from '@/features/monitoring/components/MonitoringShared';
 import { CredentialHealthInspectionWorkspace } from '@/features/monitoring/components/CredentialHealthInspectionWorkspace';
+import { CredentialAutoStartStopToggle } from '@/features/accounts/components/CredentialAutoStartStopToggle';
 import { AuthJsonPasteModal } from '@/features/authFiles/components/AuthJsonPasteModal';
 import { OAuthExcludedCard } from '@/features/authFiles/components/OAuthExcludedCard';
 import {
@@ -208,7 +211,6 @@ import {
   formatHistorySuccessRate,
   getAccountHistoryTitle,
   formatPercent,
-  formatQuotaRemainingPercentDisplay,
   formatQuotaRemainingPercentParts,
   formatQuotaResetDisplay,
   formatQuotaResetRelative,
@@ -231,6 +233,7 @@ import {
   resolveAccountListSubscriptionQuota,
 } from '@/features/accounts/model/accountSubscriptionPresentation';
 import { resolveAccountQuotaWindowUsageAndForecast } from '@/features/accounts/model/accountQuotaWindowUsagePresentation';
+import { formatQuotaUnitFraction } from '@/features/accounts/model/quotaUnitFraction';
 import { formatCompactNumber, formatCompactUsd, formatUsd } from '@/utils/usage';
 import {
   getAuthFileCodexInspectionKeyForFile,
@@ -1376,6 +1379,7 @@ export function AccountsPage() {
   const kimiQuota = useQuotaStore((state) => state.kimiQuota);
   const metaQuota = useQuotaStore((state) => state.metaQuota);
   const opencodeGoQuota = useQuotaStore((state) => state.opencodeGoQuota);
+  const qwenQuota = useQuotaStore((state) => state.qwenQuota);
   const xaiQuota = useQuotaStore((state) => state.xaiQuota);
   const baseQuotaStores = useMemo(
     () => ({
@@ -1386,9 +1390,10 @@ export function AccountsPage() {
       kimiQuota,
       metaQuota,
       opencodeGoQuota,
+      qwenQuota,
       xaiQuota,
     }),
-    [antigravityQuota, claudeQuota, codexQuota, devinQuota, kimiQuota, metaQuota, opencodeGoQuota, xaiQuota]
+    [antigravityQuota, claudeQuota, codexQuota, devinQuota, kimiQuota, metaQuota, opencodeGoQuota, qwenQuota, xaiQuota]
   );
   const setAntigravityQuota = useQuotaStore((state) => state.setAntigravityQuota);
   const setClaudeQuota = useQuotaStore((state) => state.setClaudeQuota);
@@ -1397,6 +1402,7 @@ export function AccountsPage() {
   const setKimiQuota = useQuotaStore((state) => state.setKimiQuota);
   const setMetaQuota = useQuotaStore((state) => state.setMetaQuota);
   const setOpenCodeGoQuota = useQuotaStore((state) => state.setOpenCodeGoQuota);
+  const setQwenQuota = useQuotaStore((state) => state.setQwenQuota);
   const setXaiQuota = useQuotaStore((state) => state.setXaiQuota);
 
   const [activeView, setActiveView] = useState<AccountsView>(
@@ -2388,6 +2394,11 @@ export function AccountsPage() {
     void synchronizePendingAccountDirectReauthsRef.current({ reload: false });
   }, [connectionFingerprint, error, files, loading]);
 
+  useAccountCredentialMutationSubscription(
+    connectionFingerprint,
+    synchronizeExternalCredentialMutationMarkers
+  );
+
   useEffect(() => {
     if (!connectionFingerprint || loading || error) return;
     void synchronizeExternalCredentialMutationMarkers();
@@ -3070,6 +3081,9 @@ export function AccountsPage() {
         case OPENCODE_GO_CONFIG.type:
           prune(OPENCODE_GO_CONFIG, setOpenCodeGoQuota);
           break;
+        case QWEN_CONFIG.type:
+          prune(QWEN_CONFIG, setQwenQuota);
+          break;
         default:
           break;
       }
@@ -3086,6 +3100,7 @@ export function AccountsPage() {
       setKimiQuota,
       setMetaQuota,
       setOpenCodeGoQuota,
+      setQwenQuota,
       setXaiQuota,
     ]
   );
@@ -3957,6 +3972,13 @@ export function AccountsPage() {
             if (!state.quotaInventoryObserved) {
               inventoryMode = 'partial';
             }
+          }
+          break;
+        }
+        case QWEN_CONFIG.type: {
+          const state = getScopedQuotaState(QWEN_CONFIG, baseQuotaStores.qwenQuota ?? {}, row.raw);
+          if (state?.status === 'success') {
+            fetchedAtMs = state.fetchedAtMs;
           }
           break;
         }
@@ -6488,6 +6510,14 @@ export function AccountsPage() {
               getScopedQuotaState(META_CONFIG, baseQuotaStores.metaQuota, row.raw)
             )
           );
+        case QWEN_CONFIG.type:
+          return toAccountQuotaRefreshOutcome(
+            await refreshWithConfig(
+              QWEN_CONFIG,
+              setQwenQuota,
+              getScopedQuotaState(QWEN_CONFIG, baseQuotaStores.qwenQuota ?? {}, row.raw)
+            )
+          );
         case OPENCODE_GO_CONFIG.type:
           return toAccountQuotaRefreshOutcome(
             await refreshWithConfig(
@@ -6509,6 +6539,7 @@ export function AccountsPage() {
       setKimiQuota,
       setMetaQuota,
       setOpenCodeGoQuota,
+      setQwenQuota,
       setXaiQuota,
       t,
       authFilesRequestScope,
@@ -8131,6 +8162,10 @@ export function AccountsPage() {
           </small>
         </div>
         <div className={styles.batchActions}>
+          <CredentialAutoStartStopToggle
+            managerServiceBase={featureAvailability.managerServiceBase ?? ''}
+            managementKey={managementKey}
+          />
           {!isSelectionMode && !hasSelection ? (
             <Button
               variant="secondary"
@@ -8551,11 +8586,17 @@ export function AccountsPage() {
     const hasForecast =
       windowUsageData.forecastCost !== null &&
       windowUsageData.forecastTokens !== null;
-    const percentText = windowRemaining !== null ? formatPercent(windowRemaining) : '-';
-    const remainingParts = formatQuotaRemainingPercentParts(percentText, i18n.language);
-    const remainingText = formatQuotaRemainingPercentDisplay(percentText, i18n.language);
+    const usedFraction = formatQuotaUnitFraction(window);
+    const percentText = usedFraction ?? formatPercent(windowRemaining);
+    const valueParts =
+      usedFraction !== null
+        ? usedFraction === '-'
+          ? null
+          : { prefix: t('accounts.detail_used'), percent: usedFraction }
+        : formatQuotaRemainingPercentParts(percentText, i18n.language);
+    const valueText = valueParts ? `${valueParts.prefix} ${valueParts.percent}` : '-';
     const cardTitle = [
-      `${readableLabel}: ${remainingText}${relativeReset ? ` | ${relativeReset}` : ''}`,
+      `${readableLabel}: ${valueText}${relativeReset ? ` | ${relativeReset}` : ''}`,
       hasActual
         ? `${t('accounts.quota_used_short')} ${formatCompactUsd(
             windowUsageData.currentCost!
@@ -8605,13 +8646,14 @@ export function AccountsPage() {
               </>
             ) : null}
             <strong className={styles.quotaWindowPercent}>
-              {remainingParts ? (
+              {valueParts ? (
                 <>
                   <span className={styles.quotaWindowPercentPrefix}>
-                    {remainingParts.prefix}
+                    {valueParts.prefix}
                   </span>
+                  {' '}
                   <span className={styles.quotaWindowPercentValue}>
-                    {remainingParts.percent}
+                    {valueParts.percent}
                   </span>
                 </>
               ) : (
@@ -8697,6 +8739,24 @@ export function AccountsPage() {
     );
   };
 
+  const resolveAccountSubscriptionPresentation = (row: AccountRow) =>
+    buildAccountSubscriptionPresentation({
+      row,
+      codexQuota: resolveAccountListSubscriptionQuota({
+        provider: row.provider,
+        displayCodexQuota:
+          row.provider === CODEX_CONFIG.type ? getDisplayCodexQuota(row.raw) : undefined,
+      }),
+      opencodeGoQuota:
+        row.provider === OPENCODE_GO_CONFIG.type
+          ? getCredentialScopedQuotaState(opencodeGoQuota, row.raw)
+          : undefined,
+      qwenQuota:
+        row.provider === QWEN_CONFIG.type
+          ? getScopedQuotaState(QWEN_CONFIG, qwenQuota ?? {}, row.raw)
+          : undefined,
+    });
+
   const resolveAccountRowContext = (row: AccountRow) => {
     const recommendation = recommendationBySelectionKey.get(row.selectionKey) ?? null;
     const accountHistory = accountHistoryByRowKey.get(row.selectionKey) ?? null;
@@ -8718,15 +8778,7 @@ export function AccountsPage() {
       quotaWindows,
       requestEvidence: requestEvidenceBySelectionKey.get(row.selectionKey),
     });
-    const displayCodexQuota =
-      row.provider === CODEX_CONFIG.type ? getDisplayCodexQuota(row.raw) : undefined;
-    const subscriptionPresentation = buildAccountSubscriptionPresentation({
-      row,
-      codexQuota: resolveAccountListSubscriptionQuota({
-        provider: row.provider,
-        displayCodexQuota,
-      }),
-    });
+    const subscriptionPresentation = resolveAccountSubscriptionPresentation(row);
     const codexQuotaState =
       row.provider === CODEX_CONFIG.type
         ? getDisplayCodexResetEvidenceQuota(row)
@@ -8748,7 +8800,12 @@ export function AccountsPage() {
       mainListWindows
         .map((window) => {
           const label = getQuotaWindowReadableLabel(window, t);
-          return `${label}: ${formatPercent(window.remainingPercent)}`;
+          const usedFraction = formatQuotaUnitFraction(window);
+          const valueText =
+            usedFraction !== null
+              ? usedFraction === '-' ? '-' : `${t('accounts.detail_used')} ${usedFraction}`
+              : formatPercent(window.remainingPercent);
+          return `${label}: ${valueText}`;
         })
         .join('\n') || quotaEmptyLabel;
     const healthTitle = t(
@@ -8795,6 +8852,7 @@ export function AccountsPage() {
       hasRecentRequests,
     };
   };
+
 
   const renderAccountHistory = (
     row: AccountRow,
@@ -9345,8 +9403,8 @@ export function AccountsPage() {
                   <div
                     className={styles.accountGridCardQuota}
                     title={ctx.quotaWindowTitle}
-                    role={isSelectionMode ? undefined : 'button'}
-                    tabIndex={isSelectionMode ? undefined : 0}
+                    role={isSelectionMode || row.provider === QWEN_CONFIG.type ? undefined : 'button'}
+                    tabIndex={isSelectionMode || row.provider === QWEN_CONFIG.type ? undefined : 0}
                     onClick={
                       isSelectionMode
                         ? undefined
@@ -9679,6 +9737,11 @@ export function AccountsPage() {
     }
 
     const providerIcon = getAuthFileIcon(selectedRow.provider, resolvedTheme);
+    const subscriptionPresentation = resolveAccountSubscriptionPresentation(selectedRow);
+    // Preserve the existing Codex detail title while adding days for other subscriptions.
+    const remainingDays = subscriptionPresentation.isPaidCodex
+      ? null
+      : subscriptionPresentation.remainingDays;
 
     const detailTabs: Array<{ id: DetailTab; label: string }> = [
       { id: 'overview', label: t('accounts.detail_tab_overview') },
@@ -9947,7 +10010,24 @@ export function AccountsPage() {
                 {getProviderLabel(selectedRow.provider, t)} ·{' '}
                 <span title={detailView.identity.planPresentation?.fullLabel}>
                   {detailView.identity.planPresentation?.shortLabel ?? '-'}
-                </span>{' '}
+                </span>
+                {remainingDays !== null ? (
+                  <>
+                    {' '}
+                    <span
+                      className={styles.accountPlanBadge}
+                      title={t('accounts.list_plan_remaining_days_tooltip', {
+                        days: remainingDays,
+                        defaultValue: `剩余 ${remainingDays} 天`,
+                      })}
+                    >
+                      {t('accounts.list_plan_remaining_days', {
+                        days: remainingDays,
+                        defaultValue: `${remainingDays} 天`,
+                      })}
+                    </span>
+                  </>
+                ) : null}{' '}
                 ·{' '}
                 <button
                   type="button"

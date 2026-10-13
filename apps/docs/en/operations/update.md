@@ -223,7 +223,7 @@ Confirm that CPA points to this repository:
 
 ```yaml
 remote-management:
-  panel-github-repository: 'https://github.com/seakee/CPA-Manager-Plus'
+  panel-github-repository: 'https://github.com/williamxhero/CPA-Manager-Plus-ex'
 ```
 
 CPA normally refreshes its cached panel automatically. If it still serves an old panel, remove the cached file from the CPA working directory and reload or restart CPA:

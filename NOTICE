@@ -1,0 +1,34 @@
+NOTICE
+======
+
+CPA Manager Plus (CPAMP-EX)
+Copyright (c) 2026 Seakee (upstream https://github.com/seakee/CPA-Manager-Plus),
+with modifications by williamxhero (https://github.com/williamxhero/CPA-Manager-Plus-ex).
+
+This project is distributed under the MIT License; the full text is in LICENSE.
+
+
+Bundled provider components
+---------------------------
+
+The provider plugin sources that are declared for bundling under providers/ are
+listed below. The machine-readable contract lives in providers/import-boundary.json
+and the human-readable contract in docs/providers-layout-contract.md. Attribution is
+registered here up front so an import cannot land without its licence and copyright
+notice; the source trees themselves are imported by SPEC5-B (OpenCode) and SPEC5-C
+(Qwen).
+
+1) OpenCode Go CLIProxyAPI plugin  ->  providers/opencode-go
+   Source repository: massiveits/opencode-go-cliproxyapi
+   License: MIT
+   Copyright (c) 2026 massiveits
+   Synced as a git subtree from the named remote `opencode-upstream` (branch main).
+
+2) Qwen Token Plan CLIProxyAPI plugin  ->  providers/qwen
+   Source repository: williamxhero/qwen-cliproxyapi
+   License: MIT
+   Copyright (c) 2026 williamxhero
+   Imported once as a plain directory (no upstream subtree). This component also
+   bundles the bailian-quota quota CLI (cmd/bailian-quota) and itself adapts code
+   from massiveits/opencode-go-cliproxyapi (MIT, Copyright (c) 2026 massiveits);
+   providers/qwen/NOTICE.md must be imported verbatim and kept in place.

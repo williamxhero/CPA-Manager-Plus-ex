@@ -42,7 +42,7 @@ import {
 } from '@/stores';
 import { pluginsApi } from '@/services/api';
 import {
-  collectPluginResourceEntries,
+  collectPluginResourceNavEntries,
   isPluginManagementNavVisible,
   isPluginResourceNavVisible,
   PLUGIN_RESOURCES_REFRESH_EVENT,
@@ -57,7 +57,7 @@ import { isSupportedLanguage } from '@/utils/language';
 import type { Theme, VisualEffectsMode } from '@/types';
 
 const SIDEBAR_ICON_SIZE = 20;
-const GITHUB_REPOSITORY_URL = 'https://github.com/seakee/CPA-Manager-Plus';
+const GITHUB_REPOSITORY_URL = 'https://github.com/williamxhero/CPA-Manager-Plus-ex';
 
 const sidebarIcons: Record<string, ReactNode> = {
   dashboard: <IconSidebarDashboard size={SIDEBAR_ICON_SIZE} />,
@@ -484,7 +484,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
           supportsPlugin,
           pluginsEnabled: plugins.pluginsEnabled,
         })
-          ? collectPluginResourceEntries(plugins.plugins)
+          ? collectPluginResourceNavEntries(plugins.plugins)
           : []
       );
     } catch {
@@ -601,6 +601,12 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
           'nav.accounts',
           t('nav.accounts', { defaultValue: t('accounts.title') })
         ),
+        icon: sidebarIcons.authFiles,
+      },
+      {
+        path: '/plan-credentials',
+        label: t('nav.plan_credentials'),
+        shortLabel: navShortLabel('nav.plan_credentials', t('nav.plan_credentials')),
         icon: sidebarIcons.authFiles,
       },
       {
@@ -935,11 +941,16 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
         >
           <div className="sidebar-brand" title={fullBrandName}>
             <div className="sidebar-brand-main">
-              <img
-                src={CPAMP_SYMBOL_COLOR_PNG_URL}
-                alt={showSidebarLabels ? '' : 'CPA Manager Plus'}
-                className="sidebar-brand-symbol"
-              />
+              <span className="sidebar-brand-symbol-wrap">
+                <img
+                  src={CPAMP_SYMBOL_COLOR_PNG_URL}
+                  alt={showSidebarLabels ? '' : 'CPA Manager Plus'}
+                  className="sidebar-brand-symbol"
+                />
+                <span className="sidebar-brand-ex" aria-hidden="true">
+                  EX
+                </span>
+              </span>
               {showSidebarLabels && (
                 <>
                   <img
