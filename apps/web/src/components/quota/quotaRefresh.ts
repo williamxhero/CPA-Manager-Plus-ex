@@ -12,6 +12,7 @@ import {
   commitIfQuotaCacheCurrent,
   isQuotaCacheGenerationCurrent,
 } from '@/stores';
+import { describeQuotaFailure } from './quotaFailureMessage';
 
 export type QuotaUpdater<T> = T | ((previous: T) => T);
 export type QuotaSetter<T> = (updater: QuotaUpdater<Record<string, T>>) => void;
@@ -100,7 +101,10 @@ export const refreshQuotaWithConfig = async <TState, TData>({
     return committed ? { status: 'success', data, state } : null;
   } catch (error: unknown) {
     if (!isRefreshCurrent()) return null;
-    const message = error instanceof Error ? error.message : t('common.unknown_error');
+    const message = describeQuotaFailure(
+      error instanceof Error ? error.message : t('common.unknown_error'),
+      t
+    );
     const rawStatus =
       typeof error === 'object' && error !== null && 'status' in error
         ? Number((error as { status?: unknown }).status)
