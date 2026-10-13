@@ -56,15 +56,15 @@ func (m *Manager) FetchQuota(ctx context.Context, req pluginapi.QuotaFetchReques
 	if req.Provider != ProviderID {
 		return empty, fmt.Errorf("unsupported quota provider")
 	}
-	key := strings.TrimSpace(req.Attributes["api_key"])
-	if key == "" {
-		return empty, fmt.Errorf("quota credential has no API key")
-	}
 	m.mu.RLock()
 	cfg := m.cfg
 	m.mu.RUnlock()
+	key, baseURL, err := resolveCredential(req.Attributes, req.StorageJSON, cfg)
+	if err != nil {
+		return empty, err
+	}
 	if req.AuthIndex != "" {
-		seed, err := credentialIndexSeed(key, req.Attributes["base_url"], cfg)
+		seed, err := credentialIndexSeed(key, baseURL, cfg)
 		// The host can preserve Index on file updates/refresh. Never use quota
 		// for a new key or endpoint to release ownership of an older credential.
 		if err != nil || req.Attributes["auth_index_seed"] != seed || req.AuthIndex != credentialAuthIndex(seed) {

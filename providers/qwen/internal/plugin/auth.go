@@ -23,7 +23,7 @@ var _ pluginapi.AuthProvider = authProvider{}
 func (authProvider) Identifier() string { return ProviderID }
 
 func (p authProvider) ParseAuth(_ context.Context, req pluginapi.AuthParseRequest) (pluginapi.AuthParseResponse, error) {
-	debugTrace("auth parse request provider=%s file=%s raw_bytes=%d", req.Provider, req.FileName, len(req.RawJSON))
+	debugTrace("auth parse request provider_match=%t file_present=%t raw_bytes=%d", req.Provider == ProviderID, req.FileName != "", len(req.RawJSON))
 	var raw struct {
 		Type     string `json:"type"`
 		Provider string `json:"provider"`
@@ -47,7 +47,7 @@ func (p authProvider) ParseAuth(_ context.Context, req pluginapi.AuthParseReques
 	if raw.ID == "" {
 		raw.ID = req.FileName
 	}
-	debugTrace("auth parse handled provider=%s file=%s id=%s api_key_present=%t api_key_length=%d", req.Provider, req.FileName, raw.ID, strings.TrimSpace(raw.APIKey) != "", len(raw.APIKey))
+	debugTrace("auth parse handled file_present=%t id_present=%t api_key_present=%t", req.FileName != "", raw.ID != "", strings.TrimSpace(raw.APIKey) != "")
 	attributes := map[string]string{"api_key": raw.APIKey}
 	if raw.BaseURL != "" {
 		if err := config.ValidateCredentialBaseURL(raw.BaseURL); err != nil {
@@ -95,11 +95,15 @@ func (authProvider) PollLogin(context.Context, pluginapi.AuthLoginPollRequest) (
 }
 
 func (p authProvider) RefreshAuth(_ context.Context, req pluginapi.AuthRefreshRequest) (pluginapi.AuthRefreshResponse, error) {
-	debugTrace("auth refresh request provider=%s id=%s storage_json_bytes=%d attr_names=%v metadata_names=%v", req.AuthProvider, req.AuthID, len(req.StorageJSON), mapKeys(req.Attributes), mapKeys(req.Metadata))
-	if req.AuthProvider != ProviderID || strings.TrimSpace(req.Attributes["api_key"]) == "" {
+	debugTrace("auth refresh request provider_match=%t id_present=%t storage_json_bytes=%d attr_count=%d metadata_count=%d", req.AuthProvider == ProviderID, req.AuthID != "", len(req.StorageJSON), len(req.Attributes), len(req.Metadata))
+	if req.AuthProvider != ProviderID {
 		return pluginapi.AuthRefreshResponse{}, fmt.Errorf("qwen auth refresh requires a selected API key credential")
 	}
-	seed, err := credentialIndexSeed(req.Attributes["api_key"], req.Attributes["base_url"], p.cfg)
+	key, baseURL, err := resolveCredential(req.Attributes, req.StorageJSON, p.cfg)
+	if err != nil {
+		return pluginapi.AuthRefreshResponse{}, err
+	}
+	seed, err := credentialIndexSeed(key, baseURL, p.cfg)
 	if err != nil {
 		return pluginapi.AuthRefreshResponse{}, err
 	}
@@ -107,6 +111,8 @@ func (p authProvider) RefreshAuth(_ context.Context, req pluginapi.AuthRefreshRe
 	for key, value := range req.Attributes {
 		attributes[key] = value
 	}
+	attributes["api_key"] = key
+	attributes["base_url"] = baseURL
 	attributes["auth_index_seed"] = seed
 	return pluginapi.AuthRefreshResponse{Auth: pluginapi.AuthData{Provider: req.AuthProvider, ID: req.AuthID, StorageJSON: req.StorageJSON, Metadata: req.Metadata, Attributes: attributes}}, nil
 }
@@ -139,14 +145,6 @@ func credentialAuthIndex(seed string) string {
 	// core v8.0.15 stableAuthIndex(indexSeed): sha256's first eight bytes.
 	digest := sha256.Sum256([]byte("auth_index_seed:" + seed))
 	return hex.EncodeToString(digest[:8])
-}
-
-func mapKeys[T any](values map[string]T) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	return keys
 }
 
 // Labels are presentation only. Stable auth IDs and stored host metadata are preserved.

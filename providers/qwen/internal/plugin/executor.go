@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -61,29 +60,11 @@ func (m *Manager) resolveExecution(req executorRequest) (*resolvedExecution, []b
 	if req.AuthProvider != ProviderID {
 		return nil, classEnvelope(&errclass.Error{Class: errclass.ClassAuth, Message: "selected auth provider is not qwen"})
 	}
-	key := strings.TrimSpace(req.AuthAttributes["api_key"])
-	debugTrace("executor auth model=%s auth_id=%s provider=%s attr_api_key_present=%t attr_count=%d storage_json_bytes=%d", req.Model, req.AuthID, req.AuthProvider, key != "", len(req.AuthAttributes), len(req.StorageJSON))
-	if key == "" {
-		return nil, classEnvelope(&errclass.Error{Class: errclass.ClassAuth, Message: "selected auth has no api key"})
+	key, baseURL, err := resolveCredential(req.AuthAttributes, req.StorageJSON, cfg)
+	if err != nil {
+		return nil, classEnvelope(&errclass.Error{Class: errclass.ClassAuth, Message: err.Error()})
 	}
-	// Attributes are restored by auth.parse; storage is retained by the host
-	// across reloads and also supports older host execution snapshots.
-	baseURL := req.AuthAttributes["base_url"]
-	if baseURL == "" && len(req.StorageJSON) > 0 {
-		var record struct {
-			BaseURL string `json:"base_url"`
-		}
-		if json.Unmarshal(req.StorageJSON, &record) != nil {
-			return nil, classEnvelope(&errclass.Error{Class: errclass.ClassAuth, Message: "selected auth has invalid storage"})
-		}
-		baseURL = record.BaseURL
-	}
-	if baseURL != "" {
-		if err := config.ValidateCredentialBaseURL(baseURL); err != nil {
-			return nil, classEnvelope(&errclass.Error{Class: errclass.ClassAuth, Message: "selected auth has invalid base_url"})
-		}
-		cfg.BaseURL = strings.TrimRight(baseURL, "/")
-	}
+	cfg.BaseURL = baseURL
 	var rec catalog.ModelRecord
 	var found bool
 	if mgr != nil && req.Model != "" {
@@ -106,7 +87,7 @@ func (m *Manager) handleExecute(request []byte) ([]byte, error) {
 	if err := json.Unmarshal(request, &req); err != nil {
 		return ErrEnvelope("invalid_request", "malformed executor request body"), nil
 	}
-	debugTrace("executor invoked model=%s source_format=%s stream=%t original_body_%s payload_%s", req.Model, req.SourceFormat, req.Stream, debugBodyMeta(req.OriginalRequest), debugBodyMeta(req.Payload))
+	debugTrace("executor invoked model_present=%t source_format_present=%t stream=%t original_body_%s payload_%s", req.Model != "", req.SourceFormat != "", req.Stream, debugBodyMeta(req.OriginalRequest), debugBodyMeta(req.Payload))
 	req.SourceFormat = normalizeSourceFormat(req.SourceFormat)
 	if req.Stream {
 		return m.executeStream(req)
@@ -121,8 +102,8 @@ func (m *Manager) handleExecute(request []byte) ([]byte, error) {
 	}
 
 	url := catalog.JoinUpstreamURL(res.cfg.BaseURL, res.rec.EndpointPath)
-	debugTrace("executor resolved public_model=%s upstream_model=%s route=%s url=%s key_count=%d", req.Model, res.rec.UpstreamID, res.rec.Protocol, redactSecrets(url, res.cfg, res.key), len(res.cfg.APIKeys))
-	debugTrace("executor sending non-stream url=%s body_len=%d", redactSecrets(url, res.cfg, res.key), len(upstreamBody))
+	debugTrace("executor resolved route=%s url_present=%t key_count=%d", res.rec.Protocol, url != "", len(res.cfg.APIKeys))
+	debugTrace("executor sending non-stream url_present=%t body_len=%d", url != "", len(upstreamBody))
 	ctx, cancel := context.WithTimeout(context.Background(), res.cfg.RequestTimeout)
 	defer cancel()
 	resp, err := m.bridge.Do(ctx, pluginapi.HTTPRequest{
@@ -132,7 +113,7 @@ func (m *Manager) handleExecute(request []byte) ([]byte, error) {
 		Body:    upstreamBody,
 	})
 	if err != nil {
-		debugTrace("executor non-stream network error: %v", err)
+		debugTrace("executor non-stream network_error_present=%t", err != nil)
 		return executionErrorEnvelope(errclass.FromNetwork(err), res), nil
 	}
 	debugTrace("executor received non-stream status=%d body_len=%d", resp.StatusCode, len(resp.Body))
@@ -212,7 +193,7 @@ func (m *Manager) handleExecuteStream(request []byte) ([]byte, error) {
 	if err := json.Unmarshal(request, &req); err != nil {
 		return ErrEnvelope("invalid_request", "malformed executor request body"), nil
 	}
-	debugTrace("executor stream invoked model=%s source_format=%s stream=%t original_body_%s payload_%s", req.Model, req.SourceFormat, req.Stream, debugBodyMeta(req.OriginalRequest), debugBodyMeta(req.Payload))
+	debugTrace("executor stream invoked model_present=%t source_format_present=%t stream=%t original_body_%s payload_%s", req.Model != "", req.SourceFormat != "", req.Stream, debugBodyMeta(req.OriginalRequest), debugBodyMeta(req.Payload))
 	return m.executeStream(req)
 }
 
@@ -245,7 +226,7 @@ func (m *Manager) executeStream(req executorRequest) ([]byte, error) {
 	upstreamBody, _ = json.Marshal(streamBody)
 
 	url := catalog.JoinUpstreamURL(res.cfg.BaseURL, res.rec.EndpointPath)
-	debugTrace("executor sending stream url=%s body_len=%d", redactSecrets(url, res.cfg, res.key), len(upstreamBody))
+	debugTrace("executor sending stream url_present=%t body_len=%d", url != "", len(upstreamBody))
 	ctx, cancel := context.WithTimeout(context.Background(), res.cfg.RequestTimeout)
 	defer cancel()
 	st, _, id, err := m.bridge.DoStream(ctx, pluginapi.HTTPRequest{
@@ -254,7 +235,7 @@ func (m *Manager) executeStream(req executorRequest) ([]byte, error) {
 		Headers: upstreamAuthHeaders(res.key),
 		Body:    upstreamBody,
 	})
-	debugTrace("executor stream DoStream status=%d upstreamID=%s err=%v", st, id, err)
+	debugTrace("executor stream DoStream status=%d upstream_id_present=%t error_present=%t", st, id != "", err != nil)
 	if err != nil {
 		return executionErrorEnvelope(errclass.FromNetwork(err), res), nil
 	}
@@ -321,7 +302,7 @@ func (m *Manager) pumpStream(downID, upstreamID string, res *resolvedExecution, 
 	)
 	for {
 		payload, readErrMsg, closed, err := m.bridge.StreamRead(upstreamID)
-		debugTrace("executor stream read chunk_len=%d closed=%t readErrMsg=%q err=%v", len(payload), closed, readErrMsg, err)
+		debugTrace("executor stream read chunk_len=%d closed=%t reported_error_present=%t transport_error_present=%t", len(payload), closed, readErrMsg != "", err != nil)
 		upstreamClosed = closed
 		if aborted.Load() {
 			closeStreams(errclass.Redact("stream exceeded request-timeout"))

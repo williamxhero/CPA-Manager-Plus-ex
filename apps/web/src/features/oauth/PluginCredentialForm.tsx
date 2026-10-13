@@ -32,6 +32,14 @@ export function PluginCredentialForm({
   const [createdLabel, setCreatedLabel] = useState('');
   const mounted = useRef(false);
   const inFlight = useRef(false);
+  const isPlan = isPlanCredentialPlugin(pluginId);
+  const formFields = isPlan
+    ? [...definition.fields].sort(
+        (left, right) =>
+          ['name', 'base_url', 'api_key'].indexOf(left.name) -
+          ['name', 'base_url', 'api_key'].indexOf(right.name)
+      )
+    : definition.fields;
 
   useEffect(() => {
     mounted.current = true;
@@ -48,17 +56,17 @@ export function PluginCredentialForm({
     );
     setError('');
     setCreatedLabel('');
-    const isPlan = isPlanCredentialPlugin(pluginId);
     const missing = definition.fields.find(
       (field) =>
-        (field.required || (isPlan && (field.name === 'base_url' || field.name === 'api_key'))) &&
+        !(isPlan && field.name === 'base_url') &&
+        (field.required || (isPlan && field.name === 'api_key')) &&
         !payload[field.name].trim()
     );
     if (missing) {
       setError(t('plan_credentials.required_field', { field: missing.label }));
       return;
     }
-    if (isPlan && Object.prototype.hasOwnProperty.call(payload, 'base_url')) {
+    if (isPlan && payload.base_url?.trim()) {
       try {
         const url = new URL(payload.base_url);
         if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) throw new Error();
@@ -127,15 +135,20 @@ export function PluginCredentialForm({
   };
 
   return (
-    <form className={styles.cardContent} onSubmit={submit} autoComplete="off" noValidate>
-      {definition.fields.map((field) => (
+    <form
+      className={`${styles.cardContent} ${isPlan ? styles.planCredentialRow : ''}`}
+      onSubmit={submit}
+      autoComplete="off"
+      noValidate
+    >
+      {formFields.map((field) => (
         <Input
           key={field.name}
           name={field.name}
           label={field.label}
           placeholder={field.placeholder}
           type={field.type}
-          required={field.required}
+          required={isPlan && field.name === 'base_url' ? false : field.required}
           autoComplete={field.type === 'password' ? 'new-password' : 'off'}
           value={values[field.name] || ''}
           disabled={submitting || loadingMetadata}

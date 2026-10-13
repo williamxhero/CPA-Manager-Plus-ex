@@ -14,6 +14,7 @@ import {
   AUTH_FILE_WEIGHT_MAX,
   XAI_OFFICIAL_API_BASE_URL,
   getAuthFileConfigurationCapabilities,
+  getPlanCredentialDefaultBaseUrl,
   type AuthFileConfigurationErrorKey,
   type XaiRoutingMode,
 } from '@/features/authFiles/model/authFileConfiguration';
@@ -46,6 +47,7 @@ export function AccountConfigurationTab({
   } = editor;
   const capabilities = getAuthFileConfigurationCapabilities(state?.providerKey || row.provider);
   const providerLabel = getProviderLabel(state?.providerKey || row.provider, t);
+  const planDefaultBaseUrl = getPlanCredentialDefaultBaseUrl(state?.providerKey || row.provider);
   const disabled = disableControls || sharedSourceReadOnly || state?.saving === true;
   const reloadAndRestoreFocus = () => {
     void editor.reload().then(() => {
@@ -225,11 +227,43 @@ export function AccountConfigurationTab({
         </div>
       </section>
 
-      {(capabilities.websockets || capabilities.xaiRouting || capabilities.claudeCloak) && (
+      {(planDefaultBaseUrl ||
+        capabilities.websockets ||
+        capabilities.xaiRouting ||
+        capabilities.claudeCloak) && (
         <section className={styles.configurationSection}>
           <h3 className={styles.configurationSectionTitle}>
             {t('accounts.config_section_provider', { provider: providerLabel })}
           </h3>
+
+          {planDefaultBaseUrl ? (
+            <div className={styles.configurationProviderGroup}>
+              <Input
+                label={t('accounts.config_label')}
+                value={draft.label}
+                disabled={disabled}
+                onChange={(event) => editor.updateField('label', event.target.value)}
+              />
+              <Input
+                label={t('accounts.config_replacement_api_key')}
+                type="password"
+                autoComplete="new-password"
+                value={draft.replacementApiKey}
+                hint={t('accounts.config_replacement_api_key_hint')}
+                disabled={disabled}
+                onChange={(event) => editor.updateField('replacementApiKey', event.target.value)}
+              />
+              <Input
+                label={t('accounts.config_plan_base_url')}
+                value={draft.baseUrl}
+                placeholder={planDefaultBaseUrl}
+                error={fieldError('baseUrl')}
+                hint={t('accounts.config_plan_base_url_hint', { url: planDefaultBaseUrl })}
+                disabled={disabled}
+                onChange={(event) => editor.updateField('baseUrl', event.target.value)}
+              />
+            </div>
+          ) : null}
 
           {capabilities.xaiRouting ? (
             <div className={styles.configurationProviderGroup}>

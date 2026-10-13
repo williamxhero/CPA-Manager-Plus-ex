@@ -14,6 +14,7 @@ import {
   requestDemoCredentialRefresh,
 } from '@/features/demo/demoFixtures';
 import type { AuthFileItem } from '@/types';
+import { sha256RawTextHex } from '@/utils/apiKeyHash';
 import {
   DEMO_API_BASE,
   DEMO_SERVER_COMMIT,
@@ -89,6 +90,15 @@ type DemoAuthFileModel = {
 };
 
 const DEMO_AUTH_FILE_MODELS: Record<string, DemoAuthFileModel[]> = {
+  qwen: [{ id: 'qwen-plus', display_name: 'Qwen Plus', type: 'chat', owned_by: 'qwen' }],
+  'opencode-go': [
+    {
+      id: 'opencode-go-demo',
+      display_name: 'Fictional OpenCode model',
+      type: 'chat',
+      owned_by: 'opencode-go',
+    },
+  ],
   codex: [
     { id: 'gpt-5-codex', display_name: 'GPT-5 Codex', type: 'responses', owned_by: 'openai' },
     { id: 'gpt-5', display_name: 'GPT-5', type: 'responses', owned_by: 'openai' },
@@ -167,7 +177,11 @@ const DEMO_AUTH_FILE_MODELS: Record<string, DemoAuthFileModel[]> = {
   ],
 };
 
+// Named JSON writes persist a physical source first; the fields PATCH publishes it.
+const demoPlanAuthFileSources = new Map<string, { text: string; published: boolean }>();
 const demoAuthFileConfigurationOverrides = new Map<string, Record<string, unknown>>();
+const isDemoPlanProvider = (provider: string): boolean =>
+  provider === 'qwen' || provider === 'opencode-go';
 let demoConfigYamlOverride: string | null = null;
 
 const normalizeDemoProvider = (value: unknown): string => {
@@ -234,11 +248,43 @@ const readDemoConfigurationRecordAuthIndex = (
     arrayIndex === undefined ? '' : arrayIndex
   );
 
+const assertDemoPlanSourceDigest = (text: string | undefined, config?: AxiosRequestConfig) => {
+  const expected = config?.headers?.['X-CPAMP-Auth-File-Expected-Content-SHA256'];
+  if (expected && (text === undefined || sha256RawTextHex(text) !== expected)) {
+    throw Object.assign(new Error('Credential source changed'), { status: 409 });
+  }
+};
+
+const getCurrentDemoAuthFiles = () => {
+  const response = getDemoAuthFiles();
+  demoPlanAuthFileSources.forEach(({ text, published }, name) => {
+    if (!published) return;
+    const record = JSON.parse(text) as Record<string, unknown>;
+    const id = readDemoString(record.id) || name.replace(/\.json$/, '');
+    const file = {
+      name,
+      id,
+      type: String(record.type),
+      provider: String(record.type),
+      authIndex: readDemoConfigurationRecordAuthIndex(record) || `demo-${id}`,
+      label: typeof record.label === 'string' ? record.label : '',
+      disabled: record.disabled === true,
+      status: record.disabled === true ? 'disabled' : 'active',
+    } as AuthFileItem;
+    const existingIndex = response.files.findIndex((existing) => existing.name === name);
+    if (existingIndex >= 0)
+      response.files[existingIndex] = { ...response.files[existingIndex], ...file };
+    else response.files.push(file);
+  });
+  response.total = response.files.length;
+  return response;
+};
+
 const findDemoAuthFile = (selector: string): AuthFileItem | null => {
   const normalized = selector.trim();
   if (!normalized) return null;
   return (
-    getDemoAuthFiles().files.find((file) =>
+    getCurrentDemoAuthFiles().files.find((file) =>
       [file.id, file.name, file.authIndex, file['auth_index'], file['auth-index']].some(
         (value) => String(value ?? '').trim() === normalized
       )
@@ -254,6 +300,8 @@ const getDemoModelsForProvider = (provider: string): DemoAuthFileModel[] => {
 };
 
 const buildDemoAuthFileConfiguration = (file: AuthFileItem): Record<string, unknown> => {
+  const planSource = demoPlanAuthFileSources.get(file.name);
+  if (planSource) return JSON.parse(planSource.text) as Record<string, unknown>;
   const provider = normalizeDemoProvider(file.type ?? file.provider);
   const rawProvider = readDemoString(file.type, file.provider) || provider || 'unknown';
   const authIndex = readDemoAuthIndex(file);
@@ -376,6 +424,14 @@ const applyDemoAuthFileConfigurationPatch = (
     }
   }
 
+  // Plan saves mirror both aliases because the host retains generic PATCH metadata.
+  if (
+    isDemoPlanProvider(normalizeDemoProvider(record.type)) &&
+    fields.excluded_models !== undefined
+  ) {
+    next.excluded_models = fields.excluded_models;
+  }
+
   handledKeys.add('disable_cooling');
   if (fields.disable_cooling !== undefined) {
     if (fields.disable_cooling === null) delete next.disable_cooling;
@@ -492,6 +548,7 @@ const persistDemoAuthFileConfigurationUpload = async (
 };
 
 export const resetDemoAuthFileConfiguration = () => {
+  demoPlanAuthFileSources.clear();
   demoAuthFileConfigurationOverrides.clear();
 };
 
@@ -564,10 +621,45 @@ export async function handleDemoApiRequest<T = unknown>(
   if (pathname === '/auth-files') {
     if (method === 'get') {
       advanceDemoCredentialRefresh();
-      return getDemoAuthFiles() as T;
+      return getCurrentDemoAuthFiles() as T;
     }
-    if (method === 'delete') return { deleted: params.get('all') === 'true' ? 8 : 1 } as T;
-    return { ...ok, files: getDemoAuthFiles().files } as T;
+    if (method === 'post' && params.get('name')) {
+      let record: unknown = data;
+      if (typeof data === 'string') {
+        try {
+          record = JSON.parse(data) as unknown;
+        } catch {
+          return { ...ok, files: getCurrentDemoAuthFiles().files } as T;
+        }
+      }
+      if (isDemoConfigurationRecord(record) && isDemoPlanProvider(String(record.type))) {
+        const name = params.get('name')!;
+        const existing = findDemoAuthFile(name);
+        if (
+          config?.headers?.['X-CPAMP-Auth-File-Create-Only'] === 'true' &&
+          (existing || demoPlanAuthFileSources.has(name))
+        ) {
+          throw Object.assign(new Error('Credential file is already occupied'), { status: 409 });
+        }
+        assertDemoPlanSourceDigest(demoPlanAuthFileSources.get(name)?.text, config);
+        demoPlanAuthFileSources.set(name, {
+          text: typeof data === 'string' ? data : JSON.stringify(record),
+          published: Boolean(existing),
+        });
+      }
+    }
+    if (method === 'delete') {
+      const selector = params.get('name') ?? '';
+      const name = findDemoAuthFile(selector)?.name ?? selector;
+      const planSource = demoPlanAuthFileSources.get(name);
+      if (planSource) {
+        assertDemoPlanSourceDigest(planSource.text, config);
+        demoPlanAuthFileSources.delete(name);
+        return { ...ok, deleted: 1 } as T;
+      }
+      return { deleted: params.get('all') === 'true' ? 8 : 1 } as T;
+    }
+    return { ...ok, files: getCurrentDemoAuthFiles().files } as T;
   }
   if (pathname === '/auth-files/fields') {
     if (method === 'patch' && isCredentialRefreshPatch(data)) {
@@ -577,7 +669,16 @@ export async function handleDemoApiRequest<T = unknown>(
       const fields = data as Record<string, unknown>;
       const selector = typeof fields.name === 'string' ? fields.name : '';
       const file = findDemoAuthFile(selector);
-      if (file) {
+      const sourceName = file?.name ?? selector;
+      const planSource = demoPlanAuthFileSources.get(sourceName);
+      if (planSource) {
+        assertDemoPlanSourceDigest(planSource.text, config);
+        const next = applyDemoAuthFileConfigurationPatch(
+          JSON.parse(planSource.text) as Record<string, unknown>,
+          fields
+        );
+        demoPlanAuthFileSources.set(sourceName, { text: JSON.stringify(next), published: true });
+      } else if (file) {
         const next = applyDemoAuthFileConfigurationPatch(
           buildDemoAuthFileConfiguration(file),
           fields
@@ -707,10 +808,15 @@ export async function handleDemoRawRequest(
     );
   }
   if (pathname === '/auth-files/download') {
-    const file = findDemoAuthFile(params.get('name') ?? '');
-    const record = file ? buildDemoAuthFileConfiguration(file) : {};
+    const selector = params.get('name') ?? '';
+    const file = findDemoAuthFile(selector);
+    const planSource = demoPlanAuthFileSources.get(file?.name ?? selector);
+    if (!file && !planSource) {
+      throw Object.assign(new Error('Auth file not found'), { status: 404 });
+    }
+    const text = planSource?.text ?? JSON.stringify(buildDemoAuthFileConfiguration(file!), null, 2);
     return createAxiosResponse(
-      new Blob([JSON.stringify(record, null, 2)], {
+      new Blob([text], {
         type: 'application/json',
       }),
       config,

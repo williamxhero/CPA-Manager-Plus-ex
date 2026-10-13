@@ -7,6 +7,10 @@ import {
 } from './demoApi';
 import { getDemoApiCallResult, resetDemoCredentialRefresh } from './demoFixtures';
 import type { AuthFilesResponse } from '@/types/authFile';
+import { authFilesApi } from '@/services/api/authFiles';
+import { planCredentialsApi } from '@/services/api/planCredentials';
+import { setDemoMode } from './demoMode';
+import { sha256RawTextHex } from '@/utils/apiKeyHash';
 
 const DEMO_AUTH_ID = 'codex-upgrade-demo-runtime';
 const DEMO_AUTH_NAME = 'codex-upgrade-demo.json';
@@ -28,9 +32,147 @@ describe('auth file credential refresh demo API', () => {
   });
 
   afterEach(() => {
+    setDemoMode(false);
     resetDemoCredentialRefresh();
     resetDemoAuthFileConfiguration();
     vi.useRealTimers();
+  });
+
+  it.each(['qwen', 'opencode-go'])(
+    'creates a %s demo plan credential through POST and runtime PATCH',
+    async (provider) => {
+      setDemoMode(true);
+      const scope = {
+        apiBase: 'https://synthetic-cpa.invalid',
+        managementKey: 'synthetic-management-key',
+      };
+      const fields = {
+        api_key: `fictional-demo-${provider}-new-key`,
+        base_url: 'https://synthetic-plan.invalid/v1',
+        name: 'Synthetic plan',
+      };
+      const created = await planCredentialsApi.create(`${provider}-cliproxyapi`, fields, scope);
+      const fileName = `${created.id}.json`;
+      expect(await authFilesApi.downloadJsonObject(fileName, scope)).toEqual({
+        type: provider,
+        id: created.id,
+        api_key: fields.api_key,
+        base_url: fields.base_url,
+        label: 'Synthetic plan',
+        disabled: false,
+      });
+      const runtime = await authFilesApi.lookup({ name: fileName }, scope);
+      expect(runtime).toHaveLength(1);
+      expect(runtime[0]).toMatchObject({
+        name: fileName,
+        provider,
+        type: provider,
+        disabled: false,
+        status: 'active',
+        authIndex: expect.any(String),
+      });
+      expect(runtime[0]).not.toHaveProperty('api_key');
+      expect(await authFilesApi.getModelsForAuthFile(runtime[0].id || fileName, scope)).toEqual([
+        expect.objectContaining({ id: provider === 'qwen' ? 'qwen-plus' : 'opencode-go-demo' }),
+      ]);
+      await expect(
+        planCredentialsApi.create(`${provider}-cliproxyapi`, fields, scope)
+      ).rejects.toThrow('already occupied');
+      resetDemoAuthFileConfiguration();
+      expect(await authFilesApi.lookup({ name: fileName }, scope)).toEqual([]);
+      await expect(authFilesApi.downloadText(fileName, scope)).rejects.toMatchObject({
+        status: 404,
+      });
+    }
+  );
+
+  it.each(['qwen', 'opencode-go'])(
+    'edits a disabled %s demo plan without enabling it or dropping metadata',
+    async (provider) => {
+      setDemoMode(true);
+      const scope = {
+        apiBase: 'https://synthetic-cpa.invalid',
+        managementKey: 'synthetic-management-key',
+      };
+      const created = await planCredentialsApi.create(
+        `${provider}-cliproxyapi`,
+        {
+          api_key: `fictional-demo-${provider}-edit-key`,
+          base_url: 'https://synthetic-plan.invalid/v1',
+          name: 'Old label',
+        },
+        scope
+      );
+      const name = `${created.id}.json`;
+      await handleDemoApiRequest('patch', '/auth-files/fields', {
+        name,
+        disabled: true,
+        quota: { remaining: 42 },
+        excluded_models: ['old-model'],
+      });
+      const [before] = await authFilesApi.lookup({ name }, scope);
+      expect(before.disabled).toBe(true);
+      await planCredentialsApi.update(
+        { name, runtimeId: before.id, authIndex: before.authIndex, provider },
+        {
+          api_key: 'fictional-demo-replacement-key',
+          base_url: 'https://replacement-plan.invalid/v1',
+          label: '',
+          note: 'Updated note',
+          'excluded-models': ['new-model'],
+          excluded_models: null,
+          disabled: false,
+        },
+        scope
+      );
+      expect(await authFilesApi.downloadJsonObject(name, scope)).toMatchObject({
+        api_key: 'fictional-demo-replacement-key',
+        base_url: 'https://replacement-plan.invalid/v1',
+        label: '',
+        note: 'Updated note',
+        'excluded-models': ['new-model'],
+        excluded_models: ['new-model'],
+        disabled: true,
+        quota: { remaining: 42 },
+      });
+      expect(await authFilesApi.lookup({ name }, scope)).toEqual([
+        expect.objectContaining({ id: before.id, authIndex: before.authIndex, disabled: true }),
+      ]);
+    }
+  );
+
+  it('preserves exact raw plan snapshots and refuses stale rollback writes', async () => {
+    const name = 'qwen-synthetic-snapshot.json';
+    const original =
+      '{\n "type":"qwen", "id":"snapshot-id", "api_key":"fictional-snapshot-key", "base_url":"https://synthetic-plan.invalid/v1", "disabled":true\n}';
+    await handleDemoApiRequest('post', `/auth-files?name=${name}`, original);
+    const read = async () =>
+      (
+        await handleDemoRawRequest(`/auth-files/download?name=${name}`)
+      ).data.text() as Promise<string>;
+    expect(await read()).toBe(original);
+    expect(
+      (await handleDemoApiRequest<AuthFilesResponse>('get', '/auth-files')).files.some(
+        (file) => file.name === name
+      )
+    ).toBe(false);
+    await handleDemoApiRequest('patch', '/auth-files/fields', { name, label: 'Edited' });
+    const current = await read();
+    await expect(
+      handleDemoApiRequest('post', `/auth-files?name=${name}`, original, {
+        headers: { 'X-CPAMP-Auth-File-Expected-Content-SHA256': sha256RawTextHex(original) },
+      })
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await read()).toBe(current);
+    await handleDemoApiRequest('post', `/auth-files?name=${name}`, original, {
+      headers: { 'X-CPAMP-Auth-File-Expected-Content-SHA256': sha256RawTextHex(current) },
+    });
+    expect(await read()).toBe(original);
+    expect(
+      (await handleDemoApiRequest<AuthFilesResponse>('get', '/auth-files')).files.find(
+        (file) => file.name === name
+      )
+    ).toMatchObject({ disabled: true });
   });
 
   it('simulates a delayed Free to Plus refresh for the runtime auth ID', async () => {

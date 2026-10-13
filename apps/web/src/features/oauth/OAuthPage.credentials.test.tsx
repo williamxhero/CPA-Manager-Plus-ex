@@ -289,7 +289,7 @@ describe('plugin manual credentials', () => {
         .findAllByType(Input)
         .filter((node) => node.props.name)
         .map((node) => node.props.name)
-    ).toEqual(['base_url', 'api_key', 'name']);
+    ).toEqual(['name', 'base_url', 'api_key']);
     expect(window.setInterval).not.toHaveBeenCalled();
     expect(getPluginCredentialFormFallback('opencode-go')).toBeUndefined();
     expect(getPluginCredentialFormFallback('qwen')).toBeUndefined();

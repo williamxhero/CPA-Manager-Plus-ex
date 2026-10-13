@@ -36,6 +36,48 @@ func TestQuotaRejectsLegacyOrReplacedCredentialLocator(t *testing.T) {
 	}
 }
 
+func TestQuotaStorageCredentialKeepsIdentityFence(t *testing.T) {
+	m := commandManager(t, "success")
+	oldSeed, err := credentialIndexSeed("synthetic-old-key", "https://old.test/v1", m.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, key, base, locator string
+		attrs                    map[string]string
+		wantOK                   bool
+	}{
+		{"current identity without key attributes", "synthetic-current-key", "https://current.test/v1", "current", nil, true},
+		{"current identity with stale attributes", "synthetic-current-key", "https://current.test/v1", "current", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}, true},
+		{"old locator after key edit", "synthetic-current-key", "https://old.test/v1", "old", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}, false},
+		{"old locator after URL edit", "synthetic-old-key", "https://current.test/v1", "old", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}, false},
+		{"normalized URL preserves identity", "synthetic-old-key", "https://OLD.test:443/v1/", "old", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			seed, err := credentialIndexSeed(tc.key, tc.base, m.cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.locator == "old" {
+				seed = oldSeed
+			}
+			attrs := map[string]string{"auth_index_seed": seed}
+			for k, v := range tc.attrs {
+				attrs[k] = v
+			}
+			req := pluginapi.QuotaFetchRequest{Provider: ProviderID, AuthIndex: credentialAuthIndex(seed), Attributes: attrs, StorageJSON: mustJSON(map[string]string{"api_key": tc.key, "base_url": tc.base})}
+			result, err := m.FetchQuota(context.Background(), req)
+			if tc.wantOK {
+				if err != nil || len(result.Groups) == 0 {
+					t.Fatalf("current storage identity rejected: %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "credential identity") {
+				t.Fatalf("old locator accepted after storage changed: %v", err)
+			}
+		})
+	}
+}
+
 func TestQwenCredentialIdentityBindsKeyAndURLAcrossParseAndRefresh(t *testing.T) {
 	p := authProvider{cfg: config.Config{BaseURL: "https://example.test/v1"}}
 	parse := func(key, baseURL, label string, disabled bool) pluginapi.AuthData {
@@ -79,5 +121,18 @@ func TestQwenCredentialIdentityBindsKeyAndURLAcrossParseAndRefresh(t *testing.T)
 	}
 	if attrs["auth_index_seed"] != seed {
 		t.Fatal("refresh mutated caller attributes")
+	}
+	current := parse("synthetic-key-b", "https://example.test/v2", "Edited", false)
+	refreshed, err = p.RefreshAuth(context.Background(), pluginapi.AuthRefreshRequest{AuthProvider: ProviderID, AuthID: original.ID, StorageJSON: current.StorageJSON, Attributes: original.Attributes})
+	if err != nil || refreshed.Auth.Attributes["auth_index_seed"] != current.Attributes["auth_index_seed"] || refreshed.Auth.Attributes["api_key"] != "synthetic-key-b" || refreshed.Auth.Attributes["base_url"] != "https://example.test/v2" {
+		t.Fatalf("refresh retained stale routing attributes or identity: %v", err)
+	}
+	if original.Attributes["auth_index_seed"] != seed || original.Attributes["api_key"] != "synthetic-key-a" {
+		t.Fatal("storage-aware refresh mutated caller attributes")
+	}
+	m := commandManager(t, "success")
+	_, err = m.FetchQuota(context.Background(), pluginapi.QuotaFetchRequest{Provider: ProviderID, AuthIndex: credentialAuthIndex(seed), StorageJSON: refreshed.Auth.StorageJSON, Attributes: refreshed.Auth.Attributes})
+	if err == nil || !strings.Contains(err.Error(), "credential identity") {
+		t.Fatalf("refresh allowed quota to release the original locator: %v", err)
 	}
 }

@@ -231,6 +231,47 @@ func TestCredentialConfiguredDuplicateAndConcurrentCreate(t *testing.T) {
 	}
 }
 
+func TestExecutorUsesCurrentStorageCredential(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		for _, tc := range []struct {
+			name, storage, key, base string
+			attrs                    map[string]string
+		}{
+			{"upload without plugin attributes", `{"api_key":"synthetic-current-key","base_url":"https://current.test/v1/"}`, "synthetic-current-key", "https://current.test/v1", nil},
+			{"storage key with configured URL fallback", `{"api_key":"synthetic-current-key"}`, "synthetic-current-key", "https://opencode.ai/zen/go/v1", nil},
+			{"edited credential with stale attributes", `{"api_key":"synthetic-current-key","base_url":"https://current.test/v1"}`, "synthetic-current-key", "https://current.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"key only edit", `{"api_key":"synthetic-current-key"}`, "synthetic-current-key", "https://old.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"URL only edit", `{"base_url":"https://current.test/v1"}`, "synthetic-old-key", "https://current.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"malformed storage falls back", `{`, "synthetic-old-key", "https://old.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"undecodable storage key keeps storage URL", `{"api_key":42,"base_url":"https://current.test/v1"}`, "synthetic-old-key", "https://current.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"undecodable storage URL keeps storage key", `{"api_key":"synthetic-current-key","base_url":42}`, "synthetic-current-key", "https://old.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+			{"blank storage fields fall back independently", `{"api_key":"  ","base_url":"  "}`, "synthetic-old-key", "https://old.test/v1", map[string]string{"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}},
+		} {
+			t.Run(tc.name+map[bool]string{false: "/non-stream", true: "/stream"}[stream], func(t *testing.T) {
+				m, f := newStreamManager(t, streamScript{upstreamID: "up", frames: []string{"data: [DONE]\n\n"}})
+				if !stream {
+					f.responder = upstreamRouter(t, map[string]string{"/v1/chat/completions": ccResponseBody})
+				}
+				req := executorRequest{ExecutorRequest: pluginapi.ExecutorRequest{AuthProvider: ProviderID, AuthAttributes: tc.attrs, StorageJSON: []byte(tc.storage), Model: "opencode-go/glm-5.3", SourceFormat: "openai", OriginalRequest: []byte(ccRequestBody), Stream: stream}, StreamID: "down"}
+				method, hostMethod := pluginabi.MethodExecutorExecute, pluginabi.MethodHostHTTPDo
+				if stream {
+					method, hostMethod = pluginabi.MethodExecutorExecuteStream, pluginabi.MethodHostHTTPDoStream
+				}
+				env := decodeEnv(t, mustHandle(t, m, method, mustJSON(req)))
+				if !env.OK {
+					t.Fatalf("execution rejected current storage credential: %+v", env.Error)
+				}
+				calls := f.callsOf(hostMethod)
+				var upstream pluginapi.HTTPRequest
+				_ = json.Unmarshal(calls[len(calls)-1].payload, &upstream)
+				if upstream.URL != tc.base+"/chat/completions" || upstream.Headers.Get("Authorization") != "Bearer "+tc.key {
+					t.Fatal("execution used stale key or endpoint instead of current storage")
+				}
+			})
+		}
+	}
+}
+
 func TestCredentialBaseURLExecutionPrecedence(t *testing.T) {
 	for _, stream := range []bool{false, true} {
 		for _, base := range []string{"", "https://credential.test/v1"} {
@@ -256,6 +297,28 @@ func TestCredentialBaseURLExecutionPrecedence(t *testing.T) {
 					t.Fatalf("URL=%v want=%s", got, want+"/chat/completions")
 				}
 			})
+		}
+	}
+}
+
+func TestQuotaUsesCurrentStorageCredential(t *testing.T) {
+	for _, attrs := range []map[string]string{nil, {"api_key": "synthetic-old-key", "base_url": "https://old.test/v1"}} {
+		f := &fakeCaller{responder: func(method string, payload []byte) ([]byte, error) {
+			if method != pluginabi.MethodHostHTTPDo {
+				return hostOK(struct{}{}), nil
+			}
+			var req pluginapi.HTTPRequest
+			_ = json.Unmarshal(payload, &req)
+			if req.URL != "https://current.test/v1/usage" || req.Headers.Get("Authorization") != "Bearer synthetic-current-key" {
+				t.Error("quota used stale key or endpoint instead of current storage")
+			}
+			return hostOK(pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(`{"usage":{"rolling":{"percent":1}}}`)}), nil
+		}}
+		m := NewManager(NewHostBridge(f.call))
+		m.cfg.BaseURL = config.DefaultBaseURL
+		result, err := m.FetchQuota(context.Background(), pluginapi.QuotaFetchRequest{Provider: ProviderID, Attributes: attrs, StorageJSON: []byte(`{"api_key":"synthetic-current-key","base_url":"https://current.test/v1/"}`)})
+		if err != nil || len(result.Groups) == 0 {
+			t.Fatalf("quota rejected current storage credential: %v", err)
 		}
 	}
 }
