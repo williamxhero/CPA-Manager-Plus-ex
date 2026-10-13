@@ -1,4 +1,11 @@
 {
+  "quota_error": {
+    "stale_cache": "The quota cache is stale and the background refresh did not succeed. Sign in to the Alibaba Cloud Bailian console again in the browser, then retry (the background task refreshes every 10 minutes).",
+    "not_logged_in": "The Bailian console sign-in has expired. Sign in again in the browser, then retry.",
+    "browser_unavailable": "The browser used for quota reads is not connected (missing bsk extension, or the browser is closed). Fix that and retry.",
+    "console_error": "The Bailian console returned an error. Try again later.",
+    "invalid_arguments": "Invalid quota command arguments. Check the plugin configuration."
+  },
   "qwen_quota": {
     "plan": "Plan",
     "quota": "Quota",
