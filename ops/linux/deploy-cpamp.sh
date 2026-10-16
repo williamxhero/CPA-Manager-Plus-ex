@@ -7,6 +7,9 @@
 #       3 failed deployment restored, 4 rollback failed, 5 result write failed.
 set -Eeuo pipefail
 umask 077
+# ERR traps can run inside a silenced SSH function; keep sanitized outcomes
+# on the original output stream, independently of command redirections.
+exec 3>&1
 HOST=yosef-server ROOT=/data/cpa/CPA-Manager SERVICE=cpa-manager.service
 HEALTH_URL=http://127.0.0.1:18317/health
 ARTIFACT_DIR="" VERSION="" RESULT_PATH=""
@@ -43,7 +46,7 @@ STEPS=() HEALTH=()
 q() { printf '%q' "$1"; }
 rssh() { ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" "bash -c $(q "set -euo pipefail; $1")"; }
 sha() { sha256sum "$1" | cut -d' ' -f1; }
-step() { PHASE="$1"; STEPS+=("$1"); printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$1"; }
+step() { PHASE="$1"; STEPS+=("$1"); printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$1" >&3; }
 finish() {
   local status="$1" code="$2" after_app after_panel
   after_app=$(rssh "readlink -f $(q "$ROOT/app/current")" 2>/dev/null || true)
@@ -68,9 +71,9 @@ try:
 except OSError:
     sys.exit(1)
 PY
-    then printf 'RESULT: result_write_failed\n'; exit 5; fi
+    then printf 'RESULT: result_write_failed\n' >&3; exit 5; fi
   fi
-  printf 'RESULT: %s\n' "$status"
+  printf 'RESULT: %s\n' "$status" >&3
   exit "$code"
 }
 cleanup() {
@@ -113,7 +116,7 @@ rollback() {
 failed() {
   trap - ERR INT TERM
   FAIL_PHASE="$PHASE"
-  printf 'FAILED: %s\n' "$PHASE"
+  printf 'FAILED: %s\n' "$PHASE" >&3
   if [[ "$ROLLBACK_ONLY" == 1 ]]; then finish rollback_failed 4; fi
   if [[ "$BACKUP_READY" == 1 && "$MUTATED" == 1 ]]; then
     step rollback
@@ -128,14 +131,19 @@ step preflight
 CHECKS="$(dirname "$(readlink -f "$0")")/deploy-check.py"
 CHECK_CODE=$(<"$CHECKS")
 CHECK_RUN="python3 -c $(q "$CHECK_CODE")"
-rssh "command -v python3 >/dev/null; test -d $(q "$ROOT/app"); test -d $(q "$ROOT/panel"); test -L $(q "$ROOT/app/current"); test -L $(q "$ROOT/panel/current")" >/dev/null 2>&1
+rssh "command -v python3 >/dev/null; test -d $(q "$ROOT/app"); test -d $(q "$ROOT/panel")" >/dev/null 2>&1
+if [[ "$ROLLBACK_ONLY" != 1 ]]; then
+  rssh "test -L $(q "$ROOT/app/current"); test -L $(q "$ROOT/panel/current")" >/dev/null 2>&1
+fi
 if [[ "$DRY_RUN" != 1 ]]; then
   rssh "mkdir $(q "$ROOT/.deploy-lock")" >/dev/null 2>&1
   LOCKED=1
 fi
-CURRENT_APP=$(rssh "readlink -f $(q "$ROOT/app/current")" 2>/dev/null)
-CURRENT_PANEL=$(rssh "readlink -f $(q "$ROOT/panel/current")" 2>/dev/null)
-rssh "test -x $(q "$CURRENT_APP/cpa-manager-plus"); test -f $(q "$CURRENT_PANEL/management.html")" >/dev/null 2>&1
+CURRENT_APP=$(rssh "readlink -f $(q "$ROOT/app/current")" 2>/dev/null || true)
+CURRENT_PANEL=$(rssh "readlink -f $(q "$ROOT/panel/current")" 2>/dev/null || true)
+if [[ "$ROLLBACK_ONLY" != 1 ]]; then
+  rssh "test -x $(q "$CURRENT_APP/cpa-manager-plus"); test -f $(q "$CURRENT_PANEL/management.html")" >/dev/null 2>&1
+fi
 if [[ "$ROLLBACK_ONLY" == 1 ]]; then
   [[ "$DRY_RUN" != 1 ]]
   # Only completed backups are eligible; an interrupted backup is never latest.

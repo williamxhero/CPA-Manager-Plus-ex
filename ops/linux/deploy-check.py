@@ -9,7 +9,14 @@ import socket
 import sys
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
-from urllib.request import build_opener, ProxyHandler
+from urllib.request import build_opener, HTTPRedirectHandler, ProxyHandler
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, url):
+        # The checked listener must itself answer; never borrow another process
+        # or leave loopback while following a deployment health URL.
+        return None
 
 
 def health(pid, binary, url, marker):
@@ -50,7 +57,7 @@ def health(pid, binary, url, marker):
                 owns_listener |= host == "::" or host in hosts
     if not owns_listener:
         return False
-    opener = build_opener(ProxyHandler({}))
+    opener = build_opener(ProxyHandler({}), NoRedirect())
     try:
         with opener.open(url, timeout=2) as response:
             code, body = response.status, response.read(65536)

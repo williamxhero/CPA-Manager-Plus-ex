@@ -61,6 +61,9 @@ int main(int argc, char **argv) {
         int len = snprintf(response, sizeof response,
             "HTTP/1.1 %s\r\nConnection: close\r\nContent-Length: %zu\r\n\r\n%s",
             failure ? "503 Unavailable" : getenv("AUTH_REQUIRED") ? "401 Unauthorized" : "200 OK", strlen(body), body);
+        const char *redirect = getenv("REDIRECT_TO");
+        if (redirect) len = snprintf(response, sizeof response,
+            "HTTP/1.1 302 Found\r\nLocation: %s\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", redirect);
         write(client, response, len);
         close(client);
     }

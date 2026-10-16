@@ -131,6 +131,7 @@ class DeployTests(unittest.TestCase):
         self.run = subprocess.run(command + list(args), env=dict(self.env, FAILURE=failure),
                                   capture_output=True, text=True, timeout=20)
         self.assertNotIn("synthetic-secret-canary", self.run.stdout + self.run.stderr)
+        self.assertIn("RESULT:", self.run.stdout, self.run.stdout + self.run.stderr)
         self.assertTrue(self.result.exists(), self.run.stdout + self.run.stderr)
         self.report = json.loads(self.result.read_text())
         self.assertNotIn("synthetic-secret-canary", self.result.read_text())
@@ -264,6 +265,27 @@ exec /bin/{command} "$@"
         self.assertEqual((self.root / "app/current").resolve(), self.root / "app/old")
         self.assertEqual((self.root / "config.yaml").read_text(), self.old_config)
 
+    def test_core_symlinked_plugins_cannot_escape_rehearsal(self):
+        self.fixture("core")
+        protected = self.tmp / "protected-plugins"
+        shutil.move(self.root / "plugins", protected)
+        (self.root / "plugins").symlink_to(protected)
+        config = self.root / "config.yaml.final"
+        config.write_text(config.read_text() + f"delete-plugin: {self.root}/plugins/linux/amd64/qwen-cliproxyapi.so\n")
+        before = snapshot(protected)
+        self.assertEqual(self.run_deploy("--dry-run").returncode, 2)
+        self.assertEqual(snapshot(protected), before)
+
+    def test_core_linked_plugin_file_is_not_a_trusted_snapshot(self):
+        self.fixture("core")
+        plugin = self.root / "plugins/linux/amd64/qwen-cliproxyapi.so"
+        external = self.tmp / "external-plugin.so"
+        plugin.rename(external)
+        plugin.symlink_to(external)
+        self.assertEqual(self.run_deploy("--dry-run").returncode, 2)
+        self.assertEqual(external.read_text(), "original-plugin")
+        self.assertTrue(plugin.is_symlink())
+
     def test_core_inline_plugin_path_is_rejected_before_rehearsal(self):
         self.fixture("core")
         config = self.root / "config.yaml.final"
@@ -287,6 +309,10 @@ exec /bin/{command} "$@"
         self.assertEqual((self.root / "panel/current").resolve().name, "vnew")
         self.assertEqual((self.root / "current_release.txt").read_text(), "new\n")
         shutil.rmtree(self.artifacts)
+        (self.root / "app" / self.version / self.name).unlink()
+        (self.root / "panel/vnew/management.html").unlink()
+        (self.root / "app/current").unlink()
+        (self.root / "panel/current").unlink()
         (self.root / "deploy-backups/zzzz-incomplete").mkdir()
         self.assertEqual(self.run_deploy("--rollback-only").returncode, 0, self.run.stdout + self.run.stderr)
         self.assertEqual(self.report["status"], "rolled_back")
@@ -338,6 +364,28 @@ exec /bin/cp "${@: -2:1}" "$dest"
     def test_manager_foreign_healthy_process_is_not_accepted(self):
         self.fixture("manager")
         self.assertEqual(self.run_deploy(failure="foreign").returncode, 3)
+        self.assertEqual(self.report["status"], "rolled_back")
+        self.assert_restored()
+
+    def test_manager_health_redirect_cannot_borrow_foreign_success(self):
+        self.fixture("manager")
+        foreign_port = free_port()
+        self.env["REDIRECT_PORT"] = str(foreign_port)
+        foreign = self.tmp / "foreign-service"
+        shutil.copy2(self.binary, foreign)
+        process = subprocess.Popen([str(foreign)], env=dict(self.env, HTTP_ADDR=f"127.0.0.1:{foreign_port}"),
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(process.wait)
+        self.addCleanup(process.terminate)
+        for _ in range(50):
+            try:
+                with socket.create_connection(("127.0.0.1", foreign_port), timeout=.1):
+                    break
+            except OSError:
+                time.sleep(.02)
+        else:
+            self.fail("foreign fixture listener did not start")
+        self.assertEqual(self.run_deploy(failure="redirect-new").returncode, 3)
         self.assertEqual(self.report["status"], "rolled_back")
         self.assert_restored()
 

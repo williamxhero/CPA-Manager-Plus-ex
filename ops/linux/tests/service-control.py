@@ -5,6 +5,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import time
 
 state = Path(os.environ["SERVICE_STATE"])
 root = Path(os.environ["DEPLOY_ROOT"])
@@ -35,12 +36,24 @@ if pid > 1:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
         pass
+    # Like systemd restart, wait for the old process to release its listener.
+    for _ in range(100):
+        try:
+            if Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] == "Z":
+                break
+        except FileNotFoundError:
+            break
+        time.sleep(.01)
+    else:
+        sys.exit(1)
 if failure in ("foreign", "foreign401") and new:
     current = root / "app/old"
 name = "cli-proxy-api" if kind == "core" else "cpa-manager-plus"
 env = dict(os.environ, HTTP_ADDR="127.0.0.1:" + os.environ["SERVICE_PORT"])
 if failure == "foreign401" and new:
     env["AUTH_REQUIRED"] = "1"
+if failure == "redirect-new" and new:
+    env["REDIRECT_TO"] = "http://127.0.0.1:" + os.environ["REDIRECT_PORT"] + "/health"
 if failure == "health-all" or (failure in ("health-new", "restart-old") and new):
     env["BAD_HEALTH"] = "1"
 command = [str(current / name)]

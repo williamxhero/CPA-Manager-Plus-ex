@@ -49,8 +49,10 @@ filesystem tools, user systemd, and core-side util-linux `flock`. Keep
 passes the checker to remote Python3 through SSH; it needs no remote helper
 installation. The service's **MainPID must be the foreground deployed binary**,
 not a shell wrapper. Health URLs must be local HTTP loopback endpoints owned by
-that process. Socket/executable ownership is checked before the response; core
-accepts 200/401, Manager requires 200 plus its service marker.
+that process. Socket/executable ownership is checked before the response and
+executable identity rechecked afterward. HTTP redirects and environment proxies
+are disabled: success must come from that listener. Core accepts 200/401,
+Manager requires 200 plus its service marker.
 
 Core retains `-DryRun`, `-NoRestart`, `--dry-run`, `--no-restart` and its 8.0.15
 default. Explicit isolation flags are documented in its `--help`: root, staged
@@ -65,9 +67,12 @@ execution, and actually starts the new binary. The binary is the configuration
 syntax validator; `--help` is not. Ambiguous port/plugin layouts (including
 inline plugin directory mappings) fail closed. This is a deliberately narrow
 adapter for existing configuration formats, **not a general YAML converter**.
-Rehearsal proves startup/health, not equality of provider/credential semantics;
-real binary/plugin compatibility and host-only settings still require separate
-acceptance. Never point a rehearsal configuration at independently writable host
+Rehearsal proves startup/health, not equality of provider/credential semantics.
+It preserves staged inline API/provider/management key values in private scratch;
+it is **not a credential sanitizer**. Only synthetic configurations are used or
+authorized for this task. Any later invocation with real staged credentials
+requires its own authorization. Real binary/plugin compatibility and host-only
+settings still require separate acceptance. Never point a rehearsal configuration at independently writable host
 resources; extend the adapter and tests first for any new path-bearing schema.
 
 Manager retains the existing SSH/artifact/version flags and adds a configurable
@@ -80,8 +85,9 @@ an old release. A per-root lock rejects overlapping mutating Manager runs; core
 locks the existing root inode. Stale Manager locks after a controller crash
 require operator inspection, not automatic deletion.
 
-Backups are private, per-run directories. Core snapshots old release/config and
-the entire plugin tree, then restores pointer/config/plugins and verifies them
+Backups are private, per-run directories. Symlinked plugin directories/files
+are rejected before core rehearsal/backup, so copied plugins cannot alias a live
+external tree. Core snapshots old release/config and the entire plugin tree, then restores pointer/config/plugins and verifies them
 before restart/health. A failed plugin tree is retained under a run-specific
 name for diagnosis; it is not treated as the restored tree. Manager snapshots
 app/panel destinations plus exact release-text content or its original absence.
