@@ -143,7 +143,12 @@ Observed red regressions before the fixes:
   recovery after a failed move, and unsanitized command stderr. Those paths are
   covered in the retained regression suite.
 
-The current suite covers positive, failure, recovery-failure and isolation
-contracts. Hermes owns **independent acceptance**, integration and any separately
-authorized live deployment. This task performs no live deployment, merge,
+The current suite contains **29 passing cases** covering positive, failure,
+recovery-failure and isolation contracts; full code-candidate run on `9b1b68d5`
+took 58.581 seconds. Bash syntax and Python AST checks also passed. A separate
+container probe executing the original `f3e078e6` script confirmed that its
+`app-current.old` becomes a directory symlink (`read_text` raises
+`IsADirectoryError`), independently of the patched pointer-metadata test.
+Hermes owns **independent acceptance**, integration and any separately authorized
+live deployment. This task performs no live deployment, merge,
 release or issue closure, and proves no real no-interruption window.
