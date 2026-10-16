@@ -128,9 +128,7 @@ describe('GitHub Actions workflow integrity', () => {
     const packageJson = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
     expect(packageJson.scripts.test).toContain('test:web');
     expect(packageJson.scripts.test).toContain('test:repo');
-    expect(packageJson.scripts['test:repo']).toBe(
-      'vitest run tests/*.test.mjs --exclude tests/nativeControlScripts.test.mjs'
-    );
+    expect(packageJson.scripts['test:repo']).toBe('node bin/test-repo.mjs');
   });
 
   it('uses NUL-delimited Git paths before classification and release validation', () => {

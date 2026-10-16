@@ -19,6 +19,12 @@ const releasePaths = {
   telegram: `docs/release-posts/${releaseTag}-telegram.html`,
 };
 
+const fixturePathStyles = [
+  ['POSIX', path.posix],
+  ['Windows', path.win32],
+];
+const fixtureKey = (filePath) => filePath.replaceAll('\\', '/').split('/').slice(-3).join('/');
+
 const validMetadata = {
   summary: {
     zh: '更新说明',
@@ -105,96 +111,105 @@ describe('release content validation', () => {
     expect(() => validateTelegramHtml('<b>&bogus;</b>')).toThrow('invalid or unescaped');
   });
 
-  it('requires all three release files before publishing', () => {
-    const contents = new Map([
-      [releasePaths.chinese, chineseNotes],
-      [releasePaths.english, englishNotes],
-      [releasePaths.telegram, telegramPost],
-    ]);
-    const readFile = (filePath) => contents.get(filePath.split('/').slice(-3).join('/'));
-    const fileExists = (filePath) => contents.has(filePath.split('/').slice(-3).join('/'));
+  it.each(fixturePathStyles)(
+    'requires all three release files before publishing (%s paths)',
+    (_name, style) => {
+      const contents = new Map([
+        [releasePaths.chinese, chineseNotes],
+        [releasePaths.english, englishNotes],
+        [releasePaths.telegram, telegramPost],
+      ]);
+      const readFile = (filePath) => contents.get(fixtureKey(style.resolve(filePath)));
+      const fileExists = (filePath) => contents.has(fixtureKey(style.resolve(filePath)));
 
-    expect(validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toMatchObject({
-      paths: releasePaths,
-    });
-    contents.delete(releasePaths.telegram);
-    expect(() => validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toThrow(
-      'Missing required release files'
-    );
-  });
+      expect(validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toMatchObject({
+        paths: releasePaths,
+      });
+      contents.delete(releasePaths.telegram);
+      expect(() => validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toThrow(
+        'Missing required release files'
+      );
+    }
+  );
 
-  it('requires valid cpamp-update metadata in Chinese release notes', () => {
-    const contents = new Map([
-      [releasePaths.chinese, chineseNotes],
-      [releasePaths.english, englishNotes],
-      [releasePaths.telegram, telegramPost],
-    ]);
-    const readFile = (filePath) => contents.get(filePath.split('/').slice(-3).join('/'));
-    const fileExists = (filePath) => contents.has(filePath.split('/').slice(-3).join('/'));
+  it.each(fixturePathStyles)(
+    'requires valid cpamp-update metadata in Chinese release notes (%s paths)',
+    (_name, style) => {
+      const contents = new Map([
+        [releasePaths.chinese, chineseNotes],
+        [releasePaths.english, englishNotes],
+        [releasePaths.telegram, telegramPost],
+      ]);
+      const readFile = (filePath) => contents.get(fixtureKey(style.resolve(filePath)));
+      const fileExists = (filePath) => contents.has(fixtureKey(style.resolve(filePath)));
 
-    // Valid release content passes.
-    expect(validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toMatchObject({
-      paths: releasePaths,
-    });
+      // Valid release content passes.
+      expect(validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toMatchObject({
+        paths: releasePaths,
+      });
 
-    // Missing metadata block fails.
-    contents.set(releasePaths.chinese, notesWithoutMetadata);
-    expect(() => validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toThrow(
-      'Release notes require exactly one cpamp-update JSON comment'
-    );
+      // Missing metadata block fails.
+      contents.set(releasePaths.chinese, notesWithoutMetadata);
+      expect(() => validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toThrow(
+        'Release notes require exactly one cpamp-update JSON comment'
+      );
 
-    // Malformed JSON fails.
-    contents.set(releasePaths.chinese, makeChineseNotes('{ invalid json'));
-    expect(() => validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toThrow();
+      // Malformed JSON fails.
+      contents.set(releasePaths.chinese, makeChineseNotes('{ invalid json'));
+      expect(() => validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toThrow();
 
-    // Missing required field (breaking) fails.
-    const missingBreaking = JSON.parse(JSON.stringify(validMetadata));
-    delete missingBreaking.update.breaking;
-    contents.set(releasePaths.chinese, makeChineseNotes(missingBreaking));
-    expect(() => validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toThrow(
-      'Explicit update flags required'
-    );
-  });
+      // Missing required field (breaking) fails.
+      const missingBreaking = JSON.parse(JSON.stringify(validMetadata));
+      delete missingBreaking.update.breaking;
+      contents.set(releasePaths.chinese, makeChineseNotes(missingBreaking));
+      expect(() => validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toThrow(
+        'Explicit update flags required'
+      );
+    }
+  );
 
-  it('validates every release tag represented by changed release paths and fails on bad metadata', () => {
-    const contents = new Map([
-      [releasePaths.chinese, chineseNotes],
-      [releasePaths.english, englishNotes],
-      [releasePaths.telegram, telegramPost],
-    ]);
-    const readFile = (filePath) => contents.get(filePath.split('/').slice(-3).join('/'));
-    const fileExists = (filePath) => contents.has(filePath.split('/').slice(-3).join('/'));
+  it.each(fixturePathStyles)(
+    'validates every release tag represented by changed release paths and fails on bad metadata (%s paths)',
+    (_name, style) => {
+      const contents = new Map([
+        [releasePaths.chinese, chineseNotes],
+        [releasePaths.english, englishNotes],
+        [releasePaths.telegram, telegramPost],
+      ]);
+      const readFile = (filePath) => contents.get(fixtureKey(style.resolve(filePath)));
+      const fileExists = (filePath) => contents.has(fixtureKey(style.resolve(filePath)));
 
-    expect(
-      validateChangedReleaseContent({
-        changedFiles: Object.values(releasePaths),
-        readFile,
-        fileExists,
-      })
-    ).toMatchObject({
-      tags: [releaseTag],
-      releases: [expect.objectContaining({ paths: releasePaths })],
-    });
+      expect(
+        validateChangedReleaseContent({
+          changedFiles: Object.values(releasePaths),
+          readFile,
+          fileExists,
+        })
+      ).toMatchObject({
+        tags: [releaseTag],
+        releases: [expect.objectContaining({ paths: releasePaths })],
+      });
 
-    // changed-content gate fails when metadata is missing
-    contents.set(releasePaths.chinese, notesWithoutMetadata);
-    expect(() =>
-      validateChangedReleaseContent({
-        changedFiles: Object.values(releasePaths),
-        readFile,
-        fileExists,
-      })
-    ).toThrow('Release notes require exactly one cpamp-update JSON comment');
+      // changed-content gate fails when metadata is missing
+      contents.set(releasePaths.chinese, notesWithoutMetadata);
+      expect(() =>
+        validateChangedReleaseContent({
+          changedFiles: Object.values(releasePaths),
+          readFile,
+          fileExists,
+        })
+      ).toThrow('Release notes require exactly one cpamp-update JSON comment');
 
-    contents.set(releasePaths.chinese, chineseNotes);
-    expect(() =>
-      validateChangedReleaseContent({
-        changedFiles: ['docs/release-notes/README.md'],
-        readFile,
-        fileExists,
-      })
-    ).toThrow('Unexpected release content path');
-  });
+      contents.set(releasePaths.chinese, chineseNotes);
+      expect(() =>
+        validateChangedReleaseContent({
+          changedFiles: ['docs/release-notes/README.md'],
+          readFile,
+          fileExists,
+        })
+      ).toThrow('Unexpected release content path');
+    }
+  );
 });
 
 const makeTopologyGit = ({ extraDevChange = false, promotionTreeDrift = false, tagSha } = {}) => {

@@ -1,34 +1,19 @@
 #!/usr/bin/env bash
-# deploy-cpamp.sh — agent-less, seamless CPA Manager Plus deployment for Linux
-# (SPEC #62; the Linux counterpart of ops/windows/deploy-cpamp.ps1).
-#
-# Properties:
-#   * --dry-run performs preflight + rehearsal only; no release switch, no restart.
-#   * Every run backs up the current release pointer and binary first.
-#   * A failed replace/health step automatically rolls back to the backup and
-#     re-checks health, so users are never left on a broken release.
-#   * Machine-readable result JSON (fields aligned with the Windows script).
-#
-# Usage:
-#   deploy-cpamp.sh --artifact-dir DIR [--host SSH] [--version V] [--dry-run]
-#                   [--rollback-only] [--result-path FILE] [--isolated-port N]
-set -euo pipefail
-
-HOST="yosef-server"
-ROOT="/data/cpa/CPA-Manager"
-SERVICE="cpa-manager.service"
-HEALTH_URL="http://127.0.0.1:18317/health"
-MARKER="cpa-manager-plus"
-ARTIFACT_DIR=""
-VERSION=""
-DRY_RUN=0
-ROLLBACK_ONLY=0
-RESULT_PATH=""
-ISOLATED_PORT=19317
-TIMEOUT_SECONDS=90
-
-log() { printf '%s [%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2"; }
-
+# Agent-less Linux Manager deployment (#62).
+# --artifact-dir DIR [--host SSH] [--root DIR] [--service NAME] [--version V]
+# [--dry-run] [--rollback-only] [--result-path FILE] [--isolated-port PORT]
+# [--health-url URL] [--health-timeout SECONDS]
+# Exit: 0 deployed/dry-run/explicit rollback, 2 preflight/rehearsal failed,
+#       3 failed deployment restored, 4 rollback failed, 5 result write failed.
+set -Eeuo pipefail
+umask 077
+# ERR traps can run inside a silenced SSH function; keep sanitized outcomes
+# on the original output stream, independently of command redirections.
+exec 3>&1
+HOST=yosef-server ROOT=/data/cpa/CPA-Manager SERVICE=cpa-manager.service
+HEALTH_URL=http://127.0.0.1:18317/health
+ARTIFACT_DIR="" VERSION="" RESULT_PATH=""
+DRY_RUN=0 ROLLBACK_ONLY=0 ISOLATED_PORT=19317 TIMEOUT_SECONDS=90
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --host) HOST="$2"; shift 2;;
@@ -38,170 +23,193 @@ while [[ $# -gt 0 ]]; do
     --artifact-dir) ARTIFACT_DIR="$2"; shift 2;;
     --version) VERSION="$2"; shift 2;;
     --isolated-port) ISOLATED_PORT="$2"; shift 2;;
+    --health-timeout) TIMEOUT_SECONDS="$2"; shift 2;;
     --result-path) RESULT_PATH="$2"; shift 2;;
     --dry-run) DRY_RUN=1; shift;;
     --rollback-only) ROLLBACK_ONLY=1; shift;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0;;
-    *) echo "unknown argument: $1" >&2; exit 2;;
+    -h|--help) sed -n '2,7p' "$0"; exit 0;;
+    *) printf 'Unknown argument\n' >&2; exit 2;;
   esac
 done
-
-[[ -n "$ARTIFACT_DIR" ]] || { echo "--artifact-dir is required" >&2; exit 2; }
-BIN="$ARTIFACT_DIR/cpa-manager-plus"
-PANEL="$ARTIFACT_DIR/management.html"
-[[ -f "$BIN" ]] || { echo "missing $BIN" >&2; exit 2; }
-[[ -f "$PANEL" ]] || { echo "missing $PANEL" >&2; exit 2; }
-
-sha() { python -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$1"; }
-BIN_SHA="$(sha "$BIN")"
-PANEL_SHA="$(sha "$PANEL")"
-STAMP="$(date -u +%Y%m%d-%H%M%S)"
-[[ -n "$VERSION" ]] || VERSION="$(date -u +%Y%m%d%H%M%S)"
+[[ "$ROOT" == /* && "$ISOLATED_PORT" =~ ^[0-9]+$ && "$TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || exit 2
+[[ "$ISOLATED_PORT" -gt 1024 && "$ISOLATED_PORT" -lt 65536 && "$ISOLATED_PORT" != 8000 && "$ISOLATED_PORT" != 8080 && "$TIMEOUT_SECONDS" -gt 0 ]] || exit 2
+VERSION=${VERSION:-$(date -u +%Y%m%d%H%M%S)}
+[[ "$VERSION" =~ ^[A-Za-z0-9._-]+$ && "$HOST" != -* ]] || exit 2
 RELEASE="cpa-manager-plus_v${VERSION}_linux_amd64"
 PANEL_REL="v${VERSION}"
-
-rssh() { ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" "$@"; }
-remote_health() {
-  rssh "curl -fsS --max-time 5 '$HEALTH_URL'" 2>/dev/null | grep -q "$MARKER"
-}
-restart_service() {
-  rssh "export XDG_RUNTIME_DIR=/run/user/\$(id -u); systemctl --user restart '$SERVICE'" >/dev/null 2>&1
-}
-
-STEPS=()
-HEALTH=()
-add_step() { STEPS+=("{\"name\":\"$1\",\"status\":\"$2\",\"detail\":\"${3//\"/}\"}"); }
-add_health() { HEALTH+=("{\"check\":\"$1\",\"ok\":$2,\"detail\":\"${3//\"/}\"}"); }
-
-finish() {
-  local status="$1" started="$2"
-  local ended; ended="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  local secs=$(( $(date -u +%s) - STARTED_EPOCH ))
-  if [[ -n "$RESULT_PATH" ]]; then
-    {
-      printf '{"startedAt":"%s","finishedAt":"%s","durationSeconds":%d,' "$started" "$ended" "$secs"
-      printf '"target":"%s","serviceName":"%s","status":"%s","version":"%s","dryRun":%s,' \
-             "$HOST" "$SERVICE" "$status" "$VERSION" "$([[ $DRY_RUN == 1 ]] && echo true || echo false)"
-      printf '"artifact":{"exeSha256":"%s","panelSha256":"%s","release":"%s"},' "$BIN_SHA" "$PANEL_SHA" "$RELEASE"
-      printf '"steps":[%s],"health":[%s]}\n' "$(IFS=,; echo "${STEPS[*]:-}")" "$(IFS=,; echo "${HEALTH[*]:-}")"
-    } > "$RESULT_PATH"
-  fi
-  log "RESULT" "$status; exit=$([[ $status == deployed ]] && echo 0 || echo 1); dryRun=$([[ $DRY_RUN == 1 ]] && echo true || echo false)"
-}
-
-STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-STARTED_EPOCH="$(date -u +%s)"
-
-# ---------------------------------------------------------------- preflight
-if ! rssh "true" 2>/dev/null; then
-  add_step preflight failed "cannot ssh $HOST"
-  finish preflight_failed "$STARTED"; exit 2
-fi
-if ! rssh "test -d '$ROOT/app' -a -d '$ROOT/panel'"; then
-  add_step preflight failed "remote layout missing under $ROOT"
-  finish preflight_failed "$STARTED"; exit 2
-fi
-CURRENT_APP="$(rssh "readlink -f '$ROOT/app/current'" 2>/dev/null || true)"
-CURRENT_PANEL="$(rssh "readlink -f '$ROOT/panel/current'" 2>/dev/null || true)"
-add_step preflight ok "current app=$CURRENT_APP panel=$CURRENT_PANEL"
-
-# ---------------------------------------------------------------- rollback-only
-if [[ $ROLLBACK_ONLY == 1 ]]; then
-  LATEST_BACKUP="$(rssh "ls -1d '$ROOT/deploy-backups'/* 2>/dev/null | tail -1" || true)"
-  if [[ -z "$LATEST_BACKUP" ]]; then
-    add_step rollback failed "no backup found"; finish rollback_failed "$STARTED"; exit 1
-  fi
-  rssh "ln -sfn '$LATEST_BACKUP/app' '$ROOT/app/current' && ln -sfn '$LATEST_BACKUP/panel' '$ROOT/panel/current'"
-  restart_service
-  if remote_health; then
-    add_step rollback ok "restored $LATEST_BACKUP"
-    add_health service true "health ok after rollback"
-    finish rolled_back "$STARTED"; exit 0
-  fi
-  add_step rollback failed "health failed after rollback"
-  finish rollback_failed "$STARTED"; exit 1
-fi
-
-# ---------------------------------------------------------------- backup
+STAMP="$(date -u +%Y%m%d-%H%M%S-%N)-$$"
+STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ) STARTED_EPOCH=$(date +%s)
 BACKUP_DIR="$ROOT/deploy-backups/$STAMP"
-if [[ $DRY_RUN == 1 ]]; then
-  # dry-run must not touch the host: verify the backup is *possible* instead.
-  if rssh "test -r '$CURRENT_APP' -a -d '$ROOT/deploy-backups' -a -w '$ROOT/deploy-backups'"; then
-    add_step backup ok "dry-run: backup feasible ($BACKUP_DIR would be created)"
-  else
-    add_step backup failed "dry-run: cannot read current release or write backups"
-    finish preflight_failed "$STARTED"; exit 1
+PHASE=preflight FAIL_PHASE="" MUTATED=0 BACKUP_READY=0 REHEARSAL_DIR="" LOCKED=0
+CURRENT_APP="" CURRENT_PANEL="" BIN_SHA="" PANEL_SHA=""
+STEPS=() HEALTH=()
+q() { printf '%q' "$1"; }
+rssh() { ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" "bash -c $(q "set -euo pipefail; $1")"; }
+sha() { sha256sum "$1" | cut -d' ' -f1; }
+step() { PHASE="$1"; STEPS+=("$1"); printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$1" >&3; }
+finish() {
+  local status="$1" code="$2" after_app after_panel
+  after_app=$(rssh "readlink -f $(q "$ROOT/app/current")" 2>/dev/null || true)
+  after_panel=$(rssh "readlink -f $(q "$ROOT/panel/current")" 2>/dev/null || true)
+  if [[ -n "$RESULT_PATH" ]]; then
+    if ! python3 - "$RESULT_PATH" "$status" "$STARTED" "$STARTED_EPOCH" "$HOST" "$SERVICE" "$VERSION" "$DRY_RUN" "$BACKUP_DIR" "$CURRENT_APP" "$CURRENT_PANEL" "$after_app" "$after_panel" "$BIN_SHA" "$PANEL_SHA" "$RELEASE" "${STEPS[*]}" "${HEALTH[*]}" "$FAIL_PHASE" <<'PY'
+import datetime, json, os, sys, time
+(p, status, started, epoch, host, service, version, dry, backup, before_app, before_panel,
+ after_app, after_panel, binary, panel, release, steps, health, failed) = sys.argv[1:]
+result = dict(startedAt=started, finishedAt=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              durationSeconds=int(time.time())-int(epoch), target=host, serviceName=service,
+              status=status, version=version, dryRun=dry=="1", backup=backup, failurePhase=failed,
+              before=dict(app=before_app, panel=before_panel), after=dict(app=after_app, panel=after_panel),
+              artifact=dict(exeSha256=binary, panelSha256=panel, release=release),
+              steps=[dict(name=s, status="failed" if s==failed else "ok") for s in steps.split()],
+              health=[dict(check=s, ok=True) for s in health.split()])
+if failed == "health": result["health"].append(dict(check="deployed", ok=False))
+if status == "rollback_failed": result["health"].append(dict(check="restored", ok=False))
+try:
+    with open(p+".tmp", "w") as f: json.dump(result, f); f.write("\n")
+    os.replace(p+".tmp", p)
+except OSError:
+    sys.exit(1)
+PY
+    then printf 'RESULT: result_write_failed\n' >&3; exit 5; fi
   fi
-else
-  rssh "mkdir -p '$BACKUP_DIR/app' '$BACKUP_DIR/panel' && \
-        cp -a '$CURRENT_APP/.' '$BACKUP_DIR/app/' 2>/dev/null || true; \
-        cp -a '$CURRENT_PANEL/.' '$BACKUP_DIR/panel/' 2>/dev/null || true; \
-        readlink -f '$ROOT/app/current' > '$BACKUP_DIR/app_target.txt'; \
-        readlink -f '$ROOT/panel/current' > '$BACKUP_DIR/panel_target.txt'" >/dev/null
-  add_step backup ok "$BACKUP_DIR"
-fi
+  printf 'RESULT: %s\n' "$status" >&3
+  exit "$code"
+}
+cleanup() {
+  # Only paths created and owned by this run. Never kill by pattern or port.
+  if [[ -n "$REHEARSAL_DIR" ]]; then rssh "rm -rf -- $(q "$REHEARSAL_DIR")" >/dev/null 2>&1 || true; fi
+  if [[ "$LOCKED" == 1 ]]; then rssh "rmdir -- $(q "$ROOT/.deploy-lock")" >/dev/null 2>&1 || true; fi
+}
+trap cleanup EXIT
+restart_service() { rssh "export XDG_RUNTIME_DIR=/run/user/\$(id -u); systemctl --user restart $(q "$SERVICE")" >/dev/null 2>&1; }
+remote_health() {
+  local binary="$1" deadline=$((SECONDS + TIMEOUT_SECONDS))
+  while (( SECONDS < deadline )); do
+    if rssh "export XDG_RUNTIME_DIR=/run/user/\$(id -u); pid=\$(systemctl --user show $(q "$SERVICE") --property MainPID --value); systemctl --user is-active --quiet $(q "$SERVICE"); $CHECK_RUN health --pid \"\$pid\" --binary $(q "$binary") --url $(q "$HEALTH_URL") --marker cpa-manager-plus" >/dev/null 2>&1; then return 0; fi
+    sleep 0.2
+  done
+  return 1
+}
+restore_files() {
+  rssh "test -f $(q "$BACKUP_DIR/complete");
+    app=\$(cat $(q "$BACKUP_DIR/app_target.txt")); panel=\$(cat $(q "$BACKUP_DIR/panel_target.txt"));
+    test -n \"\$app\"; test -n \"\$panel\";
+    diff -qr $(q "$BACKUP_DIR/app") \"\$app\" >/dev/null;
+    diff -qr $(q "$BACKUP_DIR/panel") \"\$panel\" >/dev/null;
+    ln -sfn \"\$app\" $(q "$ROOT/app/.current-$STAMP"); mv -Tf $(q "$ROOT/app/.current-$STAMP") $(q "$ROOT/app/current");
+    ln -sfn \"\$panel\" $(q "$ROOT/panel/.current-$STAMP"); mv -Tf $(q "$ROOT/panel/.current-$STAMP") $(q "$ROOT/panel/current");
+    if test -f $(q "$BACKUP_DIR/release-present"); then
+      cp -a $(q "$BACKUP_DIR/current_release.txt") $(q "$ROOT/.release-$STAMP");
+      mv -Tf $(q "$ROOT/.release-$STAMP") $(q "$ROOT/current_release.txt");
+      cmp -s $(q "$BACKUP_DIR/current_release.txt") $(q "$ROOT/current_release.txt");
+    else rm -f -- $(q "$ROOT/current_release.txt"); fi;
+    test \"\$(readlink -f $(q "$ROOT/app/current"))\" = \"\$app\";
+    test \"\$(readlink -f $(q "$ROOT/panel/current"))\" = \"\$panel\"" >/dev/null 2>&1
+}
+rollback() {
+  local old
+  restore_files &&
+    old=$(rssh "cat $(q "$BACKUP_DIR/app_target.txt")" 2>/dev/null) &&
+    restart_service && remote_health "$old/cpa-manager-plus"
+}
+failed() {
+  trap - ERR INT TERM
+  FAIL_PHASE="$PHASE"
+  printf 'FAILED: %s\n' "$PHASE" >&3
+  if [[ "$ROLLBACK_ONLY" == 1 ]]; then finish rollback_failed 4; fi
+  if [[ "$BACKUP_READY" == 1 && "$MUTATED" == 1 ]]; then
+    step rollback
+    if rollback; then HEALTH+=(restored); finish rolled_back 3; fi
+    finish rollback_failed 4
+  fi
+  finish preflight_failed 2
+}
+trap failed ERR INT TERM
 
-# ---------------------------------------------------------------- rehearsal
-rssh "rm -rf /tmp/cpamp-rehearsal && mkdir -p /tmp/cpamp-rehearsal" >/dev/null
-scp -q "$BIN" "$HOST:/tmp/cpamp-rehearsal/cpa-manager-plus"
-rssh "chmod +x /tmp/cpamp-rehearsal/cpa-manager-plus" >/dev/null
-REHEARSAL_OK=0
-if rssh "cd /tmp/cpamp-rehearsal && HTTP_ADDR=127.0.0.1:$ISOLATED_PORT USAGE_DATA_DIR=/tmp/cpamp-rehearsal/data \
-         nohup ./cpa-manager-plus >/tmp/cpamp-rehearsal/out.log 2>&1 & sleep 6; \
-         curl -fsS --max-time 5 http://127.0.0.1:$ISOLATED_PORT/health | grep -q '$MARKER'"; then
-  REHEARSAL_OK=1
+step preflight
+CHECKS="$(dirname "$(readlink -f "$0")")/deploy-check.py"
+CHECK_CODE=$(<"$CHECKS")
+CHECK_RUN="python3 -c $(q "$CHECK_CODE")"
+rssh "command -v python3 >/dev/null; test -d $(q "$ROOT/app"); test -d $(q "$ROOT/panel")" >/dev/null 2>&1
+if [[ "$ROLLBACK_ONLY" != 1 ]]; then
+  rssh "test -L $(q "$ROOT/app/current"); test -L $(q "$ROOT/panel/current")" >/dev/null 2>&1
 fi
-rssh "pkill -f 'cpamp-rehearsal' 2>/dev/null || true; \
-      (command -v fuser >/dev/null 2>&1 && fuser -k ${ISOLATED_PORT}/tcp >/dev/null 2>&1) || true; \
-      sleep 1; rm -rf /tmp/cpamp-rehearsal" >/dev/null 2>&1 || true
-if [[ $REHEARSAL_OK != 1 ]]; then
-  add_step rehearsal failed "new binary unhealthy on isolated port $ISOLATED_PORT"
-  finish rehearsal_failed "$STARTED"; exit 1
+if [[ "$DRY_RUN" != 1 ]]; then
+  rssh "mkdir $(q "$ROOT/.deploy-lock")" >/dev/null 2>&1
+  LOCKED=1
 fi
-add_step rehearsal ok "new binary healthy on isolated port $ISOLATED_PORT"
+CURRENT_APP=$(rssh "readlink -f $(q "$ROOT/app/current")" 2>/dev/null || true)
+CURRENT_PANEL=$(rssh "readlink -f $(q "$ROOT/panel/current")" 2>/dev/null || true)
+if [[ "$ROLLBACK_ONLY" != 1 ]]; then
+  rssh "test -x $(q "$CURRENT_APP/cpa-manager-plus"); test -f $(q "$CURRENT_PANEL/management.html")" >/dev/null 2>&1
+fi
+if [[ "$ROLLBACK_ONLY" == 1 ]]; then
+  [[ "$DRY_RUN" != 1 ]]
+  # Only completed backups are eligible; an interrupted backup is never latest.
+  BACKUP_DIR=$(rssh "find $(q "$ROOT/deploy-backups") -mindepth 2 -maxdepth 2 -type f -name complete -printf '%h\\n' | sort | tail -1" 2>/dev/null)
+  [[ -n "$BACKUP_DIR" ]]
+  step rollback
+  rollback
+  HEALTH+=(restored)
+  finish rolled_back 0
+fi
+[[ -n "$ARTIFACT_DIR" ]]
+BIN="$ARTIFACT_DIR/cpa-manager-plus" PANEL="$ARTIFACT_DIR/management.html"
+[[ -f "$BIN" && -f "$PANEL" ]]
+BIN_SHA=$(sha "$BIN") PANEL_SHA=$(sha "$PANEL")
+# Never overwrite an executable/panel directory that may belong to a running
+# or recoverable release. Callers must use a fresh version label.
+rssh "test ! -e $(q "$ROOT/app/$RELEASE"); test ! -e $(q "$ROOT/panel/$PANEL_REL"); test -w $(q "$ROOT")" >/dev/null 2>&1
 
-if [[ $DRY_RUN == 1 ]]; then
-  add_step dry_run ok "rehearsal only; no release switch"
-  add_health service true "unchanged"
-  finish deployed "$STARTED"; exit 0
-fi
+step rehearsal
+REHEARSAL_DIR=$(rssh 'mktemp -d /tmp/cpamp-rehearsal.XXXXXXXX' 2>/dev/null)
+[[ "$REHEARSAL_DIR" == /tmp/cpamp-rehearsal.* && "$REHEARSAL_DIR" != *$'\n'* ]]
+scp -q "$BIN" "$HOST:$REHEARSAL_DIR/cpa-manager-plus" >/dev/null 2>&1
+rssh "chmod +x $(q "$REHEARSAL_DIR/cpa-manager-plus");
+  cd $(q "$REHEARSAL_DIR");
+  HTTP_ADDR=127.0.0.1:$ISOLATED_PORT USAGE_DATA_DIR=$(q "$REHEARSAL_DIR/data") ./cpa-manager-plus >out.log 2>&1 &
+  pid=\$!;
+  trap 'kill \"\$pid\" 2>/dev/null || true; wait \"\$pid\" 2>/dev/null || true' EXIT;
+  deadline=\$((SECONDS + $TIMEOUT_SECONDS));
+  while (( SECONDS < deadline )); do
+    if $CHECK_RUN health --pid \"\$pid\" --binary $(q "$REHEARSAL_DIR/cpa-manager-plus") --url http://127.0.0.1:$ISOLATED_PORT/health --marker cpa-manager-plus; then exit 0; fi;
+    kill -0 \"\$pid\" 2>/dev/null || exit 1;
+    sleep 0.2;
+  done; exit 1" >/dev/null 2>&1
+HEALTH+=(rehearsal)
+rssh "rm -rf -- $(q "$REHEARSAL_DIR")" >/dev/null 2>&1
+REHEARSAL_DIR=""
+if [[ "$DRY_RUN" == 1 ]]; then finish deployed 0; fi
 
-# ---------------------------------------------------------------- replace
-rssh "mkdir -p '$ROOT/app/$RELEASE' '$ROOT/panel/$PANEL_REL'" >/dev/null
-scp -q "$BIN" "$HOST:$ROOT/app/$RELEASE/cpa-manager-plus"
-scp -q "$PANEL" "$HOST:$ROOT/panel/$PANEL_REL/management.html"
-rssh "chmod +x '$ROOT/app/$RELEASE/cpa-manager-plus'" >/dev/null
-REMOTE_BIN_SHA="$(rssh "sha256sum '$ROOT/app/$RELEASE/cpa-manager-plus' | cut -d' ' -f1")"
-REMOTE_PANEL_SHA="$(rssh "sha256sum '$ROOT/panel/$PANEL_REL/management.html' | cut -d' ' -f1")"
-if [[ "$REMOTE_BIN_SHA" != "$BIN_SHA" || "$REMOTE_PANEL_SHA" != "$PANEL_SHA" ]]; then
-  add_step replace failed "uploaded hashes do not match"
-  finish rehearsal_failed "$STARTED"; exit 1
-fi
-add_step replace ok "hashes verified on host"
+step backup
+rssh "umask 077; mkdir -p $(q "$BACKUP_DIR/app") $(q "$BACKUP_DIR/panel");
+  cp -a $(q "$CURRENT_APP/.") $(q "$BACKUP_DIR/app/");
+  cp -a $(q "$CURRENT_PANEL/.") $(q "$BACKUP_DIR/panel/");
+  printf '%s\\n' $(q "$CURRENT_APP") > $(q "$BACKUP_DIR/app_target.txt");
+  printf '%s\\n' $(q "$CURRENT_PANEL") > $(q "$BACKUP_DIR/panel_target.txt");
+  if test -e $(q "$ROOT/current_release.txt"); then
+    cp -a $(q "$ROOT/current_release.txt") $(q "$BACKUP_DIR/current_release.txt"); touch $(q "$BACKUP_DIR/release-present"); fi;
+  diff -qr $(q "$CURRENT_APP") $(q "$BACKUP_DIR/app") >/dev/null;
+  diff -qr $(q "$CURRENT_PANEL") $(q "$BACKUP_DIR/panel") >/dev/null;
+  touch $(q "$BACKUP_DIR/complete")" >/dev/null 2>&1
+BACKUP_READY=1
 
-# ---------------------------------------------------------------- switch + restart
-rssh "ln -sfn '$ROOT/app/$RELEASE' '$ROOT/app/current' && ln -sfn '$ROOT/panel/$PANEL_REL' '$ROOT/panel/current' && \
-      printf '%s\n' '$VERSION' > '$ROOT/current_release.txt'" >/dev/null
-add_step switch ok "current -> $RELEASE"
+step replace
+MUTATED=1
+rssh "mkdir $(q "$ROOT/app/$RELEASE") $(q "$ROOT/panel/$PANEL_REL")" >/dev/null 2>&1
+scp -q "$BIN" "$HOST:$ROOT/app/$RELEASE/cpa-manager-plus" >/dev/null 2>&1
+scp -q "$PANEL" "$HOST:$ROOT/panel/$PANEL_REL/management.html" >/dev/null 2>&1
+rssh "chmod +x $(q "$ROOT/app/$RELEASE/cpa-manager-plus");
+  test \"\$(sha256sum $(q "$ROOT/app/$RELEASE/cpa-manager-plus") | cut -d' ' -f1)\" = $(q "$BIN_SHA");
+  test \"\$(sha256sum $(q "$ROOT/panel/$PANEL_REL/management.html") | cut -d' ' -f1)\" = $(q "$PANEL_SHA")" >/dev/null 2>&1
+step switch
+rssh "ln -s $(q "$ROOT/app/$RELEASE") $(q "$ROOT/app/.current-$STAMP"); mv -Tf $(q "$ROOT/app/.current-$STAMP") $(q "$ROOT/app/current");
+  ln -s $(q "$ROOT/panel/$PANEL_REL") $(q "$ROOT/panel/.current-$STAMP"); mv -Tf $(q "$ROOT/panel/.current-$STAMP") $(q "$ROOT/panel/current");
+  printf '%s\\n' $(q "$VERSION") > $(q "$ROOT/.release-$STAMP"); mv -Tf $(q "$ROOT/.release-$STAMP") $(q "$ROOT/current_release.txt")" >/dev/null 2>&1
+step restart
 restart_service
-sleep 4
-
-# ---------------------------------------------------------------- health / rollback
-if remote_health; then
-  add_step health ok "HTTP 200 and marker verified"
-  add_health service true "health ok on $RELEASE"
-  finish deployed "$STARTED"; exit 0
-fi
-
-add_step health failed "health check failed on $RELEASE"
-rssh "ln -sfn '$CURRENT_APP' '$ROOT/app/current' && ln -sfn '$CURRENT_PANEL' '$ROOT/panel/current'" >/dev/null
-restart_service
-sleep 4
-if remote_health; then
-  add_step rollback ok "restored previous release after failed health"
-  add_health service true "health ok after rollback"
-  finish rolled_back "$STARTED"; exit 1
-fi
-add_step rollback failed "health still failing after rollback"
-add_health service false "health failing"
-finish rollback_failed "$STARTED"; exit 1
+step health
+remote_health "$ROOT/app/$RELEASE/cpa-manager-plus"
+HEALTH+=(deployed)
+finish deployed 0
