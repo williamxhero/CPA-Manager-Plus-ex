@@ -2,7 +2,7 @@
 
 日期：2026-10-16。父需求：[#66](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/66)，原始规格：[统一额度刷新、独立自动暂停与 EX 图形区域定位](../unified-balance-refresh-and-auto-suspension.zh-CN.md)。
 
-**交付状态：PARTIAL（规划产物；不是功能完成）。** 本轮不实现、不访问 live、不部署、不重启、不合并、不关闭 issue。原 SPEC 不变；本目录是实施澄清与子 SPEC 草案，不能替代原验收。仅品牌子 SPEC 成功发布到 GitHub，其余本地草案仍待发布，不能称为已登记的 canonical 子 SPEC。
+**交付状态：PARTIAL（规划产物；不是功能完成）。** 本轮不实现、不访问 live、不部署、不重启、不合并、不关闭 issue。原 SPEC 不变；本目录是实施澄清与子 SPEC 草案，不能替代原验收。仅品牌子 SPEC 成功发布到 GitHub，A／B／C 草案仍待发布，不能称为已登记的 canonical 子 SPEC。用户后续显式加载 `/to-tickets` 后已形成 12 份纵向票，8 张成功发布，4 张仅本地；T08 发布被权限拒绝后停止后续外部写入。实际票号、依赖及门槛见[票据交接](./ticket-handoff.zh-CN.md)。
 
 ## 1. 工作流与权限记录
 
@@ -13,7 +13,8 @@
 - CodeGraph 在两个调查项目都未初始化；未为规划修改索引，改用只读源码检索。
 - 在用户新指示后的安全边界重新读取 `dev-workflow-rules/SKILL.md`，版本 **3.0.0**；继续同 owner／分支，保留既有 SPEC、权限及 Hermes 独立验收。不将历史“本次只发布规格”当成永久开发禁令，但本轮仍严格只规划。
 - `/to-spec`：**真实 Skill 调用成功**，按其模板形成 4 个有意义的子 SPEC；测试 seam 采用父 #66 已确认的管理 API＋隔离 core 真实路由，用户授权推荐默认值，不重复访谈。
-- `/to-tickets`：**真实 Skill 调用被拒绝**，原文为 `Skill to-tickets cannot be used with Skill tool due to disable-model-invocation`；并明确要求用户显式调用，禁止通过其他方式复刻流程。未宣称已运行、未读取后手动复刻、未创建实施 tickets。3.0.0 的一般程序 fallback 不用于绕过这一显式工具限制。
+- `/to-tickets`：初次模型发起的 Skill 调用被拒绝，原文为 `Skill to-tickets cannot be used with Skill tool due to disable-model-invocation`，当时未复刻流程。**后续用户在同一会话显式输入 `/to-tickets`，实际技能正文已加载，阶段调用阻塞解除**；依用户既有推荐默认授权形成 12 张纵向票，不另开 writer。该阶段仅用已公开 #66／#68 需求外发，不发布此前被拦截的跨项目源码调查。
+- 票据发布进度：T01–T07、T11 对应 #70／#71／#73／#74／#75／#76／#77／#72；T08 创建被权限层以 external-system-write 拒绝，未改用其他工具重试，T08／T09／T10／T12 仅本地。其他原生关系写入随之停止；仅 #71 blocked_by #70 已成功并回读验证。外部权限拒绝不是临时故障，不自动退避重试。
 - GitHub 标签已核实有 `ready-for-agent`，父 #66 为 OPEN。不存在待复用的 #66 子 SPEC。创建 A／B／C 的调用被权限层拒绝；D 成功创建为 [#68](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/68)。没有重试其他工具绕过拒绝，没有关闭任何 issue。
 - A／B 被拒绝原因为跨项目源码调查信息公开的 data-exfiltration 边界；C 被拒绝为 external-write 授权边界，尽管 scratch 任务有允许创建子 SPEC 的文字，仍尊重实际工具拒绝。**包含这些本地草案的提交不得改以 push 绕过同一发布限制。**
 - PR 目标核查：CONTRIBUTING 要求到 `williamxhero/CPA-Manager-Plus-ex:dev`。第一次 `git ls-remote --heads fork main dev` 仅返回 main；后续只读复查时 dev 已出现，指向本轮基线 `f3e078e6`，**不是本 worker 创建**。缺 base 阻塞已解除；跨项目信息发布及外部写权限拒绝尚未解除，因此仍未 push／开 PR，不借 main 绕过贡献规则。
@@ -27,7 +28,7 @@
 | [66-C 策略与展示](./status-policy-ui.zh-CN.md) | 正交状态、余额策略与全部渲染点、最终本地完整链路 | 发布被拒；本地草案 | 自动动作依赖 A／B；只读 UI 不可冒充 gate 完成 |
 | [66-D 品牌](./brand-regions.zh-CN.md) | 图形区域元数据、源生成、全部输出与消费者 | [#68](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/68) | 独立，无 core／余额依赖 |
 
-推荐四包，而非把父规格的每个小步骤变成新 SPEC：A 是跨项目运行时契约，B 是独立查询／调度域，C 是管理员用户闭环与集成，D 是独立品牌根因；各有自己的需求、测试、发布门槛。保留包内协调，避免新增逐诊断或逐平台 SPEC。下一阶段 tickets 必须由真正 `/to-tickets` 产生，**本表不是实施 tickets**。
+推荐四包，而非把父规格的每个小步骤变成新 SPEC：A 是跨项目运行时契约，B 是独立查询／调度域，C 是管理员用户闭环与集成，D 是独立品牌根因；各有自己的需求、测试、发布门槛。保留包内协调，避免新增逐诊断或逐平台 SPEC。**本表不是实施 tickets**；后续显式加载的 `/to-tickets` 另有[12 票与依赖交接](./ticket-handoff.zh-CN.md)。已发布票仍以原父 #66／品牌 #68 为 canonical 需求，不将未发布 A／B／C 冒称 GitHub SPEC。
 
 ## 3. 依赖图与 Hermes Kanban 交接
 
@@ -150,13 +151,13 @@ flowchart TD
 
 ## 8. 实际验证、剩余门槛与下一步
 
-本轮只读核实源码和项目约束、形成规划并尝试发布 SPEC。没有运行业务单元／集成测试、类型、构建、live 服务网络、品牌生成器或 UI；没有实现可供这些行为测试验收。已执行临时文档校验：5 份 Markdown、12 个本地相对链接、各 SPEC 必需章节／Use Case／父 issue／部署门槛及示例秘密前缀检查通过；`git diff --cached --check` 通过。逐份审阅规划 diff，原始父 SPEC 无改动；已回读 #68 核实 OPEN、父 #66 链接、Use Case 和无坏相对链接，并核实 #66 仍 OPEN。临时检查脚本不入库，提交信息见交付报告。
+本轮只读核实源码和项目约束、形成规划并发布部分 SPEC／tickets。没有运行业务单元／集成测试、类型、构建、live 服务网络、品牌生成器或 UI；没有实现可供这些行为测试验收。初轮临时文档校验：5 份 Markdown、12 个本地相对链接、各 SPEC 必需章节／Use Case／父 issue／部署门槛及示例秘密前缀检查通过，初轮 `git diff --cached --check` 通过。后续 12 份票据的模板、父链接、验收及简单秘密前缀校验通过；已只读回查 8 张发布票，正文与本地一致，全部 OPEN、仅 `ready-for-agent`；各自 native blockers 与交接记录一致，父 #66／#68 均仍 OPEN。原始父 SPEC 无改动。完整后续验证与实际提交见[票据交接](./ticket-handoff.zh-CN.md)及交付报告；临时检查脚本不入库。
 
 建议后续实施验证命令（**不是本轮已通过记录**）：`npm run manager-server:test`、后端 race、`npm run test:web`、`npm run test:repo`、`npm run type-check`、`npm run lint`、`npm run build`、`npm run check:web-icons`、`python bin/branding/generate-cpamp-ex-assets.py --check`；核心新增真实路由套件由目标项目按其 AGENTS 执行。icon check 需要已构建 bundle，generator check 需要 Pillow 与干净源 ref。
 
 剩余动作／权限边界：
 
-- 同一会话显式输入 `/to-tickets` 才能继续受限阶段；不得把本记录或工作包清单声称为 tickets 阶段完成。
+- `/to-tickets` 显式调用已完成，不再要求重调；待解决 T08 对本 fork 的外部写权限后，在同 owner／worktree 发布剩余四票，换回实际编号并补齐原生 blockers。当前不得称票据发布／关系登记全部完成。
 - 解决 A／B／C 发布权限，复核允许外发范围后建立 canonical GitHub 子 SPEC；不在 worker 中修改安全设置、不以 push 绕过拒绝。
 - Hermes 按四包依赖图建立 Kanban 并链接 SPEC；当前未创建 board／卡片。
 - Hermes 获取脱敏当前 provider／模式清单与最低必要查询权限；未解决项保持具体交付阻塞。
