@@ -1,6 +1,18 @@
 # #62 / #65 review handoff
 
-## Publication state
+## Current delivery state
+
+Hermes restored fork `dev` at main `f3e078e6`, published the existing feature
+branch and opened [PR #69](https://github.com/williamxhero/CPA-Manager-Plus-ex/pull/69)
+against `dev`. The publication restrictions recorded below are historical and
+have been resolved through the existing authorization. Do not retry/create a
+second PR. Hermes independently passed the original `f9c0a179` Docker suite
+(29/29); the Windows runner/fixture supplement on this same branch requires
+independent acceptance of its new commit. Scope, baseline and worker results
+are in `deploy-acceptance-spec.md`. Keep Windows installer/backend failures
+visible; no assertion weakening, merge, issue closure or deployment.
+
+## Historical publication state (before Hermes delivery)
 
 Implementation and isolated tests exist on local branch
 `claude/deploy-acceptance-fixes` in `cpamp-deploy-acceptance`. No live deployment,
