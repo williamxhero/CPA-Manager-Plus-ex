@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -138,13 +139,96 @@ describe('CPAMP EX fork branding', () => {
     expect(brandPngFiles.length).toBeGreaterThanOrEqual(15);
   });
 
-  it.each(brandSvgFiles)('embeds the EX corner badge in %s', (name) => {
-    expect(read(path.join(brandDir, name)).toString('utf8')).toContain(SVG_MARKER);
-  });
+  it.each(brandSvgFiles.filter((name) => name.includes('-logo-')))(
+    'anchors the badge inside the symbol rather than the text in %s',
+    (name) => {
+      const svg = read(path.join(brandDir, name)).toString('utf8');
+      const badge = svg.match(/<g data-cpamp-ex="1"[\s\S]*?<rect ([^>]+)>/);
+      expect(badge).not.toBeNull();
+      const attribute = (key) => Number(badge[1].match(new RegExp(`\\b${key}="([\\d.]+)"`))[1]);
+      const x = attribute('x');
+      const y = attribute('y');
+      const width = attribute('width');
+      const height = attribute('height');
+      const stroke = attribute('stroke-width') / 2;
+      const [left, top, right, bottom] = name.includes('-vertical-')
+        ? [237.11, 50, 492.89, 333.98]
+        : [12, 8, 284, 310];
+      expect(x - stroke).toBeGreaterThanOrEqual(left);
+      expect(y - stroke).toBeGreaterThanOrEqual(top);
+      expect(x + width + stroke).toBeLessThanOrEqual(right);
+      expect(y + height + stroke).toBeLessThanOrEqual(bottom);
+      expect(width).toBeGreaterThan((right - left) * 0.28);
+    }
+  );
 
-  it.each(brandPngFiles)('embeds the EX badge marker in %s', (name) => {
-    expect(read(path.join(brandDir, name)).includes(PNG_MARKER)).toBe(true);
-  });
+  it.each(brandPngFiles.filter((name) => name.includes('-logo-')))(
+    'changes only the symbol region of raster %s',
+    (name) => {
+      const original = decodePng(
+        execFileSync('git', ['show', `419c65fc:apps/web/src/assets/brand/${name}`], {
+          cwd: repoRoot,
+        })
+      );
+      const current = decodePng(read(path.join(brandDir, name)));
+      expect([current.width, current.height]).toEqual([original.width, original.height]);
+      const bounds = name.includes('-vertical-') ? [0.193, 0, 0.807, 0.668] : [0, 0, 0.272, 1];
+      let changedInside = 0;
+      let changedOutside = 0;
+      for (let y = 0; y < current.height; y += 1) {
+        for (let x = 0; x < current.width; x += 1) {
+          const offset = (y * current.width + x) * 4;
+          if (
+            current.data
+              .subarray(offset, offset + 4)
+              .equals(original.data.subarray(offset, offset + 4))
+          )
+            continue;
+          if (
+            x >= bounds[0] * current.width &&
+            x < bounds[2] * current.width &&
+            y >= bounds[1] * current.height &&
+            y < bounds[3] * current.height
+          ) {
+            changedInside += 1;
+          } else {
+            changedOutside += 1;
+          }
+        }
+      }
+      expect(changedInside).toBeGreaterThan(0);
+      expect(changedOutside).toBe(0);
+    }
+  );
+
+  it.each([...brandSvgFiles, ...brandPngFiles].filter((name) => name.includes('-wordmark-')))(
+    'preserves pure wordmark %s without covering its letters',
+    (name) => {
+      const original = execFileSync('git', ['show', `419c65fc:apps/web/src/assets/brand/${name}`], {
+        cwd: repoRoot,
+      });
+      const current = read(path.join(brandDir, name));
+      if (name.endsWith('.svg')) {
+        expect(current.toString('utf8').replaceAll(CR, '')).toBe(original.toString('utf8'));
+      } else {
+        expect(current.equals(original)).toBe(true);
+      }
+    }
+  );
+
+  it.each(brandSvgFiles.filter((name) => !name.includes('-wordmark-')))(
+    'embeds one EX corner badge in %s',
+    (name) => {
+      expect(read(path.join(brandDir, name)).toString('utf8').split(SVG_MARKER)).toHaveLength(2);
+    }
+  );
+
+  it.each(brandPngFiles.filter((name) => !name.includes('-wordmark-')))(
+    'embeds the EX badge marker in %s',
+    (name) => {
+      expect(read(path.join(brandDir, name)).includes(PNG_MARKER)).toBe(true);
+    }
+  );
 
   it('keeps the favicon.ico EX build byte-identical between web and manager-server', () => {
     const web = read(faviconWeb);
@@ -187,19 +271,16 @@ describe('CPAMP EX fork branding', () => {
     }
   });
 
-  it('renders the sidebar EX tag as theme-independent DOM text, not baked pixels', () => {
+  it('uses the badged sidebar symbol without adding a second visual EX', () => {
     const layout = read(
       path.resolve(repoRoot, 'apps/web/src/components/layout/MainLayout.tsx')
     ).toString('utf8');
-    // The 30x32 sidebar raster bakes an EX chip that is only ~5px tall, so the
-    // sidebar must carry a crisp DOM tag anchored to the symbol's corner.
-    expect(layout).toContain('className="sidebar-brand-symbol-wrap"');
-    expect(layout).toContain('className="sidebar-brand-ex"');
+    expect(layout).toContain('src={CPAMP_SYMBOL_COLOR_PNG_URL}');
+    expect(layout).not.toContain('className="sidebar-brand-ex"');
+    expect(layout).toContain("alt={showSidebarLabels ? '' : 'CPA Manager Plus EX'}");
 
     const scss = read(path.resolve(repoRoot, 'apps/web/src/styles/layout.scss')).toString('utf8');
-    expect(scss).toContain('.sidebar-brand-symbol-wrap');
-    expect(scss).toMatch(/\.sidebar-brand-ex\s*\{[^}]*position:\s*absolute[^}]*\}/s);
-    expect(scss).toMatch(/\.sidebar-brand-ex\s*\{[^}]*background:\s*#005cff/s);
+    expect(scss).not.toMatch(/\.sidebar-brand-ex\s*\{/);
   });
 
   it('keeps the baked EX chip large enough relative to icon-like assets', () => {
