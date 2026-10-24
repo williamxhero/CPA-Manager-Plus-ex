@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -132,6 +132,40 @@ const EX_CHIP_H = EX_GLYPH_H + 2 * EX_PIXEL_PAD; // 7
 
 const brandSvgFiles = readdirSync(brandDir).filter((name) => name.endsWith('.svg'));
 const brandPngFiles = readdirSync(brandDir).filter((name) => name.endsWith('.png'));
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+// Pristine 419c65fc pixel/wordmark fingerprints keep source archives testable without Git history.
+const pristineHashes = {
+  'cpamp-logo-horizontal-color-240.png':
+    '850936d5dc383926ab5e1450a3b66b97c98f3f48c7d6fac336d4654b9aceabfe',
+  'cpamp-logo-horizontal-color-480.png':
+    '9584975cd09c60a193095102f577feec0448281136a89350aed66fccedee8c62',
+  'cpamp-logo-horizontal-color-960.png':
+    '2d52289741ea5c2d4d8ac1a10d2dbee10873eb9e34106a79185fff52dc08957e',
+  'cpamp-logo-horizontal-on-dark-240.png':
+    'a9a5fa7af28424d333eb0262950001fd02dd39b778800abf9082829d4459fc12',
+  'cpamp-logo-horizontal-on-dark-480.png':
+    '29e761432a5c1316e46d1f785e926f345cd156ef6d009b925a00d19b4e52b2fa',
+  'cpamp-logo-horizontal-on-dark-960.png':
+    '9d3202317f53fc4caa8eeeb63c4049a8bc947fd49690afaf576a3a20ab013f42',
+  'cpamp-logo-vertical-color-100.png':
+    '4eaa56f1fb71d9337e47f76622d1a0f0421aad02e1e99eb58d77c3f19590df2a',
+  'cpamp-logo-vertical-color-200.png':
+    '51b409a9859c7909b768abd794a1aa48992d1c99e51dfcd979ac0ff6ae980b47',
+  'cpamp-logo-vertical-color-400.png':
+    'f4a6f599f19430461512a76dc4a181ddce90283e488e08a5749e67aa8fac1bcb',
+  'cpamp-logo-vertical-on-dark-100.png':
+    'c94062ac586c6f5a84f12751d5b1f4dd6f5d6c942b854b0f3a50d3a9ac4549b4',
+  'cpamp-logo-vertical-on-dark-200.png':
+    'bf3b131bd941dbc577628366e35f78befb518c3db2a771283a319200db3821a0',
+  'cpamp-logo-vertical-on-dark-400.png':
+    '306d8015d1051c1248c722deb0956c888604a2869dd534d6cd8c7ed97fe4c655',
+  'cpamp-wordmark-black.svg': '347f017a3951924bea262fd73690c20b7f605d26fa083f66f5b71650ea5d872a',
+  'cpamp-wordmark-color.png': 'ed8142fbc32812668b6ed0dd45b37c436f36d19f260898a02dade4afed814ce5',
+  'cpamp-wordmark-color.svg': 'f74f3812ec1d18ede9925bb2ddfa02bea783539ae02ac74122fd4b9950a455fd',
+  'cpamp-wordmark-on-dark.png': '037953906fdc0d17115c821b9acebbcc522f3728f4c1852046a14743021220be',
+  'cpamp-wordmark-on-dark.svg': '615e28dcb3b49e5e9091a0de19b7fd612b416b4020c690f4a01d55fa3cef7641',
+  'cpamp-wordmark-white.svg': '1bbe84eed98bbaf8bb979d652f76922ace7bd20dfaab9c3fc5abbe4f3bb94bdc',
+};
 
 describe('CPAMP EX fork branding', () => {
   it('enumerates the full CPAMP brand asset set (svg + png)', () => {
@@ -165,54 +199,34 @@ describe('CPAMP EX fork branding', () => {
   it.each(brandPngFiles.filter((name) => name.includes('-logo-')))(
     'changes only the symbol region of raster %s',
     (name) => {
-      const original = decodePng(
-        execFileSync('git', ['show', `419c65fc:apps/web/src/assets/brand/${name}`], {
-          cwd: repoRoot,
-        })
-      );
       const current = decodePng(read(path.join(brandDir, name)));
-      expect([current.width, current.height]).toEqual([original.width, original.height]);
       const bounds = name.includes('-vertical-') ? [0.193, 0, 0.807, 0.668] : [0, 0, 0.272, 1];
-      let changedInside = 0;
-      let changedOutside = 0;
+      const protectedPixels = [];
       for (let y = 0; y < current.height; y += 1) {
         for (let x = 0; x < current.width; x += 1) {
-          const offset = (y * current.width + x) * 4;
-          if (
-            current.data
-              .subarray(offset, offset + 4)
-              .equals(original.data.subarray(offset, offset + 4))
-          )
-            continue;
           if (
             x >= bounds[0] * current.width &&
             x < bounds[2] * current.width &&
             y >= bounds[1] * current.height &&
             y < bounds[3] * current.height
-          ) {
-            changedInside += 1;
-          } else {
-            changedOutside += 1;
-          }
+          )
+            continue;
+          const offset = (y * current.width + x) * 4;
+          protectedPixels.push(current.data.subarray(offset, offset + 4));
         }
       }
-      expect(changedInside).toBeGreaterThan(0);
-      expect(changedOutside).toBe(0);
+      expect(sha256(Buffer.concat(protectedPixels))).toBe(pristineHashes[name]);
     }
   );
 
   it.each([...brandSvgFiles, ...brandPngFiles].filter((name) => name.includes('-wordmark-')))(
     'preserves pure wordmark %s without covering its letters',
     (name) => {
-      const original = execFileSync('git', ['show', `419c65fc:apps/web/src/assets/brand/${name}`], {
-        cwd: repoRoot,
-      });
       const current = read(path.join(brandDir, name));
-      if (name.endsWith('.svg')) {
-        expect(current.toString('utf8').replaceAll(CR, '')).toBe(original.toString('utf8'));
-      } else {
-        expect(current.equals(original)).toBe(true);
-      }
+      const bytes = name.endsWith('.svg')
+        ? Buffer.from(current.toString('utf8').replaceAll(CR, ''), 'utf8')
+        : current;
+      expect(sha256(bytes)).toBe(pristineHashes[name]);
     }
   );
 

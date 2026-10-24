@@ -58,6 +58,7 @@ import re
 import struct
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -104,8 +105,6 @@ APPLE_REL = "apps/web/public/apple-touch-icon.png"
 MSRV_DIR = "apps/manager-server/internal/httpapi/web"
 INDEX_REL = "apps/web/index.html"
 FAVICON_SVG_REL = f"{BRAND_DIR}/favicon.svg"
-
-VIEWBOX_RE = re.compile(r'viewBox="([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"')
 
 ASSET_LAYOUTS = {
     "horizontal": {
@@ -225,14 +224,13 @@ def svg_badge(vx, vy, vw, vh):
 
 
 def patch_svg(src_text, name):
-    if 'data-cpamp-ex="1"' in src_text:
+    root = ET.fromstring(src_text)
+    if any(element.get("data-cpamp-ex") == "1" for element in root.iter()):
         raise ValueError(f"brand source already has an EX badge: {name}")
     text = src_text
-    m = VIEWBOX_RE.search(text)
-    if not m:
-        raise RuntimeError("no viewBox in SVG source")
+    viewbox = root.get("viewBox", "").split()
     layout = asset_layout(name)
-    if tuple(float(g) for g in m.groups()) != layout["canvas"]:
+    if tuple(float(value) for value in viewbox) != layout["canvas"]:
         raise ValueError(f"brand canvas changed: {name}")
     if layout["symbol"] is None:
         return text
@@ -420,7 +418,7 @@ def main(argv=None):
     except subprocess.CalledProcessError as exc:
         sys.stderr.write(f"git source read failed (ref {args.source_ref}): {exc}\n")
         return 2
-    except ValueError as exc:
+    except (ValueError, ET.ParseError) as exc:
         sys.stderr.write(f"invalid brand source or layout: {exc}\n")
         return 2
 
