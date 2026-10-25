@@ -3,6 +3,7 @@ import io
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -87,6 +88,31 @@ class BrandGeneratorTest(unittest.TestCase):
         drifted.write_bytes(b"drifted")
         self.assertEqual(self.generate("--check"), 1)
         self.assertEqual(drifted.read_bytes(), b"drifted")
+
+    def test_generates_valid_svg_with_closing_tag_whitespace(self):
+        for closing in ("</svg >", "</svg\t>", "</svg\n>"):
+            with self.subTest(closing=closing):
+                (self.brand / "favicon.svg").write_text(
+                    self.svg.replace("</svg>", closing), encoding="utf-8"
+                )
+                self.assertEqual(self.generate(), 0)
+                result = (self.output / GENERATOR.FAVICON_SVG_REL).read_text(encoding="utf-8")
+                root = ET.fromstring(result)
+                self.assertEqual(sum(e.get("data-cpamp-ex") == "1" for e in root.iter()), 1)
+                self.assertIn('<path d="M22 18h20v20H22z"/>', result)
+                self.assertTrue(result.endswith(closing))
+
+    def test_rejects_unsupported_svg_ending_without_writing_outputs(self):
+        sources = (
+            self.svg.replace("</svg>", "</svg><!-- closing-tag example: </svg> -->"),
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 8 272 302"/>',
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                ET.fromstring(source)
+                (self.brand / "favicon.svg").write_text(source, encoding="utf-8")
+                self.assertEqual(self.generate(), 2)
+                self.assertFalse(self.output.exists())
 
     def test_rejects_changed_canvas_without_writing_outputs(self):
         (self.brand / "favicon.svg").write_text(

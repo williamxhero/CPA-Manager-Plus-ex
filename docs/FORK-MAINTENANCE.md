@@ -164,6 +164,7 @@ Qwen 为**一次性目录导入**，不虚构 upstream 或 subtree remote，无�
 - 源：`--source-ref`（默认 `DEFAULT_SOURCE_REF`，即角标落地前的最后一个提交）里的
   **未加角标** 资产。已带 EX 的 SVG/PNG/ICO/touch 源会被拒绝，避免累加/叠印。
 - 图文组合按显式图形区域右下角定位，校验 canvas 与文字保护区；纯 wordmark 原样复制，侧栏不另叠 DOM EX。
+- 需加标的 SVG 保留原文字节，要求末尾显式 `</svg>` 闭合（允许 XML 空白）；自闭合或闭合后附注释等不支持的结尾在写输出前报错，避免角标插入错误位置。
 - 像素重建需使用相同 Pillow 与字体环境；不同系统的字体回退不承诺逐字节相同。
 - 产出（35 项）：15 品牌 SVG + 15 品牌 PNG + `apps/web/public/favicon.ico` +
   `apple-touch-icon.png`（各自与 manager-server 内嵌副本逐字节一致），并重算

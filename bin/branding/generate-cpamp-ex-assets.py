@@ -247,7 +247,10 @@ def patch_svg(src_text, name):
         if left < tx + tw and right > tx and top < ty + th and bottom > ty:
             raise ValueError(f"brand badge would cover text: {name}")
     badge = svg_badge(*layout["symbol"])
-    idx = text.rfind("</svg>")
+    closing = re.search(r"</svg[ \t\r\n]*>[ \t\r\n]*\Z", text)
+    if closing is None:
+        raise ValueError(f"unsupported SVG closing tag: {name}")
+    idx = closing.start()
     return text[:idx] + badge + text[idx:]
 
 
