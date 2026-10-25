@@ -8,6 +8,7 @@ import {
   getDemoAccountHistory,
   getDemoAccountWindowUsage,
   getDemoAccountProcessingPolicy,
+  getDemoResourceCapabilities,
   getDemoApiKeyAliases,
   getDemoAuthFiles,
   getDemoCodexInspectionRun,
@@ -192,6 +193,15 @@ export interface AccountProcessingPolicy {
   codexQuotaCooldown: AccountPolicyCapability;
   authIssueQueue: AccountPolicyCapability;
   authIssueAutoDisable: AccountPolicyCapability;
+}
+
+// Manager-wide support only: not resource identity, routing status or an enforcement ACK.
+export interface ResourceCapabilities {
+  schemaVersion: 1;
+  identity: { state: 'unknown'; reason: 'core_contract_unverified' };
+  query: { state: 'unknown'; reason: 'query_contract_unverified' };
+  independentGate: { state: 'unavailable'; reason: 'consumer_contract_unconfigured' };
+  policy: AccountProcessingPolicy;
 }
 
 export interface AccountProcessingPolicyPatch {
@@ -3125,6 +3135,28 @@ export const usageServiceApi = {
         timeout: USAGE_SERVICE_TIMEOUT_MS,
         headers: authHeaders(managementKey),
       });
+      return response.data;
+    });
+  },
+
+  getResourceCapabilities: async (
+    base: string,
+    managementKey?: string,
+    signal?: AbortSignal
+  ): Promise<ResourceCapabilities> => {
+    if (__DEMO_SITE__ && isDemoMode()) {
+      return getDemoResourceCapabilities();
+    }
+
+    return withUsageServiceError(async () => {
+      const response = await axios.get<ResourceCapabilities>(
+        buildUrl(base, '/usage-service/resource-capabilities'),
+        {
+          timeout: USAGE_SERVICE_TIMEOUT_MS,
+          headers: authHeaders(managementKey),
+          signal,
+        }
+      );
       return response.data;
     });
   },

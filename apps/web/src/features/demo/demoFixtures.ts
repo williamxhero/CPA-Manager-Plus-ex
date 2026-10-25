@@ -1,6 +1,7 @@
 import type {
   AccountActionCandidate,
   AccountProcessingPolicy,
+  ResourceCapabilities,
   ApiKeyAlias,
   CodexInspectionResult,
   CodexInspectionRunDetail,
@@ -7823,3 +7824,12 @@ export const getDemoApiCallResult = (payload: DemoApiCallPayload = {}) => {
     body,
   };
 };
+
+// Simulated manager integration limitation; never a positive resource-protection sample.
+export const getDemoResourceCapabilities = (): ResourceCapabilities => ({
+  schemaVersion: 1,
+  identity: { state: 'unknown', reason: 'core_contract_unverified' },
+  query: { state: 'unknown', reason: 'query_contract_unverified' },
+  independentGate: { state: 'unavailable', reason: 'consumer_contract_unconfigured' },
+  policy: getDemoAccountProcessingPolicy(),
+});

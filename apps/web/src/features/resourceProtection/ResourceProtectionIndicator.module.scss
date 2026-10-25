@@ -1,0 +1,8 @@
+.indicator {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-inline-end: 4px;
+  color: var(--text-secondary);
+}

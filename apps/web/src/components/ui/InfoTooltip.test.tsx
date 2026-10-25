@@ -3,6 +3,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { InfoTooltip, resolveInfoTooltipPosition } from './InfoTooltip';
 
 describe('InfoTooltip', () => {
+  it('opens on click, including after Escape while the trigger remains focused', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<InfoTooltip ariaLabel="Capability" content="Details" />); });
+    const trigger = renderer.root.findByProps({ 'data-info-tooltip-trigger': 'true' });
+    act(() => trigger.props.onClick());
+    expect(trigger.props['aria-expanded']).toBe(true);
+    act(() => trigger.props.onKeyDown({ key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() }));
+    expect(trigger.props['aria-expanded']).toBe(false);
+    act(() => trigger.props.onClick());
+    expect(trigger.props['aria-expanded']).toBe(true);
+    act(() => renderer.unmount());
+  });
+
   it('opens from keyboard focus with an accessible tooltip', () => {
     let renderer!: ReactTestRenderer;
     act(() => {

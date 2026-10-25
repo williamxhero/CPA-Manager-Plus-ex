@@ -70,6 +70,8 @@ import {
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useInterval } from '@/hooks/useInterval';
 import { usePanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability';
+import { ResourceProtectionIndicator } from '@/features/resourceProtection/ResourceProtectionIndicator';
+import { useResourceProtection } from '@/features/resourceProtection/resourceProtection';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { getAuthFileIcon, isQuotaRefreshSupportedProvider } from '@/features/authFiles/constants';
@@ -1278,6 +1280,8 @@ export function AccountsPage() {
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
   const featureAvailability = usePanelFeatureAvailability();
+  const { status: resourceProtection, refresh: refreshResourceProtection } =
+    useResourceProtection(featureAvailability);
   const initialWorkspaceUiState = useRef(readAccountsWorkspaceUiState());
   const initialWorkspaceUrlState = useRef(
     readAccountsWorkspaceUrlState(location.search, initialWorkspaceUiState.current)
@@ -2319,6 +2323,7 @@ export function AccountsPage() {
     await Promise.all([loadOauthExcluded(), loadOauthModelAlias()]);
   }, [loadOauthExcluded, loadOauthModelAlias]);
   const refreshAccountsWorkspace = useCallback(async () => {
+    void refreshResourceProtection();
     const refreshScopeKey = credentialEvidenceScopeKey;
     const synchronizedDirectReauth = await synchronizePendingAccountDirectReauthsRef.current();
     if (activeCredentialEvidenceScopeKeyRef.current !== refreshScopeKey) return;
@@ -2347,6 +2352,7 @@ export function AccountsPage() {
     ]);
     setAccountHistoryAutoRefreshRevision((current) => current + 1);
   }, [
+    refreshResourceProtection,
     credentialEvidenceScopeKey,
     loadFiles,
     loadHeaderSnapshots,
@@ -9016,6 +9022,7 @@ export function AccountsPage() {
                       </div>
                       <div className={styles.accountIdentityText}>
                         <div className={styles.accountIdentityCopyLine}>
+                          <ResourceProtectionIndicator status={resourceProtection} />
                           <button
                             type="button"
                             className={styles.accountIdentityCopyTarget}
@@ -9513,6 +9520,7 @@ export function AccountsPage() {
                     </div>
                     <div className={styles.accountIdentityText}>
                       <div className={styles.accountIdentityCopyLine}>
+                        <ResourceProtectionIndicator status={resourceProtection} />
                         <button
                           type="button"
                           className={styles.accountIdentityCopyTarget}

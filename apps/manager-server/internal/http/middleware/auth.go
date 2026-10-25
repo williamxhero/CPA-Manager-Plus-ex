@@ -21,7 +21,7 @@ type PanelVerifier interface {
 func AuthorizeAdmin(w http.ResponseWriter, r *http.Request, verifier AdminVerifier) bool {
 	ok, err := verifier.VerifyHeader(r.Context(), r.Header.Get("Authorization"))
 	if err != nil {
-		writeAuthorizationFailure(w, "admin", err)
+		writeAuthorizationFailure(w, "admin")
 		return false
 	}
 	if ok {
@@ -34,7 +34,7 @@ func AuthorizeAdmin(w http.ResponseWriter, r *http.Request, verifier AdminVerifi
 func AuthorizePanel(w http.ResponseWriter, r *http.Request, verifier PanelVerifier) bool {
 	ok, err := verifier.VerifyPanelHeader(r.Context(), r.Header.Get("Authorization"))
 	if err != nil {
-		writeAuthorizationFailure(w, "panel", err)
+		writeAuthorizationFailure(w, "panel")
 		return false
 	}
 	if ok {
@@ -42,7 +42,7 @@ func AuthorizePanel(w http.ResponseWriter, r *http.Request, verifier PanelVerifi
 	}
 	external, err := verifier.PanelUsesExternalManagementKey(r.Context())
 	if err != nil {
-		writeAuthorizationFailure(w, "panel mode", err)
+		writeAuthorizationFailure(w, "panel mode")
 		return false
 	}
 	if external {
@@ -53,8 +53,9 @@ func AuthorizePanel(w http.ResponseWriter, r *http.Request, verifier PanelVerifi
 	return false
 }
 
-func writeAuthorizationFailure(w http.ResponseWriter, scope string, err error) {
-	log.Printf("%s authorization failed: %v", scope, err)
+func writeAuthorizationFailure(w http.ResponseWriter, scope string) {
+	// Verifier/storage errors may contain connection URLs, keys, or paths.
+	log.Printf("%s authorization failed", scope)
 	response.JSON(w, http.StatusInternalServerError, map[string]any{
 		"error": "authorization failed",
 		"code":  "request_failed",

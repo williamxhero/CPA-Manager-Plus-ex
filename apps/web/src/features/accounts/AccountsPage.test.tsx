@@ -1,3 +1,4 @@
+import axios, { AxiosError, AxiosHeaders, type AxiosAdapter } from 'axios';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { isValidElement, StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +7,7 @@ import { Drawer } from '@/components/ui/Drawer';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { useUsageServiceStore } from '@/stores/useUsageServiceStore';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { ProviderStatusBar } from '@/components/providers/ProviderStatusBar';
 import {
@@ -534,6 +536,12 @@ const { mocks } = vi.hoisted(() => {
         managerServiceBase: 'http://manager.local:18317',
         requestMonitoringAvailable: false,
         serverCodexInspectionAvailable: false,
+      } as {
+        checking: boolean;
+        managerServiceAvailable?: boolean;
+        managerServiceBase: string;
+        requestMonitoringAvailable: boolean;
+        serverCodexInspectionAvailable: boolean;
       },
       lastExcludedEditorProps: null as null | {
         open: boolean;
@@ -1312,6 +1320,37 @@ const runInspectionCodexReauth = async (target: CodexReauthTarget): Promise<void
   await mocks.lastHealthWorkspaceProps?.onCredentialsChanged(target);
 };
 
+const originalCapabilitiesAdapter = axios.defaults.adapter;
+const capabilitySummary = () => ({
+  schemaVersion: 1,
+  identity: { state: 'unknown', reason: 'core_contract_unverified' },
+  query: { state: 'unknown', reason: 'query_contract_unverified' },
+  independentGate: { state: 'unavailable', reason: 'consumer_contract_unconfigured' },
+  policy: {
+    source: 'config',
+    codexQuotaCooldown: { enabled: true, envKey: 'A', configFileKey: 'a' },
+    authIssueQueue: { enabled: false, envKey: 'B', configFileKey: 'b' },
+    authIssueAutoDisable: { enabled: true, locked: true, envKey: 'C', configFileKey: 'c' },
+  },
+});
+const capabilityButtons = (renderer: ReactTestRenderer) => renderer.root.findAll(
+  (node) => node.type === 'button' &&
+    String(node.props['aria-label']).startsWith('resource_protection.title:')
+);
+const installCapabilitiesAdapter = (read: () => Promise<unknown>, uncancellable = false) => {
+  const adapter = vi.fn<AxiosAdapter>(async (config) => {
+    if (!config.url?.endsWith('/usage-service/resource-capabilities')) {
+      throw new Error('Unexpected HTTP request in capability test');
+    }
+    // Exercise generation fencing even if an adapter/cached completion ignores cancellation.
+    if (uncancellable) config.signal = undefined;
+    return { data: await read(), status: 200, statusText: 'OK', headers: {}, config };
+  });
+  axios.defaults.adapter = adapter;
+  mocks.panelFeatureAvailability.managerServiceAvailable = true;
+  return adapter;
+};
+
 describe('AccountsPage replacement flows', () => {
   afterEach(async () => {
     const restoreWindow = typeof window === 'undefined';
@@ -1325,6 +1364,7 @@ describe('AccountsPage replacement flows', () => {
       mountedAccountsRenderers.forEach((renderer) => renderer.unmount());
     });
     mountedAccountsRenderers.clear();
+    axios.defaults.adapter = originalCapabilitiesAdapter;
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -1504,6 +1544,175 @@ describe('AccountsPage replacement flows', () => {
     mocks.lastHealthWorkspaceProps = null;
     mocks.localInspection = null;
   });
+
+  it.each([
+    ['legacy 404', new AxiosError('secret-key legacy body', 'ERR_BAD_REQUEST', undefined, undefined,
+      { status: 404, statusText: 'Not Found', headers: {}, config: { headers: new AxiosHeaders() }, data: { error: 'secret-key' } })],
+    ['auth failure', new AxiosError('secret-key auth body', 'ERR_BAD_REQUEST', undefined, undefined,
+      { status: 401, statusText: 'Unauthorized', headers: {}, config: { headers: new AxiosHeaders() }, data: { error: 'secret-key' } })],
+    ['network failure', new Error('secret-key network endpoint')],
+    ['missing schema', {}],
+    ['null', null],
+    ['future schema', { ...capabilitySummary(), schemaVersion: 2 }],
+    ['missing identity', { ...capabilitySummary(), identity: undefined }],
+    ['missing query', { ...capabilitySummary(), query: undefined }],
+    ['missing gate', { ...capabilitySummary(), independentGate: undefined }],
+    ['missing policy', { ...capabilitySummary(), policy: undefined }],
+    ['malformed policy', { ...capabilitySummary(), policy: { source: 'config', enabled: true } }],
+    ['malformed policy metadata', { ...capabilitySummary(), policy: { ...capabilitySummary().policy, updatedAtMs: 'invalid' } }],
+    ['unrecognized reason', { ...capabilitySummary(), independentGate: { state: 'unavailable', reason: 'unsupported_core' } }],
+    ['unverified gate', { ...capabilitySummary(), independentGate: { state: 'unknown', reason: 'unverified' } }],
+    ['global available flag', { ...capabilitySummary(), independentGate: { state: 'available', reason: 'ok' } }],
+    ['policy enabled is not protection', { policy: capabilitySummary().policy }],
+  ])('keeps automatic protection unknown for %s without exposing transport data', async (_case, payload) => {
+    installCapabilitiesAdapter(async () => {
+      if (payload instanceof Error) throw payload;
+      return payload;
+    });
+    const renderer = await renderAccountsPage();
+    expect(capabilityButtons(renderer)).toHaveLength(1);
+    const button = capabilityButtons(renderer)[0];
+    expect(button.props['aria-label']).toContain('resource_protection.unknown');
+    expect(button.props['aria-label']).not.toMatch(/secret-key|normal|protected|healthy/);
+    await act(async () => button.props.onFocus());
+    const tooltip = renderer.root.findAll((node) => node.type === 'span' &&
+      node.props.id === button.props['aria-describedby']);
+    expect(tooltip).toHaveLength(1);
+    expect(readText(tooltip[0])).not.toMatch(/secret-key|normal|protected|healthy/);
+  });
+
+  it.each(['manager base', 'management key', 'usage-service revision', 'checking'])(
+    'invalidates automatic protection evidence when %s changes', async (context) => {
+      const pending = createDeferred<unknown>();
+      let next = 0;
+      installCapabilitiesAdapter(async () => next++ === 0 ? capabilitySummary() : pending.promise, true);
+      const renderer = await renderAccountsPage();
+      expect(capabilityButtons(renderer)[0].props['aria-label']).toContain('resource_protection.unavailable');
+      await act(async () => {
+        if (context === 'manager base') mocks.panelFeatureAvailability.managerServiceBase = 'http://manager-b.invalid';
+        if (context === 'management key') mocks.managementKey = 'different-secret-key';
+        if (context === 'checking') mocks.panelFeatureAvailability.checking = true;
+        if (context === 'usage-service revision') {
+          vi.stubGlobal('localStorage', { setItem: vi.fn(), getItem: () => null, removeItem: vi.fn() });
+          useUsageServiceStore.setState((state) => ({ revision: state.revision + 1 }));
+        }
+        renderer.update(<AccountsPage />);
+      });
+      expect(capabilityButtons(renderer)[0].props['aria-label']).toContain('resource_protection.unknown');
+      expect(capabilityButtons(renderer)[0].props['aria-label']).not.toContain('different-secret-key');
+      expect(next).toBe(context === 'checking' ? 1 : 2);
+    }
+  );
+
+  it.each(['table', 'grid'] as const)(
+    'keeps disabled-row manual toggles, identity copying and selection independent of a failed support read in %s',
+    async (layout) => {
+      mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+      mocks.files = [{ ...makeCodexFile('codex.json', 'auth-1', 'codex@example.com'), disabled: true }];
+      installCapabilitiesAdapter(async () => { throw new Error('secret-key support read failed'); });
+      const renderer = await renderAccountsPage();
+      const indicator = capabilityButtons(renderer)[0];
+      const boundary = findAncestorByType(indicator, 'span');
+      const stopPropagation = vi.fn();
+      await act(async () => {
+        indicator.props.onClick();
+        boundary.props.onClick({ stopPropagation });
+        boundary.props.onKeyDown({ key: 'Enter', stopPropagation });
+      });
+      expect(stopPropagation).toHaveBeenCalledTimes(2);
+      expect(indicator.props['aria-expanded']).toBe(true);
+      expect(mocks.toggleSelect).not.toHaveBeenCalled();
+      expect(treeText(renderer)).not.toContain('accounts.detail_tab_overview');
+      const card = findAccountCardByKey(renderer, 'codex.json\u0000auth-1');
+      const toggle = card.findAllByType(ToggleSwitch)
+        .find((node) => node.props.ariaLabel === 'auth_files.status_toggle_label')!;
+      expect(toggle.props.disabled).toBe(false);
+      await act(async () => toggle.props.onChange(true));
+      expect(mocks.batchSetStatus).toHaveBeenCalledWith([getAuthFilePatchTarget(mocks.files[0])], true);
+      const fileName = findAccountCardButtonByAriaLabel(renderer, 'codex.json\u0000auth-1', 'common.copy codex.json');
+      await act(async () => fileName.props.onClick({ stopPropagation: vi.fn() }));
+      expect(copyToClipboard).toHaveBeenLastCalledWith('codex.json');
+      await act(async () => findHostButtonByText(renderer, 'accounts.selection_mode_enter').props.onClick());
+      await act(async () => card.props.onClick());
+      expect(mocks.toggleSelect).toHaveBeenCalledWith('codex.json\u0000auth-1');
+    }
+  );
+
+  it('fences A-to-B-to-A late responses even when the transport cannot cancel', async () => {
+    const pending = Array.from({ length: 3 }, () => createDeferred<unknown>());
+    let next = 0;
+    installCapabilitiesAdapter(() => pending[next++].promise, true);
+    const renderer = await renderAccountsPage();
+    const initialBase = mocks.apiBase;
+    mocks.apiBase = 'http://cpa-b.invalid';
+    await act(async () => renderer.update(<AccountsPage />));
+    mocks.apiBase = initialBase;
+    await act(async () => renderer.update(<AccountsPage />));
+    expect(next).toBe(3);
+    await act(async () => pending[0].resolve(capabilitySummary()));
+    await act(async () => pending[1].resolve(capabilitySummary()));
+    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain('resource_protection.unknown');
+    await act(async () => pending[2].resolve(capabilitySummary()));
+    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain('resource_protection.unavailable');
+  });
+
+  it('invalidates immediately on refresh and rejects an older refresh after a newer failure', async () => {
+    const pending = Array.from({ length: 3 }, () => createDeferred<unknown>());
+    let next = 0;
+    installCapabilitiesAdapter(() => pending[next++].promise, true);
+    const renderer = await renderAccountsPage();
+    await act(async () => pending[0].resolve(capabilitySummary()));
+    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain('resource_protection.unavailable');
+    await act(async () => findHostButtonByText(renderer, 'common.refresh').props.onClick());
+    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain('resource_protection.unknown');
+    await act(async () => findHostButtonByText(renderer, 'common.refresh').props.onClick());
+    expect(next).toBe(3);
+    await act(async () => pending[2].reject(new Error('secret-key failed')));
+    await act(async () => pending[1].resolve(capabilitySummary()));
+    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain('resource_protection.unknown');
+  });
+
+  it('does not install an unmounted request into a remounted page', async () => {
+    const pending = Array.from({ length: 2 }, () => createDeferred<unknown>());
+    let next = 0;
+    installCapabilitiesAdapter(() => pending[next++].promise, true);
+    const previous = await renderAccountsPage();
+    await act(async () => previous.unmount());
+    const renderer = await renderAccountsPage();
+    await act(async () => pending[0].resolve(capabilitySummary()));
+    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain('resource_protection.unknown');
+    await act(async () => pending[1].resolve(capabilitySummary()));
+    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain('resource_protection.unavailable');
+  });
+
+  it.each(['table', 'grid'] as const)(
+    'shows manager automatic protection capability once per page in %s, not policy or disabled health',
+    async (layout) => {
+      mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+      mocks.files = [
+        makeCodexFile('codex.json', 'auth-1', 'codex@example.com'),
+        { ...makeCodexFile('disabled.json', 'auth-2', 'disabled@example.com'), disabled: true },
+      ];
+      const response = createDeferred<unknown>();
+      const adapter = installCapabilitiesAdapter(() => response.promise);
+      const renderer = await renderAccountsPage();
+      expect(capabilityButtons(renderer)).toHaveLength(2);
+      expect(capabilityButtons(renderer).every((node) =>
+        node.props['aria-label'].includes('resource_protection.unknown'))).toBe(true);
+      await act(async () => response.resolve(capabilitySummary()));
+      expect(capabilityButtons(renderer).every((node) =>
+        node.props['aria-label'].includes('resource_protection.unavailable'))).toBe(true);
+      expect(adapter).toHaveBeenCalledTimes(1);
+      const name = findAccountCardButtonByAriaLabel(renderer, 'codex.json\u0000auth-1',
+        'common.copy codex@example.com');
+      expect(name.findAllByType('button')).toEqual([name]);
+      expect(name.parent?.findAll((node) => node.type === 'button')[0])
+        .toBe(name.parent?.findAll((node) => node.type === 'button' &&
+          String(node.props['aria-label']).startsWith('resource_protection.title:'))[0]);
+      await act(async () => name.props.onClick({ stopPropagation: vi.fn() }));
+      expect(copyToClipboard).toHaveBeenLastCalledWith('codex@example.com');
+    }
+  );
 
   it('opens OAuth editors inline instead of navigating to auth-files routes', async () => {
     const renderer = await renderAccountsPage();

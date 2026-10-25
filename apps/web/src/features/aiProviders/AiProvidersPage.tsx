@@ -31,6 +31,8 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Select } from '@/components/ui/Select';
+import { usePanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability';
+import { useResourceProtection } from '@/features/resourceProtection/resourceProtection';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { providersApi } from '@/services/api';
 import { useAuthStore, useConfigStore, useNotificationStore, useThemeStore } from '@/stores';
@@ -60,6 +62,9 @@ export function AiProvidersPage() {
   const { showNotification, showConfirmation } = useNotificationStore();
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
+  const featureAvailability = usePanelFeatureAvailability();
+  const { status: resourceProtection, refresh: refreshResourceProtection } =
+    useResourceProtection(featureAvailability);
 
   const config = useConfigStore((state) => state.config);
   const fetchConfig = useConfigStore((state) => state.fetchConfig);
@@ -232,8 +237,9 @@ export function AiProvidersPage() {
   ]);
 
   const handleRecentRequestsRefresh = useCallback(async () => {
+    void refreshResourceProtection();
     await refreshRecentRequests();
-  }, [refreshRecentRequests]);
+  }, [refreshRecentRequests, refreshResourceProtection]);
 
   useHeaderRefresh(handleRecentRequestsRefresh, isCurrentLayer);
 
@@ -1627,6 +1633,7 @@ export function AiProvidersPage() {
 
           <Card>
             <ProviderTable
+              resourceProtection={resourceProtection}
               rows={pagedRows}
               loading={loading}
               actionsDisabled={actionsDisabled}
