@@ -9,7 +9,11 @@ import {
 import { formatApiKeyHashLabel } from './base';
 import { buildSearchText, maskAuthIndex, maskEmailLike, readString } from './base';
 import { sanitizeApiKeyDisplayText, type ApiKeyDisplayInfo } from './apiKeys';
-import { isKeyDisambiguatedLabel, isOpenAICompatibleRuntimeLabel } from './sourceDisplay';
+import {
+  isKeyDisambiguatedLabel,
+  isOpenAICompatibleRuntimeLabel,
+  isProviderLikeMonitoringLabel,
+} from './sourceDisplay';
 import { buildHourLabel, buildLocalDayKey } from './range';
 import type { MonitoringAuthMeta, MonitoringChannelMeta, MonitoringEventRow } from './types';
 
@@ -89,6 +93,12 @@ export const buildEventRows = (
         sourceMeta.type ||
         '-';
       const labelCandidates = authMeta?.label || snapshotLabel || snapshotDisplay;
+      const configuredSourceName = Boolean(
+        resolvedSourceName &&
+          sourceMeta.identityKey &&
+          !sourceMeta.identityKey.startsWith('source:') &&
+          !sourceMeta.identityKey.startsWith('auth:')
+      );
       // Prefer multi-key OpenAI-compatible disambiguation (e.g. "kuaileshifu #1") over the
       // bare provider/auth label so realtime cells match account overview identity.
       const sourceLabel =
@@ -99,7 +109,9 @@ export const buildEventRows = (
           isKeyDisambiguatedLabel(resolvedSourceName, channelMeta?.host) ||
           isKeyDisambiguatedLabel(resolvedSourceName, labelCandidates) ||
           isKeyDisambiguatedLabel(resolvedSourceName, authMeta?.account) ||
-          isKeyDisambiguatedLabel(resolvedSourceName, snapshotAccount))
+          isKeyDisambiguatedLabel(resolvedSourceName, snapshotAccount) ||
+          (configuredSourceName &&
+            isProviderLikeMonitoringLabel(authMeta?.label || snapshotDisplay, effectiveProvider)))
           ? resolvedSourceName
           : '') ||
         authMeta?.label ||

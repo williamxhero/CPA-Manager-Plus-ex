@@ -57,9 +57,13 @@ func failClosedRecoveryServer(t *testing.T, probeHandler http.HandlerFunc) (*htt
 	var mu sync.Mutex
 	patchCalls := 0
 	patchedDisabled := []bool{}
+	disabled := true
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/v0/management/auth-files":
+			mu.Lock()
+			currentDisabled := disabled
+			mu.Unlock()
 			_ = json.NewEncoder(w).Encode([]map[string]any{{
 				"id":         "runtime-codex",
 				"name":       "codex-auth.json",
@@ -67,7 +71,7 @@ func failClosedRecoveryServer(t *testing.T, probeHandler http.HandlerFunc) (*htt
 				"provider":   "codex",
 				"account":    "alice@example.com",
 				"account_id": "workspace-1",
-				"disabled":   true,
+				"disabled":   currentDisabled,
 			}})
 		case r.Method == http.MethodPatch && r.URL.Path == "/v0/management/auth-files/status":
 			var payload struct {
@@ -80,6 +84,7 @@ func failClosedRecoveryServer(t *testing.T, probeHandler http.HandlerFunc) (*htt
 			mu.Lock()
 			patchCalls++
 			patchedDisabled = append(patchedDisabled, payload.Disabled)
+			disabled = payload.Disabled
 			mu.Unlock()
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 		case r.Method == http.MethodPost && r.URL.Path == "/v0/management/quota/fetch":

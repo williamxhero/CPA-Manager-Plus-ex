@@ -47,7 +47,7 @@ describe('AccountQuotaTab quota units', () => {
     vi.useRealTimers();
   });
 
-  it('renders account-wide used fractions instead of remaining while preserving other quota values', () => {
+  it('renders account-wide used fractions with labelled remaining while preserving other quota values', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2024, 1, 15, 12));
     const makeWindow = (
@@ -111,7 +111,8 @@ describe('AccountQuotaTab quota units', () => {
       'accounts.detail_used: 17.4/29',
       'accounts.detail_used: -',
     ]);
-    expect(readText(standard)).not.toContain('40%');
+    expect(readText(standard)).toContain('accounts.detail_quota_remaining_label:defaultValue=剩余');
+    expect(readText(standard)).toContain('40%');
     const other = renderer.root.findByProps({ 'data-quota-window-group': 'other' });
     expect(readText(other)).toContain('accounts.detail_used: 60%');
     expect(readText(other)).toContain('$100 / $250');
@@ -208,5 +209,17 @@ describe('AccountQuotaTab timer crossing expiry', () => {
     expect(
       renderer.root.findByProps({ 'data-quota-reset-action': 'true' })
     ).toBeTruthy();
+  });
+
+  it('shows the initial no-quota state without inventing values from another account', () => {
+    const detailView = makeDetailView(0, null);
+    detailView.quota.resetCreditExpiries = [];
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<AccountQuotaTab detailView={detailView} windowUsageError="" historyAvailable={false} historyRefreshing onRefreshHistory={vi.fn()} onResetQuota={vi.fn()} resetQuotaDisabled />); });
+    const output = JSON.stringify(renderer.toJSON());
+    expect(output).toContain('accounts.detail_quota');
+    expect(output).not.toMatch(/\d+%/);
+    expect(renderer.root.findAllByProps({ 'data-quota-reset-credit-expiry': 'credit-1' })).toHaveLength(0);
+    act(() => renderer.unmount());
   });
 });
