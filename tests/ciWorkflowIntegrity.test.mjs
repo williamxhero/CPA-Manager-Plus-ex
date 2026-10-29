@@ -1,7 +1,9 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workflowDir = path.join(repoRoot, '.github', 'workflows');
@@ -48,6 +50,7 @@ describe('GitHub Actions workflow integrity', () => {
     const targetJob = jobBlock(workflow, 'retarget');
 
     expect(workflow).toContain('pull_request_target:');
+    expect(targetJob).toContain("github.repository == 'seakee/CPA-Manager-Plus'");
     expect(workflow).toContain('branches-ignore:');
     expect(workflow).toMatch(/branches-ignore:\s*\n\s+- dev\s*\n\s+- v2/);
     expect(workflow).toContain("github.event.pull_request.base.ref != 'dev'");
@@ -78,7 +81,9 @@ describe('GitHub Actions workflow integrity', () => {
     expect(workflow).toContain('pull_request:');
     expect(workflow).toContain('- main');
     expect(promotionJob).toContain('name: Verify dev promotion source');
-    expect(promotionJob).toContain("if: github.event_name == 'pull_request'");
+    expect(promotionJob).toContain(
+      "if: github.repository == 'seakee/CPA-Manager-Plus' && github.event_name == 'pull_request'"
+    );
     expect(promotionJob).toContain('HEAD_REPOSITORY');
     expect(promotionJob).toContain('HEAD_REF');
     expect(promotionJob).toContain('main accepts promotions only from');
@@ -103,6 +108,42 @@ describe('GitHub Actions workflow integrity', () => {
     expect(requiredJob).toContain("DEMO_DOCS_RESULT: ${{ needs['demo-docs'].result }}");
     expect(requiredJob).toContain('"Demo and Docs:${DEMO_DOCS_RESULT}"');
   });
+
+  it('always calls the security workflow and waits for it in Required checks', () => {
+    const workflow = parse(readWorkflow('pr-check.yml'));
+    const security = parse(readWorkflow('security.yml'));
+
+    expect(workflow.jobs.security.uses).toBe('./.github/workflows/security.yml');
+    expect(workflow.jobs.security.if).toBeUndefined();
+    expect(workflow.jobs.security['continue-on-error']).toBeUndefined();
+    expect(workflow.jobs.required.needs).toContain('security');
+    expect(workflow.jobs.required.if).toBe('always()');
+    expect(security.on).toHaveProperty('workflow_call');
+    expect(security.on).toHaveProperty('schedule');
+    expect(security.on).toHaveProperty('workflow_dispatch');
+  });
+
+  it.each(['success', 'failure', 'cancelled', 'skipped', '', undefined])(
+    'only passes Required checks when Dependency Security succeeds (%s)',
+    (securityResult) => {
+      const workflow = parse(readWorkflow('pr-check.yml'));
+      const step = workflow.jobs.required.steps.find(
+        (candidate) => candidate.name === 'Verify applicable checks'
+      );
+      expect(step.env.SECURITY_RESULT).toBe('${{ needs.security.result }}');
+      const env = {
+        ...process.env,
+        ...Object.fromEntries(Object.keys(step.env).map((key) => [key, 'skipped'])),
+      };
+      if (securityResult === undefined) delete env.SECURITY_RESULT;
+      else env.SECURITY_RESULT = securityResult;
+
+      const result = spawnSync('bash', ['-c', step.run], { env, encoding: 'utf8' });
+      expect(result.error).toBeUndefined();
+      if (securityResult === 'success') expect(result.status, result.stderr).toBe(0);
+      else expect(result.status).not.toBe(0);
+    }
+  );
 
   it('keeps release content validation inside the stable required-check aggregate', () => {
     const workflow = readWorkflow('pr-check.yml');
