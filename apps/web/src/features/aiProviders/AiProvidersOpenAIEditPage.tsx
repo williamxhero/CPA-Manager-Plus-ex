@@ -15,6 +15,11 @@ import { OpenAIKeyTestStatusIndicator, type OpenAIFormApiKeyEntry } from '@/comp
 import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { useNotificationStore } from '@/stores';
 import { normalizeAuthIndex } from '@/utils/authIndex';
+import {
+  getOpenAIKeyCount,
+  getOpenAITestableKeyIndexes,
+  updateOpenAIApiKey,
+} from '@/utils/openAIKeyEntries';
 import { buildApiKeyEntry } from '@/components/providers/utils';
 import { testOpenAIKey } from '@/components/providers/openAIKeyTest';
 import {
@@ -43,6 +48,8 @@ export function AiProvidersOpenAIEditPage() {
   const { showNotification } = useNotificationStore();
   const {
     hasIndexParam,
+    editIndex,
+    providerIdentity,
     invalidIndexParam,
     invalidIndex,
     disableControls,
@@ -71,6 +78,11 @@ export function AiProvidersOpenAIEditPage() {
 
   const swipeRef = useEdgeSwipeBack({ onBack: handleBack });
   const [isTestingKeys, setIsTestingKeys] = useState(false);
+  const [chatTestEnabled, setChatTestEnabled] = useState(false);
+
+  useEffect(() => {
+    setChatTestEnabled(false);
+  }, [hasIndexParam, editIndex, providerIdentity]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -94,9 +106,7 @@ export function AiProvidersOpenAIEditPage() {
     !isTestingKeys &&
     !hasInvalidWeight &&
     !hasInvalidThinkingLevels(form.modelEntries);
-  const hasTestableKeys = form.apiKeyEntries.some(
-    (entry) => entry.apiKey?.trim() || normalizeAuthIndex(entry.authIndex)
-  );
+  const hasTestableKeys = getOpenAITestableKeyIndexes(form.apiKeyEntries).length > 0;
   const modelSelectOptions = useMemo(() => {
     const seen = new Set<string>();
     return form.modelEntries.reduce<Array<{ value: string; label: string }>>((acc, entry) => {
@@ -148,12 +158,11 @@ export function AiProvidersOpenAIEditPage() {
       }
 
       const keyEntry = form.apiKeyEntries[keyIndex];
-      const keyAuthIndex = normalizeAuthIndex(keyEntry?.authIndex) ?? undefined;
-      if (!keyEntry?.apiKey?.trim() && !keyAuthIndex) {
-        setDraftKeyTestStatus(keyIndex, {
-          status: 'error',
-          message: t('notification.openai_test_key_required'),
-        });
+      if (!keyEntry) return false;
+      const keyAuthIndex = normalizeAuthIndex(keyEntry.authIndex) ?? undefined;
+      const modelName = testModel.trim() || availableModels[0] || '';
+      if (chatTestEnabled && !modelName) {
+        showNotification(t('notification.openai_test_model_required'), 'error');
         return false;
       }
 
@@ -166,6 +175,9 @@ export function AiProvidersOpenAIEditPage() {
           keyEntry,
           headers: form.headers,
           authIndex: keyAuthIndex,
+          ...(chatTestEnabled
+            ? { mode: { kind: 'chat' as const, model: modelName, auth: keyEntry.apiKey.trim() ? 'keyed' as const : 'keyless' as const } }
+            : {}),
         });
 
         setDraftKeyTestStatus(keyIndex, { status: 'success', message: '' });
@@ -184,7 +196,7 @@ export function AiProvidersOpenAIEditPage() {
         return false;
       }
     },
-    [form.baseUrl, form.apiKeyEntries, form.headers, t, setDraftKeyTestStatus, showNotification]
+    [availableModels, chatTestEnabled, form.baseUrl, form.apiKeyEntries, form.headers, t, testModel, setDraftKeyTestStatus, showNotification]
   );
 
   const testSingleKey = useCallback(
@@ -213,11 +225,14 @@ export function AiProvidersOpenAIEditPage() {
       return;
     }
 
-    const validKeyIndexes = form.apiKeyEntries
-      .map((entry, index) =>
-        entry.apiKey?.trim() || normalizeAuthIndex(entry.authIndex) ? index : -1
-      )
-      .filter((index) => index >= 0);
+    if (chatTestEnabled && !(testModel.trim() || availableModels[0])) {
+      const message = t('notification.openai_test_model_required');
+      setTestStatus('error');
+      setTestMessage(message);
+      showNotification(message, 'error');
+      return;
+    }
+    const validKeyIndexes = getOpenAITestableKeyIndexes(form.apiKeyEntries);
     if (validKeyIndexes.length === 0) {
       const message = t('notification.openai_test_key_required');
       setTestStatus('error');
@@ -260,6 +275,8 @@ export function AiProvidersOpenAIEditPage() {
       setIsTestingKeys(false);
     }
   }, [
+    availableModels,
+    chatTestEnabled,
     isTestingKeys,
     form.baseUrl,
     form.apiKeyEntries,
@@ -269,6 +286,7 @@ export function AiProvidersOpenAIEditPage() {
     resetDraftKeyTestStatuses,
     runSingleKeyTest,
     showNotification,
+    testModel,
   ]);
 
   const openOpenaiModelDiscovery = () => {
@@ -284,7 +302,13 @@ export function AiProvidersOpenAIEditPage() {
     const list = entries.length ? entries : [buildApiKeyEntry()];
 
     const updateEntry = (idx: number, field: keyof OpenAIFormApiKeyEntry, value: string) => {
-      const next = list.map((entry, i) => (i === idx ? { ...entry, [field]: value } : entry));
+      const next = list.map((entry, i) =>
+        i === idx
+          ? field === 'apiKey'
+            ? updateOpenAIApiKey(entry, value)
+            : { ...entry, [field]: value }
+          : entry
+      );
       setForm((prev) => ({ ...prev, apiKeyEntries: next }));
       setDraftKeyTestStatus(idx, { status: 'idle', message: '' });
       setTestStatus('idle');
@@ -319,7 +343,7 @@ export function AiProvidersOpenAIEditPage() {
       <div className={styles.keyEntriesList}>
         <div className={styles.keyEntriesToolbar}>
           <span className={styles.keyEntriesCount}>
-            {t('ai_providers.openai_keys_count')}: {list.length}
+            {t('ai_providers.openai_keys_count')}: {getOpenAIKeyCount(list)}
           </span>
           <Button
             variant="secondary"
@@ -345,7 +369,7 @@ export function AiProvidersOpenAIEditPage() {
           {list.map((entry, index) => {
             const keyStatus = keyTestStatuses[index]?.status ?? 'idle';
             const weightError = getCredentialWeightError(entry.weight);
-            const canTestKey = Boolean(entry.apiKey?.trim() || normalizeAuthIndex(entry.authIndex));
+            const canTestKey = getOpenAITestableKeyIndexes(form.apiKeyEntries).includes(index);
 
             return (
               <div key={index} className={styles.keyTableRow}>
@@ -614,6 +638,17 @@ export function AiProvidersOpenAIEditPage() {
                     {t('ai_providers.openai_test_title')}
                   </label>
                   <span className={styles.modelTestHint}>{t('ai_providers.openai_test_hint')}</span>
+                  <label>
+                    <input
+                      type="checkbox"
+                      data-openai-chat-test="true"
+                      checked={chatTestEnabled}
+                      disabled={saving || disableControls || isTestingKeys}
+                      onChange={(event) => setChatTestEnabled(event.target.checked)}
+                    />
+                    {t('ai_providers.openai_chat_test_opt_in')}
+                  </label>
+                  {chatTestEnabled && <span role="note">{t('ai_providers.openai_chat_test_warning')}</span>}
                 </div>
                 <div className={styles.modelTestControls}>
                   <Select

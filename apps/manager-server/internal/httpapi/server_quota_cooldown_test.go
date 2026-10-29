@@ -11,6 +11,26 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
 )
 
+type quotaCooldownRecoveryStub struct {
+	authFileName string
+	authIndex    string
+	provider     string
+	recovered    bool
+	err          error
+}
+
+func (s *quotaCooldownRecoveryStub) RecoverOwnedCooldown(
+	_ context.Context,
+	authFileName string,
+	authIndex string,
+	provider string,
+) (bool, error) {
+	s.authFileName = authFileName
+	s.authIndex = authIndex
+	s.provider = provider
+	return s.recovered, s.err
+}
+
 func TestServerCompatQuotaCooldownsList(t *testing.T) {
 	cfg := testutil.NewConfig(t)
 	db := testutil.NewStore(t, cfg)
@@ -135,6 +155,54 @@ func TestServerCompatQuotaCooldownsHidesUnknownResetETAs(t *testing.T) {
 	if item.Evidence != nil {
 		t.Fatalf("evidence = %#v, want omitted for an unknown-reset cooldown", item.Evidence)
 	}
+}
+
+func TestServerCompatQuotaCooldownRecoverUsesEventDrivenRecoveryService(t *testing.T) {
+	cfg := testutil.NewConfig(t)
+	db := testutil.NewStore(t, cfg)
+	manager := collector.NewManager(cfg, db)
+	server := New(cfg, db, manager)
+	recovery := &quotaCooldownRecoveryStub{recovered: true}
+	server.AppContext().QuotaCooldownRecoveryService = recovery
+
+	rr := testutil.Request(
+		t,
+		server.Handler(),
+		http.MethodPost,
+		"/usage-service/quota-cooldowns/recover",
+		`{"authFileName":"codex.json","authIndex":"auth-1","provider":"codex"}`,
+		testutil.AdminKey,
+	)
+	testutil.RequireStatus(t, rr, http.StatusOK)
+
+	var resp struct {
+		Recovered bool `json:"recovered"`
+	}
+	testutil.DecodeJSON(t, rr, &resp)
+	if !resp.Recovered {
+		t.Fatal("recovered = false, want true")
+	}
+	if recovery.authFileName != "codex.json" || recovery.authIndex != "auth-1" || recovery.provider != "codex" {
+		t.Fatalf("recovery request = %#v", recovery)
+	}
+}
+
+func TestServerCompatQuotaCooldownRecoverRequiresPanelAuth(t *testing.T) {
+	cfg := testutil.NewConfig(t)
+	db := testutil.NewStore(t, cfg)
+	manager := collector.NewManager(cfg, db)
+	server := New(cfg, db, manager)
+	server.AppContext().QuotaCooldownRecoveryService = &quotaCooldownRecoveryStub{recovered: true}
+
+	rr := testutil.Request(
+		t,
+		server.Handler(),
+		http.MethodPost,
+		"/usage-service/quota-cooldowns/recover",
+		`{"authFileName":"codex.json","authIndex":"auth-1","provider":"codex"}`,
+		"",
+	)
+	testutil.RequireStatus(t, rr, http.StatusUnauthorized)
 }
 
 func TestServerCompatQuotaCooldownsRequiresPanelAuth(t *testing.T) {

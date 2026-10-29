@@ -83,7 +83,7 @@ export const refreshQuotaWithConfig = async <TState, TData>({
       isCurrent: isRefreshCurrent,
     };
     const data =
-      (config.type === 'meta' || config.type === 'opencode-go' || config.type === 'qwen')
+      config.type === 'meta' || config.type === 'opencode-go' || config.type === 'qwen'
         ? await config.fetchQuota(file, t, requestScope, context)
         : await config.fetchQuota(file, t, requestScope);
     if (!isRefreshCurrent()) return null;
@@ -98,7 +98,26 @@ export const refreshQuotaWithConfig = async <TState, TData>({
         };
       });
     });
-    return committed ? { status: 'success', data, state } : null;
+    if (!committed) return null;
+    if (config.enrichState && isRefreshCurrent()) {
+      const publishedState = state;
+      // Publish quota immediately; optional subscription metadata must not delay it.
+      void config
+        .enrichState(file, publishedState, requestScope, context)
+        .then((enrichedState) => {
+          if (enrichedState === publishedState) return;
+          commitIfRefreshCurrent(() => {
+            setQuota((previous) => {
+              if (previous[storeKey] !== publishedState) return previous;
+              return { ...previous, [storeKey]: enrichedState };
+            });
+          });
+        })
+        .catch(() => {
+          // Keep the successful snapshot on optional metadata failures.
+        });
+    }
+    return { status: 'success', data, state };
   } catch (error: unknown) {
     if (!isRefreshCurrent()) return null;
     const message = describeQuotaFailure(
@@ -114,13 +133,7 @@ export const refreshQuotaWithConfig = async <TState, TData>({
     const committed = commitIfRefreshCurrent(() => {
       setQuota((previous) => {
         const previousState = getScopedQuotaState(config, previous, file) ?? currentState;
-        state = buildQuotaFailureState(
-          config,
-          message,
-          errorStatus,
-          file,
-          previousState
-        );
+        state = buildQuotaFailureState(config, message, errorStatus, file, previousState);
         return {
           ...previous,
           [storeKey]: state,

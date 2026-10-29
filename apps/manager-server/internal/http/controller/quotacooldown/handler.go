@@ -50,11 +50,8 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := strings.TrimRight(r.URL.Path, "/")
-	if path != "/usage-service/quota-cooldowns" {
-		response.MethodNotAllowed(w)
-		return
-	}
-	if r.Method != http.MethodGet {
+	if path != "/usage-service/quota-cooldowns" &&
+		path != "/usage-service/quota-cooldowns/recover" {
 		response.MethodNotAllowed(w)
 		return
 	}
@@ -62,12 +59,28 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	switch path {
+	case "/usage-service/quota-cooldowns":
+		if r.Method != http.MethodGet {
+			response.MethodNotAllowed(w)
+			return
+		}
+		h.handleList(w, r)
+	case "/usage-service/quota-cooldowns/recover":
+		if r.Method != http.MethodPost {
+			response.MethodNotAllowed(w)
+			return
+		}
+		h.handleRecover(w, r)
+	}
+}
+
+func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
 	cooldowns, err := h.App.Store.QuotaCooldowns.ListActive(r.Context())
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, err)
 		return
 	}
-
 	items := make([]cooldownItem, 0, len(cooldowns))
 	for _, c := range cooldowns {
 		items = append(items, mapCooldown(c))
@@ -75,6 +88,49 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, listResponse{Items: items})
 }
 
+type recoverRequest struct {
+	AuthFileName string `json:"authFileName"`
+	AuthIndex    string `json:"authIndex"`
+	Provider     string `json:"provider"`
+}
+
+type recoverResponse struct {
+	Recovered bool `json:"recovered"`
+}
+
+func (h *Handler) handleRecover(w http.ResponseWriter, r *http.Request) {
+	var req recoverRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, err)
+		return
+	}
+	req.AuthFileName = strings.TrimSpace(req.AuthFileName)
+	req.AuthIndex = strings.TrimSpace(req.AuthIndex)
+	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
+	if req.AuthFileName == "" || req.AuthIndex == "" || req.Provider != "codex" {
+		response.JSON(w, http.StatusBadRequest, map[string]string{
+			"error": "authFileName, authIndex, and provider=codex are required",
+		})
+		return
+	}
+	if h.App.QuotaCooldownRecoveryService == nil {
+		response.JSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error": "quota cooldown recovery service is unavailable",
+		})
+		return
+	}
+	recovered, err := h.App.QuotaCooldownRecoveryService.RecoverOwnedCooldown(
+		r.Context(),
+		req.AuthFileName,
+		req.AuthIndex,
+		req.Provider,
+	)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, recoverResponse{Recovered: recovered})
+}
 func mapCooldown(c model.QuotaCooldown) cooldownItem {
 	recoverAtKind := model.NormalizeQuotaCooldownRecoverKind(c.RecoverAtKind, c.RecoverAtMS)
 	// Only a provider-supplied reset time is a real recovery ETA. A conservative

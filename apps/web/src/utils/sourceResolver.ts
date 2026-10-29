@@ -32,7 +32,7 @@ export interface SourceInfoMap {
 
 const buildProviderIdentityKey = (type: string, index: number | string) => `${type}:${index}`;
 const buildProviderSourceKey = (provider: string, source: string) =>
-  `${provider.trim().toLowerCase()}:${source}`;
+  JSON.stringify([provider.trim().toLowerCase(), source]);
 
 const hasDisableAllModelsRule = (models?: string[]) =>
   Array.isArray(models) && models.some((model) => String(model ?? '').trim() === '*');
@@ -325,7 +325,7 @@ export function buildSourceInfoMap(input: SourceInfoMapInput): SourceInfoMap {
     });
   });
 
-  [byAuthIndex, bySource].forEach((map) => {
+  [byAuthIndex, bySource, byProviderAndSource].forEach((map) => {
     map.forEach((entry) => {
       if (entry) {
         byIdentityKey.set(entry.identityKey, entry);
@@ -357,7 +357,7 @@ export function resolveSourceDisplay(
   authIndex: unknown,
   sourceInfoMap: SourceInfoMap,
   authFileMap: Map<string, CredentialInfo>,
-  providerRaw?: string
+  providerRaw: unknown = ''
 ): SourceInfo {
   const source = normalizeUsageSourceId(sourceRaw);
   const authIndexKey = normalizeAuthIndex(authIndex);
@@ -399,6 +399,11 @@ export function resolveSourceDisplay(
     }
   }
 
+  const sharedAcrossProviders =
+    matchedBySource?.identityKey.startsWith('shared:') && !matchedBySource.type;
+  if (source && (matchedBySource === null || sharedAcrossProviders) && matchedByProviderAndSource) {
+    return matchedByProviderAndSource;
+  }
   if (matchedBySource) return matchedBySource;
 
   if (source) {
