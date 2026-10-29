@@ -51,6 +51,7 @@ type LocationState = { fromAiProviders?: boolean } | null;
 export type OpenAIEditOutletContext = {
   hasIndexParam: boolean;
   editIndex: number | null;
+  providerIdentity: string | undefined;
   invalidIndexParam: boolean;
   invalidIndex: boolean;
   disableControls: boolean;
@@ -620,6 +621,7 @@ export function AiProvidersOpenAIEditLayout() {
         {
           hasIndexParam,
           editIndex,
+          providerIdentity: initialData?.name,
           invalidIndexParam,
           invalidIndex,
           disableControls,

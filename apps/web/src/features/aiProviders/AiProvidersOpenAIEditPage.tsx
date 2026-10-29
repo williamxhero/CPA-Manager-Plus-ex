@@ -48,6 +48,8 @@ export function AiProvidersOpenAIEditPage() {
   const { showNotification } = useNotificationStore();
   const {
     hasIndexParam,
+    editIndex,
+    providerIdentity,
     invalidIndexParam,
     invalidIndex,
     disableControls,
@@ -77,6 +79,10 @@ export function AiProvidersOpenAIEditPage() {
   const swipeRef = useEdgeSwipeBack({ onBack: handleBack });
   const [isTestingKeys, setIsTestingKeys] = useState(false);
   const [chatTestEnabled, setChatTestEnabled] = useState(false);
+
+  useEffect(() => {
+    setChatTestEnabled(false);
+  }, [hasIndexParam, editIndex, providerIdentity]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

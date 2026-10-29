@@ -311,6 +311,73 @@ describe('OpenAIEditDrawer model discovery', () => {
     act(() => renderer!.unmount());
   });
 
+  it('requires fresh chat opt-in after reopening or changing providers, including batch tests', async () => {
+    const providers = [
+      { name: 'first', baseUrl: 'https://first.example/v1', apiKeyEntries: [{ apiKey: 'first-key' }], models: [{ name: 'first-model' }] },
+      { name: 'second', baseUrl: 'https://second.example/v1', apiKeyEntries: [{ apiKey: 'second-key' }], models: [{ name: 'second-model' }] },
+    ];
+    mocks.getOpenAIProviders.mockResolvedValue(providers);
+    const props = { open: true, editIndex: 0, disabled: false, onClose: vi.fn(), onSaved: vi.fn() };
+    let renderer: ReactTestRenderer;
+    await act(async () => { renderer = create(<OpenAIEditDrawer {...props} />); });
+    const checkbox = () => renderer!.root.findByProps({ 'data-openai-chat-test': 'true' });
+    const single = () => renderer!.root.findAllByType('button').find((button) =>
+      button.findAllByType('span').some((span) => span.children.join('') === i18n.t('ai_providers.openai_test_single_action'))
+    );
+    const batch = () => renderer!.root.findAllByType('button').find((button) =>
+      button.findAllByType('span').some((span) => span.children.join('') === i18n.t('ai_providers.openai_test_all_action'))
+    );
+    optIntoChatTest(renderer!.root);
+    await act(async () => { await single()?.props.onClick(); });
+    expect(mocks.apiCallRequest.mock.lastCall?.[0].method).toBe('POST');
+
+    await act(async () => { renderer!.update(<OpenAIEditDrawer {...props} open={false} />); });
+    await act(async () => { renderer!.update(<OpenAIEditDrawer {...props} />); });
+    expect(checkbox().props.checked).toBe(false);
+    mocks.apiCallRequest.mockClear();
+    await act(async () => { await batch()?.props.onClick(); });
+    expect(mocks.apiCallRequest.mock.calls.map(([request]) => request.method)).toEqual(['GET']);
+    expect(mocks.apiCallRequest.mock.lastCall?.[0]).toMatchObject({ url: 'https://first.example/v1/models' });
+
+    optIntoChatTest(renderer!.root);
+    await act(async () => { renderer!.update(<OpenAIEditDrawer {...props} editIndex={1} />); });
+    expect(checkbox().props.checked).toBe(false);
+    mocks.apiCallRequest.mockClear();
+    await act(async () => { await single()?.props.onClick(); await batch()?.props.onClick(); });
+    expect(mocks.apiCallRequest.mock.calls.map(([request]) => request.method)).toEqual(['GET', 'GET']);
+    expect(mocks.apiCallRequest.mock.calls.map(([request]) => request.url)).toEqual([
+      'https://second.example/v1/models', 'https://second.example/v1/models',
+    ]);
+    optIntoChatTest(renderer!.root);
+    mocks.apiCallRequest.mockClear();
+    await act(async () => { await batch()?.props.onClick(); });
+    expect(mocks.apiCallRequest.mock.lastCall?.[0]).toMatchObject({
+      method: 'POST', url: 'https://second.example/v1/chat/completions',
+    });
+    act(() => renderer!.unmount());
+  });
+
+  it('keeps the current opt-in when the same provider metadata refreshes in place', async () => {
+    const provider = {
+      name: 'same-provider', baseUrl: 'https://model.example/v1',
+      apiKeyEntries: [{ apiKey: 'real-key' }], models: [{ name: 'local-model' }],
+    };
+    mocks.getOpenAIProviders
+      .mockResolvedValueOnce([provider])
+      .mockResolvedValueOnce([{ ...provider, priority: 2 }]);
+    let renderer: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        <OpenAIEditDrawer open editIndex={0} disabled={false} onClose={vi.fn()} onSaved={vi.fn()} />
+      );
+    });
+    optIntoChatTest(renderer!.root);
+    await act(async () => { await findSaveButton(renderer!.root)?.props.onClick(); });
+    expect(mocks.getOpenAIProviders).toHaveBeenCalledTimes(2);
+    expect(renderer!.root.findByProps({ 'data-openai-chat-test': 'true' }).props.checked).toBe(true);
+    act(() => renderer!.unmount());
+  });
+
   it('does not send a chat request when no model is available', async () => {
     mocks.getOpenAIProviders.mockResolvedValueOnce([{
       name: 'no-model', baseUrl: 'https://model.example/v1',

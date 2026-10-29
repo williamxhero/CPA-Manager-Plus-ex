@@ -117,6 +117,7 @@ type EditorContext = {
   availableModels: string[];
   hasIndexParam: boolean;
   editIndex: number | null;
+  providerIdentity: string | undefined;
   invalidIndexParam: boolean;
   invalidIndex: boolean;
   disableControls: boolean;
@@ -132,6 +133,7 @@ const buildContext = (
 ): EditorContext => ({
   hasIndexParam: true,
   editIndex: 0,
+  providerIdentity: 'openai-test',
   invalidIndexParam: false,
   invalidIndex: false,
   disableControls: false,
@@ -301,6 +303,41 @@ describe('AiProvidersOpenAIEditPage keyless connectivity', () => {
       method: 'POST', header: { 'Content-Type': 'application/json', Authorization: 'Bearer real-key' },
     });
     act(() => renderer.unmount());
+  });
+
+  it('keeps opt-in during same-provider refresh but resets for another provider and a new route visit', async () => {
+    mocks.context = buildContext([{ apiKey: 'first-key' }, { apiKey: 'second-key' }]);
+    const renderer = renderPage();
+    const checkbox = () => renderer.root.findByProps({ 'data-openai-chat-test': 'true' });
+    optIntoChatTest(renderer);
+    const refreshed = mocks.context as EditorContext;
+    refreshed.form = { ...refreshed.form, baseUrl: 'https://refreshed.example/v1' };
+    act(() => renderer.update(createElement(AiProvidersOpenAIEditPage)));
+    expect(checkbox().props.checked).toBe(true);
+    await act(async () => { await findTestAllButton(renderer)?.props.onClick(); });
+    expect(mocks.apiCallRequest.mock.calls.map(([request]) => request.method)).toEqual(['POST', 'POST']);
+
+    mocks.context = { ...buildContext([{ apiKey: 'third-key' }]), editIndex: 1, providerIdentity: 'another-provider' };
+    act(() => renderer.update(createElement(AiProvidersOpenAIEditPage)));
+    expect(checkbox().props.checked).toBe(false);
+    mocks.apiCallRequest.mockClear();
+    await act(async () => {
+      await findSingleTestButton(renderer)?.props.onClick();
+      await findTestAllButton(renderer)?.props.onClick();
+    });
+    expect(mocks.apiCallRequest.mock.calls.map(([request]) => request.method)).toEqual(['GET', 'GET']);
+    optIntoChatTest(renderer);
+    mocks.apiCallRequest.mockClear();
+    await act(async () => { await findTestAllButton(renderer)?.props.onClick(); });
+    expect(mocks.apiCallRequest.mock.lastCall?.[0].method).toBe('POST');
+
+    act(() => renderer.unmount());
+    const newVisit = renderPage();
+    expect(newVisit.root.findByProps({ 'data-openai-chat-test': 'true' }).props.checked).toBe(false);
+    mocks.apiCallRequest.mockClear();
+    await act(async () => { await findTestAllButton(newVisit)?.props.onClick(); });
+    expect(mocks.apiCallRequest.mock.lastCall?.[0].method).toBe('GET');
+    act(() => newVisit.unmount());
   });
 
   it('rejects single and batch chat probes without a model before requesting', async () => {

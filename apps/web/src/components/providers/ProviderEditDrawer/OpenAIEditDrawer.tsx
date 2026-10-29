@@ -209,6 +209,10 @@ export function OpenAIEditDrawer({
   }, [editIndex, providers]);
   const invalidIndex = editIndex !== null && !initialData;
 
+  useEffect(() => {
+    setChatTestEnabled(false);
+  }, [open, editIndex, initialData?.name]);
+
   const title =
     editIndex !== null
       ? t('ai_providers.openai_edit_modal_title')
