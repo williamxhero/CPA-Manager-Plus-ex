@@ -50,6 +50,7 @@ describe('GitHub Actions workflow integrity', () => {
     const targetJob = jobBlock(workflow, 'retarget');
 
     expect(workflow).toContain('pull_request_target:');
+    expect(targetJob).toContain("github.repository == 'seakee/CPA-Manager-Plus'");
     expect(workflow).toContain('branches-ignore:');
     expect(workflow).toMatch(/branches-ignore:\s*\n\s+- dev\s*\n\s+- v2/);
     expect(workflow).toContain("github.event.pull_request.base.ref != 'dev'");
@@ -80,7 +81,9 @@ describe('GitHub Actions workflow integrity', () => {
     expect(workflow).toContain('pull_request:');
     expect(workflow).toContain('- main');
     expect(promotionJob).toContain('name: Verify dev promotion source');
-    expect(promotionJob).toContain("if: github.event_name == 'pull_request'");
+    expect(promotionJob).toContain(
+      "if: github.repository == 'seakee/CPA-Manager-Plus' && github.event_name == 'pull_request'"
+    );
     expect(promotionJob).toContain('HEAD_REPOSITORY');
     expect(promotionJob).toContain('HEAD_REF');
     expect(promotionJob).toContain('main accepts promotions only from');
