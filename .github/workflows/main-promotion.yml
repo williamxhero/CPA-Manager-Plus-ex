@@ -28,6 +28,7 @@ jobs:
   retarget:
     name: Retarget pull request to dev
     if: >-
+      github.repository == 'seakee/CPA-Manager-Plus' &&
       github.event_name == 'pull_request_target' &&
       github.event.pull_request.base.ref != 'dev' &&
       github.event.pull_request.base.ref != 'v2' &&
@@ -107,7 +108,7 @@ jobs:
 
   verify-source:
     name: Verify dev promotion source
-    if: github.event_name == 'pull_request'
+    if: github.repository == 'seakee/CPA-Manager-Plus' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
