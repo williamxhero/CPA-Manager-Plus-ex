@@ -34,6 +34,12 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+vi.mock('@/hooks/usePanelFeatureAvailability', () => ({
+  usePanelFeatureAvailability: () => ({
+    checking: false, managerServiceAvailable: false, managerServiceBase: '',
+  }),
+}));
+
 vi.mock('@/hooks/useHeaderRefresh', () => ({ useHeaderRefresh: () => undefined }));
 vi.mock('@/features/monitoring/hooks/useUsageData', () => ({
   useUsageData: () => ({

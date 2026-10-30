@@ -216,6 +216,7 @@ export function InfoTooltip({ content, ariaLabel, className = '' }: InfoTooltipP
         aria-describedby={open ? tooltipId : undefined}
         onMouseEnter={handleTriggerMouseEnter}
         onMouseLeave={handleTriggerMouseLeave}
+        onClick={showTooltip}
         onFocus={handleTriggerFocus}
         onBlur={handleTriggerBlur}
         onKeyDown={handleKeyDown}

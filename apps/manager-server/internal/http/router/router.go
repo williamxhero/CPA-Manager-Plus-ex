@@ -19,6 +19,7 @@ import (
 	proxycontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/proxy"
 	quotacooldowncontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/quotacooldown"
 	quotasnapshotcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/quotasnapshot"
+	resourcecapabilitycontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/resourcecapability"
 	setupcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/setup"
 	systemcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/system"
 	updatecheckcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/updatecheck"
@@ -38,6 +39,7 @@ func New(appCtx *app.Context) http.Handler {
 	providerKeyAliasHandler := &providerkeyaliascontroller.Handler{App: appCtx}
 	accountActionHandler := &accountactioncontroller.Handler{App: appCtx}
 	automationHandler := automationcontroller.New(appCtx)
+	resourceCapabilityHandler := &resourcecapabilitycontroller.Handler{App: appCtx}
 	quotaCooldownHandler := &quotacooldowncontroller.Handler{App: appCtx}
 	codexInspectionHandler := &codexinspectioncontroller.Handler{App: appCtx}
 	dashboardHandler := &dashboardcontroller.Handler{App: appCtx}
@@ -55,6 +57,7 @@ func New(appCtx *app.Context) http.Handler {
 	mux.HandleFunc("/usage-service/info", middleware.WithCORS(appCtx.Config, systemHandler.Info))
 	mux.HandleFunc("/usage-service/config", middleware.WithCORS(appCtx.Config, managerConfigHandler.Handle))
 	mux.HandleFunc("/usage-service/account-processing-policy", middleware.WithCORS(appCtx.Config, automationHandler.Handle))
+	mux.HandleFunc("/usage-service/resource-capabilities", resourceCapabilityHandler.Handle)
 	mux.HandleFunc("/usage-service/quota-cooldowns", middleware.WithCORS(appCtx.Config, quotaCooldownHandler.Handle))
 	mux.HandleFunc("/usage-service/quota-cooldowns/", middleware.WithCORS(appCtx.Config, quotaCooldownHandler.Handle))
 	mux.HandleFunc("/setup", middleware.WithCORS(appCtx.Config, setupHandler.Setup))

@@ -1,4 +1,11 @@
 {
+  "resource_protection": {
+    "title": "Automatic protection capability",
+    "unknown": "Unknown",
+    "unknown_description": "Manager integration support is unverified. This is a manager-wide support summary, not evidence of resource identity, protection, routing, health or quota. The manual switch is unchanged.",
+    "unavailable": "Manager integration unavailable",
+    "unavailable_description": "This manager has no integrated independent automatic gate contract. Resource identity and query support remain unverified. This does not indicate resource health, quota or routing; the manual switch is unchanged."
+  },
   "quota_error": {
     "stale_cache": "The quota cache is stale and the background refresh did not succeed. Sign in to the Alibaba Cloud Bailian console again in the browser, then retry (the background task refreshes every 10 minutes).",
     "not_logged_in": "The Bailian console sign-in has expired. Sign in again in the browser, then retry.",

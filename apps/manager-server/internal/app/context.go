@@ -27,6 +27,7 @@ import (
 	providerkeyaliassvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providerkeyalias"
 	proxysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/proxy"
 	quotasnapshotsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/quotasnapshot"
+	resourcecapabilitysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	setupsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/setup"
 	updatechecksvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/updatecheck"
 	usagesvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/usage"
@@ -69,6 +70,7 @@ type Context struct {
 	ProviderKeyAliasService        *providerkeyaliassvc.Service
 	AccountActionService           *accountactionsvc.Service
 	AccountProcessingPolicyService *automationsvc.Service
+	ResourceCapabilityService      *resourcecapabilitysvc.Service
 	AuthFileMutationCoordinator    *cpaauthfiles.MutationCoordinator
 	QuotaCooldownRecoveryService   QuotaCooldownRecoveryService
 	ProxyService                   *proxysvc.Service
@@ -195,6 +197,7 @@ func fromExisting(
 			authFileMutationCoordinator,
 		),
 		AccountProcessingPolicyService: accountProcessingPolicyService,
+		ResourceCapabilityService:      resourcecapabilitysvc.New(accountProcessingPolicyService),
 		AuthFileMutationCoordinator:    authFileMutationCoordinator,
 		ProxyService: proxysvc.NewWithMutationCoordinator(
 			managerConfigService,

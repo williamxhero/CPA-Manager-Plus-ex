@@ -99,3 +99,5 @@ export const getDemoManagerLatestRelease = () => ({
 });
 export const getDemoConfigYaml = () => '';
 export const getDemoApiCallResult = () => emptyObject;
+
+export const getDemoResourceCapabilities = () => emptyObject;
