@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -131,6 +132,40 @@ const EX_CHIP_H = EX_GLYPH_H + 2 * EX_PIXEL_PAD; // 7
 
 const brandSvgFiles = readdirSync(brandDir).filter((name) => name.endsWith('.svg'));
 const brandPngFiles = readdirSync(brandDir).filter((name) => name.endsWith('.png'));
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+// Pristine 419c65fc pixel/wordmark fingerprints keep source archives testable without Git history.
+const pristineHashes = {
+  'cpamp-logo-horizontal-color-240.png':
+    '850936d5dc383926ab5e1450a3b66b97c98f3f48c7d6fac336d4654b9aceabfe',
+  'cpamp-logo-horizontal-color-480.png':
+    '9584975cd09c60a193095102f577feec0448281136a89350aed66fccedee8c62',
+  'cpamp-logo-horizontal-color-960.png':
+    '2d52289741ea5c2d4d8ac1a10d2dbee10873eb9e34106a79185fff52dc08957e',
+  'cpamp-logo-horizontal-on-dark-240.png':
+    'a9a5fa7af28424d333eb0262950001fd02dd39b778800abf9082829d4459fc12',
+  'cpamp-logo-horizontal-on-dark-480.png':
+    '29e761432a5c1316e46d1f785e926f345cd156ef6d009b925a00d19b4e52b2fa',
+  'cpamp-logo-horizontal-on-dark-960.png':
+    '9d3202317f53fc4caa8eeeb63c4049a8bc947fd49690afaf576a3a20ab013f42',
+  'cpamp-logo-vertical-color-100.png':
+    '4eaa56f1fb71d9337e47f76622d1a0f0421aad02e1e99eb58d77c3f19590df2a',
+  'cpamp-logo-vertical-color-200.png':
+    '51b409a9859c7909b768abd794a1aa48992d1c99e51dfcd979ac0ff6ae980b47',
+  'cpamp-logo-vertical-color-400.png':
+    'f4a6f599f19430461512a76dc4a181ddce90283e488e08a5749e67aa8fac1bcb',
+  'cpamp-logo-vertical-on-dark-100.png':
+    'c94062ac586c6f5a84f12751d5b1f4dd6f5d6c942b854b0f3a50d3a9ac4549b4',
+  'cpamp-logo-vertical-on-dark-200.png':
+    'bf3b131bd941dbc577628366e35f78befb518c3db2a771283a319200db3821a0',
+  'cpamp-logo-vertical-on-dark-400.png':
+    '306d8015d1051c1248c722deb0956c888604a2869dd534d6cd8c7ed97fe4c655',
+  'cpamp-wordmark-black.svg': '347f017a3951924bea262fd73690c20b7f605d26fa083f66f5b71650ea5d872a',
+  'cpamp-wordmark-color.png': 'ed8142fbc32812668b6ed0dd45b37c436f36d19f260898a02dade4afed814ce5',
+  'cpamp-wordmark-color.svg': 'f74f3812ec1d18ede9925bb2ddfa02bea783539ae02ac74122fd4b9950a455fd',
+  'cpamp-wordmark-on-dark.png': '037953906fdc0d17115c821b9acebbcc522f3728f4c1852046a14743021220be',
+  'cpamp-wordmark-on-dark.svg': '615e28dcb3b49e5e9091a0de19b7fd612b416b4020c690f4a01d55fa3cef7641',
+  'cpamp-wordmark-white.svg': '1bbe84eed98bbaf8bb979d652f76922ace7bd20dfaab9c3fc5abbe4f3bb94bdc',
+};
 
 describe('CPAMP EX fork branding', () => {
   it('enumerates the full CPAMP brand asset set (svg + png)', () => {
@@ -138,13 +173,76 @@ describe('CPAMP EX fork branding', () => {
     expect(brandPngFiles.length).toBeGreaterThanOrEqual(15);
   });
 
-  it.each(brandSvgFiles)('embeds the EX corner badge in %s', (name) => {
-    expect(read(path.join(brandDir, name)).toString('utf8')).toContain(SVG_MARKER);
-  });
+  it.each(brandSvgFiles.filter((name) => name.includes('-logo-')))(
+    'anchors the badge inside the symbol rather than the text in %s',
+    (name) => {
+      const svg = read(path.join(brandDir, name)).toString('utf8');
+      const badge = svg.match(/<g data-cpamp-ex="1"[\s\S]*?<rect ([^>]+)>/);
+      expect(badge).not.toBeNull();
+      const attribute = (key) => Number(badge[1].match(new RegExp(`\\b${key}="([\\d.]+)"`))[1]);
+      const x = attribute('x');
+      const y = attribute('y');
+      const width = attribute('width');
+      const height = attribute('height');
+      const stroke = attribute('stroke-width') / 2;
+      const [left, top, right, bottom] = name.includes('-vertical-')
+        ? [237.11, 50, 492.89, 333.98]
+        : [12, 8, 284, 310];
+      expect(x - stroke).toBeGreaterThanOrEqual(left);
+      expect(y - stroke).toBeGreaterThanOrEqual(top);
+      expect(x + width + stroke).toBeLessThanOrEqual(right);
+      expect(y + height + stroke).toBeLessThanOrEqual(bottom);
+      expect(width).toBeGreaterThan((right - left) * 0.28);
+    }
+  );
 
-  it.each(brandPngFiles)('embeds the EX badge marker in %s', (name) => {
-    expect(read(path.join(brandDir, name)).includes(PNG_MARKER)).toBe(true);
-  });
+  it.each(brandPngFiles.filter((name) => name.includes('-logo-')))(
+    'changes only the symbol region of raster %s',
+    (name) => {
+      const current = decodePng(read(path.join(brandDir, name)));
+      const bounds = name.includes('-vertical-') ? [0.193, 0, 0.807, 0.668] : [0, 0, 0.272, 1];
+      const protectedPixels = [];
+      for (let y = 0; y < current.height; y += 1) {
+        for (let x = 0; x < current.width; x += 1) {
+          if (
+            x >= bounds[0] * current.width &&
+            x < bounds[2] * current.width &&
+            y >= bounds[1] * current.height &&
+            y < bounds[3] * current.height
+          )
+            continue;
+          const offset = (y * current.width + x) * 4;
+          protectedPixels.push(current.data.subarray(offset, offset + 4));
+        }
+      }
+      expect(sha256(Buffer.concat(protectedPixels))).toBe(pristineHashes[name]);
+    }
+  );
+
+  it.each([...brandSvgFiles, ...brandPngFiles].filter((name) => name.includes('-wordmark-')))(
+    'preserves pure wordmark %s without covering its letters',
+    (name) => {
+      const current = read(path.join(brandDir, name));
+      const bytes = name.endsWith('.svg')
+        ? Buffer.from(current.toString('utf8').replaceAll(CR, ''), 'utf8')
+        : current;
+      expect(sha256(bytes)).toBe(pristineHashes[name]);
+    }
+  );
+
+  it.each(brandSvgFiles.filter((name) => !name.includes('-wordmark-')))(
+    'embeds one EX corner badge in %s',
+    (name) => {
+      expect(read(path.join(brandDir, name)).toString('utf8').split(SVG_MARKER)).toHaveLength(2);
+    }
+  );
+
+  it.each(brandPngFiles.filter((name) => !name.includes('-wordmark-')))(
+    'embeds the EX badge marker in %s',
+    (name) => {
+      expect(read(path.join(brandDir, name)).includes(PNG_MARKER)).toBe(true);
+    }
+  );
 
   it('keeps the favicon.ico EX build byte-identical between web and manager-server', () => {
     const web = read(faviconWeb);
@@ -187,19 +285,16 @@ describe('CPAMP EX fork branding', () => {
     }
   });
 
-  it('renders the sidebar EX tag as theme-independent DOM text, not baked pixels', () => {
+  it('uses the badged sidebar symbol without adding a second visual EX', () => {
     const layout = read(
       path.resolve(repoRoot, 'apps/web/src/components/layout/MainLayout.tsx')
     ).toString('utf8');
-    // The 30x32 sidebar raster bakes an EX chip that is only ~5px tall, so the
-    // sidebar must carry a crisp DOM tag anchored to the symbol's corner.
-    expect(layout).toContain('className="sidebar-brand-symbol-wrap"');
-    expect(layout).toContain('className="sidebar-brand-ex"');
+    expect(layout).toContain('src={CPAMP_SYMBOL_COLOR_PNG_URL}');
+    expect(layout).not.toContain('className="sidebar-brand-ex"');
+    expect(layout).toContain("alt={showSidebarLabels ? '' : 'CPA Manager Plus EX'}");
 
     const scss = read(path.resolve(repoRoot, 'apps/web/src/styles/layout.scss')).toString('utf8');
-    expect(scss).toContain('.sidebar-brand-symbol-wrap');
-    expect(scss).toMatch(/\.sidebar-brand-ex\s*\{[^}]*position:\s*absolute[^}]*\}/s);
-    expect(scss).toMatch(/\.sidebar-brand-ex\s*\{[^}]*background:\s*#005cff/s);
+    expect(scss).not.toMatch(/\.sidebar-brand-ex\s*\{/);
   });
 
   it('keeps the baked EX chip large enough relative to icon-like assets', () => {

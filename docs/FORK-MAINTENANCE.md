@@ -38,7 +38,7 @@
 | 8 | Qwen 额度 + 凭证卡渲染 | 新增功能 | web `utils/quota/qwenQuota.ts`、`features/accounts/model/accountQuota*`、`accountSubscriptionPresentation.ts` | 无 | 保留 | 上游覆盖时替换 | 无 | 单测 + 凭证卡页面 | 已实现（fork 主线） |
 | 9 | 受保护的计划凭证编辑 | 新增功能 | web `services/api/authFiles.ts`（plan configuration）、`features/authFiles/hooks/useAuthFileConfigurationEditor.ts`、`accounts/components/accountDetail/AccountConfigurationTab.tsx`；`docs/plan-credential-editing.zh-CN.md` | 无 | 保留 | 上游覆盖时替换 | 无 | 单测 | 已实现（fork 主线） |
 | 10 | provider source 解析改造 | 兼容修复 | web `utils/sourceResolver.ts`、`monitoring/model/sourceDisplay.ts`、`realtimeSourceDisplay.ts` 等 | 无 | 保留 | 上游覆盖时替换 | 无 | 单测 | 已实现（fork 主线） |
-| 11 | CPAMP EX 品牌角标 + 主题 provider 图标 + 添加页改名 | 品牌偏好 | 品牌资产 `apps/web/src/assets/brand/*`（15 SVG + 15 PNG 全部加 EX 角标）、`apps/web/public/favicon.ico`、`apple-touch-icon.png` 及 manager-server 内嵌副本、`apps/web/index.html` 内联回退；生成脚本 `bin/branding/generate-cpamp-ex-assets.py`（见「品牌资产生成」）；provider 图标 `apps/web/src/assets/icons/opencode-{light,dark}.png` + `features/authFiles/constants.ts`；文案 `i18n/locales/*`、`features/plugins/planPlugins.ts`、`features/planCredentials/PlanCredentialsPage.tsx` | 无（fork 品牌偏好） | 保留；EX 仅加于 CPAMP 自有资产，**不加**第三方 provider 标志 | 上游若提供官方品牌变体，按需替换但保留 EX 语义 | 无 | `tests/cpampExBranding.test.mjs`、`repoSourceIntegrity.test.mjs`、`constants.test.ts`、`PlanCredentialsPage.test.tsx`、`planCredentialsWiring.test.ts` | 已并入 `fork/main` 与 `fork/dev`（PR #20，`26017f88`） |
+| 11 | CPAMP EX 品牌角标 + 主题 provider 图标 + 添加页改名 | 品牌偏好 | 品牌资产 `apps/web/src/assets/brand/*`（15 SVG + 15 PNG 按图形区域生成 EX，纯 wordmark 保持原样）、`apps/web/public/favicon.ico`、`apple-touch-icon.png` 及 manager-server 内嵌副本、`apps/web/index.html` 内联回退；生成脚本 `bin/branding/generate-cpamp-ex-assets.py`（见「品牌资产生成」）；provider 图标 `apps/web/src/assets/icons/opencode-{light,dark}.png` + `features/authFiles/constants.ts`；文案 `i18n/locales/*`、`features/plugins/planPlugins.ts`、`features/planCredentials/PlanCredentialsPage.tsx` | 无（fork 品牌偏好） | 保留；EX 仅加于 CPAMP 自有资产，**不加**第三方 provider 标志 | 上游若提供官方品牌变体，按需替换但保留 EX 语义 | 无 | `tests/cpampExBranding.test.mjs`、`repoSourceIntegrity.test.mjs`、`constants.test.ts`、`PlanCredentialsPage.test.tsx`、`planCredentialsWiring.test.ts` | 已并入 `fork/main` 与 `fork/dev`（PR #20，`26017f88`） |
 | 12 | 插件源码单仓整合：OpenCode Go + Qwen 插件与 Qwen 额度 CLI 收入同仓 | 新增功能 | `providers/opencode-go/**`（git subtree）、`providers/qwen/**`（一次性导入）、`providers/README.md`、`providers/import-boundary.json`、`docs/providers-layout-contract.md`、根 `NOTICE`、`bin/release/{check-provider-import-boundary,run-provider-go,build-providers}.mjs`、`bin/ci/classify-pr-checks.mjs`、`.github/workflows/pr-check.yml`（`providers` job）、`package.json`（`check/lint/test/build:providers`） | 无（fork 新增整合；插件各自第三方上游见「provider 源码整合」） | 保留；每个 provider 保持独立 Go module，不并入 `apps/manager-server` | 上游若自行纳入等价插件，逐 provider 比对后再替换重复实现 | 无（面板运行时仍由 CPA 加载插件，配置不变） | `tests/{providerImportBoundary,providerBuildScripts,prCheckClassifier}.test.mjs`；`node bin/release/check-provider-import-boundary.mjs`；场景：新 clone 可构建面板 + 两个 DLL + Qwen CLI | 契约 SPEC5-A 已并入 `fork/main`/`fork/dev`；OpenCode SPEC5-B 已并入 `fork/dev`（`f73c059b`）；Qwen SPEC5-C（`19fa6c50`）与构建/CI SPEC5-D（`223d3b24`）均已并入 `fork/dev` |
 
 ## provider 源码整合（SPEC5 A–D）
@@ -162,7 +162,10 @@ Qwen 为**一次性目录导入**，不虚构 upstream 或 subtree remote，无�
 - 生成脚本：`bin/branding/generate-cpamp-ex-assets.py`
 - 依赖：Python 3.8+ 与 Pillow（`pip install Pillow`）；读取 git 源时另需 `git`。
 - 源：`--source-ref`（默认 `DEFAULT_SOURCE_REF`，即角标落地前的最后一个提交）里的
-  **未加角标** 资产。每次运行都从干净源重建，因此**不会累加/叠印**角标。
+  **未加角标** 资产。已带 EX 的 SVG/PNG/ICO/touch 源会被拒绝，避免累加/叠印。
+- 图文组合按显式图形区域右下角定位，校验 canvas 与文字保护区；纯 wordmark 原样复制，侧栏不另叠 DOM EX。
+- 需加标的 SVG 保留原文字节，要求末尾显式 `</svg>` 闭合（允许 XML 空白）；自闭合或闭合后附注释等不支持的结尾在写输出前报错，避免角标插入错误位置。
+- 像素重建需使用相同 Pillow 与字体环境；不同系统的字体回退不承诺逐字节相同。
 - 产出（35 项）：15 品牌 SVG + 15 品牌 PNG + `apps/web/public/favicon.ico` +
   `apple-touch-icon.png`（各自与 manager-server 内嵌副本逐字节一致），并重算
   `apps/web/index.html` 的三处内联 base64 回退。
@@ -172,7 +175,8 @@ Qwen 为**一次性目录导入**，不虚构 upstream 或 subtree remote，无�
   像素字形——3×5 的 `E` + 1px 间隙 + 3×5 的 `X`（7×5 白色像素，蓝底，1px 留白），
   只落在右下角（9×7，占比 < 半幅，不遮主体）。32/48 帧保持原可读构图。
 - 回归守卫：`tests/cpampExBranding.test.mjs` 直接解码 ICO 内 16px 帧的 PNG 像素，
-  断言字形逐像素（白色 20 个：E 11 + X 9），而非匹配标记字符串。
+  断言字形逐像素（白色 20 个：E 11 + X 9），并用原始资源指纹保护字区，不依赖完整 Git 历史。
+- 生成器行为测试：`python bin/branding/test_generate_cpamp_ex_assets.py`，使用临时源目录覆盖重复生成、只读 `--check`、XML 标记、画布/文字保护和缺失元数据；不修改工作树产物。
 
 ## 面向用户链接切 fork（SPEC #6）
 

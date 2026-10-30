@@ -9,9 +9,9 @@ output, never hand-edited.
 Design
 ------
 * Rounded-square chip, CPAMP primary blue ``#005CFF`` fill, white outline, bold
-  white ``EX``, anchored to the bottom-right of the asset box.
-* Icon-like assets (aspect <= 1.6) use ``ICON_FRAC`` of the shorter side and hug
-  the corner; wider/taller lockups use ``LOCKUP_FRAC``.
+  white ``EX``, anchored to the bottom-right of the symbol region.
+* Explicit canvas, symbol and protected text bounds cover each asset family;
+  pure wordmarks are copied unchanged.
 * The ICO is composed per frame (16/32/48) from the pre-badge 48px master, so
   each frame gets a badge sized for its own pixels instead of a shrunk 48px
   composition.
@@ -58,6 +58,7 @@ import re
 import struct
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -105,8 +106,39 @@ MSRV_DIR = "apps/manager-server/internal/httpapi/web"
 INDEX_REL = "apps/web/index.html"
 FAVICON_SVG_REL = f"{BRAND_DIR}/favicon.svg"
 
-VIEWBOX_RE = re.compile(r'viewBox="([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"')
-EX_BLOCK_RE = re.compile(r'\n?  <g data-cpamp-ex="1".*?</g>\n?', re.S)
+ASSET_LAYOUTS = {
+    "horizontal": {
+        "canvas": (12, 8, 1002, 302),
+        "symbol": (12, 8, 272, 302),
+        "text": (309, 8, 705, 302),
+    },
+    "vertical": {
+        "canvas": (156.5, 50, 417, 425.34),
+        "symbol": (237.119528, 50.000352, 255.759968, 283.968788),
+        "text": (156.5, 395.889, 417, 79.451),
+    },
+    "symbol": {"canvas": (12, 8, 272, 302), "symbol": (12, 8, 272, 302)},
+    "wordmark": {"canvas": (10, 8, 695, 123), "symbol": None, "text": (10, 8, 695, 123)},
+    "app-icon": {"canvas": (0, 0, 1024, 1024), "symbol": (0, 0, 1024, 1024)},
+}
+
+
+def asset_layout(name):
+    if name == "favicon.svg":
+        return ASSET_LAYOUTS["symbol"]
+    for category, layout in ASSET_LAYOUTS.items():
+        prefix = f"cpamp-logo-{category}" if category in ("horizontal", "vertical") else f"cpamp-{category}"
+        if name.startswith(prefix + "-") or name == prefix + ".svg":
+            return layout
+    raise ValueError(f"missing brand layout: {name}")
+
+
+def raster_symbol_bounds(name, size):
+    layout = asset_layout(name)
+    cx, cy, cw, ch = layout["canvas"]
+    sx, sy, sw, sh = layout["symbol"]
+    w, h = size
+    return (sx - cx) * w / cw, (sy - cy) * h / ch, sw * w / cw, sh * h / ch
 
 
 def repo_root():
@@ -191,14 +223,34 @@ def svg_badge(vx, vy, vw, vh):
     return "\n" + "\n".join(lines) + "\n"
 
 
-def patch_svg(src_text):
-    text = EX_BLOCK_RE.sub("\n", src_text)  # drop any previous badge
-    m = VIEWBOX_RE.search(text)
-    if not m:
-        raise RuntimeError("no viewBox in SVG source")
-    vx, vy, vw, vh = (float(g) for g in m.groups())
-    badge = svg_badge(vx, vy, vw, vh)
-    idx = text.rfind("</svg>")
+def patch_svg(src_text, name):
+    root = ET.fromstring(src_text)
+    if any(element.get("data-cpamp-ex") == "1" for element in root.iter()):
+        raise ValueError(f"brand source already has an EX badge: {name}")
+    text = src_text
+    viewbox = root.get("viewBox", "").split()
+    layout = asset_layout(name)
+    if tuple(float(value) for value in viewbox) != layout["canvas"]:
+        raise ValueError(f"brand canvas changed: {name}")
+    if layout["symbol"] is None:
+        return text
+    sx, sy, sw, sh = layout["symbol"]
+    bx, by, size = badge_box(sw, sh)
+    half_stroke = size * 0.035
+    left, top = sx + bx - half_stroke, sy + by - half_stroke
+    right, bottom = sx + bx + size + half_stroke, sy + by + size + half_stroke
+    cx, cy, cw, ch = layout["canvas"]
+    if not (cx <= left < right <= cx + cw and cy <= top < bottom <= cy + ch):
+        raise ValueError(f"brand badge would be clipped: {name}")
+    if "text" in layout:
+        tx, ty, tw, th = layout["text"]
+        if left < tx + tw and right > tx and top < ty + th and bottom > ty:
+            raise ValueError(f"brand badge would cover text: {name}")
+    badge = svg_badge(*layout["symbol"])
+    closing = re.search(r"</svg[ \t\r\n]*>[ \t\r\n]*\Z", text)
+    if closing is None:
+        raise ValueError(f"unsupported SVG closing tag: {name}")
+    idx = closing.start()
     return text[:idx] + badge + text[idx:]
 
 
@@ -209,11 +261,13 @@ def load_font(size):
     return ImageFont.load_default()
 
 
-def draw_badge(img):
+def draw_badge(img, bounds=None):
     """Scalable badge for frames >= TEXT_MIN chip size (all non-ICO PNGs, 32/48)."""
     img = img.convert("RGBA")
-    w, h = img.size
+    vx, vy, w, h = bounds if bounds is not None else (0, 0, *img.size)
     x0, y0, s = badge_box(w, h)
+    x0 += vx
+    y0 += vy
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     d = ImageDraw.Draw(overlay)
     r = s * 0.20
@@ -301,22 +355,31 @@ def build_outputs(repo, reader):
     """Return {relative_path: bytes} for every generated asset."""
     outputs = {}
 
-    # 1. Brand SVGs (badge stripped from source, so re-runs never compound).
+    # 1. Brand SVGs from pristine, unbadged sources.
     svg_names = [n for n in reader.listdir(BRAND_DIR) if n.endswith(".svg")]
     for name in svg_names:
-        text = patch_svg(reader.text(f"{BRAND_DIR}/{name}"))
+        text = patch_svg(reader.text(f"{BRAND_DIR}/{name}"), name)
         outputs[f"{BRAND_DIR}/{name}"] = text.encode("utf-8")
 
     # 2. Brand PNGs.
     for name in reader.listdir(BRAND_DIR):
         if not name.endswith(".png"):
             continue
-        img = Image.open(io.BytesIO(reader.bytes(f"{BRAND_DIR}/{name}")))
-        outputs[f"{BRAND_DIR}/{name}"] = png_bytes(draw_badge(img))
+        source = reader.bytes(f"{BRAND_DIR}/{name}")
+        img = Image.open(io.BytesIO(source))
+        if "cpamp-ex" in img.info:
+            raise ValueError(f"brand source already has an EX badge: {name}")
+        if asset_layout(name)["symbol"] is None:
+            outputs[f"{BRAND_DIR}/{name}"] = source
+            continue
+        outputs[f"{BRAND_DIR}/{name}"] = png_bytes(draw_badge(img, raster_symbol_bounds(name, img.size)))
 
     # 3. favicon.ico -- per-frame composition from the pre-badge 48px master.
     master = Image.open(io.BytesIO(reader.bytes(FAVICON_REL)))
-    base48 = master.ico.getimage((48, 48)).convert("RGBA")
+    base48 = master.ico.getimage((48, 48))
+    if "cpamp-ex" in base48.info:
+        raise ValueError("favicon source already has an EX badge")
+    base48 = base48.convert("RGBA")
     frames = []
     for size in (16, 32, 48):
         frame = base48.resize((size, size), Image.LANCZOS)
@@ -328,6 +391,8 @@ def build_outputs(repo, reader):
 
     # 4. apple-touch-icon.png.
     apple = Image.open(io.BytesIO(reader.bytes(APPLE_REL)))
+    if "cpamp-ex" in apple.info:
+        raise ValueError("touch icon source already has an EX badge")
     apple_data = png_bytes(draw_badge(apple))
     outputs[APPLE_REL] = apple_data
     outputs[f"{MSRV_DIR}/apple-touch-icon.png"] = apple_data
@@ -355,6 +420,9 @@ def main(argv=None):
         outputs = build_outputs(repo, reader)
     except subprocess.CalledProcessError as exc:
         sys.stderr.write(f"git source read failed (ref {args.source_ref}): {exc}\n")
+        return 2
+    except (ValueError, ET.ParseError) as exc:
+        sys.stderr.write(f"invalid brand source or layout: {exc}\n")
         return 2
 
     if args.check:
