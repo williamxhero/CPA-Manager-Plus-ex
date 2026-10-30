@@ -10,9 +10,9 @@ const (
 
 // Balance semantic types
 const (
-	BalanceSemanticAccountWallet  = "account_wallet"
-	BalanceSemanticKeyRemaining   = "key_remaining"
-	BalanceSemanticCreditBalance  = "credit_balance"
+	BalanceSemanticAccountWallet = "account_wallet"
+	BalanceSemanticKeyRemaining  = "key_remaining"
+	BalanceSemanticCreditBalance = "credit_balance"
 )
 
 // Balance query result status
@@ -60,76 +60,76 @@ type BalanceSource struct {
 
 // BalanceObservation records one balance query result
 type BalanceObservation struct {
-	ID              int64
-	SourceID        int64
-	QueryID         string // UUID for this query attempt
-	Semantic        string // account_wallet / key_remaining / credit_balance
-	AmountDecimal   string // decimal string, empty if window-based
-	Currency        string
-	WindowJSON      string // JSON array of quota windows, empty if amount-based
-	QueryStatus     string // success / unsupported / needs_configuration / etc
-	ErrorCode       string // empty on success
-	ErrorMessage    string // safe error, never includes credentials
-	ObservedAtMS    int64  // when the balance was observed
-	EvidenceHash    string // SHA256 of redacted evidence for dedup
-	CreatedAtMS     int64
+	ID            int64
+	SourceID      int64
+	QueryID       string // UUID for this query attempt
+	Semantic      string // account_wallet / key_remaining / credit_balance
+	AmountDecimal string // decimal string, empty if window-based
+	Currency      string
+	WindowJSON    string // JSON array of quota windows, empty if amount-based
+	QueryStatus   string // success / unsupported / needs_configuration / etc
+	ErrorCode     string // empty on success
+	ErrorMessage  string // safe error, never includes credentials
+	ObservedAtMS  int64  // when the balance was observed
+	EvidenceHash  string // SHA256 of redacted evidence for dedup
+	CreatedAtMS   int64
 }
 
 // BalanceRefreshState tracks when a resource needs its next balance refresh
 type BalanceRefreshState struct {
-	ID              int64
-	SourceID        int64
-	LastAttemptMS   int64
-	LastSuccessMS   int64
+	ID               int64
+	SourceID         int64
+	LastAttemptMS    int64
+	LastSuccessMS    int64
 	LastResultStatus string
-	LastError       string
-	NextRefreshMS   int64  // when to refresh next
-	LeaseOwner      string // worker ID holding refresh lease
-	LeaseExpiresMS  int64
-	BatchID         string // groups concurrent refreshes
-	CreatedAtMS     int64
-	UpdatedAtMS     int64
+	LastError        string
+	NextRefreshMS    int64  // when to refresh next
+	LeaseOwner       string // worker ID holding refresh lease
+	LeaseExpiresMS   int64
+	BatchID          string // groups concurrent refreshes
+	CreatedAtMS      int64
+	UpdatedAtMS      int64
 }
 
 // AutoSuspension records independent auto-stop state separate from manual disable
 type AutoSuspension struct {
-	ID                 int64
-	ResourceType       string
-	ResourceID         string
-	ResourceIDVersion  int64
-	Reason             string // low_balance / no_balance / etc
-	Owner              string // cpamp_balance_monitor
-	EvidenceObservationID int64 // which observation triggered suspension
-	Status             string // active / recovered
-	SuspendedAtMS      int64
-	RecoveredAtMS      int64
-	RecoveryEvidenceID int64 // which observation confirmed recovery
-	CreatedAtMS        int64
-	UpdatedAtMS        int64
+	ID                    int64
+	ResourceType          string
+	ResourceID            string
+	ResourceIDVersion     int64
+	Reason                string // low_balance / no_balance / etc
+	Owner                 string // cpamp_balance_monitor
+	EvidenceObservationID int64  // which observation triggered suspension
+	Status                string // active / recovered
+	SuspendedAtMS         int64
+	RecoveredAtMS         int64
+	RecoveryEvidenceID    int64 // which observation confirmed recovery
+	CreatedAtMS           int64
+	UpdatedAtMS           int64
 }
 
 // BalancePolicy defines auto-suspension policy for a resource
 type BalancePolicy struct {
-	ID                 int64
-	ResourceType       string // credential / provider
-	ResourceID         string // empty means global default
-	AutoSuspendEnabled bool
-	ThresholdDecimal   string // decimal string for threshold (e.g. "0.1")
-	ThresholdCurrency  string
+	ID                       int64
+	ResourceType             string // credential / provider
+	ResourceID               string // empty means global default
+	AutoSuspendEnabled       bool
+	ThresholdDecimal         string // decimal string for threshold (e.g. "0.1")
+	ThresholdCurrency        string
 	RecoveryThresholdDecimal string // must exceed this to recover (e.g. "0.1")
-	PolicyLocked       bool   // if true, can't be changed without admin
-	LockedBy           string // who locked it
-	CreatedAtMS        int64
-	UpdatedAtMS        int64
+	PolicyLocked             bool   // if true, can't be changed without admin
+	LockedBy                 string // who locked it
+	CreatedAtMS              int64
+	UpdatedAtMS              int64
 }
 
 // NormalizeBalanceResourceType normalizes resource type to standard values
 func NormalizeBalanceResourceType(value string) string {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	switch normalized {
-	case BalanceResourceTypeCredential, "cred", "credential", "auth", "key":
+	case BalanceResourceTypeCredential, "cred", "auth", "key":
 		return BalanceResourceTypeCredential
-	case BalanceResourceTypeProvider, "prov", "provider":
+	case BalanceResourceTypeProvider, "prov":
 		return BalanceResourceTypeProvider
 	default:
 		return ""

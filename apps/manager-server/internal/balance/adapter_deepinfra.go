@@ -7,8 +7,9 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
+
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/model"
 )
 
 const (
@@ -51,7 +52,7 @@ func (a *deepInfraAdapter) Query(ctx context.Context, target QueryTarget, creden
 	}
 
 	// Create request
-	req, err := http.NewRequestWithContext(ctx, http.MethodGET, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return Observation{
 			QueryID:          queryID,
@@ -153,7 +154,7 @@ func (a *deepInfraAdapter) Query(ctx context.Context, target QueryTarget, creden
 	return Observation{
 		QueryID:          queryID,
 		CapabilityStatus: "supported",
-		Semantic:         BalanceSemanticAccountWallet,
+		Semantic:         model.BalanceSemanticAccountWallet,
 		AmountDecimal:    formatDecimal(availableBalance),
 		Currency:         "USD",
 		QueryStatus:      "success",

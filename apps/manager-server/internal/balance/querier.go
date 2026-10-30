@@ -53,12 +53,17 @@ func (q *defaultQuerier) Query(ctx context.Context, target QueryTarget, resolver
 		}, nil
 	}
 
+	capabilityStatus := "unsupported"
+	if adapter.Capability().Supported {
+		capabilityStatus = "supported"
+	}
+
 	// Resolve credential
 	credential, err := resolver.ResolveCredential(ctx, target.CredentialRef)
 	if err != nil {
 		return Observation{
 			QueryID:          generateQueryID(),
-			CapabilityStatus: adapter.Capability().Supported ? "supported" : "unsupported",
+			CapabilityStatus: capabilityStatus,
 			QueryStatus:      "auth_error",
 			ErrorCode:        "CREDENTIAL_RESOLVE_FAILED",
 			ErrorMessage:     "failed to resolve credential reference",
@@ -68,7 +73,7 @@ func (q *defaultQuerier) Query(ctx context.Context, target QueryTarget, resolver
 	if strings.TrimSpace(credential) == "" {
 		return Observation{
 			QueryID:          generateQueryID(),
-			CapabilityStatus: adapter.Capability().Supported ? "supported" : "unsupported",
+			CapabilityStatus: capabilityStatus,
 			QueryStatus:      "needs_configuration",
 			ErrorCode:        "CREDENTIAL_MISSING",
 			ErrorMessage:     "query credential not configured",
@@ -81,7 +86,7 @@ func (q *defaultQuerier) Query(ctx context.Context, target QueryTarget, resolver
 		if err := validateEndpointURL(target.EndpointURL); err != nil {
 			return Observation{
 				QueryID:          generateQueryID(),
-				CapabilityStatus: adapter.Capability().Supported ? "supported" : "unsupported",
+				CapabilityStatus: capabilityStatus,
 				QueryStatus:      "network_error",
 				ErrorCode:        "INVALID_ENDPOINT",
 				ErrorMessage:     safeError(err),
