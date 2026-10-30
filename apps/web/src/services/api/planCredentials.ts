@@ -92,16 +92,38 @@ const canonicalJSON = (value: unknown): unknown => {
     );
   return value;
 };
+const persistedField = (field: string) => (field === 'excluded-models' ? 'excluded_models' : field);
+const normalizePersistedFields = (record: Record<string, unknown>) => {
+  const normalized = { ...record };
+  for (const field of Object.keys(record)) {
+    const canonical = persistedField(field);
+    if (canonical === field) continue;
+    if (!Object.prototype.hasOwnProperty.call(record, canonical)) {
+      normalized[canonical] = record[field];
+    } else if (
+      JSON.stringify(canonicalJSON(record[field])) !==
+      JSON.stringify(canonicalJSON(record[canonical]))
+    ) {
+      normalized[field] = record[field];
+      continue;
+    }
+    delete normalized[field];
+  }
+  return normalized;
+};
 const untouchedFieldsMatch = (
   before: Record<string, unknown>,
   current: Record<string, unknown>,
   fields: string[]
 ) => {
-  const touched = new Set(fields.map((field) => field.split('.')[0]));
-  return [...new Set([...Object.keys(before), ...Object.keys(current)])].every(
+  const touched = new Set(fields.map((field) => persistedField(field.split('.')[0])));
+  const beforeFields = normalizePersistedFields(before);
+  const currentFields = normalizePersistedFields(current);
+  return [...new Set([...Object.keys(beforeFields), ...Object.keys(currentFields)])].every(
     (field) =>
       touched.has(field) ||
-      JSON.stringify(canonicalJSON(before[field])) === JSON.stringify(canonicalJSON(current[field]))
+      JSON.stringify(canonicalJSON(beforeFields[field])) ===
+        JSON.stringify(canonicalJSON(currentFields[field]))
   );
 };
 const touchedFieldsMatch = (
@@ -111,16 +133,27 @@ const touchedFieldsMatch = (
 ) => {
   const expected = applyAuthFileFieldsPatchToRecord(before, patch);
   return Object.keys(patch).every((field) => {
-    const value =
-      field === 'excluded_models' && Array.isArray(patch.excluded_models)
-        ? patch.excluded_models
-        : expected[field];
-    const actual = current[field];
-    if (value === undefined)
+    // Compare aliases against the canonical key the core writes to the file.
+    const actualField = persistedField(field);
+    const value = expected[actualField];
+    const actual = current[actualField];
+    const expectedExcluded =
+      Array.isArray(patch[field as keyof PlanFields]) &&
+      (patch[field as keyof PlanFields] as unknown[]).length === 0
+        ? []
+        : value;
+    if (expectedExcluded === undefined)
       return (
-        actual == null || actual === '' || (patch[field as keyof PlanFields] === 0 && actual === 0)
+        actual == null ||
+        actual === '' ||
+        (Array.isArray(patch[field as keyof PlanFields]) &&
+          Array.isArray(actual) &&
+          actual.length === 0) ||
+        (patch[field as keyof PlanFields] === 0 && actual === 0)
       );
-    return JSON.stringify(canonicalJSON(value)) === JSON.stringify(canonicalJSON(actual));
+    return (
+      JSON.stringify(canonicalJSON(expectedExcluded)) === JSON.stringify(canonicalJSON(actual))
+    );
   });
 };
 const sameIdentity = (
@@ -198,11 +231,10 @@ export const planCredentialsApi = {
       );
       savedText = await authFilesApi.downloadText(target.name, scope);
       const saved = parseRecord(savedText);
-      if (
-        !sameIdentity(saved, provider, expectedKey, expectedURL) ||
-        !touchedFieldsMatch(before, saved, patch) ||
-        !untouchedFieldsMatch(before, saved, Object.keys(patch))
-      ) {
+      const sameCredentialIdentity = sameIdentity(saved, provider, expectedKey, expectedURL);
+      const touchedPatchMatches = touchedFieldsMatch(before, saved, patch);
+      const untouchedPatchMatches = untouchedFieldsMatch(before, saved, Object.keys(patch));
+      if (!sameCredentialIdentity || !touchedPatchMatches || !untouchedPatchMatches) {
         throw new Error('Saved credential fields did not match');
       }
       await verifyRuntime(target.name, provider, disabled, scope);

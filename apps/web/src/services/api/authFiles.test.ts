@@ -1490,7 +1490,7 @@ describe('authFilesApi patchFieldsForAuthIndexes', () => {
         type: 'xai',
         auth_index: 'auth-1',
         account_id: 'account-1',
-        'excluded-models': ['canonical-model'],
+        excluded_models: ['canonical-model'],
       })
     );
   });
@@ -1877,8 +1877,7 @@ describe('applyAuthFileFieldsPatchToRecord', () => {
         request_retry: 1,
         requestRetry: null,
         'request-retry': null,
-        'excluded-models': ['canonical-model'],
-        excluded_models: null,
+        excluded_models: ['canonical-model'],
         excludedModels: null,
         cloak_mode: 'never',
         cloakMode: null,
@@ -1903,7 +1902,7 @@ describe('applyAuthFileFieldsPatchToRecord', () => {
       base_url: 'https://canonical.base/v1',
       using_api: false,
       request_retry: 1,
-      'excluded-models': ['canonical-model'],
+      excluded_models: ['canonical-model'],
       disable_cooling: false,
       cloak_mode: 'never',
       cloak_strict_mode: 'false',
