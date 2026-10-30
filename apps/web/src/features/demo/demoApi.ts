@@ -413,23 +413,12 @@ const applyDemoAuthFileConfigurationPatch = (
   const excludedModelsPatch =
     fields['excluded-models'] !== undefined ? fields['excluded-models'] : fields.excluded_models;
   if (excludedModelsPatch !== undefined) {
-    if (excludedModelsPatch === null) {
-      delete next['excluded-models'];
-      delete next.excluded_models;
-    } else if (Array.isArray(excludedModelsPatch)) {
+    delete next['excluded-models'];
+    delete next.excluded_models;
+    if (Array.isArray(excludedModelsPatch)) {
       const models = excludedModelsPatch.map((model) => String(model).trim()).filter(Boolean);
-      if (models.length > 0) next['excluded-models'] = models;
-      else delete next['excluded-models'];
-      delete next.excluded_models;
+      if (models.length > 0) next.excluded_models = models;
     }
-  }
-
-  // Plan saves mirror both aliases because the host retains generic PATCH metadata.
-  if (
-    isDemoPlanProvider(normalizeDemoProvider(record.type)) &&
-    fields.excluded_models !== undefined
-  ) {
-    next.excluded_models = fields.excluded_models;
   }
 
   handledKeys.add('disable_cooling');
