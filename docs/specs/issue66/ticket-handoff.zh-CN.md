@@ -2,6 +2,10 @@
 
 日期：2026-10-16；分支 `claude/issue66-plan`；工作区 `D:/WILL/AGENT/CPA/cpamp-issue66-plan`。**PARTIAL：规划交付，不是实施完成。** 复用既有 writer；用户显式加载 `/to-tickets`，按已授权推荐默认值形成以下 12 个切片。四包 SPEC 与源码调查仍见[本地规划记录](./planning.zh-CN.md)，原父需求及全部验收不变。
 
+## 最新安全审查交接
+
+用户后续要求先交 Hermes 安全 payload 审查，Git／GitHub 仅只读去重。本轮无新提交或外部写入；原已发布票／原生边状态未变。另有仅基于父 #66 的 A/B/C 公共候选，与本地调查隔离；七份待审正文指纹及真实编号替换前提见[安全清单](./hermes-payload-review.zh-CN.md)，精确四包里程碑交接见[工作包清单](./hermes-workpackages.zh-CN.md)。审查前不继续发布，不重调技能、不新 writer／worktree、不 push 受限历史。
+
 ## 1. 实际票号、正文与阻塞
 
 下表箭头含义为「本票须等待」。GitHub 链接只表示真实已创建的 issue，不预测未发布票号。

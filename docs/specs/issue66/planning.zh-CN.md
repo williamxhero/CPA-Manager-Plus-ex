@@ -4,6 +4,10 @@
 
 **交付状态：PARTIAL（规划产物；不是功能完成）。** 本轮不实现、不访问 live、不部署、不重启、不合并、不关闭 issue。原 SPEC 不变；本目录是实施澄清与子 SPEC 草案，不能替代原验收。仅品牌子 SPEC 成功发布到 GitHub，A／B／C 草案仍待发布，不能称为已登记的 canonical 子 SPEC。用户后续显式加载 `/to-tickets` 后已形成 12 份纵向票，8 张成功发布，4 张仅本地；T08 发布被权限拒绝后停止后续外部写入。实际票号、依赖及门槛见[票据交接](./ticket-handoff.zh-CN.md)。
 
+## 最新补充：公共 payload 待 Hermes 审查
+
+用户要求继续规划收尾，Git／GitHub 仅只读去重；唯一 writer 仍为 bdb38eb8，用户告知意外副本 2377cdb3 已停止。本轮未 stage／commit／push 或外部写入。A/B/C 公共候选另存 `public-review/`，仅派生已公开父 #66 的需求及消费语义，**没有覆盖或公开本页及原调查草案**。具体七份候选／指纹／排除清单见[Hermes 安全审查清单](./hermes-payload-review.zh-CN.md)，四张 SPEC 卡的 owner／交付／里程碑依赖／验收见[工作包交接](./hermes-workpackages.zh-CN.md)。本会话尚未收到 Hermes 对这些版本的审查批准；审前不外发，原受限历史仍不得 push。此补充不表示 A/B/C 已登记、剩余票已创建或看板已建立。
+
 ## 1. 工作流与权限记录
 
 - 工作区 `D:/WILL/AGENT/CPA/cpamp-issue66-plan`，分支 `claude/issue66-plan`，起点 `f3e078e6c0d5d104a33d5577397e5fc49b1570a8`；该目录是既有隔离 worktree，复用本会话和 writer，不因阶段切换另开实现者。
