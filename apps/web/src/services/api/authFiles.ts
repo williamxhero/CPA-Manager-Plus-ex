@@ -745,17 +745,11 @@ export const applyAuthFileFieldsPatchToRecord = (
   const excludedModelsPatch =
     fields['excluded-models'] !== undefined ? fields['excluded-models'] : fields.excluded_models;
   if (excludedModelsPatch !== undefined) {
-    if (excludedModelsPatch === null) {
-      delete next['excluded-models'];
-      delete next.excluded_models;
-    } else {
+    delete next['excluded-models'];
+    delete next.excluded_models;
+    if (excludedModelsPatch !== null) {
       const models = excludedModelsPatch.map((model) => model.trim()).filter(Boolean);
-      if (models.length > 0) {
-        next['excluded-models'] = models;
-      } else {
-        delete next['excluded-models'];
-      }
-      delete next.excluded_models;
+      if (models.length > 0) next.excluded_models = models;
     }
   }
   if (fields.excludedModels === null) delete next.excludedModels;

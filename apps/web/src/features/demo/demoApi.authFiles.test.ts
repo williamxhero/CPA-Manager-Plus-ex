@@ -130,7 +130,6 @@ describe('auth file credential refresh demo API', () => {
         base_url: 'https://replacement-plan.invalid/v1',
         label: '',
         note: 'Updated note',
-        'excluded-models': ['new-model'],
         excluded_models: ['new-model'],
         disabled: true,
         quota: { remaining: 42 },
@@ -338,7 +337,8 @@ describe('auth file credential refresh demo API', () => {
       unknown
     >;
     expect(updatedRecord.note).toBe('Updated demo note');
-    expect(updatedRecord['excluded-models']).toEqual(['gpt-5']);
+    expect(updatedRecord.excluded_models).toEqual(['gpt-5']);
+    expect(updatedRecord).not.toHaveProperty('excluded-models');
     expect(updatedRecord.headers).not.toHaveProperty('X-Demo-Tenant');
 
     resetDemoAuthFileConfiguration();

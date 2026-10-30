@@ -17,7 +17,7 @@ vi.mock('./client', () => ({
   }),
 }));
 import { oauthApi } from './oauth';
-import { planCredentialsApi } from './planCredentials';
+import { planCredentialsApi, PLAN_CREDENTIAL_DEFAULT_URLS } from './planCredentials';
 import { sha256RawTextHex } from '@/utils/apiKeyHash';
 
 const scope = {
@@ -87,7 +87,7 @@ describe('plan credential runtime activation', () => {
       disabled: true,
       excluded_models: ['old-model'],
     };
-    const after = { ...before, excluded_models: ['new-model'], 'excluded-models': ['new-model'] };
+    const after = { ...before, excluded_models: ['new-model'] };
     mocks.getRaw
       .mockResolvedValueOnce({ data: new Blob([JSON.stringify(before)]) })
       .mockResolvedValue({ data: new Blob([JSON.stringify(after)]) });
@@ -104,6 +104,79 @@ describe('plan credential runtime activation', () => {
       expect.anything()
     );
   });
+
+  it.each(['qwen', 'opencode-go'])(
+    'accepts core-canonicalized exclusions for %s',
+    async (provider) => {
+      const before = {
+        type: provider,
+        api_key: key,
+        base_url: PLAN_CREDENTIAL_DEFAULT_URLS[provider],
+        disabled: false,
+        excluded_models: ['old'],
+      };
+      const after = { ...before, excluded_models: ['new'] };
+      mocks.getRaw
+        .mockResolvedValueOnce({ data: new Blob([JSON.stringify(before)]) })
+        .mockResolvedValueOnce({ data: new Blob([JSON.stringify(after)]) });
+      mocks.get
+        .mockResolvedValueOnce({ files: [{ ...runtime, type: provider }] })
+        .mockResolvedValueOnce({ models: [{ id: 'model' }] });
+      mocks.patch.mockResolvedValue({ status: 'ok' });
+      await expect(
+        planCredentialsApi.update({ name, provider }, { 'excluded-models': ['new'] }, scope)
+      ).resolves.toBeUndefined();
+    }
+  );
+
+  it.each(['qwen', 'opencode-go'])(
+    'accepts clearing core-canonicalized exclusions for %s',
+    async (provider) => {
+      const before = {
+        type: provider,
+        api_key: key,
+        base_url: PLAN_CREDENTIAL_DEFAULT_URLS[provider],
+        disabled: false,
+        excluded_models: ['old'],
+        'excluded-models': ['old'],
+      };
+      const after: Record<string, unknown> = { ...before, excluded_models: [] };
+      delete after['excluded-models'];
+      mocks.getRaw
+        .mockResolvedValueOnce({ data: new Blob([JSON.stringify(before)]) })
+        .mockResolvedValueOnce({ data: new Blob([JSON.stringify(after)]) });
+      mocks.get
+        .mockResolvedValueOnce({ files: [{ ...runtime, type: provider }] })
+        .mockResolvedValueOnce({ models: [{ id: 'model' }] });
+      mocks.patch.mockResolvedValue({ status: 'ok' });
+      await expect(
+        planCredentialsApi.update({ name, provider }, { 'excluded-models': [] }, scope)
+      ).resolves.toBeUndefined();
+    }
+  );
+
+  it.each(['qwen', 'opencode-go'])(
+    'accepts legacy exclusion aliases removed by core during unrelated saves for %s',
+    async (provider) => {
+      const before = {
+        type: provider,
+        api_key: key,
+        base_url: PLAN_CREDENTIAL_DEFAULT_URLS[provider],
+        disabled: true,
+        'excluded-models': ['legacy'],
+      };
+      const after = { ...before, label: 'Renamed', excluded_models: ['legacy'] };
+      delete (after as Record<string, unknown>)['excluded-models'];
+      mocks.getRaw
+        .mockResolvedValueOnce({ data: new Blob([JSON.stringify(before)]) })
+        .mockResolvedValueOnce({ data: new Blob([JSON.stringify(after)]) });
+      mocks.get.mockResolvedValue({ files: [{ ...runtime, type: provider, disabled: true }] });
+      mocks.patch.mockResolvedValue({ status: 'ok' });
+      await expect(
+        planCredentialsApi.update({ name, provider }, { label: 'Renamed' }, scope)
+      ).resolves.toBeUndefined();
+    }
+  );
 
   it.each(['other-provider', 'other-key', 'other-url'])(
     'refuses occupied digest files without overwriting (%s)',
@@ -419,9 +492,7 @@ describe('plan credential runtime activation', () => {
     expect(patchCall[2].baseURL).toBe(`${scope.apiBase}/v0/management`);
     expect(patchCall[2].headers['X-CPAMP-Auth-File-Mutation-Identity']).toBe(
       encodeURIComponent(
-        JSON.stringify([
-          { name, provider: 'qwen', runtimeId: id, authIndex: 'synthetic-index' },
-        ])
+        JSON.stringify([{ name, provider: 'qwen', runtimeId: id, authIndex: 'synthetic-index' }])
       )
     );
   });
