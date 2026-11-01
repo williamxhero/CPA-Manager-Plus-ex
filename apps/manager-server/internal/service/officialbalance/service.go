@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managementquery"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
@@ -51,16 +52,37 @@ type Status struct {
 	LastSuccess *balance.Observation `json:"lastSuccess,omitempty"`
 }
 type Service struct {
-	running  map[string]string
-	slots    chan struct{}
-	Store    *store.Store
-	Identity *rc.Service
-	Querier  balance.Querier
-	mu       sync.Mutex
+	running   map[string]string
+	budget    *managementquery.Budget
+	completed func(Job, Status)
+	Store     *store.Store
+	Identity  *rc.Service
+	Querier   balance.Querier
+	mu        sync.Mutex
 }
 
-func New(st *store.Store, identity *rc.Service) *Service {
-	return &Service{Store: st, Identity: identity, Querier: balance.New(), running: map[string]string{}, slots: make(chan struct{}, 4)}
+type Option func(*Service)
+
+func WithBudget(b *managementquery.Budget) Option {
+	return func(s *Service) {
+		if b != nil {
+			s.budget = b
+		}
+	}
+}
+
+// SetCompletionObserver is startup wiring, not a second query path.
+func (s *Service) SetCompletionObserver(fn func(Job, Status)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.completed = fn
+}
+func New(st *store.Store, identity *rc.Service, options ...Option) *Service {
+	s := &Service{Store: st, Identity: identity, Querier: balance.New(), running: map[string]string{}, budget: managementquery.NewBudget(st)}
+	for _, option := range options {
+		option(s)
+	}
+	return s
 }
 
 func canonical(b Binding) Binding {

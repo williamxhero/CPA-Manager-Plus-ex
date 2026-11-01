@@ -11,6 +11,7 @@ import (
 	codexinspectioncontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/codexinspection"
 	credentialquotacontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/credentialquota"
 	dashboardcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/dashboard"
+	fullrefreshcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/fullrefresh"
 	healthcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/health"
 	managerconfigcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/managerconfig"
 	modelpricecontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/modelprice"
@@ -51,6 +52,8 @@ func New(appCtx *app.Context) http.Handler {
 	panelHandler := &panelcontroller.Handler{App: appCtx}
 
 	mux := http.NewServeMux()
+	fullRefreshHandler := &fullrefreshcontroller.Handler{App: appCtx}
+	mux.HandleFunc("/usage-service/full-refresh", fullRefreshHandler.Handle)
 	credentialQuotaHandler := &credentialquotacontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/credential-quota", credentialQuotaHandler.Handle)
 	mux.HandleFunc("/usage-service/credential-quota/jobs/", credentialQuotaHandler.Handle)

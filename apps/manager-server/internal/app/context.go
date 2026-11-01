@@ -21,6 +21,8 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpaauthfiles"
 	credentialquotasvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
 	dashboardsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/dashboard"
+	fullrefreshsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managementquery"
 	managerconfigsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
 	modelpricesvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/modelprice"
 	monitoringsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/monitoring"
@@ -49,6 +51,8 @@ type DatabaseMaintenanceStatusProvider interface {
 }
 
 type Context struct {
+	ManagementQueryBudget  *managementquery.Budget
+	FullRefreshService     *fullrefreshsvc.Service
 	OfficialBalanceService *officialbalancesvc.Service
 	CredentialQuotaService *credentialquotasvc.Service
 	UpdateCheckService     *updatechecksvc.Service
@@ -173,9 +177,14 @@ func fromExisting(
 	}))
 	authFileMutationCoordinator := cpaauthfiles.NewMutationCoordinator()
 	identityService := resourcecapabilitysvc.New(accountProcessingPolicyService, managerConfigService)
-	return &Context{
-		OfficialBalanceService: officialbalancesvc.New(st, identityService),
-		CredentialQuotaService: credentialquotasvc.New(st, identityService),
+	managementBudget := managementquery.NewBudget(st)
+	officialBalanceService := officialbalancesvc.New(st, identityService, officialbalancesvc.WithBudget(managementBudget))
+	credentialQuotaService := credentialquotasvc.New(st, identityService, credentialquotasvc.WithBudget(managementBudget))
+	out := &Context{
+		ManagementQueryBudget:  managementBudget,
+		FullRefreshService:     fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget)),
+		OfficialBalanceService: officialBalanceService,
+		CredentialQuotaService: credentialQuotaService,
 		UpdateCheckService:     updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
 		Config:                 cfg,
 		Store:                  st,
@@ -214,4 +223,8 @@ func fromExisting(
 		PanelService:             panelsvc.New(cfg.PanelPath, embeddedPanel),
 		AutomationRuntimeService: runtimeService,
 	}
+	legacyGuard := &managementquery.LegacyGuard{Budget: managementBudget, Identity: identityService}
+	out.ProxyService.LegacyQuotaGuard = legacyGuard
+	out.CodexInspectionService.LegacyQuotaGuard = legacyGuard
+	return out
 }

@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managementquery"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
@@ -86,15 +87,36 @@ type Job struct {
 	Query            Query  `json:"query"`
 }
 type Service struct {
-	Store    *store.Store
-	Identity *rc.Service
-	mu       sync.Mutex
-	running  map[string]string
-	slots    chan struct{}
+	Store     *store.Store
+	Identity  *rc.Service
+	mu        sync.Mutex
+	running   map[string]string
+	budget    *managementquery.Budget
+	completed func(Job, Status)
 }
 
-func New(st *store.Store, identity *rc.Service) *Service {
-	return &Service{Store: st, Identity: identity, running: map[string]string{}, slots: make(chan struct{}, 4)}
+type Option func(*Service)
+
+func WithBudget(b *managementquery.Budget) Option {
+	return func(s *Service) {
+		if b != nil {
+			s.budget = b
+		}
+	}
+}
+
+// SetCompletionObserver is startup wiring, not a second query path.
+func (s *Service) SetCompletionObserver(fn func(Job, Status)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.completed = fn
+}
+func New(st *store.Store, identity *rc.Service, options ...Option) *Service {
+	s := &Service{Store: st, Identity: identity, running: map[string]string{}, budget: managementquery.NewBudget(st)}
+	for _, option := range options {
+		option(s)
+	}
+	return s
 }
 
 func same(a, b Binding) bool { return reflect.DeepEqual(a, b) }
@@ -250,6 +272,11 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 		}
 		return job, e
 	}
+	if retry, err := s.budget.RetryAt(ctx, "credential:"+flight); err != nil {
+		return Job{}, err
+	} else if time.Now().UnixMilli() < retry {
+		return Job{}, ErrBusy
+	}
 	old, err := s.Store.CredentialQuota(ctx, id)
 	if err != nil {
 		return Job{}, err
@@ -264,14 +291,13 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	if old.Source == "" || operation(previous) != operation(source) {
 		version++
 	}
-	select {
-	case s.slots <- struct{}{}:
-	default:
+	jobID := uuid.NewString()
+	if _, ok := s.budget.TryAcquire(jobID); !ok {
 		return Job{}, ErrBusy
 	}
 	requestedVersion := q.Version
 	q.Version = version
-	job := Job{ID: uuid.NewString(), State: "running", DeadlineMS: deadline.UnixMilli(), Query: q}
+	job := Job{ID: jobID, State: "running", DeadlineMS: deadline.UnixMilli(), Query: q}
 	job.RequestedVersion = requestedVersion
 	binding, _ := json.Marshal(q.Binding)
 	initial := balance.Observation{QueryID: job.ID, QueryStatus: "running", ObservedAtMS: started.UnixMilli(), DeadlineMS: job.DeadlineMS, Binding: binding, Semantic: "quota_windows"}
@@ -279,7 +305,7 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	doc, _ := json.Marshal(job)
 	src, _ := json.Marshal(source)
 	if err := s.Store.BeginCredentialQuota(ctx, store.CredentialQuotaRecord{ID: id, Version: version, Source: string(src), Attempt: string(a)}, old.Version, job.ID, string(doc), keep); err != nil {
-		<-s.slots
+		s.budget.Release(jobID)
 		return Job{}, err
 	}
 	s.running[flight] = job.ID
@@ -287,8 +313,8 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	return job, nil
 }
 func (s *Service) run(job Job, source Source, id, flight string) {
-	defer func() { s.mu.Lock(); delete(s.running, flight); s.mu.Unlock(); <-s.slots }()
-	ctx, cancel := context.WithDeadline(context.Background(), time.UnixMilli(job.DeadlineMS))
+	defer func() { s.mu.Lock(); delete(s.running, flight); s.mu.Unlock(); s.budget.Release(job.ID) }()
+	ctx, cancel := context.WithDeadline(s.budget.Context(job.ID), time.UnixMilli(job.DeadlineMS))
 	defer cancel()
 	budget := time.Until(time.UnixMilli(job.DeadlineMS))
 	reserve := budget / 5
@@ -327,11 +353,19 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 		obs.QueryStatus = "parse_error"
 		obs.ErrorCode = "INVALID_CORE_QUOTA_RESPONSE"
 	}
+	if obs.QueryStatus == "rate_limited" {
+		s.budget.RecordRetry(ctx, "credential:"+flight, time.Now().Add(time.Hour))
+	}
 	a, _ := json.Marshal(obs)
 	doc, _ := json.Marshal(job)
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	_ = s.Store.CompleteCredentialQuota(ctx, id, job.Query.Version, job.ID, string(a), string(doc), obs.QueryStatus == "success")
+	saved := s.Store.CompleteCredentialQuota(ctx, id, job.Query.Version, job.ID, string(a), string(doc), obs.QueryStatus == "success")
+	status, statusErr := s.read(ctx, source)
+	observer := s.completed
+	s.mu.Unlock()
+	if saved == nil && statusErr == nil && job.State == "complete" && observer != nil {
+		observer(job, status)
+	}
 }
 func valid(r CoreObservation, s Source) bool {
 	if r.ProtocolVersion != 1 {
@@ -412,7 +446,7 @@ func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 		return Job{}, ErrInput
 	}
 	source, err := s.source(ctx, job.Query.AuthIndex)
-	if err != nil || !same(source.Binding, job.Query.Binding) {
+	if err != nil || !same(source.Binding, job.Query.Binding) || source.SourceVersion != job.Query.SourceVersion {
 		return Job{}, ErrIdentity
 	}
 	s.mu.Lock()
@@ -435,4 +469,10 @@ func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 		job.State = "interrupted"
 	}
 	return job, nil
+}
+
+// Core v1 does not forward HTTP Retry-After; its rate_limited observations use
+// conservative hourly backoff. This is not a reset/recovery proof.
+func (s *Service) NextSourceRetry(ctx context.Context, source Source) (int64, error) {
+	return s.budget.RetryAt(ctx, "credential:"+key(source.Binding)+":"+operation(source))
 }

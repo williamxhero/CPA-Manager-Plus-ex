@@ -268,6 +268,12 @@ func runServer() {
 	serverResult := make(chan error, 1)
 	go serveHTTPServer(server, listener, stop, serverResult)
 	go serverApp.AppContext().UpdateCheckService.Run(ctx)
+	// Management refresh is independent of usage collection and policy settings.
+	go func() {
+		if err := serverApp.AppContext().FullRefreshService.Run(ctx); err != nil {
+			log.Printf("[full-refresh] background lifecycle unavailable: %v", err)
+		}
+	}()
 	if err := serverApp.AppContext().UsageService.StartImportSessionCleanup(ctx); err != nil {
 		log.Printf("[startup] start usage import session cleanup: %v", err)
 	}
