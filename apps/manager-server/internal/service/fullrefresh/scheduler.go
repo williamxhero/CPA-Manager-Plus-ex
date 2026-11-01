@@ -138,3 +138,37 @@ func (s *Service) markAdmitted(ctx context.Context, p *Progress, item *Item) {
 		item.NextDueMS = next
 	}
 }
+
+// A real terminal host attempt covers this exact current source in the current
+// cycle, even when acquired manually before the scheduler starts. Keep an
+// existing future cycle anchor; a manual request must not postpone it. This is
+// scheduling credit only, never a new observation, authentication or callback.
+func (s *Service) creditCompletedSource(source SourceRequest) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	defer cancel()
+	row := SourceStatus{Request: source}
+	key := sourceScheduleKey(row)
+	now := s.now()
+	due, err := s.Store.FullRefreshDue(ctx, key)
+	if err != nil || due > now.UnixMilli() {
+		return
+	}
+	var inv Inventory
+	if source.Official != nil {
+		inv.Scope = source.Official.Scope
+	} else if source.Credential != nil {
+		inv.Scope = source.Credential.Scope
+	} else {
+		return
+	}
+	next, err := s.Store.FullRefreshDue(ctx, roundScheduleKey(inv))
+	if err != nil {
+		return
+	}
+	if next <= now.UnixMilli() {
+		next = now.Add(time.Hour).UnixMilli()
+	}
+	_ = s.Store.SaveFullRefreshDue(ctx, key, next)
+}
