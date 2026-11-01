@@ -291,12 +291,22 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	if existing := s.running[flight]; existing != "" {
 		doc, e := s.Store.CredentialQuotaJob(ctx, existing)
 		var job Job
-		_ = json.Unmarshal([]byte(doc), &job)
-		if q.Version != job.RequestedVersion && q.Version != job.Query.Version {
-			return Job{}, store.ErrQuotaConflict
+		if e == nil {
+			e = json.Unmarshal([]byte(doc), &job)
 		}
-		job.Joined = true
-		return job, e
+		if e != nil {
+			return Job{}, e
+		}
+		if job.State == "running" {
+			if q.Version != job.RequestedVersion && q.Version != job.Query.Version {
+				return Job{}, store.ErrQuotaConflict
+			}
+			job.Joined = true
+			return job, nil
+		}
+		// Terminal publication ends host singleflight, even while its trusted
+		// completion consumer still owns the old worker's budget lease.
+		delete(s.running, flight)
 	}
 	if retry, err := s.budget.RetryAt(ctx, "credential:"+flight); err != nil {
 		return Job{}, err
@@ -339,7 +349,14 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	return job, nil
 }
 func (s *Service) run(job Job, source Source, id, flight string) {
-	defer func() { s.mu.Lock(); delete(s.running, flight); s.mu.Unlock(); s.budget.Release(job.ID) }()
+	defer func() {
+		s.mu.Lock()
+		if s.running[flight] == job.ID {
+			delete(s.running, flight)
+		}
+		s.mu.Unlock()
+		s.budget.Release(job.ID)
+	}()
 	ctx, cancel := context.WithDeadline(s.budget.Context(job.ID), time.UnixMilli(job.DeadlineMS))
 	defer cancel()
 	budget := time.Until(time.UnixMilli(job.DeadlineMS))
@@ -527,6 +544,9 @@ func (s *Service) TryJoin(ctx context.Context, q Query) (Job, bool, error) {
 		var job Job
 		if err = json.Unmarshal([]byte(doc), &job); err != nil {
 			return Job{}, true, err
+		}
+		if job.State != "running" {
+			continue
 		}
 		if same(job.Query.Binding, q.Binding) && job.Query.SourceVersion == q.SourceVersion && job.Query.AuthIndex == q.AuthIndex {
 			if q.Version != job.RequestedVersion && q.Version != job.Query.Version {
