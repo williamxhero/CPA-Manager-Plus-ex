@@ -58,6 +58,7 @@ type Inventory struct {
 	Sources              []SourceStatus `json:"sources"`
 }
 type Item struct {
+	ExplicitRefresh      bool   `json:"explicitRefresh,omitempty"`
 	AdmissionNotBeforeMS int64  `json:"admissionNotBeforeMs,omitempty"`
 	SharedFromID         string `json:"sharedFromId,omitempty"`
 	SourceStatus

@@ -248,6 +248,7 @@ rounds:
 					recount(p)
 				}
 				p.Items[i].Joined = true
+				p.Items[i].ExplicitRefresh = true
 				_ = s.save(ctx, p)
 				return clone(p), nil
 			}
@@ -406,7 +407,22 @@ func (s *Service) sweep() {
 			}
 
 			if item.Outcome == "queued" {
-				accepted, err := s.admit(ctx, item, admitted < 4)
+				covered := false
+				if p.Purpose == Periodic && !item.ExplicitRefresh {
+					// Inventory may predate a completed manual observation. Recheck
+					// only scheduling eligibility; never replay that observation as
+					// this round's completion. A running host may still be joined.
+					due, err := s.Store.FullRefreshDue(ctx, sourceScheduleKey(item.SourceStatus))
+					if err != nil {
+						item.Reason = "source_schedule_unavailable"
+						continue
+					}
+					covered = due > s.now().UnixMilli()
+					if covered {
+						item.NextDueMS = due
+					}
+				}
+				accepted, err := s.admit(ctx, item, admitted < 4 && !covered)
 				if errors.Is(err, ob.ErrBusy) || errors.Is(err, cq.ErrBusy) {
 					admitted = 4
 					continue
@@ -418,7 +434,14 @@ func (s *Service) sweep() {
 					continue
 				}
 				if !accepted {
+					if covered {
+						item.Outcome = "not_due"
+						item.Reason = "source_queried_since_inventory"
+					}
 					continue
+				}
+				if item.Reason == "source_queried_since_inventory" || item.Reason == "source_schedule_unavailable" {
+					item.Reason = ""
 				}
 				item.Outcome = "running"
 				item.Queried = true
@@ -586,16 +609,18 @@ func (s *Service) completedOfficial(job ob.Job, status ob.Status) {
 	if job.State != "complete" || status.Attempt == nil || status.Attempt.QueryID != job.ID {
 		return
 	}
-	s.finishManual(job.ID, status.Attempt, status.LastSuccess, status.Stale)
 	q := ob.Query{Binding: job.Binding, Version: job.Version}
+	s.creditCompletedSource(SourceRequest{Kind: Official, Official: &q})
+	s.finishManual(job.ID, status.Attempt, status.LastSuccess, status.Stale)
 	s.notify(CompletedObservation{Source: SourceRequest{Kind: Official, Official: &q}, AttemptID: job.ID, Official: &status})
 }
 func (s *Service) completedCredential(job cq.Job, status cq.Status) {
 	if job.State != "complete" || status.Attempt == nil || status.Attempt.QueryID != job.ID {
 		return
 	}
-	s.finishManual(job.ID, status.Attempt, status.LastSuccess, status.Stale)
 	q := job.Query
+	s.creditCompletedSource(SourceRequest{Kind: Credential, Credential: &q})
+	s.finishManual(job.ID, status.Attempt, status.LastSuccess, status.Stale)
 	s.notify(CompletedObservation{Source: SourceRequest{Kind: Credential, Credential: &q}, AttemptID: job.ID, Credential: &status})
 }
 
@@ -683,6 +708,11 @@ func (s *Service) joinRoundLocked(ctx context.Context, p *Progress, purpose Purp
 		for i := range p.Items {
 			if p.Items[i].Outcome == "not_due" {
 				p.Items[i].Outcome = "queued"
+			}
+			if p.Items[i].Outcome == "queued" {
+				// An explicit whole-round manual/recovery join asks for fresh
+				// queued work; automatic due credit must not cancel that request.
+				p.Items[i].ExplicitRefresh = true
 			}
 		}
 		planWallets(p)
