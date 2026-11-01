@@ -126,20 +126,20 @@ func runActualNativePolicyContinuity(t *testing.T, paused bool) {
 			}
 		}
 	}
-	if paused {
-		f.sendHTTP()
-		if f.oauthSends.Load() != 1 || f.sends[0].Load() != 0 {
-			t.Fatal("actual initial native OAuth source not selected")
+	var stopLifecycle func()
+	defer func() {
+		if stopLifecycle != nil {
+			stopLifecycle()
 		}
-		f.depleted.Store(true)
-		// A startup round may legitimately leave the recently queried source
-		// not_due. Submit a fresh public same76 query under the ON generation;
-		// do not depend on periodic admission ignoring its persisted schedule.
-		query(before)
+	}()
+	startLifecycle := func() {
+		if stopLifecycle != nil {
+			t.Fatal("duplicate continuity lifecycle")
+		}
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
 		go func() { done <- f.manager.AppContext().FullRefreshService.Run(ctx) }()
-		defer func() {
+		stopLifecycle = func() {
 			cancel()
 			shutdown, stop := context.WithTimeout(context.Background(), 5*time.Second)
 			defer stop()
@@ -154,7 +154,18 @@ func runActualNativePolicyContinuity(t *testing.T, paused bool) {
 			case <-shutdown.Done():
 				t.Error("continuity lifecycle did not join")
 			}
-		}()
+		}
+	}
+	f.sendHTTP()
+	if f.oauthSends.Load() != 1 || f.sends[0].Load() != 0 {
+		t.Fatal("actual initial native OAuth source not selected")
+	}
+	if paused {
+		f.depleted.Store(true)
+		// A recently queried source may correctly be periodic not_due.
+		// Explicit public same76 acquisition captures the current ON generation.
+		query(before)
+		startLifecycle()
 		wait(before, "pause")
 		f.sendHTTP()
 		if f.oauthSends.Load() != 1 || f.sends[0].Load() != 1 {
@@ -181,6 +192,29 @@ func runActualNativePolicyContinuity(t *testing.T, paused bool) {
 		f.sendHTTP()
 		if f.oauthSends.Load() != 2 || f.sends[0].Load() != 1 {
 			t.Fatal("fresh certified current native recovery did not restore routing")
+		}
+	} else {
+		f.sendHTTP()
+		if f.oauthSends.Load() != 2 || f.sends[0].Load() != 0 {
+			t.Fatal("healthy certified rotation broke real native business")
+		}
+		// Healthy ON had NO prior gate row. Only the actual producer certificate
+		// may carry policy authority; prove it through NEW automatic admission,
+		// not just administrative enabled/readback after the token grant.
+		f.depleted.Store(true)
+		query(after)
+		startLifecycle()
+		wait(after, "pause")
+		f.sendHTTP()
+		if f.oauthSends.Load() != 2 || f.sends[0].Load() != 1 {
+			t.Fatal("healthy rotated ON failed to stop actual new native attempts")
+		}
+		f.depleted.Store(false)
+		query(after)
+		wait(after, "clear")
+		f.sendHTTP()
+		if f.oauthSends.Load() != 3 || f.sends[0].Load() != 1 {
+			t.Fatal("healthy rotated ON failed fresh automatic own recovery")
 		}
 	}
 	var oldBootQuota cq.Status

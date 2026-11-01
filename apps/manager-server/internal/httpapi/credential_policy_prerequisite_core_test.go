@@ -1,11 +1,14 @@
 package httpapi
 
 import (
+	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	cp "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy"
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
+	fr "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
 )
 
 // Reuses the sidecar's external-only fixture without modifying its owned files.
@@ -22,6 +25,13 @@ func TestCredentialPolicyActualFreshSharedQueryDefaultBudgetONPrerequisite(t *te
 
 func runCredentialPolicyONPrerequisite(t *testing.T, timeout int64) {
 	f := newNativeAdmissionFixture(t)
+	var remainingAfterPolicyMS atomic.Int64
+	f.manager.AppContext().FullRefreshService.SubscribeStarted(func(_ context.Context, event fr.StartedObservation) error {
+		if event.Source.Kind == fr.Credential {
+			remainingAfterPolicyMS.Store(time.Until(time.UnixMilli(event.DeadlineMS)).Milliseconds())
+		}
+		return nil // observation only: does not replace any original trusted fence
+	})
 	src := f.sources["A"]
 	generation := int64(0)
 	enabled := true
@@ -49,6 +59,15 @@ func runCredentialPolicyONPrerequisite(t *testing.T, timeout int64) {
 				t.Fatal("unrelated completion")
 			}
 		case <-time.After(5 * time.Second):
+			// Failure-only public read AFTER the fixed deadline; never poll Core
+			// concurrently with the short query or extend its execution budget.
+			var failed cq.Job
+			f.api("GET", "/usage-service/credential-quota/jobs/"+job.ID, nil, 200, &failed)
+			t.Logf("actual short-budget diagnostic job=%s state=%s deadlineMs=%d quotaA=%d quotaB=%d", failed.ID, failed.State, failed.DeadlineMS, f.quotaCalls[0].Load(), f.quotaCalls[1].Load())
+			if failed.Status != nil && failed.Status.Attempt != nil {
+				t.Logf("actual short-budget diagnostic status=%s error=%s", failed.Status.Attempt.QueryStatus, failed.Status.Attempt.ErrorCode)
+			}
+			t.Logf("actual short-budget diagnostic remainingAfterPolicyStartedMs=%d", remainingAfterPolicyMS.Load())
 			t.Fatalf("same76 trusted completion missing; requested timeoutMs=%d", timeout)
 		}
 		f.api("GET", "/usage-service/credential-quota/jobs/"+job.ID, nil, 200, &job)
