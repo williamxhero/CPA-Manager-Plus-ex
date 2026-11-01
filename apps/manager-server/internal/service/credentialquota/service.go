@@ -235,10 +235,16 @@ func (s *Service) read(ctx context.Context, source Source) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
+	return statusFromRecord(source, r), nil
+}
+
+// Decode the transaction's committed snapshot without another database access.
+// Notification must not disappear if the acquisition expires after Commit.
+func statusFromRecord(source Source, r store.CredentialQuotaRecord) Status {
 	out := Status{Source: source, Version: r.Version, CredentialQuery: rc.Capability{State: "available", Reason: "scoped_credential_query_v1"}}
 	var old Source
 	if r.Source == "" || json.Unmarshal([]byte(r.Source), &old) != nil || authority(old) != authority(source) {
-		return out, nil
+		return out
 	}
 	if r.Attempt != "" {
 		_ = json.Unmarshal([]byte(r.Attempt), &out.Attempt)
@@ -251,7 +257,7 @@ func (s *Service) read(ctx context.Context, source Source) (Status, error) {
 		out.Attempt.ErrorCode = "MANAGEMENT_BUDGET_EXHAUSTED"
 	}
 	out.Stale = out.LastSuccess != nil && (out.Attempt == nil || out.Attempt.QueryStatus != "success" || time.Now().UnixMilli()-out.LastSuccess.ObservedAtMS >= 3600000 || !same(old.Binding, source.Binding))
-	return out, nil
+	return out
 }
 func (s *Service) Status(ctx context.Context, index string) (Status, error) {
 	source, err := s.source(ctx, index)
@@ -386,12 +392,11 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 	a, _ := json.Marshal(obs)
 	doc, _ := json.Marshal(job)
 	s.mu.Lock()
-	saved := s.Store.CompleteCredentialQuota(ctx, id, job.Query.Version, job.ID, string(a), string(doc), obs.QueryStatus == "success")
-	status, statusErr := s.read(ctx, source)
+	committed, saved := s.Store.CompleteCredentialQuotaSnapshot(ctx, id, job.Query.Version, job.ID, string(a), string(doc), obs.QueryStatus == "success")
 	observer := s.completed
 	s.mu.Unlock()
-	if saved == nil && statusErr == nil && job.State == "complete" && observer != nil {
-		observer(job, status)
+	if saved == nil && job.State == "complete" && observer != nil {
+		observer(job, statusFromRecord(source, committed))
 	}
 }
 func valid(r CoreObservation, s Source) bool {
