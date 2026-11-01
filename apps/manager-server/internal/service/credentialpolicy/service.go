@@ -268,6 +268,10 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	}
 	record := store.CredentialPolicyRecord{ID: policyKey(src), Generation: out.Generation, Document: string(document)}
 	if *q.Enabled {
+		record.RefreshScheduleKey, err = s.enableScheduleKey(ctx, prerequisite, associationEvidence)
+		if err != nil {
+			return Status{}, err
+		}
 		if src.State == "ready" {
 			err = s.Store.SaveCredentialPolicyWithPrerequisite(ctx, record, *q.ExpectedGeneration, prerequisite, completed)
 		} else {

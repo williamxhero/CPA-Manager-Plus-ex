@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
+	fr "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
 
@@ -98,7 +99,7 @@ func (s *Service) captureCredentialQueryStart(ctx context.Context, q cq.Query, a
 			}
 			fence := store.CredentialPolicyQueryFence{AttemptID: attemptID, SubjectID: id, Generation: stored.Generation, Owner: stored.Owner, Source: string(body), Enabled: stored.Enabled}
 			if admitted {
-				return s.Store.CaptureCredentialPolicyAdmittedQuery(ctx, fence)
+				return s.Store.CaptureCredentialPolicyAdmittedQuery(ctx, fence, fr.SourceScheduleKey(fr.SourceRequest{Kind: fr.Credential, Credential: &q}))
 			}
 			return s.Store.CaptureCredentialPolicyQuery(ctx, fence)
 		}
@@ -137,7 +138,11 @@ func (s *Service) captureCredentialQueryStart(ctx context.Context, q cq.Query, a
 	if err != nil {
 		return ErrInput
 	}
-	return s.Store.CaptureCredentialPolicyQuery(ctx, store.CredentialPolicyQueryFence{AttemptID: attemptID, SubjectID: id, Generation: state.Generation, Owner: state.Owner, Source: string(body), Enabled: state.Enabled})
+	fence := store.CredentialPolicyQueryFence{AttemptID: attemptID, SubjectID: id, Generation: state.Generation, Owner: state.Owner, Source: string(body), Enabled: state.Enabled}
+	if admitted {
+		return s.Store.CaptureCredentialPolicyAdmittedQuery(ctx, fence, fr.SourceScheduleKey(fr.SourceRequest{Kind: fr.Credential, Credential: &q}))
+	}
+	return s.Store.CaptureCredentialPolicyQuery(ctx, fence)
 }
 
 func (s *Service) CompleteCredentialQuery(ctx context.Context, q cq.Query, status cq.Status, attemptID string) (CompletionOutcome, error) {

@@ -235,6 +235,7 @@ func Migrate(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS credential_policy_lease (singleton INTEGER PRIMARY KEY CHECK(singleton=1), holder TEXT NOT NULL, epoch INTEGER NOT NULL, expires_ms INTEGER NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS credential_policy_identity (singleton INTEGER PRIMARY KEY CHECK(singleton=1), installation_id TEXT NOT NULL UNIQUE)`,
 		`CREATE TABLE IF NOT EXISTS credential_policies (id TEXT PRIMARY KEY, generation INTEGER NOT NULL, document TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS credential_policy_schedule_hints (subject_id TEXT PRIMARY KEY, generation INTEGER NOT NULL, source_key TEXT NOT NULL)`,
 		// SPEC92 full-refresh owns only these additive tables.
 		`CREATE TABLE IF NOT EXISTS management_query_backoff (id TEXT PRIMARY KEY, not_before_ms INTEGER NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS full_refresh_runs (id TEXT PRIMARY KEY, state TEXT NOT NULL, document TEXT NOT NULL)`,
