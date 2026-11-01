@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
 	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
 	"reflect"
@@ -335,6 +336,11 @@ func (s *Service) sweep() {
 			}
 			continue
 		}
+		// A manual host job already has a bounded worker and trusted completion
+		// callback. Do not spend its query deadline polling Core under this lock.
+		if len(p.Items) > 0 && p.ID == p.Items[0].JobID && s.budget.Active(p.ID) {
+			continue
+		}
 		admitted := 0
 		for i := range p.Items {
 			item := &p.Items[i]
@@ -540,6 +546,7 @@ func (s *Service) completedOfficial(job ob.Job, status ob.Status) {
 	if job.State != "complete" || status.Attempt == nil || status.Attempt.QueryID != job.ID {
 		return
 	}
+	s.finishManual(job.ID, status.Attempt, status.LastSuccess, status.Stale)
 	q := ob.Query{Binding: job.Binding, Version: job.Version}
 	s.notify(CompletedObservation{Source: SourceRequest{Kind: Official, Official: &q}, AttemptID: job.ID, Official: &status})
 }
@@ -547,6 +554,7 @@ func (s *Service) completedCredential(job cq.Job, status cq.Status) {
 	if job.State != "complete" || status.Attempt == nil || status.Attempt.QueryID != job.ID {
 		return
 	}
+	s.finishManual(job.ID, status.Attempt, status.LastSuccess, status.Stale)
 	q := job.Query
 	s.notify(CompletedObservation{Source: SourceRequest{Kind: Credential, Credential: &q}, AttemptID: job.ID, Credential: &status})
 }
@@ -590,4 +598,32 @@ func (s *Service) admit(ctx context.Context, item *Item, canStart bool) (bool, e
 		return true, nil
 	}
 	return false, ErrInput
+}
+
+// Actual host completion has already durably committed and fenced authority.
+// Settle small manual roots without a second Core read racing the next short query.
+func (s *Service) finishManual(id string, attempt, last *balance.Observation, stale bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.rounds[id]
+	if p == nil || p.State != "running" || len(p.Items) == 0 || p.Items[0].JobID != id {
+		return
+	}
+	item := &p.Items[0]
+	item.Attempt = attempt
+	item.LastSuccess = last
+	item.Stale = stale
+	item.Outcome = attempt.QueryStatus
+	item.State = attempt.QueryStatus
+	recount(p)
+	if p.Pending == 0 {
+		p.State = "complete"
+		if p.Failed > 0 || p.NotQueried > 0 {
+			p.State = "partial"
+		}
+		p.FinishedAtMS = time.Now().UnixMilli()
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	defer cancel()
+	_ = s.save(ctx, p)
 }
