@@ -1209,12 +1209,14 @@ func TestFullRefreshActualCoreFairMultiwaveTailSurvivesMinuteAndRemainsDue(t *te
 	}
 	app.FullRefreshService = fr.New(f.db, app.ResourceCapabilityService, app.OfficialBalanceService, app.CredentialQuotaService, fr.WithBudget(app.ManagementQueryBudget), fr.WithClock(clock))
 	occupied := 0
+	occupiedIDs := map[string]bool{}
 	for _, source := range inv.Sources {
 		if source.Request.Kind == fr.Official && source.QueryCapable && occupied < 4 {
 			code, data := f.api("POST", balancePath, source.Request.Official)
 			if code != 202 {
 				t.Fatalf("occupy%d %s", code, data)
 			}
+			occupiedIDs[source.ID] = true
 			occupied++
 		}
 	}
@@ -1251,7 +1253,7 @@ func TestFullRefreshActualCoreFairMultiwaveTailSurvivesMinuteAndRemainsDue(t *te
 			json.Unmarshal(progressData, &p)
 			untaken := 0
 			for _, item := range p.Items {
-				if item.QueryCapable && item.JobID == "" {
+				if item.QueryCapable && item.JobID == "" && !occupiedIDs[item.ID] {
 					untaken++
 					tail = item.ID
 					for _, source := range current.Sources {

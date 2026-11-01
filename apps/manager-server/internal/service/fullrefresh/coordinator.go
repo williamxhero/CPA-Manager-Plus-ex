@@ -9,6 +9,7 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
 	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
+	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"reflect"
 	"sort"
 	"time"
@@ -75,6 +76,37 @@ func (s *Service) StartRound(ctx context.Context, purpose Purpose) (Progress, er
 	if !validPurpose(purpose) {
 		return Progress{}, ErrInput
 	}
+	// Joining an already-snapshotted round needs current scope authority, not a
+	// second expensive roster of every source/status while queries occupy Core.
+	s.mu.Lock()
+	active := s.rounds[s.activeRound]
+	var activeID string
+	var activeScope = rc.Scope{}
+	if active != nil && active.State == "running" {
+		activeID = active.ID
+		activeScope = active.Scope
+	}
+	closed := s.closed
+	s.mu.Unlock()
+	if closed {
+		return Progress{}, ErrUnavailable
+	}
+	if activeID != "" {
+		n := s.Identity.Inventory(ctx, true)
+		if n.Snapshot == nil || n.Identity.State != "available" || n.BindingCapability == nil || n.BindingCapability.State != "available" {
+			return Progress{}, ErrUnavailable
+		}
+		if n.Snapshot.Scope == activeScope {
+			s.mu.Lock()
+			p := s.rounds[activeID]
+			if !s.closed && s.activeRound == activeID && p != nil && p.State == "running" && p.Scope == activeScope {
+				result := s.joinRoundLocked(ctx, p, purpose, Inventory{Scope: activeScope})
+				s.mu.Unlock()
+				return result, nil
+			}
+			s.mu.Unlock()
+		}
+	}
 	// Never join a previous instance's round just because it is still in memory.
 	inv, err := s.Inventory(ctx)
 	if err != nil {
@@ -87,19 +119,7 @@ func (s *Service) StartRound(ctx context.Context, purpose Purpose) (Progress, er
 	}
 	if p := s.rounds[s.activeRound]; p != nil && p.State == "running" {
 		if p.Scope == inv.Scope {
-			if purpose == Periodic {
-				s.enrollPeriodic(ctx, p, inv)
-			} else {
-				for i := range p.Items {
-					if p.Items[i].Outcome == "not_due" {
-						p.Items[i].Outcome = "queued"
-					}
-				}
-				planWallets(p)
-				recount(p)
-				_ = s.save(ctx, p)
-			}
-			return clone(p), nil
+			return s.joinRoundLocked(ctx, p, purpose, inv), nil
 		}
 		s.cancelLocked(p, "discarded")
 	}
@@ -626,4 +646,20 @@ func (s *Service) finishManual(id string, attempt, last *balance.Observation, st
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 	_ = s.save(ctx, p)
+}
+
+func (s *Service) joinRoundLocked(ctx context.Context, p *Progress, purpose Purpose, inv Inventory) Progress {
+	if purpose == Periodic {
+		s.enrollPeriodic(ctx, p, inv)
+	} else {
+		for i := range p.Items {
+			if p.Items[i].Outcome == "not_due" {
+				p.Items[i].Outcome = "queued"
+			}
+		}
+		planWallets(p)
+		recount(p)
+	}
+	_ = s.save(ctx, p)
+	return clone(p)
 }
