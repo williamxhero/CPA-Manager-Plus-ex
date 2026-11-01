@@ -318,7 +318,8 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 	}
 	if projectionMismatch {
 		// The existing identity catalog refuses to bind this legacy file/default
-		// combination. Do not fabricate a credential group to exercise querying.
+		// combination. Its empty provider plus two credentials stay unavailable.
+		// Do not fabricate a credential group to exercise querying.
 		unbound, oauth := 0, 0
 		for _, source := range view.Sources {
 			if source.Protocol == "codex-oauth-wham" && source.State == "ready" {
@@ -331,7 +332,7 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 				t.Fatal("ambiguous projection unexpectedly bound")
 			}
 		}
-		if oauth != 1 || unbound != 2 || calls.Load() != 0 {
+		if oauth != 1 || unbound != 3 || len(view.Sources) != 5 || calls.Load() != 0 {
 			t.Fatalf("unbound projection not truthfully retained: %+v calls=%d", view.Sources, calls.Load())
 		}
 		return
