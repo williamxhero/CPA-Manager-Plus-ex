@@ -65,14 +65,8 @@ func (r *AutomationRuntime) Start(ctx context.Context) {
 	// Apply the persisted policy before any worker starts so a paused policy
 	// cannot take (or recover from) an automatic action during startup.
 	r.applySettings(ctx)
-	if r.quotaWorker != nil {
-		r.quotaWorker.Start(ctx)
-	}
 	if r.accountWorker != nil {
 		r.accountWorker.Start(ctx)
-	}
-	if r.codexResetWorker != nil {
-		r.codexResetWorker.Start(ctx)
 	}
 	if r.manager != nil && r.handler != nil {
 		r.manager.SetUsageEventHandler(r.handler)
@@ -104,14 +98,8 @@ func (r *AutomationRuntime) applySettings(ctx context.Context) {
 		return
 	}
 	settings := r.settings.RuntimeSettings(ctx)
-	if r.quotaWorker != nil {
-		r.quotaWorker.SetEnabled(settings.QuotaCooldownEnabled)
-	}
 	if r.accountWorker != nil {
 		r.accountWorker.SetAutoDisable(settings.AccountActionsAutoDisable)
-	}
-	if r.codexResetWorker != nil {
-		r.codexResetWorker.SetEnabled(settings.QuotaCooldownEnabled)
 	}
 }
 
@@ -135,9 +123,6 @@ func (h *automationUsageHandler) HandleUsageEvents(ctx context.Context, cfg coll
 		return
 	}
 	settings := h.settings.RuntimeSettings(ctx)
-	if settings.QuotaCooldownEnabled && h.quotaWorker != nil {
-		h.quotaWorker.HandleUsageEvents(ctx, cfg, events)
-	}
 	if settings.AccountActionsEnabled && h.accountWorker != nil {
 		h.accountWorker.SetAutoDisable(settings.AccountActionsAutoDisable)
 		h.accountWorker.HandleUsageEvents(ctx, cfg, events)
@@ -147,11 +132,5 @@ func (h *automationUsageHandler) HandleUsageEvents(ctx context.Context, cfg coll
 func (h *automationUsageHandler) UpdateRuntimeConfig(ctx context.Context, cfg collectorpkg.RuntimeConfig) {
 	if h == nil {
 		return
-	}
-	if h.quotaWorker != nil {
-		h.quotaWorker.UpdateRuntimeConfig(ctx, cfg)
-	}
-	if h.codexResetWorker != nil {
-		h.codexResetWorker.UpdateRuntimeConfig(ctx, cfg)
 	}
 }

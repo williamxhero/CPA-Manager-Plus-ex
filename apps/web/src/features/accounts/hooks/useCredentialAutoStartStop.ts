@@ -136,7 +136,12 @@ export function useCredentialAutoStartStop(
     pending.current = true;
     setView({ context, data, busy: true });
     try {
-      await refreshCredentialSource(base, managementKey, authIndex);
+      await refreshCredentialSource(base, managementKey, {
+        scope: data.scope,
+        targets: data.targets,
+        authIndex: data.auth_index ?? '',
+        sourceVersion: data.sourceVersion,
+      });
       const next = await getCredentialPolicy(base, managementKey, authIndex);
       if (current.current === context) {
         if (

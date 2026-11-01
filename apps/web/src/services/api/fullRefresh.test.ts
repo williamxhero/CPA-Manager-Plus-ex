@@ -1,15 +1,35 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {refreshCredentialSource} from './fullRefresh';
 afterEach(() => vi.unstubAllGlobals());
+const binding={scope:{instance_id:'issued',instance_incarnation:'incarnation',boot_epoch:'boot',snapshot_revision:1},targets:[{resource_id:'issued-target',incarnation:'credential-1',identity_version:2,credential_version:3,config_version:4,membership_version:5}],authIndex:'a',sourceVersion:'v1'};
 it('uses only the common76 host-issued source/job/progress for explicit credential refresh',async () => {
- const source={kind:'credential_quota',credential:{auth_index:'a',scope:{instance_id:'issued'},targets:[{resource_id:'issued-target'}],sourceVersion:'v1',version:7}};
+ const source={kind:'credential_quota',credential:{auth_index:binding.authIndex,scope:binding.scope,targets:binding.targets,sourceVersion:binding.sourceVersion,version:7}};
  const calls:Array<[string,RequestInit|undefined]>=[];
  vi.stubGlobal('fetch',vi.fn(async(url:string,init?:RequestInit) => {
   calls.push([url,init]);
-  return Response.json(init?.method==='POST' ? {id:'common-job',state:'complete',pending:0,failed:0,items:[]} : {sources:[{id:'source',request:source,targets:source.credential.targets,queryCapable:true}]} );
+ return Response.json(init?.method==='POST' ? {id:'common-job',state:'complete',pending:0,failed:0,items:[]} : {scope:binding.scope,sources:[{id:'source',request:source,targets:source.credential.targets,queryCapable:true}]} );
  }));
- await refreshCredentialSource('http://fixture','test','a');
+ await refreshCredentialSource('http://fixture','test',binding);
  expect(calls.map(c=>c[0])).toEqual(['http://fixture/usage-service/full-refresh','http://fixture/usage-service/full-refresh']);
  expect(JSON.parse(String(calls[1][1]?.body))).toEqual({purpose:'manual',source});
  expect(calls.every(c=>c[1]?.headers && c[1]?.redirect==='error' && c[1]?.cache==='no-store')).toBe(true);
+});
+
+it('rejects a same-auth-index replacement before POSTing the refresh job', async () => {
+ const source={kind:'credential_quota',credential:{auth_index:'a',scope:binding.scope,targets:[{...binding.targets[0],credential_version:99}],sourceVersion:'v2',version:8}};
+ const calls:Array<[string,RequestInit|undefined]>=[];
+ vi.stubGlobal('fetch',vi.fn(async(url:string,init?:RequestInit) => {
+   calls.push([url,init]);
+   return Response.json({scope:binding.scope,sources:[{id:'replacement',request:source,targets:source.credential.targets,queryCapable:true}]});
+ }));
+ await expect(refreshCredentialSource('http://fixture','test',binding)).rejects.toThrow('current_credential_source_unavailable');
+ expect(calls).toHaveLength(1);
+});
+
+it('rejects a stale manager scope even when auth_index and sourceVersion are reused', async () => {
+ const source={kind:'credential_quota',credential:{auth_index:'a',scope:{...binding.scope,instance_incarnation:'new-incarnation'},targets:binding.targets,sourceVersion:'v1',version:9}};
+ const calls:Array<[string,RequestInit|undefined]>=[];
+ vi.stubGlobal('fetch',vi.fn(async(url:string,init?:RequestInit) => {calls.push([url,init]);return Response.json({scope:source.credential.scope,sources:[{request:source,targets:source.credential.targets,queryCapable:true}]});}));
+ await expect(refreshCredentialSource('http://fixture','test',binding)).rejects.toThrow('identity_or_source_changed');
+ expect(calls).toHaveLength(1);
 });

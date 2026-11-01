@@ -11,12 +11,33 @@ export interface RefreshSource {
     official?: { [key: string]: unknown };
   };
   targets: ResourceTarget[];
+  authIndex?: string;
+  sourceVersion?: string;
   state: string;
   reason?: string;
   stale: boolean;
   attempt?: BalanceObservation & Partial<CredentialQuotaObservation>;
   lastSuccess?: BalanceObservation & Partial<CredentialQuotaObservation>;
 }
+export interface CredentialRefreshBinding {
+  scope: ResourceScope;
+  targets: ResourceTarget[];
+  authIndex: string;
+  sourceVersion: string;
+}
+
+const canonical = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, canonical(item)])
+    );
+  }
+  return value;
+};
+const exact = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 export interface RefreshProgress {
   id: string;
   state: string;
@@ -81,7 +102,7 @@ export async function waitFullRefresh(
 export async function refreshCredentialSource(
   base: string,
   key: string,
-  authIndex: string,
+  binding: CredentialRefreshBinding,
   signal?: AbortSignal,
   onProgress?: (p: RefreshProgress) => void
 ) {
@@ -92,9 +113,18 @@ export async function refreshCredentialSource(
     undefined,
     signal
   );
-  const matches = inventory.sources.filter(
-    (s) => s.request.kind === 'credential_quota' && s.request.credential?.auth_index === authIndex
-  );
+  if (!exact(inventory.scope, binding.scope)) throw new Error('identity_or_source_changed');
+  const matches = inventory.sources.filter((s) => {
+    const credential = s.request.credential;
+    return (
+      s.request.kind === 'credential_quota' &&
+      credential?.auth_index === binding.authIndex &&
+      credential?.sourceVersion === binding.sourceVersion &&
+      exact(s.targets, binding.targets) &&
+      exact(credential.scope, binding.scope) &&
+      exact(credential.targets, binding.targets)
+    );
+  });
   if (matches.length !== 1 || !matches[0].queryCapable)
     throw new Error('current_credential_source_unavailable');
   const job = await fullRefreshRequest<RefreshProgress>(

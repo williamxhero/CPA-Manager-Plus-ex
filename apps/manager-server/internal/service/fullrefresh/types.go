@@ -39,6 +39,8 @@ type SourceStatus struct {
 	ID               string                   `json:"id,omitempty"`
 	Request          SourceRequest            `json:"request"`
 	Targets          []rc.Target              `json:"targets,omitempty"`
+	AuthIndex        string                   `json:"authIndex,omitempty"`
+	SourceVersion    string                   `json:"sourceVersion,omitempty"`
 	State            string                   `json:"state"`
 	Reason           string                   `json:"reason,omitempty"`
 	ManualDisabled   bool                     `json:"manualDisabled"`

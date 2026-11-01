@@ -1,5 +1,6 @@
 import { CommonQuotaInventoryPanel } from '@/components/quota/CommonQuotaInventoryPanel';
 import { refreshCredentialSource } from '@/services/api/fullRefresh';
+import { getCredentialPolicy } from '@/services/api/credentialPolicy';
 import { CredentialAutoStartStopToggle } from '@/features/accounts/components/CredentialAutoStartStopToggle';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
@@ -6575,9 +6576,33 @@ export function AccountsPage() {
       if (backendCredentialQuota) {
         if (!row.authIndex || !featureAvailability.managerServiceBase) return {status:'error',error:'current_credential_source_unavailable'};
         try {
-          await refreshCredentialSource(featureAvailability.managerServiceBase,managementKey,String(row.authIndex));
+          const policy = await getCredentialPolicy(
+            featureAvailability.managerServiceBase,
+            managementKey,
+            String(row.authIndex)
+          );
+          const currentBinding = credentialProtection(row.authIndex).binding;
+          if (
+            !currentBinding ||
+            JSON.stringify(currentBinding.scope) !== JSON.stringify(policy.scope) ||
+            JSON.stringify(currentBinding.targets) !== JSON.stringify(policy.targets)
+          )
+            return {status:'error',error:'identity_or_source_changed'};
+          await refreshCredentialSource(featureAvailability.managerServiceBase,managementKey,{
+            scope: policy.scope,
+            targets: policy.targets,
+            authIndex: policy.auth_index ?? String(row.authIndex),
+            sourceVersion: policy.sourceVersion,
+          });
           return {status:'success'};
-        } catch {return {status:'error',error:'common_refresh_unavailable'};}
+        } catch (error) {
+          return {
+            status: 'error',
+            error: error instanceof Error && error.message === 'identity_or_source_changed'
+              ? 'identity_or_source_changed'
+              : 'common_refresh_unavailable',
+          };
+        }
       }
       if (row.runtimeOnly || !isQuotaRefreshSupportedProvider(row.provider)) {
         return { status: 'ignored' };
@@ -6723,6 +6748,7 @@ export function AccountsPage() {
       t,
       authFilesRequestScope,
       baseQuotaStores,
+      credentialProtection,
     ]
   );
 

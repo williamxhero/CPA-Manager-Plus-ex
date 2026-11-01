@@ -364,7 +364,7 @@ func TestServerCompatAccountProcessingPolicyPatchReloadsRuntime(t *testing.T) {
 		} `json:"authIssueAutoDisable"`
 	}
 	testutil.DecodeJSON(t, rr, &response)
-	if !response.QuotaCooldown.Enabled || response.QuotaCooldown.Source != "database" {
+	if response.QuotaCooldown.Enabled || response.QuotaCooldown.Source != "legacy-inert" {
 		t.Fatalf("quotaCooldown response = %#v", response.QuotaCooldown)
 	}
 	if !response.AccountActionsAutoDisable.Enabled || !response.AccountActionsAutoDisable.Configured || response.AccountActionsAutoDisable.Source != "database" {

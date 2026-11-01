@@ -11,7 +11,7 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/usage"
 )
 
-func TestAutomationUsageHandlerGatesNewEvents(t *testing.T) {
+func TestAutomationUsageHandlerIgnoresLegacyQuotaEventsWhenGlobalSettingIsPatched(t *testing.T) {
 	st, err := store.Open(t.TempDir() + "/usage.sqlite")
 	if err != nil {
 		t.Fatalf("open store: %v", err)
@@ -32,15 +32,15 @@ func TestAutomationUsageHandlerGatesNewEvents(t *testing.T) {
 		t.Fatalf("enable quota: %v", err)
 	}
 	handler.HandleUsageEvents(ctx, collectorpkg.RuntimeConfig{}, []usage.Event{{EventHash: "evt-quota"}})
-	if quota.handleCount != 1 || account.handleCount != 0 {
-		t.Fatalf("quota-only counts quota=%d account=%d", quota.handleCount, account.handleCount)
+	if quota.handleCount != 0 || account.handleCount != 0 {
+		t.Fatalf("global quota PATCH activated legacy handlers quota=%d account=%d", quota.handleCount, account.handleCount)
 	}
 
 	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{AccountActionsEnabled: boolPtr(true), AccountActionsAutoDisable: boolPtr(true)}); err != nil {
 		t.Fatalf("enable account actions: %v", err)
 	}
 	handler.HandleUsageEvents(ctx, collectorpkg.RuntimeConfig{}, []usage.Event{{EventHash: "evt-both"}})
-	if quota.handleCount != 2 || account.handleCount != 1 || !account.autoDisable {
+	if quota.handleCount != 0 || account.handleCount != 1 || !account.autoDisable {
 		t.Fatalf("enabled counts quota=%d account=%d auto=%t", quota.handleCount, account.handleCount, account.autoDisable)
 	}
 }
@@ -95,15 +95,15 @@ func TestAutomationRuntimeAppliesPersistedPolicyToWorkers(t *testing.T) {
 		t.Fatalf("account auto-disable enabled on startup despite persisted OFF")
 	}
 
-	// ON resumes the quota worker through the same PATCH-driven reload path.
+	// The legacy global ON remains API-compatible but inert.
 	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{QuotaCooldownEnabled: boolPtr(true)}); err != nil {
 		t.Fatalf("enable quota: %v", err)
 	}
 	if err := runtime.Reload(ctx); err != nil {
 		t.Fatalf("reload: %v", err)
 	}
-	if !quota.enabled {
-		t.Fatalf("quota worker not enabled after ON reload")
+	if quota.enabled {
+		t.Fatalf("quota worker became enabled after legacy global ON reload")
 	}
 }
 

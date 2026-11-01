@@ -78,7 +78,12 @@ export function CredentialQuotaPanel({
       const job = await refreshCredentialSource(
         base,
         managementKey,
-        authIndex!,
+        {
+          scope: data.scope,
+          targets: data.targets,
+          authIndex: data.auth_index ?? authIndex!,
+          sourceVersion: data.sourceVersion,
+        },
         abort.signal,
         (progress) => {
           if (valid()) setView({ context, data, busy: true, progress });

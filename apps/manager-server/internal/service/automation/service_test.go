@@ -51,7 +51,7 @@ func TestStatusExposesEffectiveFlagsAndKeys(t *testing.T) {
 		t.Fatalf("source = %q, want %q", status.Source, SourceStartup)
 	}
 
-	if !status.QuotaCooldown.Enabled || status.QuotaCooldown.EnvKey != "USAGE_QUOTA_COOLDOWN_ENABLED" || status.QuotaCooldown.ConfigFileKey != "quotaCooldownEnabled" {
+	if status.QuotaCooldown.Enabled || status.QuotaCooldown.Configured || status.QuotaCooldown.Source != "legacy-inert" || status.QuotaCooldown.DisabledReason != "per_credential_policy_only" || status.QuotaCooldown.EnvKey != "USAGE_QUOTA_COOLDOWN_ENABLED" || status.QuotaCooldown.ConfigFileKey != "quotaCooldownEnabled" {
 		t.Fatalf("quotaCooldown = %#v", status.QuotaCooldown)
 	}
 	if status.QuotaCooldown.DependsOn != "" {
@@ -116,7 +116,7 @@ func TestStatusUsesDBSettingsUnlessEnvLocked(t *testing.T) {
 		t.Fatalf("save automation settings: %v", err)
 	}
 	status := mustStatus(t, New(config.Config{}, st), ctx)
-	if !status.QuotaCooldown.Enabled || status.QuotaCooldown.Source != SourceDB || status.QuotaCooldown.Locked {
+	if status.QuotaCooldown.Enabled || status.QuotaCooldown.Configured || status.QuotaCooldown.Source != "legacy-inert" || status.QuotaCooldown.Locked {
 		t.Fatalf("quotaCooldown = %#v", status.QuotaCooldown)
 	}
 	if status.AccountActions.Enabled || status.AccountActions.Source != SourceDB {
@@ -127,7 +127,7 @@ func TestStatusUsesDBSettingsUnlessEnvLocked(t *testing.T) {
 	}
 
 	status = mustStatus(t, New(config.Config{QuotaCooldownEnabled: false, QuotaCooldownEnvSet: true}, st), ctx)
-	if status.QuotaCooldown.Enabled || !status.QuotaCooldown.Locked || status.QuotaCooldown.Source != SourceEnv {
+	if status.QuotaCooldown.Enabled || status.QuotaCooldown.Source != "legacy-inert" || !status.QuotaCooldown.Locked {
 		t.Fatalf("env locked quotaCooldown = %#v", status.QuotaCooldown)
 	}
 }
@@ -224,8 +224,8 @@ func TestUpdateSerializesConcurrentPatches(t *testing.T) {
 	wg.Wait()
 
 	status := mustStatus(t, svc, ctx)
-	if !status.QuotaCooldown.Enabled {
-		t.Fatalf("quotaCooldown field lost under concurrent updates: %#v", status)
+	if status.QuotaCooldown.Enabled || status.QuotaCooldown.DisabledReason != "per_credential_policy_only" {
+		t.Fatalf("quotaCooldown legacy field became active: %#v", status)
 	}
 	if !status.AccountActions.Enabled {
 		t.Fatalf("accountActions field lost under concurrent updates: %#v", status)
@@ -251,8 +251,8 @@ func TestUpdateReturnsPersistedRecordWithoutRereading(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
-	if !status.QuotaCooldown.Enabled {
-		t.Fatalf("response should reflect persisted value, got %#v", status.QuotaCooldown)
+	if status.QuotaCooldown.Enabled || status.QuotaCooldown.DisabledReason != "per_credential_policy_only" {
+		t.Fatalf("response exposed an active legacy quota policy, got %#v", status.QuotaCooldown)
 	}
 	if status.UpdatedAtMS == 0 {
 		t.Fatalf("response should carry the UpdatedAtMS assigned by the store, got 0")

@@ -313,7 +313,7 @@ func TestResourceCapabilitiesPersistedPolicyAndEnvLocksAreNotACK(t *testing.T) {
 			want := automationsvc.Status{
 				Source: source, UpdatedAtMS: saved.UpdatedAtMS,
 				QuotaCooldown: automationsvc.Capability{
-					Enabled: !locked, Configured: !locked, Source: source, Locked: locked,
+					Enabled: false, Configured: false, Source: "legacy-inert", Locked: locked, DisabledReason: "per_credential_policy_only",
 					EnvKey: "USAGE_QUOTA_COOLDOWN_ENABLED", ConfigFileKey: "quotaCooldownEnabled",
 				},
 				AccountActions: automationsvc.Capability{
@@ -347,7 +347,7 @@ func TestResourceCapabilitiesPersistedPolicyAndEnvLocksAreNotACK(t *testing.T) {
 				testutil.RequireStatus(t, next, http.StatusOK)
 				testutil.DecodeJSON(t, next, &summary)
 				if summary.Policy.QuotaCooldown.Enabled || summary.Policy.QuotaCooldown.Configured {
-					t.Fatal("capabilities must observe subsequent legacy policy changes")
+					t.Fatal("legacy PATCH must remain inert in capability status")
 				}
 				if summary.Gate["state"] != "unavailable" {
 					t.Fatal("legacy PATCH must not configure a gate")

@@ -24,13 +24,14 @@ type settingsStore interface {
 }
 
 type Capability struct {
-	Enabled       bool   `json:"enabled"`
-	Configured    bool   `json:"configured"`
-	Source        string `json:"source"`
-	Locked        bool   `json:"locked"`
-	EnvKey        string `json:"envKey"`
-	ConfigFileKey string `json:"configFileKey"`
-	DependsOn     string `json:"dependsOn,omitempty"`
+	Enabled        bool   `json:"enabled"`
+	Configured     bool   `json:"configured"`
+	Source         string `json:"source"`
+	Locked         bool   `json:"locked"`
+	EnvKey         string `json:"envKey"`
+	ConfigFileKey  string `json:"configFileKey"`
+	DependsOn      string `json:"dependsOn,omitempty"`
+	DisabledReason string `json:"disabledReason,omitempty"`
 }
 
 type Status struct {
@@ -195,13 +196,16 @@ func (s *Service) statusFromSettings(settings store.AutomationSettings) Status {
 	return Status{
 		Source:      overallSource(r.quotaSource, r.accountSource, r.autoSource),
 		UpdatedAtMS: settings.UpdatedAtMS,
+		// Kept in the response for old clients, but deliberately inert. The
+		// per-credential policy/full-refresh path is the only quota authority.
 		QuotaCooldown: Capability{
-			Enabled:       r.quotaValue,
-			Configured:    r.quotaValue,
-			Source:        r.quotaSource,
-			Locked:        r.quotaLocked,
-			EnvKey:        "USAGE_QUOTA_COOLDOWN_ENABLED",
-			ConfigFileKey: "quotaCooldownEnabled",
+			Enabled:        false,
+			Configured:     false,
+			Source:         "legacy-inert",
+			Locked:         r.quotaLocked,
+			EnvKey:         "USAGE_QUOTA_COOLDOWN_ENABLED",
+			ConfigFileKey:  "quotaCooldownEnabled",
+			DisabledReason: "per_credential_policy_only",
 		},
 		AccountActions: Capability{
 			Enabled:       r.accountValue,
