@@ -15,6 +15,7 @@ import (
 	"time"
 
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
+	fr "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
 	mc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
@@ -63,6 +64,7 @@ type Service struct {
 	reconcileMu sync.Mutex
 	holder      string
 	clock       func() time.Time
+	coordinator *fr.Service
 }
 
 type Option func(*Service)

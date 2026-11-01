@@ -17,6 +17,12 @@ type CredentialPolicyQueryFence struct {
 	Enabled    bool
 }
 
+func (s *Store) CredentialPolicyQuery(ctx context.Context, attempt string) (CredentialPolicyQueryFence, error) {
+	var f CredentialPolicyQueryFence
+	err := s.db.QueryRowContext(ctx, `SELECT attempt_id,subject_id,generation,owner,source,enabled FROM credential_policy_query_fences WHERE attempt_id=?`, attempt).Scan(&f.AttemptID, &f.SubjectID, &f.Generation, &f.Owner, &f.Source, &f.Enabled)
+	return f, err
+}
+
 // Capture runs synchronously after the query job commit and before upstream I/O.
 // A reused job may never refresh the captured policy generation.
 func (s *Store) CaptureCredentialPolicyQuery(ctx context.Context, f CredentialPolicyQueryFence) error {

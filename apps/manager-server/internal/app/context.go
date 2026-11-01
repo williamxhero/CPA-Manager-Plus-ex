@@ -229,5 +229,7 @@ func fromExisting(
 	legacyGuard := &managementquery.LegacyGuard{Budget: managementBudget, Identity: identityService}
 	out.ProxyService.LegacyQuotaGuard = legacyGuard
 	out.CodexInspectionService.LegacyQuotaGuard = legacyGuard
+	// Fresh services bind once at startup; source admission remains in76.
+	_ = out.CredentialPolicyService.BindCoordinator(out.FullRefreshService)
 	return out
 }
