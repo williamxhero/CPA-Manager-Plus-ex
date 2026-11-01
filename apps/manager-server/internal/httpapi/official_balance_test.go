@@ -139,6 +139,8 @@ type officialFixture struct {
 	server       *Server
 	db           *store.Store
 	cfgPath      string
+	adapter      string
+	path         string
 	upstream     *httptest.Server
 	handler      http.Handler
 	count        atomic.Int64
@@ -151,8 +153,12 @@ type officialFixture struct {
 
 const goodWallet = `{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"-0.000000001","granted_balance":"0.00","topped_up_balance":"-0.000000001"}]}`
 
-func newOfficialFixture(t *testing.T) *officialFixture {
-	f := &officialFixture{t: t}
+func newOfficialFixture(t *testing.T, adapters ...string) *officialFixture {
+	f := &officialFixture{t: t, adapter: "deepseek", path: "/user/balance"}
+	if len(adapters) > 0 && adapters[0] == "deepinfra" {
+		f.adapter = "deepinfra"
+		f.path = "/payment/checklist"
+	}
 	f.response.Store(goodWallet)
 	f.coreSnapshot.Store(testSnapshotJSON)
 	f.coreCaps.Store(testCapsJSON)
@@ -173,7 +179,7 @@ func newOfficialFixture(t *testing.T) *officialFixture {
 	t.Cleanup(core.Close)
 	f.upstream = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.count.Add(1)
-		if r.URL.Path != "/user/balance" || r.Header.Get("Authorization") != "Bearer synthetic-query-canary" {
+		if r.Method != "GET" || r.URL.Path != f.path || r.Header.Get("Authorization") != "Bearer synthetic-query-canary" {
 			t.Error("protocol or secret lost")
 		}
 		if d := f.delay.Load(); d > 0 {
@@ -231,7 +237,7 @@ func newOfficialFixture(t *testing.T) *officialFixture {
 }
 func (f *officialFixture) configure(extra string) {
 	f.t.Helper()
-	body := `{` + balanceBinding + `,"version":0,"adapter":"deepseek","endpoint":"` + f.upstream.URL + `/user/balance","privateTargets":["127.0.0.1"],"secret":"synthetic-query-canary"` + extra + `}`
+	body := `{` + balanceBinding + `,"version":0,"adapter":"` + f.adapter + `","endpoint":"` + f.upstream.URL + f.path + `","privateTargets":["127.0.0.1"],"secret":"synthetic-query-canary"` + extra + `}`
 	testutil.RequireStatus(f.t, testutil.Request(f.t, f.handler, "PUT", balancePath, body, testutil.AdminKey), 200)
 }
 func (f *officialFixture) query() string {
@@ -379,10 +385,19 @@ func TestOfficialBalanceMetadataCannotBePermitted(t *testing.T) {
 }
 
 func TestOfficialBalanceProductionTransport(t *testing.T) {
+	testOfficialBalanceProductionTransport(t, "deepseek")
+}
+func TestOfficialBalanceDeepInfraProductionTransport(t *testing.T) {
+	testOfficialBalanceProductionTransport(t, "deepinfra")
+}
+func testOfficialBalanceProductionTransport(t *testing.T, adapter string) {
 	for _, mode := range []string{"pin_numeric", "mixed_dns", "unpermitted_private", "untrusted_certificate", "plaintext_refused", "metadata_dns", "metadata_ipv6", "mapped_metadata"} {
 		t.Run(mode, func(t *testing.T) {
-			f := newOfficialFixture(t)
-			endpoint := f.upstream.URL + "/user/balance"
+			f := newOfficialFixture(t, adapter)
+			endpoint := f.upstream.URL + f.path
+			if adapter == "deepinfra" {
+				f.response.Store(`{"stripe_balance":-1,"recent":2.5}`)
+			}
 			permits := `,"privateTargets":["127.0.0.1"]`
 			roots := x509.NewCertPool()
 			roots.AddCert(f.upstream.Certificate())
@@ -428,7 +443,7 @@ func TestOfficialBalanceProductionTransport(t *testing.T) {
 				}
 			}
 			f.server.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(n)
-			body := `{` + balanceBinding + `,"version":0,"adapter":"deepseek","endpoint":"` + endpoint + `"` + permits + `,"secret":"synthetic-query-canary"}`
+			body := `{` + balanceBinding + `,"version":0,"adapter":"` + adapter + `","endpoint":"` + endpoint + `"` + permits + `,"secret":"synthetic-query-canary"}`
 			rr := testutil.Request(t, f.handler, "PUT", balancePath, body, testutil.AdminKey)
 			if mode == "plaintext_refused" {
 				testutil.RequireStatus(t, rr, 400)
@@ -486,9 +501,9 @@ func TestOfficialBalanceUIFixture(t *testing.T) {
 		t.Skip("opt-in synthetic UI fixture")
 	}
 	f := newOfficialFixture(t)
-	manager := httptest.NewServer(f.handler)
+	manager := officialBrowserServer(t, f.handler)
 	defer manager.Close()
-	control := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	control := officialBrowserServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "PUT" {
 			w.WriteHeader(405)
 			return
@@ -502,8 +517,7 @@ func TestOfficialBalanceUIFixture(t *testing.T) {
 		w.WriteHeader(204)
 	}))
 	defer control.Close()
-	var binding any
-	json.Unmarshal([]byte(`{`+balanceBinding+`}`), &binding)
+	binding := fullOfficialUIBinding(t, f)
 	data, _ := json.Marshal(map[string]any{"base": manager.URL, "managementKey": testutil.AdminKey, "binding": binding, "endpoint": f.upstream.URL + "/user/balance", "control": control.URL})
 	if err := os.WriteFile(filepath.Join(dir, "fixture.json"), data, 0600); err != nil {
 		t.Fatal(err)
@@ -697,13 +711,12 @@ func TestOfficialBalanceAuthorityChangesNeverInheritSecrets(t *testing.T) {
 		})
 	}
 }
-func TestOfficialBalanceDeepInfraRemainsUnsupported(t *testing.T) {
+func TestOfficialBalanceDeepInfraRejectsDeepSeekRoute(t *testing.T) {
 	f := newOfficialFixture(t)
 	body := `{` + balanceBinding + `,"version":0,"adapter":"deepinfra","endpoint":"` + f.upstream.URL + `/user/balance","privateTargets":["127.0.0.1"],"secret":"synthetic-query-canary"}`
-	testutil.RequireStatus(t, testutil.Request(t, f.handler, "PUT", balancePath, body, testutil.AdminKey), 200)
-	got := f.wait(f.query())
-	if !strings.Contains(got, `"managerDirectQuery":false`) || !strings.Contains(got, `"queryStatus":"unsupported"`) || f.count.Load() != 0 {
-		t.Fatal("unverified DeepInfra adapter exposed", got)
+	testutil.RequireStatus(t, testutil.Request(t, f.handler, "PUT", balancePath, body, testutil.AdminKey), 400)
+	if f.count.Load() != 0 {
+		t.Fatal("wrong protocol route queried")
 	}
 }
 

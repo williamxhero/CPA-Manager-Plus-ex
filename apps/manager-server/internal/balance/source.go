@@ -10,8 +10,23 @@ import (
 // Private targets are exact administrator-approved IPs, not wildcard networks.
 // Link-local, metadata, multicast and unspecified addresses are never permitted.
 func ValidateSource(endpoint string, permits []string) error {
+	return ValidateAdapterSource("deepseek", endpoint, permits)
+}
+
+// Each protocol owns an exact path. Preserve ValidateSource as the DeepSeek-only
+// compatibility entry point; adding an adapter never widens its route policy.
+func ValidateAdapterSource(adapter, endpoint string, permits []string) error {
+	path := ""
+	switch adapter {
+	case "deepseek":
+		path = "/user/balance"
+	case "deepinfra":
+		path = "/payment/checklist"
+	default:
+		return errors.New("invalid adapter")
+	}
 	u, e := url.Parse(endpoint)
-	if e != nil || len(endpoint) > 2048 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "/user/balance" || strings.Contains(u.Hostname(), "%") {
+	if e != nil || len(endpoint) > 2048 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != path || (adapter == "deepinfra" && (u.RawPath != "" || u.ForceQuery || strings.Contains(endpoint, "#"))) || strings.Contains(u.Hostname(), "%") {
 		return errors.New("invalid source")
 	}
 	for _, p := range permits {
