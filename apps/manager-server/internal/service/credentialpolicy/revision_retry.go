@@ -35,6 +35,9 @@ func ownedSourceRows(ledger GateSnapshot, op GateOperation) []GateRestriction {
 // requires a typed revision-only non-application rejection and real op404,
 // current eligibility/source verification and transactional lease/generation CAS.
 func PrepareGateRevisionRetry(previous PendingIntent, current cq.Source, ledger GateSnapshot, now time.Time) (PendingIntent, string) {
+	if previous.Evidence.Action != "pause" && previous.Evidence.Action != "recover" {
+		return PendingIntent{}, "fresh_authoritative_evidence_required"
+	}
 	if !previous.Planned || previous.Retry < 0 || previous.Retry >= 3 || previous.ExpiresAtMS <= now.UnixMilli() || previous.Evidence.ObservedAtMS <= 0 || previous.Evidence.ObservedAtMS > now.Add(time.Minute).UnixMilli() || now.UnixMilli()-previous.Evidence.ObservedAtMS > int64(5*time.Minute/time.Millisecond) || !validEvidenceReference(previous) {
 		return PendingIntent{}, "fresh_authoritative_evidence_required"
 	}

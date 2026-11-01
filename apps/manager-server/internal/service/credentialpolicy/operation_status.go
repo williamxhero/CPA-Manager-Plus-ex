@@ -35,6 +35,10 @@ type OperationStatus struct {
 }
 
 func validEvidenceReference(intent PendingIntent) bool {
+	if intent.Evidence.Action == "manual_resume" {
+		parsed, err := uuid.Parse(intent.Operation.OpID)
+		return err == nil && parsed.String() == intent.Operation.OpID && intent.Evidence.EvidenceVersion == "management:"+intent.Operation.OpID
+	}
 	parts := strings.Split(intent.Evidence.EvidenceVersion, ":")
 	if len(parts) != 3 || parts[0] != intent.Source.SourceVersion || len(parts[0]) != 64 {
 		return false

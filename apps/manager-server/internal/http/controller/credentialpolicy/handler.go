@@ -47,6 +47,16 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out, err = h.App.CredentialPolicyService.Update(ctx, q)
+	case r.Method == "POST" && r.URL.Path == "/usage-service/credential-policy/resume":
+		r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+		var q svc.ResumeRequest
+		d := json.NewDecoder(r.Body)
+		d.DisallowUnknownFields()
+		if d.Decode(&q) != nil || d.Decode(new(any)) != io.EOF {
+			response.JSON(w, 400, map[string]string{"error": "invalid_policy"})
+			return
+		}
+		out, err = h.App.CredentialPolicyService.Resume(ctx, q)
 	default:
 		response.MethodNotAllowed(w)
 		return
@@ -71,6 +81,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 	if errors.Is(err, store.ErrPolicyConflict) {
 		code, reason = 409, "policy_generation_conflict"
+	}
+	if errors.Is(err, store.ErrPolicyOperationConflict) {
+		code, reason = 409, "policy_operation_conflict"
 	}
 	response.JSON(w, code, map[string]string{"error": reason})
 }

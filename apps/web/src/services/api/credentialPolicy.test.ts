@@ -4,9 +4,47 @@ import {
   getCredentialPolicy,
   getStoredCredentialPolicy,
   saveCredentialPolicy,
+  resumeCredentialPolicy,
 } from './credentialPolicy';
 
 afterEach(() => vi.unstubAllGlobals());
+
+it('uses a separate authenticated own-resume request and never assumes pending clear applied', async () => {
+  const request = {
+    scope: {
+      instance_id: 'instance',
+      instance_incarnation: 'incarnation',
+      boot_epoch: 'boot',
+      snapshot_revision: 2,
+    },
+    targets: [],
+    auth_index: 'index',
+    sourceVersion: 'source',
+    expectedGeneration: 2,
+    owner: 'installation-owner',
+    opId: 'request-uuid',
+  };
+  const pending = {
+    enabled: false,
+    applied: false,
+    operation: { state: 'pending', currentApplied: false },
+  };
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(pending)));
+  vi.stubGlobal('fetch', fetcher);
+  await expect(
+    resumeCredentialPolicy('http://manager.invalid/', 'panel-key', request)
+  ).resolves.toEqual(pending);
+  expect(fetcher).toHaveBeenCalledWith(
+    'http://manager.invalid/usage-service/credential-policy/resume',
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify(request),
+      headers: { Authorization: 'Bearer panel-key', 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      redirect: 'error',
+    })
+  );
+});
 
 it('keeps durable receipt metadata separate from current applied readback', async () => {
   const operation: CredentialPolicyOperationStatus = {

@@ -6,6 +6,7 @@ const safeErrors = new Set([
   'identity_changed',
   'invalid_policy',
   'policy_generation_conflict',
+  'policy_operation_conflict',
   'credential_policy_unavailable',
   'environment_locked_off',
   'gate_contract_unavailable',
@@ -99,6 +100,35 @@ export interface CredentialPolicyUpdate extends QuotaBinding {
   sourceVersion: string;
   expectedGeneration: number;
   enabled: boolean;
+}
+
+export interface CredentialPolicyResume extends QuotaBinding {
+  auth_index: string;
+  sourceVersion: string;
+  expectedGeneration: number;
+  owner: string;
+  opId: string;
+}
+
+export async function resumeCredentialPolicy(
+  base: string,
+  managementKey: string,
+  request: CredentialPolicyResume,
+  signal?: AbortSignal
+): Promise<CredentialPolicyStatus> {
+  const response = await fetch(
+    `${base.replace(/\/$/, '')}/usage-service/credential-policy/resume`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${managementKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      signal,
+      cache: 'no-store',
+      redirect: 'error',
+    }
+  );
+  if (!response.ok) throw await policyError(response);
+  return response.json() as Promise<CredentialPolicyStatus>;
 }
 
 export async function getStoredCredentialPolicy(
