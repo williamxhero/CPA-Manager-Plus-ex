@@ -126,9 +126,11 @@ func credentialQuotaCompletionCancellation(t *testing.T, beforeCommit bool) {
 }
 
 type quotaCommitBarrier struct {
-	committed    chan context.Context
-	release      chan struct{}
-	beforeCommit bool
+	committed      chan context.Context
+	release        chan struct{}
+	beforeCommit   bool
+	jobRead        chan struct{}
+	jobReadRelease chan struct{}
 }
 type quotaCompletionConnector struct {
 	path    string
@@ -165,6 +167,19 @@ func (c *quotaCompletionConn) ExecContext(ctx context.Context, query string, arg
 	return c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
 }
 func (c *quotaCompletionConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if c.barrier.jobRead != nil && strings.HasPrefix(query, "SELECT document FROM credential_quota_jobs") {
+		select {
+		case c.barrier.jobRead <- struct{}{}:
+		default:
+		}
+		if c.barrier.jobReadRelease != nil {
+			select {
+			case <-c.barrier.jobReadRelease:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+	}
 	if c.tx != nil && strings.HasPrefix(query, "UPDATE credential_quota_sources SET attempt=") {
 		c.tx.completion = true
 	}
