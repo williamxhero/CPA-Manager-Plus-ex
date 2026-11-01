@@ -117,7 +117,7 @@ func newRefreshFixture(t *testing.T) *refreshFixture {
 			w.WriteHeader(http.StatusOK)
 			w.(http.Flusher).Flush()
 		}
-		if f.mode.Load() == 1 || f.mode.Load() == 4 && r.URL.Path == "/user/balance" {
+		if f.mode.Load() == 1 || f.mode.Load() == 4 && r.URL.Path == "/user/balance" || f.mode.Load() == 7 && r.URL.Path == "/user/balance" && r.Header.Get("Authorization") == "Bearer explicit-billing-0" {
 			select {
 			case <-f.release:
 			case <-r.Context().Done():

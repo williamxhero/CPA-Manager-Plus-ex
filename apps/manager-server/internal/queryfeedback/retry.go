@@ -19,6 +19,11 @@ func RecordRetry(ctx context.Context, value string) {
 	if receive == nil {
 		return
 	}
+	// An absent header is not an upstream retry instruction. In particular,
+	// do not turn an explicit subsequent manual query into an invented cooldown.
+	if strings.TrimSpace(value) == "" {
+		return
+	}
 	now := time.Now()
 	retry := now.Add(time.Minute)
 	value = strings.TrimSpace(value)
