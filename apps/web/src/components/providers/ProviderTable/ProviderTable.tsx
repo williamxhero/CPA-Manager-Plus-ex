@@ -18,7 +18,7 @@ import {
   IconX,
 } from '@/components/ui/icons';
 import { ResourceProtectionIndicator } from '@/features/resourceProtection/ResourceProtectionIndicator';
-import type { ResourceProtectionCapability } from '@/features/resourceProtection/resourceProtection';
+import type { ResourceProtectionCapability, ResourceProtectionEvidence } from '@/features/resourceProtection/resourceProtection';
 import { ProviderStatusBar } from '../ProviderStatusBar';
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from './kindMeta';
 import type { ProviderRow } from './rowData';
@@ -27,6 +27,7 @@ import styles from './ProviderTable.module.scss';
 interface ProviderTableProps {
   rows: ProviderRow[];
   resourceProtection?: ResourceProtectionCapability;
+  resourceProtectionForRow?: (row: ProviderRow) => ResourceProtectionEvidence;
   loading: boolean;
   actionsDisabled: boolean;
   toggleDisabled: boolean;
@@ -163,6 +164,7 @@ function PriorityControl({
 export function ProviderTable({
   rows,
   resourceProtection,
+  resourceProtectionForRow,
   loading,
   actionsDisabled,
   toggleDisabled,
@@ -244,7 +246,7 @@ export function ProviderTable({
 
             <div className={styles.cellIdentity} role="cell">
               <div className={styles.identityMain}>
-                <ResourceProtectionIndicator status={resourceProtection} />
+                <ResourceProtectionIndicator {...(resourceProtectionForRow?.(row) ?? {status: resourceProtection})} />
                 <span className={styles.identityLabel} title={row.label}>
                   {row.label}
                 </span>

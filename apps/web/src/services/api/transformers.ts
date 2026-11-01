@@ -189,6 +189,7 @@ const normalizeApiKeyEntry = (entry: unknown): ApiKeyEntry | null => {
     proxyUrl: proxyUrl ? String(proxyUrl) : undefined,
     headers,
   };
+  if (typeof record?.['resource-id'] === 'string') result.resourceId = record['resource-id'];
   if (weight !== undefined) result.weight = weight;
   if (authIndex) result.authIndex = authIndex;
   return result;
@@ -205,6 +206,7 @@ const normalizeProviderKeyConfig = (item: unknown): ProviderKeyConfig | null => 
   if (!trimmed && !authIndex) return null;
 
   const config: ProviderKeyConfig = { apiKey: trimmed };
+  if (typeof record?.['resource-id'] === 'string') config.resourceId = record['resource-id'];
   const priority = record?.priority ?? record?.['priority'];
   if (priority !== undefined && priority !== null && String(priority).trim() !== '') {
     const parsed = Number(priority);
@@ -302,6 +304,7 @@ const normalizeGeminiKeyConfig = (item: unknown): GeminiKeyConfig | null => {
   if (!trimmed && !authIndex) return null;
 
   const config: GeminiKeyConfig = { apiKey: trimmed };
+  if (typeof record?.['resource-id'] === 'string') config.resourceId = record['resource-id'];
   const priority = record?.priority ?? record?.['priority'];
   if (priority !== undefined && priority !== null && String(priority).trim() !== '') {
     const parsed = Number(priority);
@@ -361,6 +364,7 @@ const normalizeOpenAIProvider = (provider: unknown): OpenAIProviderConfig | null
     apiKeyEntries,
   };
 
+  if (typeof provider['resource-id'] === 'string') result.resourceId = provider['resource-id'];
   const disabled = normalizeBoolean(provider.disabled ?? provider['disabled']);
   if (disabled !== undefined) result.disabled = disabled;
   const disableCooling = readCoolingOverride(provider);

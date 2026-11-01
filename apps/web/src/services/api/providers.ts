@@ -52,6 +52,7 @@ const LEGACY_CCH_FIELDS = [
 ] as const;
 
 const COMMON_PROVIDER_KEY_FIELDS = [
+  'resource-id',
   'api-key',
   'apiKey',
   ...AUTH_INDEX_FIELDS,
@@ -90,6 +91,7 @@ const CLAUDE_KEY_FIELDS = [
 const GEMINI_KEY_FIELDS = COOLING_PROVIDER_KEY_FIELDS;
 const VERTEX_KEY_FIELDS = COOLING_PROVIDER_KEY_FIELDS;
 export const META_KEY_FIELDS = [
+  'resource-id',
   'api-key',
   'apiKey',
   ...AUTH_INDEX_FIELDS,
@@ -111,6 +113,7 @@ export const META_KEY_FIELDS = [
 ] as const;
 
 const OPENAI_PROVIDER_FIELDS = [
+  'resource-id',
   'name',
   'priority',
   'disabled',
@@ -159,6 +162,7 @@ const MODEL_ALIAS_FIELDS = [
 ] as const;
 
 const API_KEY_ENTRY_FIELDS = [
+  'resource-id',
   'api-key',
   'apiKey',
   'key',
@@ -270,6 +274,16 @@ const findRawRecord = (
   index: number,
   getIdentity: (record: Record<string, unknown>) => string
 ) => {
+  // Issued markers win over mutable credentials or array slots. They are
+  // source-preservation receipts here, not a claim of catalog verification.
+  if (typeof payload['resource-id'] === 'string') {
+    const matches = rawRecords.flatMap((record, i) =>
+      record?.['resource-id'] === payload['resource-id'] && !usedIndexes.has(i) ? [i] : []
+    );
+    if (matches.length !== 1) return undefined;
+    usedIndexes.add(matches[0]);
+    return rawRecords[matches[0]];
+  }
   const identity = getIdentity(payload);
   if (identity) {
     for (let i = 0; i < rawRecords.length; i += 1) {
@@ -543,6 +557,13 @@ export const replaceLatestProviderRecord = (
   payload: Record<string, unknown>,
   mergePayload: ProviderRecordMerger
 ): unknown[] => {
+  if (
+    typeof payload['resource-id'] === 'string' &&
+    latestItems.filter((item) => isRecord(item) && item['resource-id'] === payload['resource-id'])
+      .length !== 1
+  ) {
+    throw new Error('Provider configuration changed; refresh and try again.');
+  }
   const targetIndex = latestItems.findIndex(
     (item, index) => isRecord(item) && isTarget(item, index)
   );
@@ -584,12 +605,14 @@ const matchesProviderConfig = (
   record: Record<string, unknown>,
   original: GeminiKeyConfig | ProviderKeyConfig
 ) =>
-  providerKeyIdentity(record) ===
-  providerKeyIdentity({
-    'auth-index': original.authIndex,
-    'api-key': original.apiKey,
-    'base-url': original.baseUrl,
-  });
+  typeof original.resourceId === 'string'
+    ? record['resource-id'] === original.resourceId
+    : providerKeyIdentity(record) ===
+      providerKeyIdentity({
+        'auth-index': original.authIndex,
+        'api-key': original.apiKey,
+        'base-url': original.baseUrl,
+      });
 
 export type ClaudeFingerprintVerification = 'confirmed' | 'not-applied' | 'not-found';
 
@@ -782,6 +805,7 @@ const serializeAuthIndex = (value?: string) => {
 
 const serializeApiKeyEntry = (entry: ApiKeyEntry) => {
   const payload: Record<string, unknown> = {};
+  if (typeof entry.resourceId === 'string') payload['resource-id'] = entry.resourceId;
   const apiKey = entry.apiKey?.trim();
   if (apiKey) payload['api-key'] = apiKey;
   const authIndex = serializeAuthIndex(entry.authIndex);
@@ -795,6 +819,7 @@ const serializeApiKeyEntry = (entry: ApiKeyEntry) => {
 
 const serializeProviderKey = (config: ProviderKeyConfig) => {
   const payload: Record<string, unknown> = {};
+  if (typeof config.resourceId === 'string') payload['resource-id'] = config.resourceId;
   const apiKey = config.apiKey?.trim();
   if (apiKey) payload['api-key'] = apiKey;
   const authIndex = serializeAuthIndex(config.authIndex);
@@ -856,7 +881,7 @@ const serializeVertexModelAliases = (models?: ModelAlias[]) =>
 // payload: the round-tripped form value would otherwise read as an explicit
 // change and make the merge layer drop legacy CCH fields from the raw config.
 const serializeClaudeUpdatePayload = (original: ProviderKeyConfig, value: ProviderKeyConfig) => {
-  const payload = serializeProviderKey(value);
+  const payload = serializeProviderKey({ ...value, resourceId: original.resourceId });
   if (value.fingerprintProfile === original.fingerprintProfile) {
     delete payload['fingerprint-profile'];
   }
@@ -865,6 +890,7 @@ const serializeClaudeUpdatePayload = (original: ProviderKeyConfig, value: Provid
 
 export const serializeMetaProviderKey = (config: ProviderKeyConfig) => {
   const payload: Record<string, unknown> = {};
+  if (typeof config.resourceId === 'string') payload['resource-id'] = config.resourceId;
   const apiKey = config.apiKey?.trim();
   if (apiKey) payload['api-key'] = apiKey;
   const authIndex = serializeAuthIndex(config.authIndex);
@@ -899,9 +925,9 @@ export {
   isMetaDcaCredential,
 };
 
-
 const serializeVertexKey = (config: ProviderKeyConfig) => {
   const payload: Record<string, unknown> = {};
+  if (typeof config.resourceId === 'string') payload['resource-id'] = config.resourceId;
   const apiKey = config.apiKey?.trim();
   if (apiKey) payload['api-key'] = apiKey;
   const authIndex = serializeAuthIndex(config.authIndex);
@@ -924,6 +950,7 @@ const serializeVertexKey = (config: ProviderKeyConfig) => {
 
 const serializeGeminiKey = (config: GeminiKeyConfig) => {
   const payload: Record<string, unknown> = {};
+  if (typeof config.resourceId === 'string') payload['resource-id'] = config.resourceId;
   const apiKey = config.apiKey?.trim();
   if (!apiKey) {
     throw new Error('API key is required for Gemini and Interactions providers');
@@ -950,9 +977,12 @@ const serializeOpenAIProvider = (provider: OpenAIProviderConfig) => {
     name: provider.name,
     'base-url': provider.baseUrl,
     'api-key-entries': Array.isArray(provider.apiKeyEntries)
-      ? provider.apiKeyEntries.filter(hasOpenAIKeyEntryConfiguration).map((entry) => serializeApiKeyEntry(entry))
+      ? provider.apiKeyEntries
+          .filter(hasOpenAIKeyEntryConfiguration)
+          .map((entry) => serializeApiKeyEntry(entry))
       : [],
   };
+  if (typeof provider.resourceId === 'string') payload['resource-id'] = provider.resourceId;
   const authIndex = serializeAuthIndex(provider.authIndex);
   if (authIndex) payload['auth-index'] = authIndex;
   if (provider.prefix?.trim()) payload.prefix = provider.prefix.trim();
@@ -998,7 +1028,7 @@ export const providersApi = {
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
-        serializeGeminiKey(value),
+        serializeGeminiKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, GEMINI_KEY_FIELDS)
       )
     ),
@@ -1036,7 +1066,7 @@ export const providersApi = {
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
-        serializeGeminiKey(value),
+        serializeGeminiKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, GEMINI_KEY_FIELDS)
       )
     ),
@@ -1076,7 +1106,7 @@ export const providersApi = {
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
-        serializeProviderKey(value),
+        serializeProviderKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, CODEX_KEY_FIELDS)
       )
     ),
@@ -1116,7 +1146,7 @@ export const providersApi = {
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
-        serializeProviderKey(value),
+        serializeProviderKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, XAI_KEY_FIELDS)
       )
     ),
@@ -1161,7 +1191,7 @@ export const providersApi = {
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
-        serializeMetaProviderKey(value),
+        serializeMetaProviderKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeMetaProviderKeyPayload(raw, payload)
       )
     );
@@ -1242,7 +1272,7 @@ export const providersApi = {
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
-        serializeVertexKey(value),
+        serializeVertexKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, VERTEX_KEY_FIELDS)
       )
     ),
@@ -1289,7 +1319,9 @@ export const providersApi = {
       replaceLatestProviderRecord(
         latestItems,
         (record, index) =>
-          index === originalIndex && openAIProviderIdentity(record) === originalName.trim(),
+          typeof value.resourceId === 'string'
+            ? record['resource-id'] === value.resourceId
+            : index === originalIndex && openAIProviderIdentity(record) === originalName.trim(),
         serializeOpenAIProvider(value),
         mergeOpenAIProviderPayload
       )

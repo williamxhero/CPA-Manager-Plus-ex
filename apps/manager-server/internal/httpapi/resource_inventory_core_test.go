@@ -62,7 +62,12 @@ func TestResourceInventoryRealCoreLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := fmt.Sprintf("http://127.0.0.1:%d", port)
-	start := func() func() {
+	cfg := testutil.NewConfig(t)
+	db := testutil.NewStore(t, cfg)
+	if err := db.SaveManagerConfig(context.Background(), store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: base, ManagementKey: "synthetic-core-key"}}); err != nil {
+		t.Fatal(err)
+	}
+	start := func(allowUnsupported bool) func() {
 		cmd := exec.Command(binary, "-config", path, "-local-model")
 		cmd.Dir = dir
 		cmd.Stdout = io.Discard
@@ -90,30 +95,60 @@ func TestResourceInventoryRealCoreLifecycle(t *testing.T) {
 		defer cancel()
 		ticker := time.NewTicker(25 * time.Millisecond)
 		defer ticker.Stop()
+		// A 200 capability response is transport readiness, not catalog publication.
+		// Await the same full Manager negotiation that the lifecycle assertions use;
+		// keep the existing startup deadline and never accept persistent not_ready.
+		handler := New(cfg, db, collector.NewManager(cfg, db)).Handler()
+		route := negotiatedPath
+		if requireBindings {
+			route += "&bindings=1"
+		}
+		last := "no negotiation"
 		for {
-			req, _ := http.NewRequestWithContext(ctx, "GET", base+"/v8/management/resource-capabilities", nil)
-			req.Header.Set("Authorization", "Bearer synthetic-core-key")
-			res, err := http.DefaultClient.Do(req)
-			if err == nil {
-				io.Copy(io.Discard, res.Body)
-				res.Body.Close()
-				if res.StatusCode == 200 {
-					return stop
-				}
+			req := httptest.NewRequest("GET", route, nil).WithContext(ctx)
+			req.Header.Set("Authorization", "Bearer "+testutil.AdminKey)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("Manager startup negotiation HTTP %d", rr.Code)
 			}
+			var got struct{ Negotiated caps.Negotiated }
+			if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+				t.Fatal("invalid Manager startup negotiation JSON")
+			}
+			n := got.Negotiated
+			if strings.Contains(rr.Body.String(), "CANARY") || strings.Contains(rr.Body.String(), "synthetic-core-key") {
+				t.Fatal("startup negotiation leaked source secrets")
+			}
+			if n.IndependentGate.State != "unavailable" || !n.PolicyLocked {
+				t.Fatal("startup negotiation claimed gate support or unlocked policy")
+			}
+			last = n.Identity.State + "/" + n.Identity.Reason
+			if n.BindingCapability != nil {
+				last += " bindings=" + n.BindingCapability.State + "/" + n.BindingCapability.Reason
+			}
+			if n.Identity.State == "available" && n.Snapshot != nil && n.Snapshot.Complete &&
+				(!requireBindings || (n.BindingCapability != nil && n.BindingCapability.State == "available" && len(n.Bindings) > 0)) {
+				return stop
+			}
+			if allowUnsupported && n.Identity.State == "unavailable" && n.Snapshot == nil &&
+				(n.Identity.Reason == "unsupported_mode" || n.Identity.Reason == "unsupported_storage" || n.Identity.Reason == "unsupported_filesystem" || n.Identity.Reason == "not_enabled") {
+				return stop // Explicit negative mode: assertions below must still agree with Core.
+			}
+			// Authentication/schema errors are real failures, not startup transients.
+			if n.Identity.Reason == "core_auth_error" || n.Identity.Reason == "invalid_contract" || n.Identity.Reason == "unsupported_contract" ||
+				(n.BindingCapability != nil && n.BindingCapability.Reason == "invalid_binding_contract") {
+				t.Fatalf("invalid startup negotiation: %s", last)
+			}
+
 			select {
 			case <-ctx.Done():
-				t.Fatal("isolated Core did not become ready")
+				t.Fatalf("isolated Core full Manager negotiation did not become ready before startup deadline: %s", last)
 			case <-ticker.C:
 			}
 		}
 	}
-	stop := start()
-	cfg := testutil.NewConfig(t)
-	db := testutil.NewStore(t, cfg)
-	if err := db.SaveManagerConfig(context.Background(), store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: base, ManagementKey: "synthetic-core-key"}}); err != nil {
-		t.Fatal(err)
-	}
+	stop := start(false)
 	read := func() caps.Snapshot {
 		handler := New(cfg, db, collector.NewManager(cfg, db)).Handler()
 		route := negotiatedPath
@@ -139,7 +174,7 @@ func TestResourceInventoryRealCoreLifecycle(t *testing.T) {
 			// Obtain the real current-runtime selector from Core's public metadata API,
 			// independently of the binding response. Names locate this synthetic fixture
 			// only; they are never used to construct durable resource identity.
-			req, _ := http.NewRequest("GET", base+"/v8/management/auth-files", nil)
+			req, _ := http.NewRequest("GET", base+"/v8/management/credentials", nil)
 			req.Header.Set("Authorization", "Bearer synthetic-core-key")
 			res, err := http.DefaultClient.Do(req)
 			if err != nil {
@@ -218,7 +253,7 @@ func TestResourceInventoryRealCoreLifecycle(t *testing.T) {
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	stop = start()
+	stop = start(false)
 	renamed := read()
 	for _, row := range renamed.Resources {
 		if row.ResourceID == member.ResourceID && (row.Incarnation != member.Incarnation || row.IdentityVersion != member.IdentityVersion || row.CredentialVersion != member.CredentialVersion) {
@@ -237,7 +272,7 @@ func TestResourceInventoryRealCoreLifecycle(t *testing.T) {
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	stop = start()
+	stop = start(false)
 	replaced := read()
 	for _, row := range replaced.Resources {
 		if row.ResourceID == member.ResourceID && (row.CredentialVersion == member.CredentialVersion || row.Incarnation == member.Incarnation) {
@@ -254,7 +289,7 @@ func TestResourceInventoryRealCoreLifecycle(t *testing.T) {
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	stop = start()
+	stop = start(true)
 	rr := testutil.Request(t, New(cfg, db, collector.NewManager(cfg, db)).Handler(), "GET", negotiatedPath, "", testutil.AdminKey)
 	req, _ := http.NewRequest("GET", base+"/v8/management/resource-capabilities", nil)
 	req.Header.Set("Authorization", "Bearer synthetic-core-key")

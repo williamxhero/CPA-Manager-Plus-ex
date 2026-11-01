@@ -63,8 +63,6 @@ export function AiProvidersPage() {
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const featureAvailability = usePanelFeatureAvailability();
-  const { status: resourceProtection, refresh: refreshResourceProtection } =
-    useResourceProtection(featureAvailability);
 
   const config = useConfigStore((state) => state.config);
   const fetchConfig = useConfigStore((state) => state.fetchConfig);
@@ -75,6 +73,11 @@ export function AiProvidersPage() {
   const hasMounted = useRef(false);
   const [loading, setLoading] = useState(() => !isCacheValid());
   const [error, setError] = useState('');
+  const { status: resourceProtection, forProvider, refresh: refreshResourceProtection } =
+    useResourceProtection(
+      { ...featureAvailability, checking: featureAvailability.checking || loading },
+      config
+    );
 
   const [geminiKeys, setGeminiKeys] = useState<GeminiKeyConfig[]>(
     () => config?.geminiApiKeys || []
@@ -1633,7 +1636,8 @@ export function AiProvidersPage() {
 
           <Card>
             <ProviderTable
-              resourceProtection={resourceProtection === 'identity_only' ? 'unbound' : resourceProtection}
+              resourceProtection={resourceProtection}
+              resourceProtectionForRow={(row) => forProvider(row, rows)}
               rows={pagedRows}
               loading={loading}
               actionsDisabled={actionsDisabled}

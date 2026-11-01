@@ -124,6 +124,7 @@ export interface ModelAlias {
 }
 
 export interface ApiKeyEntry {
+  resourceId?: string;
   apiKey: string;
   weight?: number;
   proxyUrl?: string;
@@ -147,6 +148,8 @@ export interface CloakConfig {
 export type ClaudeFingerprintProfile = '' | 'claude-code-cli';
 
 export interface GeminiKeyConfig {
+  /** Core-issued source marker; never established by the form itself. */
+  resourceId?: string;
   apiKey: string;
   priority?: number;
   weight?: number;
@@ -161,6 +164,8 @@ export interface GeminiKeyConfig {
 }
 
 export interface ProviderKeyConfig {
+  /** Core-issued source marker; verified only against a current negotiated catalog. */
+  resourceId?: string;
   apiKey: string;
   priority?: number;
   weight?: number;
@@ -185,6 +190,7 @@ export interface ProviderKeyConfig {
 }
 
 export interface OpenAIProviderConfig {
+  resourceId?: string;
   name: string;
   prefix?: string;
   baseUrl: string;

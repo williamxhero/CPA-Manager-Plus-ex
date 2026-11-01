@@ -116,18 +116,26 @@ credential table/card and provider indicators explain:
 - unknown: unverified/failed negotiation;
 - unavailable: missing integration/catalog support;
 - unsupported_mode: the actual Core mode blocker, not a healthy/protected label;
-- identity_only: verified runtime binding, but query/gate consumers unavailable;
+- identity_only: verified runtime binding or issued native-source marker, but query/gate consumers unavailable;
 - unbound: source inventory is available but this row has no verified runtime
-  association (this includes native provider rows without a proven source marker
-  UI mapping).
+  association or issued native source marker.
 
 All four locales have accessible tooltip text. A credential's current auth_index
 is looked up only in the current negotiated scope. Its displayed identity comes
 from producer-issued runtime_alias + full Target tuples, never from that index,
 name, position or key. The tooltip exposes only the sanitized Scope/Targets.
 Source list changes/loading, connection/revision changes, refresh and unmount
-invalidate old completions. Native provider rows are explicitly unbound rather
-than assigned an OAuth/file target by matching names, keys or auth indices.
+invalidate old completions. Native source APIs retain issued resource-id markers
+through all supported provider normalizers and edit/save serialization. The UI
+resolves only unique markers against ready catalog rows with matching kind/family;
+OpenAI groups additionally require the exact complete member marker set and parent
+relations. No labels, key hashes, array slots or auth indices establish source
+identity. Unmarked/ambiguous/mismatched rows remain unbound. Native source evidence
+is not proof of runtime eligibility or runtime-binding coverage. The tooltip
+contains only the actual current Scope and full Target versions. Marked edits
+match the issued source marker (including reordered same-name OpenAI groups);
+ambiguous marked edits fail rather than attaching the marker to another row.
+Unmarked legacy manual editing remains compatible, but never creates trusted IDs.
 Manual switches, copying, row keyboard actions, legacy quota and settings remain
 unchanged. No automatic switch is enabled by catalog availability.
 
@@ -153,9 +161,9 @@ and source lifecycle proofs; its evidence is not implied by Manager test success
 
 Remaining #70 acceptance: run the opt-in actual-runtime association exercise
 against the **delivered producer commit**, not just the original Core binary;
-rendered-browser layout/keyboard verification; and native provider UI association
-where no verified public source marker has been carried through its existing
-source normalizer. This pass intentionally does not guess such a mapping. The
+rendered-browser layout/keyboard verification and independent full-ticket review.
+Supported native provider marker consumption is implemented; rows without current
+proof intentionally remain unbound. The
 producer pointer is ops/implement-spec92-20261101/CORE-IDENTITY-CONTRACT.md at the
 project root; its in-progress status is not acceptance evidence.
 No full-ticket closure or SPEC #92 completion is claimed. Real query/gate ACK,
