@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
+import { CredentialQuotaPanel } from '@/components/quota/CredentialQuotaPanel';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
@@ -10132,6 +10133,12 @@ export function AccountsPage() {
     const renderActiveDetail = () => {
       if (detailTab === 'quota') {
         return (
+          <>
+          {managerStorageAvailable && <CredentialQuotaPanel
+            base={featureAvailability.managerServiceBase ?? ''}
+            managementKey={managementKey}
+            authIndex={selectedRow.authIndex || undefined}
+          />}
           <AccountQuotaTab
             detailView={detailView}
             windowUsageError={accountWindowUsageError}
@@ -10143,6 +10150,7 @@ export function AccountsPage() {
               !canResetCodexQuota(selectedRow) || resettingSelectedQuota || configurationSaving
             }
           />
+          </>
         );
       }
       if (detailTab === 'config') {

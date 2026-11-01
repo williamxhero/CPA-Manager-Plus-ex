@@ -19,6 +19,7 @@ import (
 	codexinspectionsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/codexinspection"
 	collectorsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/collector"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpaauthfiles"
+	credentialquotasvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
 	dashboardsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/dashboard"
 	managerconfigsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
 	modelpricesvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/modelprice"
@@ -49,6 +50,7 @@ type DatabaseMaintenanceStatusProvider interface {
 
 type Context struct {
 	OfficialBalanceService *officialbalancesvc.Service
+	CredentialQuotaService *credentialquotasvc.Service
 	UpdateCheckService     *updatechecksvc.Service
 	Config                 config.Config
 	Store                  *store.Store
@@ -173,6 +175,7 @@ func fromExisting(
 	identityService := resourcecapabilitysvc.New(accountProcessingPolicyService, managerConfigService)
 	return &Context{
 		OfficialBalanceService: officialbalancesvc.New(st, identityService),
+		CredentialQuotaService: credentialquotasvc.New(st, identityService),
 		UpdateCheckService:     updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
 		Config:                 cfg,
 		Store:                  st,
