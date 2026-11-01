@@ -21,6 +21,23 @@ type CompletionOutcome struct {
 // Unknown/unmanaged sources may still query quota. A known source's start fence
 // must commit synchronously; any storage failure is returned to #76 before I/O.
 func (s *Service) CaptureCredentialQueryStart(ctx context.Context, q cq.Query, attemptID string) error {
+	return s.captureCredentialQueryStart(ctx, q, attemptID, false)
+}
+
+// Called ONLY by76's trusted Started hook after its host admission/Job commit.
+// A raw caller's query is never enough to activate the local scope-rebind path.
+func (s *Service) CaptureAdmittedCredentialQueryStart(ctx context.Context, q cq.Query, attemptID string) error {
+	body, err := json.Marshal(q)
+	if err != nil {
+		return ErrInput
+	}
+	if err := s.Store.CheckCredentialPolicyAdmittedQuery(ctx, attemptID, SubjectID(cq.Source{Binding: q.Binding}), string(body)); err != nil {
+		return err
+	}
+	return s.captureCredentialQueryStart(ctx, q, attemptID, true)
+}
+
+func (s *Service) captureCredentialQueryStart(ctx context.Context, q cq.Query, attemptID string, admitted bool) error {
 	id := SubjectID(cq.Source{Binding: q.Binding})
 	r, err := s.Store.CredentialPolicy(ctx, id)
 	if err != nil {
@@ -64,7 +81,13 @@ func (s *Service) CaptureCredentialQueryStart(ctx context.Context, q cq.Query, a
 		if err != nil {
 			return err
 		}
-		if reflect.DeepEqual(stored.Binding, q.Binding) && stored.AuthIndex == q.AuthIndex && stored.SourceVersion == q.SourceVersion {
+		bindingMatches := reflect.DeepEqual(stored.Binding, q.Binding) && stored.AuthIndex == q.AuthIndex
+		if admitted {
+			// Only transient issuance scope/index can differ. Every persistent
+			// identity/incarnation/credential/membership version remains exact.
+			bindingMatches = stored.Scope.InstanceID == q.Scope.InstanceID && stored.Scope.InstanceIncarnation == q.Scope.InstanceIncarnation && reflect.DeepEqual(stored.Targets, q.Targets)
+		}
+		if bindingMatches && stored.SourceVersion == q.SourceVersion {
 			//76's host has just validated and committed this full issued Query.
 			// An unchanged binding needs no additional inventory round trip in
 			// the acquisition deadline. Changed boot/authority stays on the
@@ -73,7 +96,11 @@ func (s *Service) CaptureCredentialQueryStart(ctx context.Context, q cq.Query, a
 			if err != nil {
 				return ErrInput
 			}
-			return s.Store.CaptureCredentialPolicyQuery(ctx, store.CredentialPolicyQueryFence{AttemptID: attemptID, SubjectID: id, Generation: stored.Generation, Owner: stored.Owner, Source: string(body), Enabled: stored.Enabled})
+			fence := store.CredentialPolicyQueryFence{AttemptID: attemptID, SubjectID: id, Generation: stored.Generation, Owner: stored.Owner, Source: string(body), Enabled: stored.Enabled}
+			if admitted {
+				return s.Store.CaptureCredentialPolicyAdmittedQuery(ctx, fence)
+			}
+			return s.Store.CaptureCredentialPolicyQuery(ctx, fence)
 		}
 	}
 	current, err := s.source(ctx, q.AuthIndex)
