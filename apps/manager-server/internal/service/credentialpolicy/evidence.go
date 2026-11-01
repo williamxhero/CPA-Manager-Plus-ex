@@ -22,6 +22,7 @@ type EvidenceDecision struct {
 	AttemptID             string `json:"attemptId,omitempty"`
 	ObservedAtMS          int64  `json:"observedAtMs,omitempty"`
 	ModelAutomationReason string `json:"modelAutomationReason,omitempty"`
+	ValidUntilMS          int64  `json:"validUntilMs,omitempty"`
 }
 
 func noEvidence(reason string) EvidenceDecision {
@@ -68,6 +69,7 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 	globalExhausted := false
 	globalPositive := true
 	modelExhausted := false
+	validUntil := core.ObservedAtMS + int64(5*time.Minute/time.Millisecond)
 	for _, w := range core.Windows {
 		if w.Name == "" || len(w.Name) > 128 || len(w.Model) > 128 || math.IsNaN(w.UsedPercent) || math.IsInf(w.UsedPercent, 0) || w.UsedPercent < 0 || w.UsedPercent > 100 || math.IsNaN(w.RemainingFraction) || math.IsInf(w.RemainingFraction, 0) || w.RemainingFraction < 0 || w.RemainingFraction > 1 {
 			return noEvidence("invalid_evidence")
@@ -78,6 +80,9 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 		reset, err := time.Parse(time.RFC3339Nano, w.ResetAt)
 		if err != nil || !reset.After(now) {
 			return noEvidence("reset_requires_recheck")
+		}
+		if w.Model == "" && reset.UnixMilli() < validUntil {
+			validUntil = reset.UnixMilli()
 		}
 		if groups[w.Model] == nil {
 			groups[w.Model] = map[string]bool{}
@@ -110,6 +115,7 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 		}
 	}
 	out := EvidenceDecision{Action: "none", AttemptID: obs.QueryID, ObservedAtMS: obs.ObservedAtMS, EvidenceVersion: status.SourceVersion + ":" + strconv.FormatInt(status.Version, 10) + ":" + obs.QueryID}
+	out.ValidUntilMS = validUntil
 	if modelExhausted {
 		out.ModelAutomationReason = "model_scope_unsupported"
 	}

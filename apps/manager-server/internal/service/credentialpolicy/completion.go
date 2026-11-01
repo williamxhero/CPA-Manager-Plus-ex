@@ -61,50 +61,54 @@ func (s *Service) CaptureCredentialQueryStart(ctx context.Context, q cq.Query, a
 }
 
 func (s *Service) CompleteCredentialQuery(ctx context.Context, q cq.Query, status cq.Status, attemptID string) (CompletionOutcome, error) {
-	none := func(reason string) (CompletionOutcome, error) {
-		return CompletionOutcome{Decision: noEvidence(reason)}, nil
+	state, decision, err := s.classifyCompletion(ctx, q, status, attemptID)
+	if err != nil || decision.Action == "none" {
+		return CompletionOutcome{Decision: decision}, err
 	}
+	current, err := s.source(ctx, q.AuthIndex)
+	if err != nil {
+		return CompletionOutcome{Decision: noEvidence("current_source_unavailable")}, nil
+	}
+	if !reflect.DeepEqual(current.Binding, q.Binding) || current.SourceVersion != q.SourceVersion || !sameAuthority(state.Source, current) {
+		return CompletionOutcome{Decision: noEvidence("source_authority_changed")}, nil
+	}
+	return s.enqueueDecision(ctx, state, status.Source, decision)
+}
+
+// Pure evidence + local DB fences only; no Core inventory or gate I/O in the
+// synchronous completion callback. The worker independently checks current Core.
+func (s *Service) classifyCompletion(ctx context.Context, q cq.Query, status cq.Status, attemptID string) (Status, EvidenceDecision, error) {
 	id := SubjectID(cq.Source{Binding: q.Binding})
 	r, err := s.Store.CredentialPolicy(ctx, id)
 	if err != nil {
-		return CompletionOutcome{}, err
+		return Status{}, EvidenceDecision{}, err
 	}
 	if r.Document == "" {
-		return none("policy_off")
+		return Status{}, noEvidence("policy_off"), nil
 	}
 	state, err := s.StoredStatus(ctx, id)
 	if err != nil {
-		return CompletionOutcome{}, err
+		return Status{}, EvidenceDecision{}, err
 	}
 	if !state.Enabled || s.lockedOff {
-		return none("policy_off")
+		return state, noEvidence("policy_off"), nil
 	}
 	body, err := json.Marshal(q)
 	if err != nil {
-		return CompletionOutcome{}, ErrInput
+		return state, EvidenceDecision{}, ErrInput
 	}
 	fence := store.CredentialPolicyQueryFence{AttemptID: attemptID, SubjectID: id, Generation: state.Generation, Owner: state.Owner, Source: string(body), Enabled: true}
 	if err = s.Store.CheckCredentialPolicyQuery(ctx, fence); err != nil {
 		if errors.Is(err, store.ErrPolicyConflict) {
-			return none("policy_generation_changed")
+			return state, noEvidence("policy_generation_changed"), nil
 		}
-		return CompletionOutcome{}, err
-	}
-	current, err := s.source(ctx, q.AuthIndex)
-	if err != nil {
-		return none("current_source_unavailable")
-	}
-	if !reflect.DeepEqual(current.Binding, q.Binding) || current.SourceVersion != q.SourceVersion || !sameAuthority(state.Source, current) {
-		return none("source_authority_changed")
+		return state, EvidenceDecision{}, err
 	}
 	if !sameAuthority(state.Source, status.Source) || !reflect.DeepEqual(q.Binding, status.Binding) || q.SourceVersion != status.SourceVersion || q.Version != status.Version || status.Attempt == nil || status.Attempt.QueryID != attemptID {
-		return none("source_authority_changed")
+		return state, noEvidence("source_authority_changed"), nil
 	}
 	decision := ValidateCredentialEvidence(status, s.now())
-	if decision.Action == "none" {
-		return CompletionOutcome{Decision: decision}, nil
-	}
-	return s.enqueueDecision(ctx, state, status.Source, decision)
+	return state, decision, nil
 }
 
 func (s *Service) enqueueDecision(ctx context.Context, state Status, source cq.Source, decision EvidenceDecision) (CompletionOutcome, error) {
@@ -127,6 +131,9 @@ func (s *Service) enqueueDecision(ctx context.Context, state Status, source cq.S
 	}
 	op := GateOperation{Version: 1, OpID: id, Binding: source.Binding, AuthIndex: source.AuthIndex, SourceVersion: source.SourceVersion, Subject: "credential", Owner: state.Owner, Action: action, Reason: reason, EvidenceID: uuid.NewSHA1(uuid.NameSpaceOID, []byte("quota-evidence:"+decision.EvidenceVersion)).String()}
 	desired := PendingIntent{Operation: op, Source: source, Evidence: decision, ExpiresAtMS: decision.ObservedAtMS + int64(5*time.Minute/time.Millisecond)}
+	if decision.ValidUntilMS > 0 && decision.ValidUntilMS < desired.ExpiresAtMS {
+		desired.ExpiresAtMS = decision.ValidUntilMS
+	}
 	document, err := json.Marshal(desired)
 	if err != nil {
 		return out, err

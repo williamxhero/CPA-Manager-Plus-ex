@@ -65,6 +65,9 @@ type Service struct {
 	holder      string
 	clock       func() time.Time
 	coordinator *fr.Service
+	runMu       sync.Mutex
+	running     bool
+	wake        chan struct{}
 }
 
 type Option func(*Service)
@@ -78,7 +81,7 @@ func WithClock(clock func() time.Time) Option {
 }
 func (s *Service) now() time.Time { return s.clock().UTC() }
 func New(st *store.Store, quota SourceReader, connection *mc.Service, lockedOff bool, options ...Option) *Service {
-	s := &Service{Store: st, Quota: quota, core: coreClient{connection: connection}, lockedOff: lockedOff, holder: uuid.NewString(), clock: time.Now}
+	s := &Service{Store: st, Quota: quota, core: coreClient{connection: connection}, lockedOff: lockedOff, holder: uuid.NewString(), clock: time.Now, wake: make(chan struct{}, 1)}
 	for _, option := range options {
 		option(s)
 	}

@@ -3,6 +3,7 @@ package credentialpolicy
 import (
 	"context"
 	fr "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
+	"log"
 )
 
 // BindCoordinator is startup wiring only. Source/Start/Job and query budgets
@@ -25,6 +26,13 @@ func (s *Service) BindCoordinator(coordinator *fr.Service) error {
 		// Missing inference association never cancels independently authorized
 		// official billing reads. It cannot create an automation fence/proof.
 		return nil
+	})
+	coordinator.Subscribe(func(ctx context.Context, event fr.CompletedObservation) {
+		if err := s.ObserveCompleted(ctx, event); err != nil {
+			// The observer API has no error channel. Fail closed, without logging
+			// source bodies, secrets, or arbitrary upstream error messages.
+			log.Print("credential policy completion unavailable; no automatic action authorized")
+		}
 	})
 	return nil
 }

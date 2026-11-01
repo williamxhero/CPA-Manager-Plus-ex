@@ -51,10 +51,26 @@ type DatabaseMaintenanceStatusProvider interface {
 	Snapshot() sqliterepo.WALMaintenanceSnapshot
 }
 
+// FullRefreshCoordinator keeps host APIs replaceable by the same76 service in
+// owner tests while allowing additive policy runtime lifecycle wiring.
+type FullRefreshCoordinator interface {
+	Inventory(context.Context) (fullrefreshsvc.Inventory, error)
+	StartRound(context.Context, fullrefreshsvc.Purpose) (fullrefreshsvc.Progress, error)
+	StartSingleSource(context.Context, fullrefreshsvc.SourceRequest, fullrefreshsvc.Purpose) (fullrefreshsvc.Progress, error)
+	GetProgress(context.Context, string) (fullrefreshsvc.Progress, error)
+	Cancel(context.Context, string) (fullrefreshsvc.Progress, error)
+	StartOfficial(context.Context, officialbalancesvc.Query) (officialbalancesvc.Job, error)
+	StartCredential(context.Context, credentialquotasvc.Query) (credentialquotasvc.Job, error)
+	Subscribe(fullrefreshsvc.Observer)
+	SubscribeStarted(fullrefreshsvc.StartedObserver)
+	Run(context.Context) error
+	Shutdown(context.Context) error
+}
+
 type Context struct {
 	CredentialPolicyService *credentialpolicysvc.Service
 	ManagementQueryBudget   *managementquery.Budget
-	FullRefreshService      *fullrefreshsvc.Service
+	FullRefreshService      FullRefreshCoordinator
 	OfficialBalanceService  *officialbalancesvc.Service
 	CredentialQuotaService  *credentialquotasvc.Service
 	UpdateCheckService      *updatechecksvc.Service
@@ -230,6 +246,8 @@ func fromExisting(
 	out.ProxyService.LegacyQuotaGuard = legacyGuard
 	out.CodexInspectionService.LegacyQuotaGuard = legacyGuard
 	// Fresh services bind once at startup; source admission remains in76.
-	_ = out.CredentialPolicyService.BindCoordinator(out.FullRefreshService)
+	coordinator := out.FullRefreshService.(*fullrefreshsvc.Service)
+	_ = out.CredentialPolicyService.BindCoordinator(coordinator)
+	out.FullRefreshService = &credentialpolicysvc.CoordinatedService{Service: coordinator, Policy: out.CredentialPolicyService}
 	return out
 }

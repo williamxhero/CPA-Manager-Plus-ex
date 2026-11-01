@@ -90,7 +90,7 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 	if reason == "" {
 		return s.confirmOperation(ctx, record, desired, result, lease)
 	}
-	if record.Automatic && (s.lockedOff || desired.ExpiresAtMS <= s.now().UnixMilli()) {
+	if record.Automatic && (s.lockedOff || desired.ExpiresAtMS <= s.now().UnixMilli() || desired.Evidence.ValidUntilMS <= s.now().UnixMilli()) {
 		return save("fresh_authoritative_evidence_required")
 	}
 	source, err := s.source(ctx, desired.Source.AuthIndex)
