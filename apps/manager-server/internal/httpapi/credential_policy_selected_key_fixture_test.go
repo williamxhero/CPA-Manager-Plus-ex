@@ -2,7 +2,10 @@ package httpapi
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -13,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,6 +24,7 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/security"
+	cp "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy"
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
 	fr "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
 	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
@@ -33,9 +38,14 @@ import (
 type selectedKeyPolicyFixture struct {
 	*nativeAdmissionFixture
 	nativeQuotaState atomic.Int32 // 0 finite, 1 unknown, 2 unlimited
+	grants           atomic.Int32
+	oauthSends       atomic.Int32
+	restart          func()
+	onPause          func(cp.Status)
+	onEnd            func()
 }
 
-func newSelectedKeyPolicyFixture(t *testing.T) (*selectedKeyPolicyFixture, ob.Binding, string) {
+func newSelectedKeyPolicyFixture(t *testing.T, nativeGrant ...bool) (*selectedKeyPolicyFixture, ob.Binding, string) {
 	t.Helper()
 	binary := os.Getenv("CORE_QUOTA_TEST_BINARY")
 	if binary == "" {
@@ -48,8 +58,18 @@ func newSelectedKeyPolicyFixture(t *testing.T) (*selectedKeyPolicyFixture, ob.Bi
 		t.Fatal("SDK mismatch")
 	}
 	f := &selectedKeyPolicyFixture{nativeAdmissionFixture: &nativeAdmissionFixture{t: t, client: &http.Client{Timeout: 15 * time.Second}, sources: map[string]cq.Source{}, completed: make(chan fr.CompletedObservation, 32)}}
-	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/oauth/token":
+			if err := r.ParseForm(); err != nil || r.Form.Get("grant_type") != "refresh_token" {
+				t.Error("not an actual native refresh grant")
+				w.WriteHeader(400)
+				return
+			}
+			n := f.grants.Add(1)
+			jwt := "a." + base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"controlled-issuer","sub":"controlled-subject","https://api.openai.com/auth":{"chatgpt_account_id":"synthetic-continuity-account"}}`)) + ".b"
+			fmt.Fprintf(w, `{"access_token":"SYNTHETIC-ROTATED-%d","refresh_token":"SYNTHETIC-GRANT-%d","id_token":%q,"token_type":"Bearer","expires_in":3600}`, n, n, jwt)
+			return
 		case "/api/usage/token/":
 			if r.Header.Get("Authorization") != "Bearer SELECTED-KEY-A" || r.Header.Get("New-Api-User") != "" {
 				t.Error("official key-only auth changed")
@@ -70,16 +90,20 @@ func newSelectedKeyPolicyFixture(t *testing.T) (*selectedKeyPolicyFixture, ob.Bi
 				remaining = "0"
 			}
 			fmt.Fprintf(w, `{"code":true,"data":{"object":"token_usage","total_available":%s,"unlimited_quota":false}}`, remaining)
-		case "/v1/responses":
-			switch r.Header.Get("Authorization") {
-			case "Bearer SELECTED-KEY-A":
-				f.sends[0].Add(1)
-			case "Bearer SELECTED-KEY-B":
-				f.sends[1].Add(1)
-			default:
-				t.Error("business credential mismatch")
-				w.WriteHeader(403)
-				return
+		case "/v1/responses", "/backend-api/codex/responses":
+			if token := r.Header.Get("Authorization"); token == "Bearer SYNTHETIC-INITIAL-ACCESS" || strings.HasPrefix(token, "Bearer SYNTHETIC-ROTATED-") {
+				f.oauthSends.Add(1)
+			} else {
+				switch r.Header.Get("Authorization") {
+				case "Bearer SELECTED-KEY-A":
+					f.sends[0].Add(1)
+				case "Bearer SELECTED-KEY-B":
+					f.sends[1].Add(1)
+				default:
+					t.Error("business credential mismatch")
+					w.WriteHeader(403)
+					return
+				}
 			}
 			io.Copy(io.Discard, r.Body)
 			w.Header().Set("Content-Type", "text/event-stream")
@@ -89,19 +113,51 @@ func newSelectedKeyPolicyFixture(t *testing.T) (*selectedKeyPolicyFixture, ob.Bi
 			fmt.Fprintf(w, `{"usage":{"rolling":{"status":"allowed","percent":25,"resetsAt":%q},"weekly":{"status":"allowed","percent":25,"resetsAt":%q},"monthly":{"status":"allowed","percent":25,"resetsAt":%q}}}`, reset, reset, reset)
 		case "/backend-api/wham/usage":
 			reset := time.Now().Add(time.Hour).Unix()
+			used := 25
+			if f.depleted.Load() {
+				used = 100
+			}
 			w.Header().Set("Date", time.Now().UTC().Format(http.TimeFormat))
-			fmt.Fprintf(w, `{"rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":25,"reset_at":%d},"secondary_window":{"used_percent":25,"reset_at":%d}}}`, reset, reset)
+			fmt.Fprintf(w, `{"rate_limit":{"allowed":%t,"limit_reached":%t,"primary_window":{"used_percent":%d,"reset_at":%d,"limit_window_seconds":18000},"secondary_window":{"used_percent":%d,"reset_at":%d,"limit_window_seconds":604800}}}`, used < 100, used == 100, used, reset, used, reset)
 		default:
 			t.Errorf("unexpected controlled upstream path %s", r.URL.Path)
 			w.WriteHeader(404)
 		}
 	}))
+	// Keep verification enabled for configured loopback origins AND the real
+	// native OAuth quota/token hostnames used through the isolated Core dialer.
+	seed := httptest.NewTLSServer(http.NotFoundHandler())
+	certificate := seed.TLS.Certificates[0]
+	seed.Close()
+	template, err := x509.ParseCertificate(certificate.Certificate[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	template.DNSNames = []string{"chatgpt.com", "auth.openai.com", "opencode.ai"}
+	template.IPAddresses = []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")}
+	key := certificate.PrivateKey.(crypto.Signer)
+	der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certificate.Certificate = [][]byte{der}
+	certificate.Leaf = nil
+	upstream.TLS = seed.TLS.Clone()
+	upstream.TLS.Certificates[0] = certificate
+	upstream.StartTLS()
 	t.Cleanup(upstream.Close)
 	dir := t.TempDir()
 	state := filepath.Join(dir, "state")
 	auth := filepath.Join(state, "auth")
 	if err := os.MkdirAll(auth, 0700); err != nil {
 		t.Fatal(err)
+	}
+	if len(nativeGrant) > 0 && nativeGrant[0] {
+		jwt := "a." + base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"controlled-issuer","sub":"controlled-subject","https://api.openai.com/auth":{"chatgpt_account_id":"synthetic-continuity-account"}}`)) + ".b"
+		raw, _ := json.Marshal(map[string]any{"type": "codex", "access_token": "SYNTHETIC-INITIAL-ACCESS", "refresh_token": "SYNTHETIC-INITIAL-GRANT", "account_id": "synthetic-continuity-account", "id_token": jwt, "expired": "2099-01-01T00:00:00Z", "disabled": false, "priority": 200})
+		if err := os.WriteFile(filepath.Join(auth, "codex.json"), raw, 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	config := fmt.Sprintf("server: {port: 0}\nmanagement: {secret-key: test-password}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\napi-keys:\n  codex:\n    - name: selected-key-fixture\n      base-url: %q\n      keys: [{api-key: SELECTED-KEY-A, priority: 100}, {api-key: SELECTED-KEY-B, priority: 0}]\nplugins:\n  enabled: true\n  dir: %q\n  configs:\n    opencode-go-cliproxyapi:\n      enabled: true\n      base-url: https://opencode.ai/zen/go/v1\n      api-keys: [{name: fixture-only, value: NATIVE-FIXTURE-PLUGIN}]\n", filepath.ToSlash(auth), upstream.URL+"/v1", filepath.ToSlash(plugin))
 	if err := os.WriteFile(filepath.Join(state, "config.yaml"), []byte(config), 0600); err != nil {
@@ -162,6 +218,39 @@ func newSelectedKeyPolicyFixture(t *testing.T) (*selectedKeyPolicyFixture, ob.Bi
 			t.Fatal("actual configured Core not ready")
 		}
 		time.Sleep(25 * time.Millisecond)
+	}
+	f.restart = func() {
+		oldBoot := snapshot.Scope.BootEpoch
+		cmd.Process.Kill()
+		cmd.Wait()
+		prior := cmd
+		cmd = exec.Command(binary, prior.Args[1:]...)
+		cmd.Dir = prior.Dir
+		cmd.Env = append([]string(nil), prior.Env...)
+		cmd.Stdout = log
+		cmd.Stderr = log
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.Now().Add(20 * time.Second)
+		for {
+			request, _ := http.NewRequest("GET", f.base+"/v8/management/resources", nil)
+			request.Header.Set("Authorization", "Bearer test-password")
+			response, err := f.client.Do(request)
+			if err == nil {
+				raw, _ := io.ReadAll(response.Body)
+				response.Body.Close()
+				var current rc.Snapshot
+				if response.StatusCode == 200 && json.Unmarshal(raw, &current) == nil && current.Complete && current.Scope.BootEpoch != oldBoot {
+					snapshot = current
+					return
+				}
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("actual Core restart current boot not issued")
+			}
+			time.Sleep(25 * time.Millisecond)
+		}
 	}
 	cfg := testutil.NewConfig(t)
 	protector, _ := security.NewProtector([]byte("0123456789abcdef0123456789abcdef"))

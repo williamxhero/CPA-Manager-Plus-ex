@@ -218,6 +218,32 @@ func TestCredentialPolicyNativeAdmissionHTTPDepletion(t *testing.T) {
 
 func (f *nativeAdmissionFixture) enableAB() {
 	t := f.t
+	// Qualify A through the real public76 acquisition while intent is default
+	// OFF, before either ON write or policy worker startup. Never seed an ON or
+	// observation, recapture an old completion, or call a private Consume path.
+	var before cq.Status
+	f.api("GET", "/usage-service/credential-quota?authIndex="+f.sources["A"].AuthIndex, nil, 200, &before)
+	var prerequisite cq.Job
+	f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: before.Binding, AuthIndex: before.AuthIndex, SourceVersion: before.SourceVersion, Version: before.Version}, 202, &prerequisite)
+	deadline := time.After(15 * time.Second)
+	qualified := false
+	for !qualified {
+		select {
+		case event := <-f.completed:
+			if event.AttemptID != prerequisite.ID {
+				continue
+			}
+			if event.Credential == nil || event.Credential.AuthIndex != before.AuthIndex || event.Credential.Attempt == nil || event.Credential.Attempt.QueryID != prerequisite.ID || event.Credential.Attempt.QueryStatus != "success" {
+				t.Fatal("actual preON shared76 query failed")
+			}
+			qualified = true
+		case <-deadline:
+			t.Fatal("actual preON shared76 completion missing")
+		}
+	}
+	if f.quotaCalls[0].Load() != 1 || f.quotaCalls[1].Load() != 0 {
+		t.Fatal("preON acquisition was not exactly selected A")
+	}
 	for _, name := range []string{"A", "B"} {
 		src := f.sources[name]
 		generation := int64(0)
@@ -228,17 +254,12 @@ func (f *nativeAdmissionFixture) enableAB() {
 			t.Fatalf("%s intent not independently saved: %+v", name, saved)
 		}
 	}
-	// Current production accepts these ON writes before any qualifying query.
-	// This RED is NOT acceptance of the frozen ON freshness prerequisite. When
-	// that prerequisite is wired, obtain real evidence through76 before ON;
-	// never seed evidence or retain a total-call assertion that forbids it.
-
 }
 
 func (f *nativeAdmissionFixture) pauseThrough76() {
 	t := f.t
 	quotaBaseline := [2]int64{f.quotaCalls[0].Load(), f.quotaCalls[1].Load()}
-	t.Logf("pre-depletion quota baseline[A,B]=%v (not ON prerequisite acceptance)", quotaBaseline)
+	t.Logf("pre-depletion quota baseline[A,B]=%v (includes real preON prerequisite)", quotaBaseline)
 	f.depleted.Store(true)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)

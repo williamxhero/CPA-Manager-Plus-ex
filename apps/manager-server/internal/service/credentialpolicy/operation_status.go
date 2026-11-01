@@ -106,8 +106,18 @@ func (s *Service) attachOperation(ctx context.Context, status *Status, current b
 	if record.State == "applied" && !op.ReceiptConfirmed {
 		op.State, op.Reason = "error", "gate_ack_unconfirmed"
 	}
-	if !current || !op.ReceiptConfirmed || status.Availability.State != "available" || !sameAuthority(status.Source, intent.Source) {
+	if !current || !op.ReceiptConfirmed || !sameAuthority(status.Source, intent.Source) {
 		return nil
+	}
+	if status.Availability.State != "available" {
+		// Query evidence authorizes NEW actions, not visibility of an existing
+		// restriction. Unknown/missing quota must not hide a real applied pause.
+		// Independently verify this exact source's eligibility and ledger integrity;
+		// unavailable/corrupt gate state still cannot become a positive readback.
+		if _, reason := s.core.capabilities(ctx, status.Source); reason != "" {
+			op.Reason = reason
+			return nil
+		}
 	}
 	var live GateResult
 	if reason := s.core.request(ctx, "GET", "operations/"+record.ID, nil, &live); reason != "" {

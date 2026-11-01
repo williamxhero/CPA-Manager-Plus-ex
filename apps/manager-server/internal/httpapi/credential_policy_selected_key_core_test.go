@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -14,15 +16,26 @@ import (
 // Actual public API/SQLite/76 inbox/Core proof and native HTTP. This is NOT the
 // OAuth sidecar's route slice; every selected key starts native-query unsupported.
 func TestCredentialPolicyActualOfficialSelectedKeyAutomaticHTTP(t *testing.T) {
-	runSelectedKeyPolicyHTTP(t, false)
+	runSelectedKeyPolicyHTTP(t, false, false, false)
 }
 
 func TestCredentialPolicyActualOfficialSelectedKeyUnknownThenUnlimitedRecovery(t *testing.T) {
-	runSelectedKeyPolicyHTTP(t, true)
+	runSelectedKeyPolicyHTTP(t, true, false, false)
 }
 
-func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited bool) {
+func TestCredentialPolicyActualOfficialSelectedKeyReusedDownstreamWS(t *testing.T) {
+	runSelectedKeyPolicyHTTP(t, false, true, false)
+}
+
+func TestCredentialPolicyActualOfficialSelectedKeySSE(t *testing.T) {
+	runSelectedKeyPolicyHTTP(t, false, false, true)
+}
+
+func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited, downstreamWS, sse bool, setup ...func(*selectedKeyPolicyFixture)) {
 	f, group, endpoint := newSelectedKeyPolicyFixture(t)
+	for _, configure := range setup {
+		configure(f)
+	}
 	update := ob.Update{Config: ob.Config{Binding: group, Adapter: balance.NewAPITokenUsageV1, Endpoint: endpoint + "/api/usage/token/", PrivateTargets: []string{"127.0.0.1"}, NewAPI: &balance.NewAPIConfig{ProtocolConfirmed: true, InstanceVersion: "synthetic-selected-key-v1", NativeUnit: "newapi_quota", Auth: balance.NewAPIInferenceKeyReadOnlyV1}}, Secret: "SELECTED-KEY-A"}
 	var configured ob.Status
 	f.api("PUT", balancePath, update, 200, &configured)
@@ -48,6 +61,11 @@ func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited bool) {
 			}
 		}
 	}
+	// Complete the public same76 prerequisite before starting the periodic
+	// lifecycle. Starting both concurrently races two legitimate acquisitions.
+	// Manual admission records the source's next due; the exact final query
+	// counts below catch any duplicate periodic acquisition, not hide it.
+	acquire()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- f.manager.AppContext().FullRefreshService.Run(ctx) }()
@@ -67,25 +85,6 @@ func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited bool) {
 			t.Error("lifecycle did not join")
 		}
 	}()
-	//76 performs its real startup round. Do not race it with a redundant manual
-	// acquisition and then weaken exact-count assertions to hide the duplicate.
-	initialDeadline := time.After(5 * time.Second)
-	initialComplete := false
-	for !initialComplete {
-		select {
-		case event := <-f.completed:
-			if event.Official == nil {
-				continue
-			}
-			if event.Official.Attempt == nil || event.Official.Attempt.QueryStatus != "success" || event.Official.Attempt.Semantic != "key_remaining" {
-				t.Fatal("startup official query failed")
-			}
-			currentAttempt = event.AttemptID
-			initialComplete = true
-		case <-initialDeadline:
-			t.Fatal("76 startup qualifying official query missing")
-		}
-	}
 	// Both selected descriptors were issued by Core; only actual proof may assign
 	// the successful query's key evidence to A. B must remain unavailable.
 	var selected, other cq.Source
@@ -122,9 +121,23 @@ func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited bool) {
 	if !saved.Enabled || saved.Generation != 1 || saved.Applied {
 		t.Fatal("ON prerequisite did not persist truthfully")
 	}
+	send := f.sendHTTP
+	if downstreamWS {
+		send = f.reusedWSTurn()
+	}
+	if sse {
+		send = func() {
+			response := f.openSSE(false)
+			data, err := io.ReadAll(response.Body)
+			response.Body.Close()
+			if err != nil || !bytes.Contains(data, []byte(`"type":"response.completed"`)) {
+				t.Fatal("actual selected-key SSE did not complete")
+			}
+		}
+	}
 	enabled = false
 	f.api("PUT", "/usage-service/credential-policy", cp.Update{Binding: other.Binding, AuthIndex: other.AuthIndex, SourceVersion: other.SourceVersion, ExpectedGeneration: &generation, Enabled: &enabled}, 200, &saved)
-	f.sendHTTP()
+	send()
 	if f.sends[0].Load() != 1 || f.sends[1].Load() != 0 {
 		t.Fatal("actual configured priority did not choose A")
 	}
@@ -155,7 +168,10 @@ func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited bool) {
 		}
 	}
 	wait("pause")
-	f.sendHTTP()
+	if f.onPause != nil {
+		f.onPause(f.status("A"))
+	}
+	send()
 	if f.sends[0].Load() != 1 || f.sends[1].Load() != 1 {
 		t.Fatal("authoritatively depleted A admitted a new native attempt")
 	}
@@ -166,13 +182,16 @@ func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited bool) {
 		for {
 			state := f.status("A")
 			if state.Availability.Reason == "native_key_value_unknown" {
+				if !state.Applied || state.Operation == nil || !state.Operation.ReceiptConfirmed || !state.Operation.CurrentApplied {
+					t.Fatal("unknown query value hid actual current applied own pause")
+				}
 				break
 			}
 			if time.Now().After(deadline) {
 				t.Fatal("associated unknown key value not reported unavailable")
 			}
 		}
-		f.sendHTTP()
+		send()
 		if f.sends[0].Load() != 1 || f.sends[1].Load() != 2 {
 			t.Fatal("unknown key counter recovered or widened pause")
 		}
@@ -181,7 +200,7 @@ func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited bool) {
 	f.depleted.Store(false)
 	acquire()
 	wait("clear")
-	f.sendHTTP()
+	send()
 	wantB := int64(1)
 	wantQueries := int64(3)
 	if unknownThenUnlimited {
@@ -196,5 +215,8 @@ func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited bool) {
 	}
 	if state := f.status("B"); state.Enabled || state.Operation != nil {
 		t.Fatal("unassociated B acquired A policy/gate")
+	}
+	if f.onEnd != nil {
+		f.onEnd()
 	}
 }
