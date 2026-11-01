@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/queryfeedback"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
 
@@ -17,6 +18,7 @@ type Query struct {
 	Version int64 `json:"version"`
 }
 type Job struct {
+	Joined     bool    `json:"joined"`
 	ID         string  `json:"id"`
 	DeadlineMS int64   `json:"deadlineMs"`
 	State      string  `json:"state"`
@@ -58,20 +60,25 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 		if e == nil {
 			e = json.Unmarshal([]byte(doc), &job)
 		}
+		job.Joined = true
 		return job, e
 	}
+	if retry, err := s.budget.RetryAt(ctx, "official:"+flight); err != nil {
+		return Job{}, err
+	} else if s.budget.Now().UnixMilli() < retry {
+		return Job{}, ErrBusy
+	}
 	// No unbounded goroutine queue; concurrent refresh callers get a retryable failure.
-	select {
-	case s.slots <- struct{}{}:
-	default:
+	jobID := uuid.NewString()
+	if _, ok := s.budget.TryAcquire(jobID); !ok {
 		return Job{}, ErrBusy
 	}
 	deadline := started.Add(managementBudget(st))
 	if !time.Now().Before(deadline) {
-		<-s.slots
+		s.budget.Release(jobID)
 		return Job{}, context.DeadlineExceeded
 	}
-	job := Job{DeadlineMS: deadline.UnixMilli(), ID: uuid.NewString(), State: "running", Binding: q.Binding, Version: q.Version}
+	job := Job{DeadlineMS: deadline.UnixMilli(), ID: jobID, State: "running", Binding: q.Binding, Version: q.Version}
 	doc, _ := json.Marshal(job)
 	bindingJSON, _ := json.Marshal(job.Binding)
 	initial := balance.Observation{QueryID: job.ID, QueryStatus: "running", ObservedAtMS: started.UnixMilli(), DeadlineMS: job.DeadlineMS, Binding: bindingJSON}
@@ -79,7 +86,7 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	startCtx, cancelStart := context.WithDeadline(ctx, deadline)
 	defer cancelStart()
 	if err := s.Store.BeginOfficialBalanceJob(startCtx, id, q.Version, job.ID, string(doc), string(attemptJSON)); err != nil {
-		<-s.slots
+		s.budget.Release(jobID)
 		return Job{}, err
 	}
 	s.running[flight] = job.ID
@@ -101,26 +108,37 @@ func managementBudget(st Status) time.Duration {
 }
 
 func (s *Service) run(job Job, st Status, flight, id string) {
-	defer func() { s.mu.Lock(); delete(s.running, flight); s.mu.Unlock(); <-s.slots }()
+	defer func() { s.mu.Lock(); delete(s.running, flight); s.mu.Unlock(); s.budget.Release(job.ID) }()
 	deadline := time.UnixMilli(job.DeadlineMS)
 	budget := time.Until(deadline)
-	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	ctx, cancel := context.WithDeadline(s.budget.Context(job.ID), deadline)
 	defer cancel()
+	ctx = queryfeedback.WithRetryReceiver(ctx, func(at time.Time) { s.budget.RecordRetry(ctx, "official:"+flight, at) })
 	// Reserve part of the SAME management budget for identity revalidation and
 	// durable failure recording. The upstream must not consume that entire budget.
 	reserve := budget / 5
 	if reserve > 2*time.Second {
 		reserve = 2 * time.Second
 	}
-	record, loadErr := s.Store.OfficialBalance(ctx, id)
-	if loadErr != nil || record.Version != st.Version {
-		record.SecretRef = "invalid"
+
+	var obs balance.Observation
+	var err error
+	startErr := s.queryStarted(ctx, job)
+	if startErr == nil && !s.verify(ctx, job.Binding) {
+		startErr = ErrIdentity
 	}
-	obs, err := s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI}, resolver{s.Store, id, st.Version})
+	if startErr != nil {
+		obs = balance.Observation{QueryStatus: "network_error", ErrorCode: "START_FENCE_UNAVAILABLE", ObservedAtMS: time.Now().UnixMilli(), DeadlineMS: job.DeadlineMS}
+	} else {
+		record, loadErr := s.Store.OfficialBalance(ctx, id)
+		if loadErr != nil || record.Version != st.Version {
+			record.SecretRef = "invalid"
+		}
+		obs, err = s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI}, resolver{s.Store, id, st.Version})
+	}
 	// Revalidate full Core scope/versions, even after failures; no cached authority.
 	valid := s.verify(ctx, job.Binding)
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	job.State = "discarded"
 	if err == nil && valid {
 		obs.QueryID = job.ID
@@ -136,7 +154,12 @@ func (s *Service) run(job Job, st Status, flight, id string) {
 	}
 	// Never extend the hard management deadline merely to persist diagnostics.
 	doc, _ := json.Marshal(job)
-	_ = s.Store.SaveOfficialBalanceJob(ctx, job.ID, id, string(doc))
+	saved := s.Store.SaveOfficialBalanceJob(ctx, job.ID, id, string(doc))
+	observer := s.completed
+	s.mu.Unlock()
+	if saved == nil && job.State == "complete" && job.Status != nil && observer != nil {
+		observer(job, *job.Status)
+	}
 }
 func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 	if _, err := uuid.Parse(id); err != nil {
@@ -165,6 +188,7 @@ func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 	if st.Version != job.Version {
 		return Job{}, store.ErrBalanceConflict
 	}
+	job.Status = &st
 	// A persisted running job from a previous host has no active query to await.
 
 	if job.State == "running" && !active {
@@ -175,4 +199,30 @@ func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 		}
 	}
 	return job, nil
+}
+
+func (s *Service) NextRetry(ctx context.Context, q Query) (int64, error) {
+	return s.budget.RetryAt(ctx, "official:"+key(q.Binding)+":"+strconv.FormatInt(q.Version, 10)+":"+operationKey(q.Binding))
+}
+
+// TryJoin probes only the bounded local flight set and durable job, never sends
+// a query. The coordinator revalidates through Job before publishing progress.
+func (s *Service) TryJoin(ctx context.Context, q Query) (Job, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	flight := key(q.Binding) + ":" + strconv.FormatInt(q.Version, 10) + ":" + operationKey(q.Binding)
+	id := s.running[flight]
+	if id == "" {
+		return Job{}, false, nil
+	}
+	doc, err := s.Store.OfficialBalanceJob(ctx, id)
+	if err != nil {
+		return Job{}, true, err
+	}
+	var job Job
+	if err = json.Unmarshal([]byte(doc), &job); err != nil {
+		return Job{}, true, err
+	}
+	job.Joined = true
+	return job, true, nil
 }

@@ -562,6 +562,10 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 	}
 	defer db.Close()
 	manager = New(cfg, db, collector.NewManager(cfg, db))
+	var admissionOffset atomic.Int64
+	if err := manager.AppContext().ManagementQueryBudget.SetClock(func() time.Time { return time.Now().Add(time.Duration(admissionOffset.Load())) }); err != nil {
+		t.Fatal(err)
+	}
 	server = httptest.NewServer(manager.Handler())
 	defer server.Close()
 	path := "/usage-service/credential-quota?authIndex=" + nativeBinding.AuthIndex
@@ -613,6 +617,10 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 	if calls.Load() != expectedCalls+2 {
 		t.Fatal("failure path issued fallback/GET quota query")
 	}
+	//429 now persists a conservative management backoff. This subsequent
+	// independent scenario advances ONLY admission time, never upstream freshness,
+	// source versions, query deadlines or the unchanged timeout assertions below.
+	admissionOffset.Store(int64(time.Hour))
 	mode.Store(3)
 	q := map[string]any{"scope": nativeBinding.Scope, "targets": nativeBinding.Targets, "auth_index": nativeBinding.AuthIndex, "version": before["version"], "sourceVersion": before["sourceVersion"]}
 	code, data = api("POST", "/usage-service/credential-quota", q)

@@ -1,0 +1,140 @@
+package fullrefresh
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"time"
+)
+
+func sourceScheduleKey(src SourceStatus) string {
+	request := src.Request
+	if request.Credential != nil {
+		q := *request.Credential
+		q.Version = 0
+		q.TimeoutMS = 0
+		request.Credential = &q
+	}
+	raw, _ := json.Marshal(request)
+	sum := sha256.Sum256(raw)
+	return "source:" + hex.EncodeToString(sum[:])
+}
+func roundScheduleKey(inv Inventory) string {
+	return "round:" + inv.Scope.InstanceID + ":" + inv.Scope.InstanceIncarnation
+}
+
+// Run is independent of collector/browser and every policy ON/OFF setting.
+// Ticks are scheduler time only. Upstream timestamps retain real-time provenance.
+func (s *Service) Run(ctx context.Context) error {
+	s.mu.Lock()
+	if s.schedulerRunning || s.closed {
+		s.mu.Unlock()
+		return ErrUnavailable
+	}
+	if err := s.ensureLocked(ctx); err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	s.schedulerRunning = true
+	s.schedulerAnchor = s.now()
+	s.mu.Unlock()
+	defer func() {
+		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = s.Shutdown(shutdown)
+	}()
+	var ticks <-chan time.Time
+	var ticker *time.Ticker
+	if s.clock != nil {
+		ticks = s.clock.Ticks()
+	} else {
+		ticker = time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		ticks = ticker.C
+	}
+	for {
+		s.schedule(ctx)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-s.ctx.Done():
+			return nil
+		case _, ok := <-ticks:
+			if !ok {
+				return nil
+			}
+		}
+	}
+}
+func (s *Service) schedule(parent context.Context) {
+	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
+	defer cancel()
+	inv, err := s.Inventory(ctx)
+	if err != nil {
+		return
+	}
+	now := s.now().UnixMilli()
+	key := roundScheduleKey(inv)
+	due, err := s.Store.FullRefreshDue(ctx, key)
+	if err != nil {
+		return
+	}
+	needed := due == 0 || now >= due || inv.LatestRound != nil && inv.LatestRound.State == "interrupted"
+	for _, source := range inv.Sources {
+		if source.QueryCapable && (source.NextDueMS == 0 || source.NextDueMS <= now) {
+			needed = true
+		}
+	}
+	s.mu.Lock()
+	needed = needed || s.recoveryNeeded
+	s.recoveryNeeded = false
+	s.mu.Unlock()
+	if needed {
+		p, err := s.StartRound(ctx, Periodic)
+		if err == nil {
+			_ = s.Store.SaveFullRefreshDue(ctx, key, p.PeriodicNextDueMS)
+		}
+	}
+	_ = s.Store.SaveFullRefreshDue(ctx, key+":checked", now)
+}
+
+// A joined periodic round retains its original cycle anchor.
+func (s *Service) enrollPeriodic(ctx context.Context, p *Progress, inv Inventory) {
+	if p.PeriodicNextDueMS != 0 {
+		return
+	}
+	due, err := s.Store.FullRefreshDue(ctx, roundScheduleKey(inv))
+	if err != nil {
+		return
+	}
+	now := s.now().UnixMilli()
+	if due == 0 {
+		anchor := s.schedulerAnchor
+		if anchor.IsZero() {
+			anchor = s.now()
+		}
+		due = anchor.Add(time.Hour).UnixMilli()
+	}
+	if due <= now {
+		due += ((now-due)/time.Hour.Milliseconds() + 1) * time.Hour.Milliseconds()
+	}
+	p.PeriodicNextDueMS = due
+	for i := range p.Items {
+		if p.Items[i].Queried || p.Items[i].Outcome == "shared_wallet" {
+			s.markAdmitted(ctx, p, &p.Items[i])
+		}
+	}
+}
+func (s *Service) markAdmitted(ctx context.Context, p *Progress, item *Item) {
+	if p.PeriodicNextDueMS == 0 {
+		return
+	}
+	next := p.PeriodicNextDueMS
+	if next <= s.now().UnixMilli() {
+		next = s.now().Add(time.Hour).UnixMilli()
+	}
+	if err := s.Store.SaveFullRefreshDue(ctx, sourceScheduleKey(item.SourceStatus), next); err == nil {
+		item.NextDueMS = next
+	}
+}
