@@ -218,7 +218,7 @@ rounds:
 		for i := range p.Items {
 			if requestSame(p.Items[i].Request, request) {
 				item := &p.Items[i]
-				if request.Kind == Official && item.JobID != "" && canRetireOfficialItem(p, item) {
+				if request.Kind == Official && item.JobID != "" && canRetireItem(p, item) {
 					job, err := s.Official.Job(ctx, item.JobID)
 					if err != nil {
 						return Progress{}, ErrInput
@@ -234,6 +234,12 @@ rounds:
 					job, e := s.Credential.Job(ctx, p.Items[i].JobID)
 					if e != nil || request.Credential.Version != job.RequestedVersion && request.Credential.Version != job.Query.Version {
 						return Progress{}, ErrInput
+					}
+					if canRetireItem(p, item) && job.State != "running" {
+						if job.State == "complete" && job.Status != nil && job.Status.Attempt != nil && job.Status.Attempt.QueryID == job.ID {
+							s.finishItemLocked(p, item, job.Status.Attempt, job.Status.LastSuccess, job.Status.Stale)
+						}
+						continue rounds
 					}
 				}
 				if p.Items[i].Outcome == "not_due" {
