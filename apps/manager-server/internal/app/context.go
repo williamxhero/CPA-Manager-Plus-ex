@@ -19,6 +19,7 @@ import (
 	codexinspectionsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/codexinspection"
 	collectorsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/collector"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpaauthfiles"
+	credentialpolicysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy"
 	credentialquotasvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
 	dashboardsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/dashboard"
 	managerconfigsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
@@ -49,6 +50,7 @@ type DatabaseMaintenanceStatusProvider interface {
 }
 
 type Context struct {
+	CredentialPolicyService *credentialpolicysvc.Service
 	OfficialBalanceService *officialbalancesvc.Service
 	CredentialQuotaService *credentialquotasvc.Service
 	UpdateCheckService     *updatechecksvc.Service
@@ -173,9 +175,11 @@ func fromExisting(
 	}))
 	authFileMutationCoordinator := cpaauthfiles.NewMutationCoordinator()
 	identityService := resourcecapabilitysvc.New(accountProcessingPolicyService, managerConfigService)
+	credentialQuotaService := credentialquotasvc.New(st, identityService)
 	return &Context{
+		CredentialPolicyService: credentialpolicysvc.New(st, credentialQuotaService, managerConfigService, cfg.QuotaCooldownEnvSet && !cfg.QuotaCooldownEnabled),
 		OfficialBalanceService: officialbalancesvc.New(st, identityService),
-		CredentialQuotaService: credentialquotasvc.New(st, identityService),
+		CredentialQuotaService: credentialQuotaService,
 		UpdateCheckService:     updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
 		Config:                 cfg,
 		Store:                  st,
