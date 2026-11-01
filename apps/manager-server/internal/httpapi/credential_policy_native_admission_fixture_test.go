@@ -174,6 +174,14 @@ type nativeAdmissionFixture struct {
 	drainRelease chan struct{}
 	drainEntered chan struct{}
 	drainOnce    sync.Once
+	quotaBarrier atomic.Pointer[nativeAdmissionQuotaResponseBarrier]
+}
+
+// Optional external-response barrier for the separate ON-prerequisite slice.
+// Nil in the clean five-case checkpoint; it never substitutes query evidence.
+type nativeAdmissionQuotaResponseBarrier struct {
+	entered chan struct{}
+	release <-chan struct{}
 }
 
 func newNativeAdmissionFixture(t *testing.T, manualA ...bool) *nativeAdmissionFixture {
@@ -217,6 +225,17 @@ func newNativeAdmissionFixture(t *testing.T, manualA ...bool) *nativeAdmissionFi
 			f.quotaCalls[i].Add(1)
 			if r.Header.Get("Chatgpt-Account-Id") != []string{"native-admission-account-A", "native-admission-account-B"}[i] {
 				t.Error("quota credential/account mismatch")
+			}
+			if barrier := f.quotaBarrier.Load(); barrier != nil {
+				select {
+				case barrier.entered <- struct{}{}:
+				default:
+				}
+				select {
+				case <-barrier.release:
+				case <-r.Context().Done():
+					return
+				}
 			}
 			used := 25
 			if f.depleted.Load() {
