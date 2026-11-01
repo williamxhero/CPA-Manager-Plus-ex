@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/google/uuid"
 	"reflect"
 	"time"
 
@@ -77,11 +78,17 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 	if json.Unmarshal([]byte(record.Body), &desired) != nil || desired.Operation.OpID != record.ID || desired.Operation.Owner != record.Owner || SubjectID(desired.Source) != record.SubjectID || desired.Operation.Model != "" {
 		return save("invalid_pending_intent")
 	}
+	if parsed, err := uuid.Parse(record.ID); err != nil || parsed.Version() != 4 {
+		return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "conflict", "", "gate_operation_id_unsupported", lease, s.now().UnixMilli())
+	}
 	// First resolve an existing operation. A timeout is not permission to assume
 	// either application or non-application and send a replacement action.
 	var result GateResult
 	reason := s.core.request(ctx, "GET", "operations/"+record.ID, nil, &result)
 	if reason != "" && reason != "gate_operation_not_found" {
+		if reason == "gate_operation_invalid" || reason == "gate_request_invalid" {
+			return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "conflict", "", reason, lease, s.now().UnixMilli())
+		}
 		return save(reason)
 	}
 	if reason == "" && (!desired.Planned || !result.Confirms(desired.Operation)) {
@@ -142,6 +149,9 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 	}
 	reason = s.core.request(ctx, "POST", "operations", desired.Operation, &result)
 	if reason != "" {
+		if reason == "gate_operation_invalid" || reason == "gate_request_invalid" {
+			return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "conflict", "", reason, lease, s.now().UnixMilli())
+		}
 		if reason == "gate_revision_conflict" && record.Automatic {
 			return s.replanRevisionConflict(ctx, record, desired, lease)
 		}
