@@ -33,6 +33,7 @@ type QueryTarget struct {
 	CredentialRef string
 	// Account scope (user ID, account ID, or empty for key-level)
 	AccountScope string
+	NewAPI       *NewAPIConfig
 	// Currency/unit info for interpretation
 	Currency       string
 	UnitMultiplier string // decimal string
@@ -49,10 +50,11 @@ type CurrencyBalance struct {
 }
 
 type Observation struct {
-	DeadlineMS int64             `json:"deadlineMs,omitempty"`
-	Binding    json.RawMessage   `json:"binding,omitempty"`
-	Balances   []CurrencyBalance `json:"balances,omitempty"`
-	Available  *bool             `json:"available,omitempty"`
+	NativeQuota *NewAPINativeQuota `json:"nativeQuota,omitempty"`
+	DeadlineMS  int64              `json:"deadlineMs,omitempty"`
+	Binding     json.RawMessage    `json:"binding,omitempty"`
+	Balances    []CurrencyBalance  `json:"balances,omitempty"`
+	Available   *bool              `json:"available,omitempty"`
 	// Query identity
 	QueryID string `json:"queryId,omitempty"`
 	// Capability status

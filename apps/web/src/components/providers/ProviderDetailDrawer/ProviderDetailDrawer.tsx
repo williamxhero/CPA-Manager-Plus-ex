@@ -22,7 +22,7 @@ import type { ProviderRow } from '../ProviderTable/rowData';
 import styles from './ProviderDetailDrawer.module.scss';
 
 interface ProviderDetailDrawerProps {
- officialBalance?: OfficialBalancePanelProps;
+  officialBalance?: OfficialBalancePanelProps;
   row: ProviderRow | null;
   open: boolean;
   usageByProvider: ProviderRecentUsageMap;
@@ -54,7 +54,7 @@ function FieldRow({ label, value }: FieldRowProps) {
 }
 
 export function ProviderDetailDrawer({
- officialBalance,
+  officialBalance,
   row,
   open,
   usageByProvider,
@@ -192,40 +192,40 @@ export function ProviderDetailDrawer({
         ) : (
           <div className={styles.keyEntryList}>
             {entries.map((entry, entryIndex) => {
-            const entryStats = getProviderTotalStats(
-              usageByProvider,
-              provider.name,
-              entry.apiKey,
-              provider.baseUrl
-            );
-            return (
-              <div key={getOpenAIEntryKey(entry, entryIndex)} className={styles.keyEntryCard}>
-                <span className={styles.keyEntryIndex}>{entryIndex + 1}</span>
-                <span className={styles.keyEntryKey}>
-                  {entry.apiKey?.trim()
-                    ? maskApiKey(entry.apiKey)
-                    : t('ai_providers.health_check_no_key_entries')}
-                </span>
-                <span className={styles.keyEntryWeight}>
-                  {t('ai_providers.weight_label')}: {formatCredentialWeight(entry.weight)}
-                </span>
-                {entry.proxyUrl && <span className={styles.keyEntryProxy}>{entry.proxyUrl}</span>}
-                <span className={styles.keyEntryStats}>
-                  {entry.apiKey?.trim() ? (
-                    <>
-                      <span className={styles.statSuccess}>
-                        <IconCheck size={12} /> {entryStats.success}
-                      </span>
-                      <span className={styles.statFailure}>
-                        <IconX size={12} /> {entryStats.failure}
-                      </span>
-                    </>
-                  ) : (
-                    t('ai_providers.usage_stats_unavailable')
-                  )}
-                </span>
-              </div>
-            );
+              const entryStats = getProviderTotalStats(
+                usageByProvider,
+                provider.name,
+                entry.apiKey,
+                provider.baseUrl
+              );
+              return (
+                <div key={getOpenAIEntryKey(entry, entryIndex)} className={styles.keyEntryCard}>
+                  <span className={styles.keyEntryIndex}>{entryIndex + 1}</span>
+                  <span className={styles.keyEntryKey}>
+                    {entry.apiKey?.trim()
+                      ? maskApiKey(entry.apiKey)
+                      : t('ai_providers.health_check_no_key_entries')}
+                  </span>
+                  <span className={styles.keyEntryWeight}>
+                    {t('ai_providers.weight_label')}: {formatCredentialWeight(entry.weight)}
+                  </span>
+                  {entry.proxyUrl && <span className={styles.keyEntryProxy}>{entry.proxyUrl}</span>}
+                  <span className={styles.keyEntryStats}>
+                    {entry.apiKey?.trim() ? (
+                      <>
+                        <span className={styles.statSuccess}>
+                          <IconCheck size={12} /> {entryStats.success}
+                        </span>
+                        <span className={styles.statFailure}>
+                          <IconX size={12} /> {entryStats.failure}
+                        </span>
+                      </>
+                    ) : (
+                      t('ai_providers.usage_stats_unavailable')
+                    )}
+                  </span>
+                </div>
+              );
             })}
           </div>
         )}
@@ -239,12 +239,21 @@ export function ProviderDetailDrawer({
     // Protocol availability only; durable identity still comes from the verified
     // issued binding, never this hostname or a provider label.
     let balanceSupported = false;
+    let compatibleCandidate = false;
     let balanceAdapter: OfficialBalanceAdapter = 'deepseek';
     try {
       const endpoint = new URL(row.baseUrl);
-      balanceSupported = endpoint.protocol === 'https:' && ['api.deepseek.com', 'api.deepinfra.com'].includes(endpoint.hostname);
+      balanceSupported =
+        endpoint.protocol === 'https:' &&
+        ['api.deepseek.com', 'api.deepinfra.com'].includes(endpoint.hostname);
       if (endpoint.hostname === 'api.deepinfra.com') balanceAdapter = 'deepinfra';
-    } catch { /* Unknown protocols remain explicitly unsupported. */ }
+      // Branding exposes a MANUAL contract editor only. No protocol, endpoint,
+      // account, permission or quota conversion is inferred from this domain.
+      compatibleCandidate =
+        endpoint.protocol === 'https:' && endpoint.hostname === 'api.liangrekui.com';
+    } catch {
+      /* Unknown protocols remain explicitly unsupported. */
+    }
     const headerEntries = Object.entries(row.raw.headers ?? {});
     const models = row.raw.models ?? [];
     const excludedModels =
@@ -252,7 +261,14 @@ export function ProviderDetailDrawer({
 
     return (
       <>
-        {officialBalance && <OfficialBalancePanel {...officialBalance} supported={balanceSupported} adapter={balanceAdapter} />}
+        {officialBalance && (
+          <OfficialBalancePanel
+            {...officialBalance}
+            supported={balanceSupported || compatibleCandidate}
+            compatibleCandidate={compatibleCandidate}
+            adapter={balanceAdapter}
+          />
+        )}
         <section className={styles.section}>
           {!row.enabled && (
             <div className={styles.disabledBadge}>{t('ai_providers.config_disabled_badge')}</div>

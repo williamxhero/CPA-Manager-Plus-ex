@@ -5,14 +5,27 @@ import {
   type BalanceJob,
   type OfficialBalanceStatus,
   type OfficialBalanceAdapter,
+  type NewAPIConfig,
 } from '@/services/api/officialBalance';
 
 const endpoints: Record<OfficialBalanceAdapter, string> = {
   deepseek: 'https://api.deepseek.com/user/balance',
   deepinfra: 'https://api.deepinfra.com/payment/checklist',
+  'newapi-user-self-v1': '',
+  'newapi-token-usage-v1': '',
 };
 const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =>
-  value === 'deepseek' || value === 'deepinfra';
+  value === 'deepseek' ||
+  value === 'deepinfra' ||
+  value === 'newapi-user-self-v1' ||
+  value === 'newapi-token-usage-v1';
+const nativeContract = (adapter: string): NewAPIConfig => ({
+  protocolConfirmed: false,
+  instanceVersion: '',
+  nativeUnit: 'newapi_quota',
+  auth:
+    adapter === 'newapi-token-usage-v1' ? 'inference-key-readonly-v1' : 'user-pat-with-user-id-v1',
+});
 
 export interface OfficialBalancePanelProps {
   adapter?: OfficialBalanceAdapter;
@@ -21,6 +34,7 @@ export interface OfficialBalancePanelProps {
   binding?: BalanceBinding;
   disabled?: boolean;
   supported?: boolean;
+  compatibleCandidate?: boolean;
 }
 
 export function OfficialBalancePanel({
@@ -30,11 +44,12 @@ export function OfficialBalancePanel({
   disabled = false,
   supported = true,
   adapter = 'deepseek',
+  compatibleCandidate = false,
 }: OfficialBalancePanelProps) {
   const bindingJSON = JSON.stringify(binding);
   const context = useMemo(
-    () => ({ base, managementKey, bindingJSON, adapter }),
-    [base, managementKey, bindingJSON, adapter]
+    () => ({ base, managementKey, bindingJSON, adapter, compatibleCandidate }),
+    [base, managementKey, bindingJSON, adapter, compatibleCandidate]
   );
   const current = useRef(context);
   const [view, setView] = useState<{
@@ -50,6 +65,7 @@ export function OfficialBalancePanel({
     endpoint: '',
     permits: undefined as string | undefined,
     clear: false,
+    newAPI: undefined as NewAPIConfig | undefined,
   });
   const pending = useRef<AbortController | null>(null);
   const data = view.context === context ? view.data : undefined;
@@ -64,12 +80,20 @@ export function OfficialBalancePanel({
           endpoint: '',
           permits: undefined as string | undefined,
           clear: false,
+          newAPI: undefined as NewAPIConfig | undefined,
         };
-  const selectedAdapter = edit.adapter ?? (isAdapter(data?.adapter) ? data.adapter : adapter);
+  const selectedAdapter =
+    edit.adapter ?? (isAdapter(data?.adapter) ? data.adapter : compatibleCandidate ? '' : adapter);
+  const isNewAPI =
+    selectedAdapter === 'newapi-user-self-v1' || selectedAdapter === 'newapi-token-usage-v1';
+  const contract =
+    edit.newAPI ??
+    (data?.adapter === selectedAdapter ? data.newAPI : undefined) ??
+    nativeContract(selectedAdapter);
   const endpoint =
     edit.endpoint ||
     (data?.adapter === selectedAdapter ? data.endpoint : '') ||
-    endpoints[selectedAdapter];
+    (selectedAdapter ? endpoints[selectedAdapter] : '');
   const usable = !!base && !!managementKey && !!binding && !disabled && supported;
 
   useEffect(() => {
@@ -129,6 +153,7 @@ export function OfficialBalancePanel({
             timeoutMs: previous.timeoutMs ?? 15000,
             secret: edit.secret,
             clearSecret: edit.clear,
+            ...(isNewAPI ? { newAPI: contract } : {}),
           },
           abort.signal
         );
@@ -150,6 +175,7 @@ export function OfficialBalancePanel({
             endpoint: '',
             permits: undefined as string | undefined,
             clear: false,
+            newAPI: undefined as NewAPIConfig | undefined,
           });
         }
       } else {
@@ -205,7 +231,7 @@ export function OfficialBalancePanel({
                 查询凭据：{data.configured ? 'configured' : 'needs_configuration'} · 服务端加密保存
               </p>
               <p>
-                DeepSeek：账户钱包；DeepInfra：第一方客户端协议支持的有符号预付净额。其他协议仍未交付。
+                DeepSeek：账户钱包；DeepInfra：有符号预付净额。NewAPI：仅显式确认的实例协议与原生额度，不表示当前站点已授权可用。
               </p>
               <label>
                 官方余额协议
@@ -221,13 +247,124 @@ export function OfficialBalancePanel({
                         endpoint: '',
                         secret: '',
                         clear: false,
+                        newAPI: undefined,
                       });
                   }}
                 >
+                  <option value="" disabled>
+                    手动选择已确认协议
+                  </option>
                   <option value="deepseek">DeepSeek · account_wallet</option>
                   <option value="deepinfra">DeepInfra · signed_prepaid_net</option>
+                  <option value="newapi-user-self-v1">NewAPI · account_wallet · 原生额度</option>
+                  <option value="newapi-token-usage-v1">NewAPI · key_remaining · 原生额度</option>
                 </select>
               </label>
+              {compatibleCandidate && (
+                <p>候选协议未确认；不会按域名自动选择、探测或推断授权/单位。</p>
+              )}
+              {isNewAPI && (
+                <fieldset disabled={busy}>
+                  <legend>显式实例来源合同</legend>
+                  <label>
+                    <input
+                      type="checkbox"
+                      aria-label="实例协议已确认"
+                      checked={contract.protocolConfirmed}
+                      onChange={(e) =>
+                        setEditor({
+                          ...edit,
+                          newAPI: { ...contract, protocolConfirmed: e.target.checked },
+                        })
+                      }
+                    />
+                    实例协议、版本、授权与账户范围已由管理员独立确认
+                  </label>
+                  <label>
+                    实例协议版本
+                    <input
+                      aria-label="实例协议版本"
+                      value={contract.instanceVersion}
+                      onChange={(e) =>
+                        setEditor({
+                          ...edit,
+                          newAPI: { ...contract, instanceVersion: e.target.value },
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    NewAPI 认证方式
+                    <select
+                      aria-label="NewAPI 认证方式"
+                      value={contract.auth}
+                      onChange={(e) =>
+                        setEditor({ ...edit, newAPI: { ...contract, auth: e.target.value } })
+                      }
+                    >
+                      {selectedAdapter === 'newapi-user-self-v1' ? (
+                        <>
+                          <option value="user-pat-with-user-id-v1">
+                            独立用户 PAT + 匹配用户 ID
+                          </option>
+                          <option value="user-pat-v1">已确认的 PAT-only 版本</option>
+                        </>
+                      ) : (
+                        <option value="inference-key-readonly-v1">
+                          选定推理 Key 的只读用量协议
+                        </option>
+                      )}
+                    </select>
+                  </label>
+                  {selectedAdapter === 'newapi-user-self-v1' && (
+                    <>
+                      <label>
+                        查询账户范围
+                        <input
+                          aria-label="查询账户范围"
+                          value={contract.accountScope ?? ''}
+                          onChange={(e) =>
+                            setEditor({
+                              ...edit,
+                              newAPI: { ...contract, accountScope: e.target.value },
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        NewAPI 用户 ID
+                        <input
+                          aria-label="NewAPI 用户 ID"
+                          value={contract.userID ?? ''}
+                          onChange={(e) =>
+                            setEditor({ ...edit, newAPI: { ...contract, userID: e.target.value } })
+                          }
+                        />
+                      </label>
+                    </>
+                  )}
+                  <label>
+                    原生额度单位
+                    <input aria-label="原生额度单位" readOnly value={contract.nativeUnit} />
+                  </label>
+                  <p>
+                    原生 quota
+                    不是货币。货币/倍率/换算证据尚未配置，确认后的精确货币换算仍未实现；不得默认 USD
+                    或 500000。当前真实站点版本、授权、单位仍待外部证据。
+                  </p>
+                  <p>
+                    账户、认证、版本、单位或来源合同变化会清除旧查询密钥；空白不能跨合同复用旧 PAT。
+                  </p>
+                </fieldset>
+              )}
+              {data.newAPI && (
+                <p aria-label="已保存 NewAPI 来源合同">
+                  已保存合同：{data.newAPI.instanceVersion} · {data.newAPI.auth} · 用户{' '}
+                  {data.newAPI.userID ?? 'key-only'} · 账户{' '}
+                  {data.newAPI.accountScope ?? 'independent-key'} · {data.newAPI.nativeUnit} ·
+                  confirmed={String(data.newAPI.protocolConfirmed)}
+                </p>
+              )}
               <label>
                 只读查询密钥
                 <input
@@ -239,7 +376,7 @@ export function OfficialBalancePanel({
                   disabled={busy}
                 />
               </label>
-              <p>空白保留现有密钥；不要填写 Core 管理密钥。</p>
+              <p>空白仅在来源合同未变时保留现有密钥；不要填写 Core 管理密钥。</p>
               <label>
                 <input
                   aria-label="明确清除查询密钥"
@@ -270,7 +407,12 @@ export function OfficialBalancePanel({
               </label>
               <button
                 type="button"
-                disabled={busy || (edit.clear && !!edit.secret)}
+                disabled={
+                  busy ||
+                  !selectedAdapter ||
+                  (isNewAPI && !contract.protocolConfirmed) ||
+                  (edit.clear && !!edit.secret)
+                }
                 onClick={() => void run('save')}
               >
                 保存余额来源
@@ -294,7 +436,20 @@ export function OfficialBalancePanel({
                     最近成功：{new Date(data.lastSuccess.observedAtMs).toISOString()} ·
                     {data.lastSuccess.semantic} · 来源 {data.endpoint}
                   </p>
-                  {data.lastSuccess.semantic === 'signed_prepaid_net' ? (
+                  {data.lastSuccess.nativeQuota ? (
+                    <>
+                      <p>
+                        原生额度（不是货币）：
+                        {data.lastSuccess.nativeQuota.remaining ??
+                          data.lastSuccess.nativeQuota.state}{' '}
+                        · {data.lastSuccess.nativeQuota.unit}
+                      </p>
+                      <p>
+                        额度状态：{data.lastSuccess.nativeQuota.state}；unlimited/unknown
+                        不代表零，也不是耗尽或恢复证据。Key 剩余量不是账户钱包。
+                      </p>
+                    </>
+                  ) : data.lastSuccess.semantic === 'signed_prepaid_net' ? (
                     <>
                       <p>
                         DeepInfra 预付净额：{data.lastSuccess.currency}{' '}
