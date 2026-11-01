@@ -77,7 +77,7 @@ func newHTTPQuotaRecoveryProbe() *httpQuotaRecoveryProbe {
 // codes; a transport/protocol error is returned so the caller can back off.
 func (p *httpQuotaRecoveryProbe) ProbeQuotaRecovery(ctx context.Context, baseURL, managementKey, provider, authIndex, accountID string) (quotaProbeResult, error) {
 	if p.guard != nil {
-		operation, release, err := p.guard.Begin(ctx)
+		operation, release, err := p.guard.Begin(ctx, baseURL, managementKey)
 		if err != nil {
 			return quotaProbeResult{}, err
 		}
@@ -398,6 +398,9 @@ func providerUsageProbeURL(provider string) string {
 // SetLegacyQuotaGuard is startup-only wiring. In current scoped mode the new
 // policy owner requests recovery through fullrefresh, not this legacy fallback.
 func (w *RateLimitAutoDisableWorker) SetLegacyQuotaGuard(g *managementquery.LegacyGuard) {
+	w.mu.Lock()
+	w.legacyGuard = g
+	w.mu.Unlock()
 	if p, ok := w.quotaProbe.(*httpQuotaRecoveryProbe); ok {
 		p.guard = g
 	}
