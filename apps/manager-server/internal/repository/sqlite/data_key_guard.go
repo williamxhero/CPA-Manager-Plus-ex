@@ -36,7 +36,7 @@ func RequireExistingDataKeyForEncryptedCPAConnection(ctx context.Context, databa
 		return fmt.Errorf("stat data key %s: %w", dataKeyPath, err)
 	}
 	if inspection.HasEncryptedConnection {
-		return fmt.Errorf("encrypted CPA connection exists but data key is missing at %s", dataKeyPath)
+		return fmt.Errorf("encrypted Manager secrets exist but data key is missing at %s", dataKeyPath)
 	}
 	return nil
 }
@@ -79,6 +79,36 @@ func InspectPersistedCPAConnectionStorage(ctx context.Context, databasePath stri
 	}
 	defer db.Close()
 
+	// The new first-source secret store has no legacy plaintext format. Inspect
+	// it before settings so an env-only Core connection cannot cause startup to
+	// generate a fresh, unusable key over existing balance ciphertext.
+	var balanceExists int
+	if err := db.QueryRowContext(ctx, `SELECT exists(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='official_balance_sources')`).Scan(&balanceExists); err != nil {
+		return inspection, err
+	}
+	if balanceExists != 0 {
+		secrets, err := db.QueryContext(ctx, `SELECT secret_cipher FROM official_balance_sources WHERE secret_cipher<>''`)
+		if err != nil {
+			return inspection, err
+		}
+		for secrets.Next() {
+			var cipher string
+			if err := secrets.Scan(&cipher); err != nil {
+				secrets.Close()
+				return inspection, err
+			}
+			if !security.IsValidProtectedEnvelope(cipher) {
+				secrets.Close()
+				return inspection, fmt.Errorf("corrupted official balance secret storage")
+			}
+			inspection.HasEncryptedConnection = true
+		}
+		err = secrets.Err()
+		secrets.Close()
+		if err != nil {
+			return inspection, err
+		}
+	}
 	var tableExists int
 	if err := db.QueryRowContext(ctx, `select exists(select 1 from sqlite_schema where type = 'table' and name = 'settings')`).Scan(&tableExists); err != nil {
 		return inspection, fmt.Errorf("inspect sqlite settings table %s: %w", databasePath, err)

@@ -1,0 +1,7 @@
+=== RUN   TestOfficialBalanceConfigurationCAS
+2026/11/01 10:22:56 http PUT /usage-service/official-balance status=404 duration=0s remote=192.0.2.1:1234
+    official_balance_test.go:31: status = 404, want 200, body = 404 page not found
+--- FAIL: TestOfficialBalanceConfigurationCAS (0.29s)
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	0.872s
+FAIL

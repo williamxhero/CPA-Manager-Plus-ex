@@ -1,0 +1,42 @@
+=== RUN   TestOfficialBalanceTimeoutRetainsLastSuccess
+2026/11/01 10:55:22 http PUT /usage-service/official-balance status=200 duration=3.4616ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http POST /usage-service/official-balance status=202 duration=2.5942ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=200 duration=16.4426ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http POST /usage-service/official-balance status=202 duration=1.1864ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=200 duration=1.3944ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=200 duration=1.0277ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=200 duration=638.1µs remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=200 duration=624.6µs remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=200 duration=1.0271ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=200 duration=591.5µs remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=200 duration=630.6µs remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=200 duration=515.4µs remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceTimeoutRetainsLastSuccess (0.31s)
+=== RUN   TestOfficialBalanceSingleFlightAndSourceChangeFence
+2026/11/01 10:55:22 http PUT /usage-service/official-balance status=200 duration=2.5544ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http POST /usage-service/official-balance status=202 duration=1.4277ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http POST /usage-service/official-balance status=202 duration=15.3511ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http PUT /usage-service/official-balance status=200 duration=1.6207ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=409 duration=525.8µs remote=192.0.2.1:1234
+2026/11/01 10:55:22 http GET /usage-service/official-balance status=200 duration=1.6267ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceSingleFlightAndSourceChangeFence (0.31s)
+=== RUN   TestOfficialBalanceRebindRejectsPreBootCompletion
+2026/11/01 10:55:22 http PUT /usage-service/official-balance status=200 duration=1.5851ms remote=192.0.2.1:1234
+2026/11/01 10:55:22 http POST /usage-service/official-balance status=202 duration=2.067ms remote=192.0.2.1:1234
+2026/11/01 10:55:23 http POST /usage-service/official-balance status=202 duration=1.5713ms remote=192.0.2.1:1234
+2026/11/01 10:55:23 http GET /usage-service/official-balance status=200 duration=20.0734ms remote=192.0.2.1:1234
+2026/11/01 10:55:23 http GET /usage-service/official-balance status=409 duration=503.9µs remote=192.0.2.1:1234
+2026/11/01 10:55:23 http GET /usage-service/official-balance status=200 duration=1.5773ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceRebindRejectsPreBootCompletion (0.31s)
+=== RUN   TestOfficialBalanceExpiredBudgetKeepsDurableAttempt
+2026/11/01 10:55:23 http PUT /usage-service/official-balance status=200 duration=2.0739ms remote=192.0.2.1:1234
+2026/11/01 10:55:23 http POST /usage-service/official-balance status=202 duration=1.5638ms remote=192.0.2.1:1234
+2026/11/01 10:55:23 http GET /usage-service/official-balance status=200 duration=16.1811ms remote=192.0.2.1:1234
+2026/11/01 10:55:23 http POST /usage-service/official-balance status=202 duration=1.5696ms remote=192.0.2.1:1234
+2026/11/01 10:55:23 http GET /usage-service/official-balance status=200 duration=1.0437ms remote=192.0.2.1:1234
+2026/11/01 10:55:23 http GET /usage-service/official-balance status=200 duration=241.8027ms remote=192.0.2.1:1234
+2026/11/01 10:55:23 http GET /usage-service/official-balance status=200 duration=242.2949ms remote=192.0.2.1:1234
+2026/11/01 10:55:24 http GET /usage-service/official-balance status=200 duration=241.7241ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceExpiredBudgetKeepsDurableAttempt (0.87s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	2.340s

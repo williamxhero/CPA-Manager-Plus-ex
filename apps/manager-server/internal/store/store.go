@@ -146,8 +146,9 @@ type UsagePricingAccountSnapshot struct {
 }
 
 type Store struct {
-	db            *sql.DB
-	modelPricesMu sync.RWMutex
+	db                *sql.DB
+	officialProtector *security.Protector
+	modelPricesMu     sync.RWMutex
 
 	Settings           setting.Repository
 	UsageEvents        usageevent.Repository
@@ -177,8 +178,13 @@ func Open(path string, protector ...*security.Protector) (*Store, error) {
 }
 
 func New(db *sql.DB, protector ...*security.Protector) *Store {
+	var officialProtector *security.Protector
+	if len(protector) > 0 {
+		officialProtector = protector[0]
+	}
 	return &Store{
 		db:                 db,
+		officialProtector:  officialProtector,
 		Settings:           setting.New(db, protector...),
 		UsageEvents:        usageevent.New(db),
 		DeadLetters:        deadletter.New(db),

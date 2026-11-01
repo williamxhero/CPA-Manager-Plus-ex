@@ -1,0 +1,1746 @@
+
+> cpa-manager-plus@0.0.0 test:repo
+> node bin/test-repo.mjs
+
+
+ RUN  v4.1.12 D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query
+
+ ❯ tests/installerScript.test.mjs (132 tests | 70 failed) 293190ms
+     × keeps explicit non-interactive stdin execution available 10146ms
+     × fails instead of looping when the random source yields no alphanumeric characters 1568ms
+     × uses the resolved custom Docker database and data-key paths ('mapping'/'short') 1324ms
+     × uses the resolved custom Docker database and data-key paths ('list'/'long') 1183ms
+     × uses the Docker Compose resolved service configuration for custom paths 1079ms
+     × treats resolved YAML null paths as unset and uses Manager defaults 1125ms
+     × resolves Compose environment pass-through entries from the project environment 1078ms
+     × restores a custom Docker database, sidecars, and data key after CPA validation fails 1076ms
+     × fails closed when a custom Docker path is not readable in the container 1121ms
+     × migrates legacy Docker CPA env secrets with targeted config edits 1018ms
+     × migrates legacy Docker Compose secrets written in long syntax 1067ms
+     × imports a legacy Docker CPA key from CPA_MANAGEMENT_KEY_FILE without deleting an external file 2683ms
+     × preserves an external CPA key at the canonical managed path across reruns 945ms
+     × never deletes an external canonical CPA key after a failed import retry 948ms
+     × treats a managed-path CPA key symlink as external during a Docker migration 2658ms
+     × keeps a managed-path CPA key symlink intact when the Docker migration fails 2174ms
+     × ignores a managed-path CPA key symlink when finalizing a Docker rerun 1707ms
+     × uses process CPA inputs instead of stale env and installer-managed secret values 1058ms
+     × fails closed when a sidecar still references the legacy CPA env or secret 1060ms
+     × keeps a legacy Docker migration untouched when execution is skipped 931ms
+     × keeps legacy Docker config and secret when CPA connection import conflicts 1021ms
+     × restores legacy Docker config when post-import admin verification fails 1009ms
+     × finalizes a leftover installer-managed CPA key on a successful native rerun 6490ms
+     × keeps a leftover installer-managed CPA key when the native rerun proxy validation fails 3987ms
+     × treats a managed-path CPA key symlink as external during a native upgrade 4706ms
+     × keeps a managed-path CPA key symlink intact when the native migration fails 4710ms
+     × does not roll back a committed Docker migration when snapshot cleanup fails 1046ms
+     × does not roll back a committed Docker migration when runtime backup cleanup fails 3560ms
+     × restores legacy Docker config when the imported CPA connection cannot be used 995ms
+     × does not change existing admin-secret permissions during dry runs 1263ms
+     × fails when existing secret file permissions cannot be restricted 731ms
+     × does not leave partial native files when the runtime directory already exists 934ms
+     × upgrades a legacy native install and imports its CPA connection without replacing existing data or settings 4828ms
+     × uses the native run and systemd resolved custom database and data-key paths 1748ms
+     × rejects conflicting native run and systemd data paths before upgrade 2788ms
+     × recognizes the active native runtime on a second upgrade after multiple runtime directories exist 4992ms
+     × keeps a legacy native install untouched when upgrade execution is skipped 4951ms
+     × refuses to stop a live process from an unrelated native PID file 4983ms
+     × does not start a duplicate legacy process when the old process refuses to stop 36ms
+     × fails closed when a native upgrade has no PID file but its port is listening 4953ms
+     × restores legacy native data and entry files when the offline CPA import fails 4963ms
+     × restores the complete native data file-set after a partially mutating import failure 4960ms
+     × does not restart the previous native runtime when snapshot restore fails 35ms
+     × stops a new native process when PID publication fails before rollback 5020ms
+     × retains a native snapshot when post-commit cleanup fails 5499ms
+     × rolls back a native upgrade on an unhandled set -e exit after data mutation 4930ms
+     × keeps a legacy CPA key outside the installer-managed secret path after import 4447ms
+     × rolls back a legacy native upgrade when 'health check' fails 4998ms
+     × rolls back a legacy native upgrade when 'admin authentication' fails 5007ms
+     × rolls back a legacy native upgrade when 'CPA connection validation' fails 6602ms
+     × does not restore native data while the replacement process still owns the database 5063ms
+     × keeps native runtime config secret-free and prints the one-time import command 1069ms
+     × keeps the native temporary CPA key when admin verification fails 1112ms
+     × fails native installs when the started process exits before health is ready 923ms
+     × generates a Linux systemd unit for native installs 1008ms
+     × quotes native systemd paths containing spaces and percent signs 990ms
+     × retries a failed first Docker CPA import from the retained pending state 2011ms
+     × retries a failed first native CPA import from the retained pending state 1136ms
+     × migrates mixed-case native CPA fields and removes every semantic variant 4875ms
+     × rejects a symlinked CPA import pending state without touching its target 949ms
+     × upgrades a legacy native layout with config ./data using canonical root data files (#782) 4483ms
+     × falls back to root data when native config dataDir is omitted 4200ms
+     × prefers existing runtime-local data over root data when runtime DB exists 4434ms
+     × fails closed when config.json specifies custom dbPath that does not exist 2355ms
+     × fails closed when run.sh specifies custom USAGE_DB_PATH that does not exist 2113ms
+     × fails closed when systemd and run.sh specify matching custom USAGE_DB_PATH that does not exist 2140ms
+     × fails closed when config.json specifies custom non-canonical dataKeyPath 2577ms
+     × rolls back root data and sidecars when #782 legacy layout upgrade fails after mutation 4602ms
+     × self-heals #782 legacy layout so subsequent upgrade uses explicit launcher authority without fallback 4510ms
+     × accepts positional "update" argument for non-interactive native upgrade 4852ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 70 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps explicit non-interactive stdin execution available
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/installerScript.test.mjs:666:3
+    664|   });
+    665|
+    666|   it('keeps explicit non-interactive stdin execution available', () =>…
+       |   ^
+    667|     const result = runInstallerFromStdin({
+    668|       CPAMP_NON_INTERACTIVE: '1',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails instead of looping when the random source yields no alphanumeric characters
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/installerScript.test.mjs:823:29
+    821|       });
+    822|
+    823|       expect(result.status).toBe(1);
+       |                             ^
+    824|       expect(combinedOutput(result)).toContain(
+    825|         'Random source produced no usable alphanumeric characters'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > uses the resolved custom Docker database and data-key paths ('mapping'/'short')
+ FAIL  tests/installerScript.test.mjs > installer script > uses the resolved custom Docker database and data-key paths ('list'/'long')
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:1412:31
+    1410|         });
+    1411|
+    1412|         expect(result.status).toBe(0);
+       |                               ^
+    1413|         const calls = readFileSync(dockerLog, 'utf8');
+    1414|         expect(calls).toContain('--db-path /data/custom.sqlite');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > uses the Docker Compose resolved service configuration for custom paths
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:1501:29
+    1499|       });
+    1500|
+    1501|       expect(result.status).toBe(0);
+       |                             ^
+    1502|       const calls = readFileSync(dockerLog, 'utf8');
+    1503|       expect(calls).toContain('compose config');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > treats resolved YAML null paths as unset and uses Manager defaults
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:1572:29
+    1570|       });
+    1571|
+    1572|       expect(result.status).toBe(0);
+       |                             ^
+    1573|       const calls = readFileSync(dockerLog, 'utf8');
+    1574|       expect(calls).toContain('--db-path /data/usage.sqlite');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > resolves Compose environment pass-through entries from the project environment
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:1639:29
+    1637|       });
+    1638|
+    1639|       expect(result.status).toBe(0);
+       |                             ^
+    1640|       const calls = readFileSync(dockerLog, 'utf8');
+    1641|       expect(calls).toContain('--db-path /data/custom.sqlite');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores a custom Docker database, sidecars, and data key after CPA validation fails
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'CPA connection validation failed'
+
+- Expected
++ Received
+
+- CPA connection validation failed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-mPHqlp
++ Docker Compose project name: cpamp
++
++ CPA Management Key file parent does not exist: C:\Users\will\AppData\Local\Temp\cpamp-installer-mPHqlp/C:\Users\will\AppData\Local\Temp\cpamp-installer-mPHqlp/secrets/cpa-management-key
++
+
+ ❯ tests/installerScript.test.mjs:1698:38
+    1696|
+    1697|       expect(result.status).toBe(1);
+    1698|       expect(combinedOutput(result)).toContain('CPA connection validat…
+       |                                      ^
+    1699|       const calls = readFileSync(dockerLog, 'utf8');
+    1700|       expect(calls).toContain('manager-data-snapshot restore');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when a custom Docker path is not readable in the container
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'not readable inside the cpa-manager-p…'
+
+- Expected
++ Received
+
+- not readable inside the cpa-manager-plus container
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-3cDFTB
++ Docker Compose project name: cpamp
++
++ CPA Management Key file parent does not exist: C:\Users\will\AppData\Local\Temp\cpamp-installer-3cDFTB/C:\Users\will\AppData\Local\Temp\cpamp-installer-3cDFTB/secrets/cpa-management-key
++
+
+ ❯ tests/installerScript.test.mjs:1808:38
+    1806|
+    1807|       expect(result.status).toBe(1);
+    1808|       expect(combinedOutput(result)).toContain(
+       |                                      ^
+    1809|         'not readable inside the cpa-manager-plus container'
+    1810|       );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > migrates legacy Docker CPA env secrets with targeted config edits
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:2066:29
+    2064|       });
+    2065|
+    2066|       expect(result.status).toBe(0);
+       |                             ^
+    2067|       const migratedEnv = readFileSync(path.join(installDir, '.env'), …
+    2068|       const migratedCompose = readFileSync(path.join(installDir, 'comp…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > migrates legacy Docker Compose secrets written in long syntax
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:2147:29
+    2145|       });
+    2146|
+    2147|       expect(result.status).toBe(0);
+       |                             ^
+    2148|       const migratedEnv = readFileSync(path.join(installDir, '.env'), …
+    2149|       const migratedCompose = readFileSync(path.join(installDir, 'comp…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > imports a legacy Docker CPA key from CPA_MANAGEMENT_KEY_FILE without deleting an external file
+AssertionError: expected 438 to be 416 // Object.is equality
+
+- Expected
++ Received
+
+- 416
++ 438
+
+ ❯ tests/installerScript.test.mjs:2422:54
+    2420|       expect(result.status).toBe(0);
+    2421|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('cpa_external…
+    2422|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+       |                                                      ^
+    2423|       const calls = readFileSync(dockerLog, 'utf8');
+    2424|       expect(calls).toContain(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > preserves an external CPA key at the canonical managed path across reruns
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:2487:29
+    2485|       });
+    2486|
+    2487|       expect(result.status).toBe(0);
+       |                             ^
+    2488|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('cpa_external…
+    2489|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > never deletes an external canonical CPA key after a failed import retry
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'CPA connection validation failed'
+
+- Expected
++ Received
+
+- CPA connection validation failed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-rFezDk
++ Docker Compose project name: cpamp
++
++ CPA Management Key file parent does not exist: C:\Users\will\AppData\Local\Temp\cpamp-installer-rFezDk/C:\Users\will\AppData\Local\Temp\cpamp-installer-rFezDk\secrets\cpa-management-key
++
+
+ ❯ tests/installerScript.test.mjs:2566:38
+    2564|
+    2565|       expect(failed.status).toBe(1);
+    2566|       expect(combinedOutput(failed)).toContain('CPA connection validat…
+       |                                      ^
+    2567|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('cpa_external…
+    2568|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > treats a managed-path CPA key symlink as external during a Docker migration
+AssertionError: expected 438 to be 416 // Object.is equality
+
+- Expected
++ Received
+
+- 416
++ 438
+
+ ❯ tests/installerScript.test.mjs:2650:54
+    2648|       expect(existsSync(externalKeyPath)).toBe(true);
+    2649|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('EXTERNAL_SEC…
+    2650|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+       |                                                      ^
+    2651|       // The symlink itself survives the migration and finalization.
+    2652|       expect(existsSync(managedKeyPath)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a managed-path CPA key symlink intact when the Docker migration fails
+AssertionError: expected 438 to be 416 // Object.is equality
+
+- Expected
++ Received
+
+- 416
++ 438
+
+ ❯ tests/installerScript.test.mjs:2722:54
+    2720|       expect(existsSync(externalKeyPath)).toBe(true);
+    2721|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('EXTERNAL_SEC…
+    2722|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+       |                                                      ^
+    2723|       expect(existsSync(managedKeyPath)).toBe(true);
+    2724|       expect(lstatSync(managedKeyPath).isSymbolicLink()).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > ignores a managed-path CPA key symlink when finalizing a Docker rerun
+AssertionError: expected 438 to be 416 // Object.is equality
+
+- Expected
++ Received
+
+- 416
++ 438
+
+ ❯ tests/installerScript.test.mjs:2781:54
+    2779|       expect(existsSync(externalKeyPath)).toBe(true);
+    2780|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('EXTERNAL_SEC…
+    2781|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+       |                                                      ^
+    2782|       expect(existsSync(managedKeyPath)).toBe(true);
+    2783|       expect(lstatSync(managedKeyPath).isSymbolicLink()).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > uses process CPA inputs instead of stale env and installer-managed secret values
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:3029:29
+    3027|       });
+    3028|
+    3029|       expect(result.status).toBe(0);
+       |                             ^
+    3030|       expect(readFileSync(importedKeyLog, 'utf8')).toBe('cpa_process_f…
+    3031|       expect(readFileSync(dockerLog, 'utf8')).toContain(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when a sidecar still references the legacy CPA env or secret
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'previous runtime config and temporary…'
+
+- Expected
++ Received
+
+- previous runtime config and temporary secret were preserved
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-1BvWDm
++ Docker Compose project name: cpamp
++
++ CPA Management Key file parent does not exist: C:\Users\will\AppData\Local\Temp\cpamp-installer-1BvWDm/C:\Users\will\AppData\Local\Temp\cpamp-installer-1BvWDm/secrets/cpa-management-key
++
+
+ ❯ tests/installerScript.test.mjs:3274:38
+    3272|
+    3273|       expect(result.status).toBe(1);
+    3274|       expect(combinedOutput(result)).toContain(
+       |                                      ^
+    3275|         'previous runtime config and temporary secret were preserved'
+    3276|       );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a legacy Docker migration untouched when execution is skipped
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:3333:29
+    3331|       });
+    3332|
+    3333|       expect(result.status).toBe(0);
+       |                             ^
+    3334|       expect(readFileSync(path.join(installDir, '.env'), 'utf8')).toBe…
+    3335|       expect(readFileSync(path.join(installDir, 'compose.yaml'), 'utf8…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps legacy Docker config and secret when CPA connection import conflicts
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'previous runtime config and temporary…'
+
+- Expected
++ Received
+
+- previous runtime config and temporary secret were preserved
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-R3zDbM
++ Docker Compose project name: cpamp
++
++ CPA Management Key file parent does not exist: C:\Users\will\AppData\Local\Temp\cpamp-installer-R3zDbM/C:\Users\will\AppData\Local\Temp\cpamp-installer-R3zDbM/secrets/cpa-management-key
++
+
+ ❯ tests/installerScript.test.mjs:3397:38
+    3395|
+    3396|       expect(result.status).toBe(1);
+    3397|       expect(combinedOutput(result)).toContain(
+       |                                      ^
+    3398|         'previous runtime config and temporary secret were preserved'
+    3399|       );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores legacy Docker config when post-import admin verification fails
+AssertionError: Target cannot be null or undefined.
+ ❯ tests/installerScript.test.mjs:3483:45
+    3481|       );
+    3482|       const calls = readFileSync(dockerLog, 'utf8');
+    3483|       expect(calls.match(/compose up -d/g)).toHaveLength(2);
+       |                                             ^
+    3484|       expect(combinedOutput(result)).toContain('admin key verification…
+    3485|       expect(readFileSync(dbPath, 'utf8')).toBe('database-before\n');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > finalizes a leftover installer-managed CPA key on a successful native rerun
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:3636:29
+    3634|       });
+    3635|
+    3636|       expect(result.status).toBe(0);
+       |                             ^
+    3637|       // No import may run during the stored-mode rerun; the fake bina…
+    3638|       // creates the command log when store-cpa-connection is invoked.
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a leftover installer-managed CPA key when the native rerun proxy validation fails
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'CPA connection validation failed'
+
+- Expected
++ Received
+
+- CPA connection validation failed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-cS0PjW
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-cS0PjW
++ Public CPAMP port: 18317
++ CPAMP version: vnext
++ CPA connection: CPA connection imported into encrypted SQLite storage
++ A temporary CPA Management Key from a previous installer run was detected; it will be removed after health, admin, and CPA proxy validation all pass.
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:3686:38
+    3684|
+    3685|       expect(result.status).toBe(1);
+    3686|       expect(combinedOutput(result)).toContain('CPA connection validat…
+       |                                      ^
+    3687|       expect(existsSync(legacy.cpaKeyPath)).toBe(true);
+    3688|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > treats a managed-path CPA key symlink as external during a native upgrade
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:3732:29
+    3730|       });
+    3731|
+    3732|       expect(result.status).toBe(0);
+       |                             ^
+    3733|       // The external target keeps its exact content, mode, and existe…
+    3734|       expect(existsSync(externalKeyPath)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a managed-path CPA key symlink intact when the native migration fails
+AssertionError: expected 438 to be 416 // Object.is equality
+
+- Expected
++ Received
+
+- 416
++ 438
+
+ ❯ tests/installerScript.test.mjs:3800:54
+    3798|       expect(existsSync(externalKeyPath)).toBe(true);
+    3799|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('EXTERNAL_SEC…
+    3800|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+       |                                                      ^
+    3801|       expect(existsSync(legacy.cpaKeyPath)).toBe(true);
+    3802|       expect(lstatSync(legacy.cpaKeyPath).isSymbolicLink()).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not roll back a committed Docker migration when snapshot cleanup fails
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:3873:29
+    3871|       });
+    3872|
+    3873|       expect(result.status).toBe(0);
+       |                             ^
+    3874|       expect(combinedOutput(result)).toContain('Install steps complete…
+    3875|       expect(combinedOutput(result)).toContain('cleaning the Manager d…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not roll back a committed Docker migration when runtime backup cleanup fails
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'legacy CPA runtime rollback backup co…'
+
+- Expected
++ Received
+
+- legacy CPA runtime rollback backup could not be removed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-6DPNB8
++ Docker Compose project name: cpamp
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Docker
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-6DPNB8
++ Docker Compose project name: cpamp
++ Public CPAMP port: 18317
++ CPAMP Docker image: example/cpamp:v1
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://host.docker.internal:8317
++
++ == Install steps completed ==
++ Operation: Upgrade existing deployment
++ Admin key saved: C:\Users\will\AppData\Local\Temp\cpamp-installer-6DPNB8/secrets/cpamp-admin-key
++ View admin key: cat "C:\Users\will\AppData\Local\Temp\cpamp-installer-6DPNB8/secrets/cpamp-admin-key"
++ Open panel: http://127.0.0.1:18317/management.html
++ Admin key verification passed
++ CPA connection imported into encrypted SQLite storage
++ The CPA connection was imported into SQLite and AES-GCM encrypted with data.key. Log in with the CPAMP Admin Key; rotate the CPA key from Manager configuration.
++
++
+
+ ❯ tests/installerScript.test.mjs:3954:38
+    3952|
+    3953|       expect(result.status).toBe(0);
+    3954|       expect(combinedOutput(result)).toContain(
+       |                                      ^
+    3955|         'legacy CPA runtime rollback backup could not be removed'
+    3956|       );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores legacy Docker config when the imported CPA connection cannot be used
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'CPA connection validation failed'
+
+- Expected
++ Received
+
+- CPA connection validation failed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-w7UNHB
++ Docker Compose project name: cpamp
++
++ CPA Management Key file parent does not exist: C:\Users\will\AppData\Local\Temp\cpamp-installer-w7UNHB/C:\Users\will\AppData\Local\Temp\cpamp-installer-w7UNHB/secrets/cpa-management-key
++
+
+ ❯ tests/installerScript.test.mjs:4033:38
+    4031|
+    4032|       expect(result.status).toBe(1);
+    4033|       expect(combinedOutput(result)).toContain('CPA connection validat…
+       |                                      ^
+    4034|       expect(readFileSync(path.join(installDir, '.env'), 'utf8')).toBe…
+    4035|       expect(readFileSync(path.join(installDir, 'compose.yaml'), 'utf8…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not change existing admin-secret permissions during dry runs
+AssertionError: expected 438 to be 420 // Object.is equality
+
+- Expected
++ Received
+
+- 420
++ 438
+
+ ❯ tests/installerScript.test.mjs:4254:49
+    4252|
+    4253|       expect(result.status).toBe(0);
+    4254|       expect(statSync(secretFile).mode & 0o777).toBe(0o644);
+       |                                                 ^
+    4255|     } finally {
+    4256|       rmSync(installDir, { recursive: true, force: true });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails when existing secret file permissions cannot be restricted
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'Unable to restrict secret file permis…'
+
+- Expected
++ Received
+
+- Unable to restrict secret file permissions
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-BnC7O3
++
++ An existing deployment was detected. Non-interactive mode requires CPAMP_OPERATION=upgrade, repair, or regenerate.
++
+
+ ❯ tests/installerScript.test.mjs:4317:38
+    4315|
+    4316|       expect(result.status).toBe(1);
+    4317|       expect(combinedOutput(result)).toContain('Unable to restrict sec…
+       |                                      ^
+    4318|     } finally {
+    4319|       rmSync(installDir, { recursive: true, force: true });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not leave partial native files when the runtime directory already exists
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'Directory already exists'
+
+- Expected
++ Received
+
+- Directory already exists
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Install summary ==
++ Operation: Fresh install
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-BeJaaQ
++ Public CPAMP port: 18317
++ CPAMP version: v1.8.1
++ CPA connection: enter during first setup
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:4351:38
+    4349|
+    4350|       expect(result.status).toBe(1);
+    4351|       expect(combinedOutput(result)).toContain('Directory already exis…
+       |                                      ^
+    4352|       expect(existsSync(path.join(installDir, 'secrets/cpamp-admin-key…
+    4353|       expect(existsSync(path.join(installDir, 'run.sh'))).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > upgrades a legacy native install and imports its CPA connection without replacing existing data or settings
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:4399:29
+    4397|       });
+    4398|
+    4399|       expect(result.status).toBe(0);
+       |                             ^
+    4400|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+    4401|       expect(readFileSync(legacy.dataKeyPath, 'utf8')).toBe('existing-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > uses the native run and systemd resolved custom database and data-key paths
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:4479:29
+    4477|       });
+    4478|
+    4479|       expect(result.status).toBe(0);
+       |                             ^
+    4480|       const commands = readFileSync(commandLog, 'utf8');
+    4481|       expect(commands).toContain(`--db-path ${realpathSync(customDbPat…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects conflicting native run and systemd data paths before upgrade
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'run.sh and systemd service resolve di…'
+
+- Expected
++ Received
+
+- run.sh and systemd service resolve different
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-uJO4S5
++
++ USAGE_DB_PATH in the native run runtime entry must be an absolute path.
++
+
+ ❯ tests/installerScript.test.mjs:4567:38
+    4565|
+    4566|       expect(result.status).toBe(1);
+    4567|       expect(combinedOutput(result)).toContain('run.sh and systemd ser…
+       |                                      ^
+    4568|       expect(readFileSync(legacy.runPath, 'utf8')).toBe(beforeRun);
+    4569|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > recognizes the active native runtime on a second upgrade after multiple runtime directories exist
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:4601:28
+    4599|         encoding: 'utf8',
+    4600|       });
+    4601|       expect(first.status).toBe(0);
+       |                            ^
+    4602|       expect(readFileSync(legacy.runPath, 'utf8')).toContain(
+    4603|         `# CPAMP_RUNTIME_PACKAGE=${release.packageName}`
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[35/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a legacy native install untouched when upgrade execution is skipped
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:4714:29
+    4712|       });
+    4713|
+    4714|       expect(result.status).toBe(0);
+       |                             ^
+    4715|       expect(readFileSync(legacy.runPath, 'utf8')).toBe(beforeRun);
+    4716|       expect(readFileSync(legacy.configPath, 'utf8')).toBe(beforeConfi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[36/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > refuses to stop a live process from an unrelated native PID file
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'does not belong to this CPA Manager P…'
+
+- Expected
++ Received
+
+- does not belong to this CPA Manager Plus
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-cKolXy
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-cKolXy
++ Public CPAMP port: 18317
++ CPAMP version: vnext
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://127.0.0.1:8317
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:4797:38
+    4795|
+    4796|       expect(result.status).toBe(1);
+    4797|       expect(combinedOutput(result)).toContain('does not belong to thi…
+       |                                      ^
+    4798|       expect(() => process.kill(unrelatedPID, 0)).not.toThrow();
+    4799|       expect(readFileSync(path.join(installDir, 'cpa-manager-plus.pid'…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[37/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not start a duplicate legacy process when the old process refuses to stop
+Error: spawn EFTYPE
+ ❯ tests/installerScript.test.mjs:4822:24
+    4820|     const release = writeFakeNativeRelease();
+    4821|     const legacy = writeLegacyNativeInstall(installDir);
+    4822|     const oldProcess = spawn(legacy.runPath, {
+       |                        ^
+    4823|       cwd: installDir,
+    4824|       env: { ...process.env, FAKE_LEGACY_NATIVE_IGNORE_TERM: '1' },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[38/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when a native upgrade has no PID file but its port is listening
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'without an owned PID file. Stop the s…'
+
+- Expected
++ Received
+
+- without an owned PID file. Stop the service and retry
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-PMlGhK
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-PMlGhK
++ Public CPAMP port: 18317
++ CPAMP version: vnext
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://127.0.0.1:8317
++ Port may already be in use: 18317
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:4907:38
+    4905|
+    4906|       expect(result.status).toBe(1);
+    4907|       expect(combinedOutput(result)).toContain(
+       |                                      ^
+    4908|         'without an owned PID file. Stop the service and retry'
+    4909|       );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[39/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores legacy native data and entry files when the offline CPA import fails
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'CPA connection import failed'
+
+- Expected
++ Received
+
+- CPA connection import failed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-1bOjgR
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-1bOjgR
++ Public CPAMP port: 18317
++ CPAMP version: vnext
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://127.0.0.1:8317
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:4953:38
+    4951|
+    4952|       expect(result.status).toBe(1);
+    4953|       expect(combinedOutput(result)).toContain('CPA connection import …
+       |                                      ^
+    4954|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+    4955|       expect(readFileSync(legacy.dataKeyPath, 'utf8')).toBe('existing-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[40/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores the complete native data file-set after a partially mutating import failure
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'CPA connection import failed'
+
+- Expected
++ Received
+
+- CPA connection import failed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-OPcLB0
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-OPcLB0
++ Public CPAMP port: 18317
++ CPAMP version: vnext
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://127.0.0.1:8317
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:5008:38
+    5006|
+    5007|       expect(result.status).toBe(1);
+    5008|       expect(combinedOutput(result)).toContain('CPA connection import …
+       |                                      ^
+    5009|       for (const [file, content] of beforeFiles) {
+    5010|         expect(readFileSync(file, 'utf8')).toBe(content);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[41/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not restart the previous native runtime when snapshot restore fails
+Error: spawn EFTYPE
+ ❯ tests/installerScript.test.mjs:5073:24
+    5071|     const legacy = writeLegacyNativeInstall(installDir);
+    5072|     const startMarker = path.join(installDir, 'legacy-starts.log');
+    5073|     const oldProcess = spawn(legacy.runPath, {
+       |                        ^
+    5074|       cwd: installDir,
+    5075|       env: { ...process.env, FAKE_LEGACY_NATIVE_START_MARKER: startMar…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[42/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > stops a new native process when PID publication fails before rollback
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/installerScript.test.mjs:5135:3
+    5133|   });
+    5134|
+    5135|   it('stops a new native process when PID publication fails before rol…
+       |   ^
+    5136|     const installDir = mkdtempSync(path.join(os.tmpdir(), 'cpamp-insta…
+    5137|     const release = writeFakeNativeRelease();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[43/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > retains a native snapshot when post-commit cleanup fails
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:5219:29
+    5217|       });
+    5218|
+    5219|       expect(result.status).toBe(0);
+       |                             ^
+    5220|       expect(combinedOutput(result)).toContain('cleaning the Manager d…
+    5221|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[44/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rolls back a native upgrade on an unhandled set -e exit after data mutation
+AssertionError: expected 1 to be 73 // Object.is equality
+
+- Expected
++ Received
+
+- 73
++ 1
+
+ ❯ tests/installerScript.test.mjs:5278:29
+    5276|       });
+    5277|
+    5278|       expect(result.status).toBe(73);
+       |                             ^
+    5279|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+    5280|       expect(readFileSync(legacy.dataKeyPath, 'utf8')).toBe('existing-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[45/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a legacy CPA key outside the installer-managed secret path after import
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:5325:29
+    5323|       });
+    5324|
+    5325|       expect(result.status).toBe(0);
+       |                             ^
+    5326|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('cpa_external…
+    5327|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[46/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rolls back a legacy native upgrade when 'health check' fails
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'did not become healthy'
+
+- Expected
++ Received
+
+- did not become healthy
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-cptpa5
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-cptpa5
++ Public CPAMP port: 18317
++ CPAMP version: vnext
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://127.0.0.1:8317
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:5393:38
+    5391|
+    5392|       expect(result.status).toBe(1);
+    5393|       expect(combinedOutput(result)).toContain(expected);
+       |                                      ^
+    5394|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+    5395|       expect(readFileSync(legacy.dataKeyPath, 'utf8')).toBe('existing-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[47/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rolls back a legacy native upgrade when 'admin authentication' fails
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'admin key verification failed'
+
+- Expected
++ Received
+
+- admin key verification failed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-ro4gwP
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-ro4gwP
++ Public CPAMP port: 18317
++ CPAMP version: vnext
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://127.0.0.1:8317
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:5393:38
+    5391|
+    5392|       expect(result.status).toBe(1);
+    5393|       expect(combinedOutput(result)).toContain(expected);
+       |                                      ^
+    5394|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+    5395|       expect(readFileSync(legacy.dataKeyPath, 'utf8')).toBe('existing-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[48/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rolls back a legacy native upgrade when 'CPA connection validation' fails
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'CPA connection validation failed'
+
+- Expected
++ Received
+
+- CPA connection validation failed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-lxGgpK
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-lxGgpK
++ Public CPAMP port: 18317
++ CPAMP version: vnext
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://127.0.0.1:8317
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:5393:38
+    5391|
+    5392|       expect(result.status).toBe(1);
+    5393|       expect(combinedOutput(result)).toContain(expected);
+       |                                      ^
+    5394|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+    5395|       expect(readFileSync(legacy.dataKeyPath, 'utf8')).toBe('existing-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[49/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not restore native data while the replacement process still owns the database
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'did not become healthy'
+
+- Expected
++ Received
+
+- did not become healthy
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-Q2nuy9
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-Q2nuy9
++ Public CPAMP port: 18317
++ CPAMP version: vnext
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://127.0.0.1:8317
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:5448:38
+    5446|
+    5447|       expect(result.status).toBe(1);
+    5448|       expect(combinedOutput(result)).toContain('did not become healthy…
+       |                                      ^
+    5449|       expect(combinedOutput(result)).toContain(
+    5450|         'Automatic native upgrade rollback did not fully succeed'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[50/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps native runtime config secret-free and prints the one-time import command
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:5492:29
+    5490|       });
+    5491|
+    5492|       expect(result.status).toBe(0);
+       |                             ^
+    5493|       const platform = process.platform === 'darwin' ? 'darwin' : 'lin…
+    5494|       const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[51/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps the native temporary CPA key when admin verification fails
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'admin key verification failed'
+
+- Expected
++ Received
+
+- admin key verification failed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Install summary ==
++ Operation: Fresh install
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-eqTzjD
++ Public CPAMP port: 18317
++ CPAMP version: latest
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://127.0.0.1:8317
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:5613:38
+    5611|       }
+    5612|       expect(result.status).toBe(1);
+    5613|       expect(combinedOutput(result)).toContain('admin key verification…
+       |                                      ^
+    5614|       expect(existsSync(path.join(installDir, 'secrets/cpa-management-…
+    5615|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[52/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails native installs when the started process exits before health is ready
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'Native CPAMP process exited before be…'
+
+- Expected
++ Received
+
+- Native CPAMP process exited before becoming healthy
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Install summary ==
++ Operation: Fresh install
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-cfJcfh
++ Public CPAMP port: 18317
++ CPAMP version: latest
++ CPA connection: enter during first setup
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:5701:38
+    5699|
+    5700|       expect(result.status).toBe(1);
+    5701|       expect(combinedOutput(result)).toContain(
+       |                                      ^
+    5702|         'Native CPAMP process exited before becoming healthy'
+    5703|       );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[53/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > generates a Linux systemd unit for native installs
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:5733:29
+    5731|       });
+    5732|
+    5733|       expect(result.status).toBe(0);
+       |                             ^
+    5734|
+    5735|       if (process.platform === 'linux') {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[54/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > quotes native systemd paths containing spaces and percent signs
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:5779:29
+    5777|       });
+    5778|
+    5779|       expect(result.status).toBe(0);
+       |                             ^
+    5780|       const service = readFileSync(path.join(installDir, 'cpa-manager-…
+    5781|       const binaryDir = path.join(installDir, 'runtime', 'cpa-manager-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[55/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > retries a failed first Docker CPA import from the retained pending state
+AssertionError: expected 438 to be 384 // Object.is equality
+
+- Expected
++ Received
+
+- 384
++ 438
+
+ ❯ tests/installerScript.test.mjs:5828:48
+    5826|       expect(first.status).toBe(1);
+    5827|       expect(existsSync(statePath)).toBe(true);
+    5828|       expect(statSync(statePath).mode & 0o777).toBe(0o600);
+       |                                                ^
+    5829|       expect(readFileSync(statePath, 'utf8')).not.toContain('cpa_retry…
+    5830|       expect(readFileSync(statePath, 'utf8')).toContain('CPA_URL=http:…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[56/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > retries a failed first native CPA import from the retained pending state
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/installerScript.test.mjs:5891:37
+    5889|
+    5890|       expect(first.status).toBe(1);
+    5891|       expect(existsSync(statePath)).toBe(true);
+       |                                     ^
+    5892|       expect(readFileSync(statePath, 'utf8')).not.toContain('cpa_nativ…
+    5893|       expect(readFileSync(keyPath, 'utf8')).toBe('cpa_native_retry_key…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[57/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > migrates mixed-case native CPA fields and removes every semantic variant
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:5949:29
+    5947|       });
+    5948|
+    5949|       expect(result.status).toBe(0);
+       |                             ^
+    5950|       expect(readFileSync(commandLog, 'utf8')).toContain('store-cpa-co…
+    5951|       const upgraded = JSON.parse(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[58/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects a symlinked CPA import pending state without touching its target
+AssertionError: expected 438 to be 416 // Object.is equality
+
+- Expected
++ Received
+
+- 416
++ 438
+
+ ❯ tests/installerScript.test.mjs:6094:52
+    6092|       expect(combinedOutput(result)).toContain('not an installer-owned…
+    6093|       expect(readFileSync(externalState, 'utf8')).toBe('external-state…
+    6094|       expect(statSync(externalState).mode & 0o777).toBe(0o640);
+       |                                                    ^
+    6095|       expect(lstatSync(pendingPath).isSymbolicLink()).toBe(true);
+    6096|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[59/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > upgrades a legacy native layout with config ./data using canonical root data files (#782)
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:6132:29
+    6130|       });
+    6131|
+    6132|       expect(result.status).toBe(0);
+       |                             ^
+    6133|       expect(combinedOutput(result)).toContain('Detected a legacy nati…
+    6134|       const commands = readFileSync(commandLog, 'utf8');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[60/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > falls back to root data when native config dataDir is omitted
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:6184:29
+    6182|       });
+    6183|
+    6184|       expect(result.status).toBe(0);
+       |                             ^
+    6185|       expect(combinedOutput(result)).toContain('Detected a legacy nati…
+    6186|       const commands = readFileSync(commandLog, 'utf8');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[61/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > prefers existing runtime-local data over root data when runtime DB exists
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:6231:29
+    6229|       });
+    6230|
+    6231|       expect(result.status).toBe(0);
+       |                             ^
+    6232|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6233|       const commands = readFileSync(commandLog, 'utf8');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[62/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when config.json specifies custom dbPath that does not exist
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'Manager database is missing or is not…'
+
+- Expected
++ Received
+
+- Manager database is missing or is not a regular file
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-1rxkqG
++
++ Legacy native config paths containing JSON escapes are not supported: C:\Users\will\AppData\Local\Temp\cpamp-installer-1rxkqG\custom-missing.sqlite
++
+
+ ❯ tests/installerScript.test.mjs:6272:38
+    6270|       expect(result.status).toBe(1);
+    6271|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6272|       expect(combinedOutput(result)).toContain('Manager database is mi…
+       |                                      ^
+    6273|     } finally {
+    6274|       rmSync(installDir, { recursive: true, force: true });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[63/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when run.sh specifies custom USAGE_DB_PATH that does not exist
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'Manager database is missing or is not…'
+
+- Expected
++ Received
+
+- Manager database is missing or is not a regular file
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-72rL7X
++
++ USAGE_DB_PATH in the native run runtime entry must be an absolute path.
++
+
+ ❯ tests/installerScript.test.mjs:6305:38
+    6303|       expect(result.status).toBe(1);
+    6304|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6305|       expect(combinedOutput(result)).toContain('Manager database is mi…
+       |                                      ^
+    6306|     } finally {
+    6307|       rmSync(installDir, { recursive: true, force: true });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[64/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when systemd and run.sh specify matching custom USAGE_DB_PATH that does not exist
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'Manager database is missing or is not…'
+
+- Expected
++ Received
+
+- Manager database is missing or is not a regular file
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-L7OONl
++
++ USAGE_DB_PATH in the native run runtime entry must be an absolute path.
++
+
+ ❯ tests/installerScript.test.mjs:6339:38
+    6337|       expect(result.status).toBe(1);
+    6338|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6339|       expect(combinedOutput(result)).toContain('Manager database is mi…
+       |                                      ^
+    6340|     } finally {
+    6341|       rmSync(installDir, { recursive: true, force: true });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[65/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when config.json specifies custom non-canonical dataKeyPath
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'Manager database is missing or is not…'
+
+- Expected
++ Received
+
+- Manager database is missing or is not a regular file
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-8xM9av
++
++ Legacy native config paths containing JSON escapes are not supported: C:\Users\will\AppData\Local\Temp\cpamp-installer-8xM9av\custom-missing.key
++
+
+ ❯ tests/installerScript.test.mjs:6433:38
+    6431|       expect(result.status).toBe(1);
+    6432|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6433|       expect(combinedOutput(result)).toContain('Manager database is mi…
+       |                                      ^
+    6434|     } finally {
+    6435|       rmSync(installDir, { recursive: true, force: true });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[66/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rolls back root data and sidecars when #782 legacy layout upgrade fails after mutation
+AssertionError: expected '== Detected environment ==\nOS: MINGW…' to contain 'CPA connection validation failed'
+
+- Expected
++ Received
+
+- CPA connection validation failed
++ == Detected environment ==
++ OS: MINGW64_NT-10.0-26300 (windows)
++ Architecture: x86_64 (amd64)
++ WSL: false
++
++ == Existing CPA Manager Plus deployment detected ==
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-1rHzd6
++ Detected a legacy native Manager data layout; using the installer-managed persistent data directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-1rHzd6/data
++
++ == Install summary ==
++ Operation: Upgrade existing deployment
++ Install scope: CPAMP only
++ Deployment: Native binary
++ Directory: C:\Users\will\AppData\Local\Temp\cpamp-installer-1rHzd6
++ Public CPAMP port: 18317
++ CPAMP version: vnext
++ CPA connection: import once into encrypted SQLite storage and skip first setup
++ CPA URL: http://127.0.0.1:8317
++
++ Native install supports Linux and macOS in this script.
++
+
+ ❯ tests/installerScript.test.mjs:6616:38
+    6614|
+    6615|       expect(result.status).toBe(1);
+    6616|       expect(combinedOutput(result)).toContain('CPA connection validat…
+       |                                      ^
+    6617|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+    6618|       expect(readFileSync(legacy.dataKeyPath, 'utf8')).toBe('existing-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[67/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > self-heals #782 legacy layout so subsequent upgrade uses explicit launcher authority without fallback
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:6657:34
+    6655|         encoding: 'utf8',
+    6656|       });
+    6657|       expect(firstResult.status).toBe(0);
+       |                                  ^
+    6658|       expect(combinedOutput(firstResult)).toContain('Detected a legacy…
+    6659|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[68/70]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > accepts positional "update" argument for non-interactive native upgrade
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:6720:29
+    6718|       });
+    6719|
+    6720|       expect(result.status).toBe(0);
+       |                             ^
+    6721|       expect(combinedOutput(result)).not.toContain('noninteractive_exi…
+    6722|       expect(readFileSync(commandLog, 'utf8')).toContain(`--db-path ${…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[69/70]⎯
+
+
+ Test Files  1 failed | 24 passed (25)
+      Tests  70 failed | 499 passed (569)
+   Start at  10:51:43
+   Duration  293.80s (transform 2.14s, setup 0ms, import 4.19s, tests 310.57s, environment 5ms)

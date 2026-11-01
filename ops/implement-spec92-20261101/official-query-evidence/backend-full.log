@@ -1,0 +1,1712 @@
+--- FAIL: TestCodexLegacyIdentityBackfillServesHTTPBeforeCompletionAndResumes (9.92s)
+    codex_legacy_identity_test.go:65: signal manager server helper: not supported by windows
+    codex_legacy_identity_test.go:52: signal manager server helper: not supported by windows
+    testing.go:1617: TempDir RemoveAll cleanup: unlinkat C:\Users\will\AppData\Local\Temp\TestCodexLegacyIdentityBackfillServesHTTPBeforeCompletionAndResu2056492090\001\usage.sqlite: The process cannot access the file because it is being used by another process.
+2026/11/01 10:42:21 usage response metadata backfill failed; will retry: temporary backfill failure
+2026/11/01 10:42:21 usage response metadata backfill failed; will retry: temporary backfill failure
+2026/11/01 10:42:21 shutdown codex inspection worker: context deadline exceeded; continuing bounded process shutdown
+--- FAIL: TestLargeDerivedMigrationServesHTTPAndResumesAfterRestart (160.98s)
+    main_test.go:340: signal manager server helper: not supported by windows
+    main_test.go:327: signal manager server helper: not supported by windows
+    testing.go:1617: TempDir RemoveAll cleanup: unlinkat C:\Users\will\AppData\Local\Temp\TestLargeDerivedMigrationServesHTTPAndResumesAfterRestart3576278962\001\usage.sqlite: The process cannot access the file because it is being used by another process.
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/cmd/cpa-manager-plus	172.502s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/app	12.838s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance	1.454s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/buildinfo	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/codexquota	1.340s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector	125.019s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/command/adminreset	11.294s
+--- FAIL: TestRunStoresFreshConnectionEncryptedWithoutLeakingSecret (4.44s)
+    command_test.go:51: data key mode = 666
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/command/cpaconnection	121.363s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/command/derivedmaintenance	28.525s
+--- FAIL: TestRunCreateRestoreAndDelete (0.95s)
+    command_test.go:30: snapshot directory info=&{.cpamp-manager-snapshot-test 16 {2584935510 31287722} {2591086040 31287722} {2591086040 31287722} 0 4096 0 0 {{} {0 0}} C:\Users\will\AppData\Local\Temp\TestRunCreateRestoreAndDelete3538350348\001\.cpamp-manager-snapshot-test 0 0 0 false} err=<nil>
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/command/managerdatasnapshot	8.231s
+--- FAIL: TestRunRemovesOnlyLegacyConnectionFields (1.02s)
+    command_test.go:53: output mode=-rw-rw-rw- err=<nil>
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/command/runtimeconfig	2.991s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/command/usagecompact	35.741s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/config	2.572s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/accountaction	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/apikeyalias	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/automation	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/codexinspection	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/dashboard	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/health	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/managerconfig	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/modelprice	26.816s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/monitoring	25.369s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/officialbalance	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/panel	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/providerkeyalias	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/proxy	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/quotacooldown	1.250s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/quotasnapshot	7.392s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/resourcecapability	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/setup	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/system	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/updatecheck	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/usage	21.008s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/middleware	1.340s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/response	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/router	[no test files]
+2026/11/01 10:42:25 http GET /v0/management/codex-inspection/runs status=200 duration=46.3522ms remote=192.0.2.1:1234
+2026/11/01 10:42:31 http GET /v0/management/codex-inspection/runs status=200 duration=532.5µs remote=192.0.2.1:1234
+2026/11/01 10:42:35 http POST /v0/management/codex-inspection/run status=200 duration=2.1387ms remote=192.0.2.1:1234
+2026/11/01 10:42:35 http POST /v0/management/codex-inspection/runs/1/cancel status=200 duration=38.8025ms remote=192.0.2.1:1234
+2026/11/01 10:42:35 http GET /v0/management/codex-inspection/runs/1 status=200 duration=522.7µs remote=192.0.2.1:1234
+2026/11/01 10:42:35 http GET /v0/management/codex-inspection/runs/1 status=200 duration=1.0415ms remote=192.0.2.1:1234
+2026/11/01 10:42:35 http GET /v0/management/codex-inspection/runs/1 status=200 duration=529.5µs remote=192.0.2.1:1234
+2026/11/01 10:42:35 http GET /v0/management/codex-inspection/runs/1 status=200 duration=531.5µs remote=192.0.2.1:1234
+2026/11/01 10:42:35 http GET /v0/management/codex-inspection/runs/1 status=200 duration=524.9µs remote=192.0.2.1:1234
+2026/11/01 10:42:35 http GET /v0/management/codex-inspection/runs/1 status=200 duration=564µs remote=192.0.2.1:1234
+2026/11/01 10:42:35 http GET /v0/management/codex-inspection/runs/1 status=200 duration=505.5µs remote=192.0.2.1:1234
+2026/11/01 10:42:35 http GET /v0/management/codex-inspection/runs/1 status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:35 http GET /v0/management/codex-inspection/runs/1 status=200 duration=523.6µs remote=192.0.2.1:1234
+2026/11/01 10:42:35 http POST /v0/management/codex-inspection/runs/1/cancel status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:35 http POST /v0/management/codex-inspection/runs/999999/cancel status=404 duration=511.8µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http POST /v0/management/codex-inspection/run status=200 duration=47.0969ms remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=537.7µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=516.3µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=525.1µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=519.1µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=504.9µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=521.7µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=643µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=523.3µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=541.7µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=535µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=531.8µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=1.0459ms remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=617.9µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=518.1µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=2.7324ms remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=507µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=522µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=519.8µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=374.6µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=2.5602ms remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=517.8µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=547.7µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http GET /v0/management/codex-inspection/runs/1 status=200 duration=517.7µs remote=192.0.2.1:1234
+2026/11/01 10:42:40 http POST /v0/management/codex-inspection/runs/1/cancel status=409 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:40 http POST /v0/management/codex-inspection/runs/1/actions status=200 duration=145.1091ms remote=192.0.2.1:1234
+2026/11/01 10:42:43 http POST /v0/management/codex-inspection/run status=412 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:42:47 http PUT /usage-service/official-balance status=200 duration=25.8821ms remote=192.0.2.1:1234
+2026/11/01 10:42:47 http PUT /usage-service/official-balance status=409 duration=1.5928ms remote=192.0.2.1:1234
+2026/11/01 10:42:49 http PUT /usage-service/official-balance status=200 duration=27.7443ms remote=192.0.2.1:1234
+2026/11/01 10:42:49 http POST /usage-service/official-balance status=202 duration=31.857ms remote=192.0.2.1:1234
+2026/11/01 10:42:49 http GET /usage-service/official-balance status=200 duration=26.498ms remote=192.0.2.1:1234
+2026/11/01 10:42:49 http GET /usage-service/official-balance status=200 duration=541.3µs remote=192.0.2.1:1234
+2026/11/01 10:42:52 http PUT /usage-service/official-balance status=200 duration=104.7209ms remote=192.0.2.1:1234
+2026/11/01 10:42:52 http POST /usage-service/official-balance status=202 duration=80.5039ms remote=192.0.2.1:1234
+2026/11/01 10:42:53 http GET /usage-service/official-balance status=200 duration=187.0763ms remote=192.0.2.1:1234
+2026/11/01 10:42:53 http POST /usage-service/official-balance status=202 duration=7.3855ms remote=192.0.2.1:1234
+2026/11/01 10:42:53 http GET /usage-service/official-balance status=200 duration=13.9243ms remote=192.0.2.1:1234
+2026/11/01 10:42:53 http GET /usage-service/official-balance status=200 duration=1.558ms remote=192.0.2.1:1234
+2026/11/01 10:42:53 http GET /usage-service/official-balance status=200 duration=1.6253ms remote=192.0.2.1:1234
+2026/11/01 10:42:53 http GET /usage-service/official-balance status=200 duration=2.1539ms remote=192.0.2.1:1234
+2026/11/01 10:42:53 http GET /usage-service/official-balance status=200 duration=1.0456ms remote=192.0.2.1:1234
+2026/11/01 10:42:53 http GET /usage-service/official-balance status=200 duration=8.3675ms remote=192.0.2.1:1234
+--- FAIL: TestOfficialBalanceTimeoutRetainsLastSuccess (4.54s)
+    official_balance_test.go:259: failed attempt lost or replaced last success: {"id":"e9cab45e-6915-495f-a3bd-3864e1010b44","state":"interrupted","binding":{"scope":{"instance_id":"11111111-1111-4111-8111-111111111111","instance_incarnation":"22222222-2222-4222-8222-222222222222","boot_epoch":"33333333-3333-4333-8333-333333333333","snapshot_revision":7},"targets":[{"resource_id":"44444444-4444-4444-8444-444444444444","incarnation":"55555555-5555-4555-8555-555555555555","identity_version":2,"credential_version":3,"config_version":4,"membership_version":0}]},"version":1}
+2026/11/01 10:42:57 http PUT /usage-service/official-balance status=200 duration=29.4355ms remote=192.0.2.1:1234
+2026/11/01 10:42:57 http POST /usage-service/official-balance status=202 duration=15.7875ms remote=192.0.2.1:1234
+2026/11/01 10:42:58 http GET /usage-service/official-balance status=200 duration=1.2625898s remote=192.0.2.1:1234
+2026/11/01 10:42:58 http POST /usage-service/official-balance status=202 duration=18.9938ms remote=192.0.2.1:1234
+2026/11/01 10:42:58 http GET /usage-service/official-balance status=200 duration=2.3687ms remote=192.0.2.1:1234
+2026/11/01 10:42:58 http GET /usage-service/official-balance status=200 duration=9.5005ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=220.7661ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http POST /usage-service/official-balance status=202 duration=25.5556ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=1.5704ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=1.5781ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=49.7519ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http POST /usage-service/official-balance status=202 duration=27.7594ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=1.7471ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=112.1728ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http POST /usage-service/official-balance status=202 duration=29.3039ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=21.0916ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=98.184ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http POST /usage-service/official-balance status=202 duration=37.5176ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=1.053ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=1.1921ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=91.3185ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http POST /usage-service/official-balance status=202 duration=46.7453ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=1.589ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=74.8592ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http POST /usage-service/official-balance status=202 duration=40.5194ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=1.5749ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=1.5774ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=67.6975ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http POST /usage-service/official-balance status=202 duration=41.5333ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=2.431ms remote=192.0.2.1:1234
+2026/11/01 10:42:59 http GET /usage-service/official-balance status=200 duration=71.6422ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http POST /usage-service/official-balance status=202 duration=60.6811ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http GET /usage-service/official-balance status=200 duration=2.6628ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http GET /usage-service/official-balance status=200 duration=101.3047ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http POST /usage-service/official-balance status=202 duration=45.9215ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http GET /usage-service/official-balance status=200 duration=1.619ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http GET /usage-service/official-balance status=200 duration=1.0598ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http GET /usage-service/official-balance status=200 duration=1.6455ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http GET /usage-service/official-balance status=200 duration=103.806ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http POST /usage-service/official-balance status=202 duration=46.3561ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http GET /usage-service/official-balance status=200 duration=1.5569ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http GET /usage-service/official-balance status=200 duration=88.0865ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http GET /usage-service/official-balance status=200 duration=1.0509ms remote=192.0.2.1:1234
+2026/11/01 10:43:00 http GET /usage-service/official-balance status=200 duration=532.7µs remote=192.0.2.1:1234
+2026/11/01 10:43:07 http PUT /usage-service/official-balance status=200 duration=57.0392ms remote=192.0.2.1:1234
+2026/11/01 10:43:07 http GET /usage-service/official-balance status=401 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:43:07 http PUT /usage-service/official-balance status=401 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:43:07 http POST /usage-service/official-balance status=401 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:43:07 http PUT /usage-service/official-balance status=200 duration=61.7015ms remote=192.0.2.1:1234
+2026/11/01 10:43:07 http PUT /usage-service/official-balance status=409 duration=1.2605ms remote=192.0.2.1:1234
+2026/11/01 10:43:07 http PUT /usage-service/official-balance status=200 duration=60.8853ms remote=192.0.2.1:1234
+2026/11/01 10:43:12 http PUT /usage-service/official-balance status=200 duration=29.8325ms remote=192.0.2.1:1234
+2026/11/01 10:43:12 http POST /usage-service/official-balance status=202 duration=77.9246ms remote=192.0.2.1:1234
+2026/11/01 10:43:12 http POST /usage-service/official-balance status=202 duration=14.7667ms remote=192.0.2.1:1234
+2026/11/01 10:43:12 http PUT /usage-service/official-balance status=200 duration=31.2013ms remote=192.0.2.1:1234
+2026/11/01 10:43:12 http GET /usage-service/official-balance status=409 duration=1.0392ms remote=192.0.2.1:1234
+2026/11/01 10:43:12 http GET /usage-service/official-balance status=200 duration=521.3µs remote=192.0.2.1:1234
+2026/11/01 10:43:19 http PUT /usage-service/official-balance status=200 duration=62.8796ms remote=192.0.2.1:1234
+2026/11/01 10:43:19 http POST /usage-service/official-balance status=202 duration=91.6475ms remote=192.0.2.1:1234
+2026/11/01 10:43:19 http GET /usage-service/official-balance status=409 duration=40.2554ms remote=192.0.2.1:1234
+2026/11/01 10:43:19 http GET /usage-service/official-balance status=409 duration=514.9µs remote=192.0.2.1:1234
+2026/11/01 10:43:25 http PUT /usage-service/official-balance status=400 duration=533.8µs remote=192.0.2.1:1234
+2026/11/01 10:43:31 http PUT /usage-service/official-balance status=200 duration=44.5665ms remote=192.0.2.1:1234
+2026/11/01 10:43:31 http POST /usage-service/official-balance status=202 duration=46.7225ms remote=192.0.2.1:1234
+2026/11/01 10:43:32 http GET /usage-service/official-balance status=200 duration=94.4035ms remote=192.0.2.1:1234
+2026/11/01 10:43:39 http PUT /usage-service/official-balance status=200 duration=45.3686ms remote=192.0.2.1:1234
+2026/11/01 10:43:39 http POST /usage-service/official-balance status=202 duration=45.8153ms remote=192.0.2.1:1234
+2026/11/01 10:43:39 http GET /usage-service/official-balance status=200 duration=61.3119ms remote=192.0.2.1:1234
+2026/11/01 10:43:44 http PUT /usage-service/official-balance status=200 duration=25.2757ms remote=192.0.2.1:1234
+2026/11/01 10:43:45 http POST /usage-service/official-balance status=202 duration=46.6277ms remote=192.0.2.1:1234
+2026/11/01 10:43:45 http GET /usage-service/official-balance status=200 duration=66.9311ms remote=192.0.2.1:1234
+2026/11/01 10:43:50 http PUT /usage-service/official-balance status=200 duration=24.7685ms remote=192.0.2.1:1234
+2026/11/01 10:43:50 http POST /usage-service/official-balance status=202 duration=44.7443ms remote=192.0.2.1:1234
+2026/11/01 10:43:50 http: TLS handshake error from 127.0.0.1:8401: remote error: tls: bad certificate
+2026/11/01 10:43:50 http GET /usage-service/official-balance status=200 duration=94.2427ms remote=192.0.2.1:1234
+2026/11/01 10:43:55 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:44:01 http PUT /usage-service/official-balance status=200 duration=60.6629ms remote=192.0.2.1:1234
+2026/11/01 10:44:01 http POST /usage-service/official-balance status=202 duration=62.8791ms remote=192.0.2.1:1234
+2026/11/01 10:44:01 http GET /usage-service/official-balance status=200 duration=75.0248ms remote=192.0.2.1:1234
+2026/11/01 10:44:07 http PUT /usage-service/official-balance status=200 duration=71.2065ms remote=192.0.2.1:1234
+2026/11/01 10:44:07 http POST /usage-service/official-balance status=202 duration=63.7625ms remote=192.0.2.1:1234
+2026/11/01 10:44:07 http GET /usage-service/official-balance status=200 duration=92.1148ms remote=192.0.2.1:1234
+2026/11/01 10:44:12 http PUT /usage-service/official-balance status=200 duration=45.7591ms remote=192.0.2.1:1234
+2026/11/01 10:44:13 http POST /usage-service/official-balance status=202 duration=49.034ms remote=192.0.2.1:1234
+2026/11/01 10:44:13 http GET /usage-service/official-balance status=200 duration=84.0949ms remote=192.0.2.1:1234
+2026/11/01 10:44:17 http PUT /usage-service/official-balance status=409 duration=1.0599ms remote=192.0.2.1:1234
+2026/11/01 10:44:22 http PUT /usage-service/official-balance status=200 duration=12.541ms remote=192.0.2.1:1234
+2026/11/01 10:44:22 http POST /usage-service/official-balance status=202 duration=14.3575ms remote=192.0.2.1:1234
+2026/11/01 10:44:22 http GET /usage-service/official-balance status=200 duration=76.4427ms remote=192.0.2.1:1234
+2026/11/01 10:44:27 http PUT /usage-service/official-balance status=200 duration=28.832ms remote=192.0.2.1:1234
+2026/11/01 10:44:27 http POST /usage-service/official-balance status=202 duration=45.3737ms remote=192.0.2.1:1234
+2026/11/01 10:44:27 http GET /usage-service/official-balance status=200 duration=100.8675ms remote=192.0.2.1:1234
+2026/11/01 10:44:27 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:44:32 http PUT /usage-service/official-balance status=200 duration=45.6371ms remote=192.0.2.1:1234
+2026/11/01 10:44:32 http POST /usage-service/official-balance status=202 duration=32.289ms remote=192.0.2.1:1234
+2026/11/01 10:44:32 http GET /usage-service/official-balance status=200 duration=93.3137ms remote=192.0.2.1:1234
+2026/11/01 10:44:32 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:44:36 http PUT /usage-service/official-balance status=200 duration=72.884ms remote=192.0.2.1:1234
+2026/11/01 10:44:37 http POST /usage-service/official-balance status=202 duration=61.5866ms remote=192.0.2.1:1234
+2026/11/01 10:44:37 http GET /usage-service/official-balance status=200 duration=136.9443ms remote=192.0.2.1:1234
+2026/11/01 10:44:37 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:44:41 http PUT /usage-service/official-balance status=200 duration=28.1854ms remote=192.0.2.1:1234
+2026/11/01 10:44:41 http POST /usage-service/official-balance status=202 duration=30.9288ms remote=192.0.2.1:1234
+2026/11/01 10:44:42 http GET /usage-service/official-balance status=200 duration=202.9099ms remote=192.0.2.1:1234
+2026/11/01 10:44:42 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:44:45 http PUT /usage-service/official-balance status=200 duration=25.7066ms remote=192.0.2.1:1234
+2026/11/01 10:44:45 http POST /usage-service/official-balance status=202 duration=60.5371ms remote=192.0.2.1:1234
+2026/11/01 10:44:45 http GET /usage-service/official-balance status=200 duration=51.0278ms remote=192.0.2.1:1234
+2026/11/01 10:44:45 http PUT /usage-service/official-balance status=400 duration=569.5µs remote=192.0.2.1:1234
+2026/11/01 10:44:49 http PUT /usage-service/official-balance status=200 duration=59.9707ms remote=192.0.2.1:1234
+2026/11/01 10:44:49 http POST /usage-service/official-balance status=202 duration=31.1305ms remote=192.0.2.1:1234
+2026/11/01 10:44:49 http GET /usage-service/official-balance status=200 duration=62.7173ms remote=192.0.2.1:1234
+2026/11/01 10:44:49 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:44:53 http PUT /usage-service/official-balance status=200 duration=44.116ms remote=192.0.2.1:1234
+2026/11/01 10:44:53 http POST /usage-service/official-balance status=202 duration=71.3052ms remote=192.0.2.1:1234
+2026/11/01 10:44:54 http GET /usage-service/official-balance status=200 duration=135.1479ms remote=192.0.2.1:1234
+2026/11/01 10:44:54 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:44:59 http PUT /usage-service/official-balance status=200 duration=40.9185ms remote=192.0.2.1:1234
+2026/11/01 10:44:59 http POST /usage-service/official-balance status=202 duration=75.8276ms remote=192.0.2.1:1234
+2026/11/01 10:44:59 http GET /usage-service/official-balance status=200 duration=65.7588ms remote=192.0.2.1:1234
+2026/11/01 10:44:59 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:45:04 http PUT /usage-service/official-balance status=200 duration=43.564ms remote=192.0.2.1:1234
+2026/11/01 10:45:04 http POST /usage-service/official-balance status=202 duration=45.6273ms remote=192.0.2.1:1234
+2026/11/01 10:45:04 http GET /usage-service/official-balance status=200 duration=193.7443ms remote=192.0.2.1:1234
+2026/11/01 10:45:04 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:45:09 http PUT /usage-service/official-balance status=200 duration=46.3553ms remote=192.0.2.1:1234
+2026/11/01 10:45:09 http POST /usage-service/official-balance status=202 duration=47.8008ms remote=192.0.2.1:1234
+2026/11/01 10:45:09 http GET /usage-service/official-balance status=200 duration=127.343ms remote=192.0.2.1:1234
+2026/11/01 10:45:15 http PUT /usage-service/official-balance status=200 duration=71.9759ms remote=192.0.2.1:1234
+2026/11/01 10:45:15 http POST /usage-service/official-balance status=202 duration=77.2956ms remote=192.0.2.1:1234
+2026/11/01 10:45:15 http GET /usage-service/official-balance status=200 duration=140.6678ms remote=192.0.2.1:1234
+2026/11/01 10:45:15 http GET /usage-service/official-balance status=200 duration=1.0467ms remote=192.0.2.1:1234
+2026/11/01 10:45:15 http GET /usage-service/official-balance status=409 duration=527.9µs remote=192.0.2.1:1234
+2026/11/01 10:45:15 http POST /usage-service/official-balance status=202 duration=57.9965ms remote=192.0.2.1:1234
+2026/11/01 10:45:15 http GET /usage-service/official-balance status=200 duration=4.2393ms remote=192.0.2.1:1234
+2026/11/01 10:45:16 http GET /usage-service/official-balance status=200 duration=101.2257ms remote=192.0.2.1:1234
+2026/11/01 10:45:22 http PUT /usage-service/official-balance status=200 duration=53.2757ms remote=192.0.2.1:1234
+2026/11/01 10:45:28 http PUT /usage-service/official-balance status=200 duration=46.0235ms remote=192.0.2.1:1234
+2026/11/01 10:45:28 http POST /usage-service/official-balance status=202 duration=46.1532ms remote=192.0.2.1:1234
+2026/11/01 10:45:28 http POST /usage-service/official-balance status=202 duration=54.799ms remote=192.0.2.1:1234
+2026/11/01 10:45:29 http GET /usage-service/official-balance status=200 duration=99.5467ms remote=192.0.2.1:1234
+2026/11/01 10:45:29 http GET /usage-service/official-balance status=409 duration=1.5987ms remote=192.0.2.1:1234
+2026/11/01 10:45:29 http GET /usage-service/official-balance status=200 duration=2.2149ms remote=192.0.2.1:1234
+2026/11/01 10:45:34 http PUT /usage-service/official-balance status=200 duration=61.3847ms remote=192.0.2.1:1234
+2026/11/01 10:45:34 http GET /usage-service/official-balance status=200 duration=2.898ms remote=192.0.2.1:1234
+2026/11/01 10:45:34 http GET /usage-service/official-balance status=409 duration=1.0548ms remote=192.0.2.1:1234
+2026/11/01 10:45:40 http PUT /usage-service/official-balance status=200 duration=60.8865ms remote=192.0.2.1:1234
+2026/11/01 10:45:40 http GET /usage-service/official-balance status=200 duration=1.2673ms remote=192.0.2.1:1234
+2026/11/01 10:45:40 http GET /usage-service/official-balance status=409 duration=1.136ms remote=192.0.2.1:1234
+2026/11/01 10:45:44 http PUT /usage-service/official-balance status=200 duration=61.6313ms remote=192.0.2.1:1234
+2026/11/01 10:45:44 http GET /usage-service/official-balance status=200 duration=505.7µs remote=192.0.2.1:1234
+2026/11/01 10:45:44 http GET /usage-service/official-balance status=409 duration=2.9086ms remote=192.0.2.1:1234
+2026/11/01 10:45:48 http PUT /usage-service/official-balance status=200 duration=56.9535ms remote=192.0.2.1:1234
+2026/11/01 10:45:48 http GET /usage-service/official-balance status=200 duration=1.5912ms remote=192.0.2.1:1234
+2026/11/01 10:45:48 http GET /usage-service/official-balance status=409 duration=538.8µs remote=192.0.2.1:1234
+2026/11/01 10:45:53 http PUT /usage-service/official-balance status=200 duration=30.0536ms remote=192.0.2.1:1234
+2026/11/01 10:45:53 http GET /usage-service/official-balance status=200 duration=1.0504ms remote=192.0.2.1:1234
+2026/11/01 10:45:53 http GET /usage-service/official-balance status=409 duration=1.0383ms remote=192.0.2.1:1234
+2026/11/01 10:45:58 http PUT /usage-service/official-balance status=200 duration=42.2464ms remote=192.0.2.1:1234
+2026/11/01 10:45:58 http GET /usage-service/official-balance status=200 duration=1.0533ms remote=192.0.2.1:1234
+2026/11/01 10:45:58 http GET /usage-service/official-balance status=409 duration=567.7µs remote=192.0.2.1:1234
+2026/11/01 10:46:04 http PUT /usage-service/official-balance status=200 duration=60.607ms remote=192.0.2.1:1234
+2026/11/01 10:46:04 http GET /usage-service/official-balance status=200 duration=525µs remote=192.0.2.1:1234
+2026/11/01 10:46:04 http GET /usage-service/official-balance status=409 duration=1.044ms remote=192.0.2.1:1234
+2026/11/01 10:46:10 http PUT /usage-service/official-balance status=200 duration=52.5823ms remote=192.0.2.1:1234
+2026/11/01 10:46:10 http POST /usage-service/official-balance status=202 duration=63.0042ms remote=192.0.2.1:1234
+2026/11/01 10:46:10 http GET /usage-service/official-balance status=200 duration=93.7837ms remote=192.0.2.1:1234
+2026/11/01 10:46:15 http PUT /usage-service/official-balance status=200 duration=53.9646ms remote=192.0.2.1:1234
+2026/11/01 10:46:15 http POST /usage-service/official-balance status=202 duration=77.1601ms remote=192.0.2.1:1234
+2026/11/01 10:46:15 http GET /usage-service/official-balance status=200 duration=92.3074ms remote=192.0.2.1:1234
+2026/11/01 10:46:20 http PUT /usage-service/official-balance status=200 duration=30.5187ms remote=192.0.2.1:1234
+2026/11/01 10:46:20 http POST /usage-service/official-balance status=202 duration=60.5227ms remote=192.0.2.1:1234
+2026/11/01 10:46:20 http GET /usage-service/official-balance status=200 duration=95.3961ms remote=192.0.2.1:1234
+panic: test timed out after 4m0s
+	running tests:
+		TestOfficialBalanceConnectionRefusedKeepsSuccess (1s)
+
+goroutine 7418 [running]:
+testing.(*M).startAlarm.func1()
+	C:/Program Files/Go/src/testing/testing.go:2959 +0x34a
+created by time.goFunc
+	C:/Program Files/Go/src/time/sleep.go:182 +0x2d
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0x2d515a5be400, {0x7ff66850869d?, 0x2d515a81faa8?}, 0x7ff668cd3a88)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+testing.runTests.func1(0x2d515a5be400)
+	C:/Program Files/Go/src/testing/testing.go:2742 +0x37
+testing.tRunner(0x2d515a5be400, 0x2d515a81fbc8)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+testing.runTests({0x7ff66850d36e, 0x36}, {0x7ff6685171bc, 0x47}, 0x2d515a5c62a0, {0x7ff668d4ebf0, 0x5f, 0x5f}, {0xc2b1c7df743f0e74, 0x37e16f6fd1, ...})
+	C:/Program Files/Go/src/testing/testing.go:2740 +0x505
+testing.(*M).Run(0x2d515a772c80)
+	C:/Program Files/Go/src/testing/testing.go:2600 +0x6af
+main.main()
+	_testmain.go:234 +0x9b
+
+goroutine 7370 [syscall]:
+syscall.syscalln(0x0?, 0x0?, {0x2d515ab64350?, 0x2d515ab64350?, 0x0?})
+	C:/Program Files/Go/src/runtime/syscall_windows.go:427 +0x48
+syscall.SyscallN(0x2d515ab64350?, {0x2d515ab64350?, 0x7ff668ccdf40?, 0x2d515ab64318?})
+	C:/Program Files/Go/src/syscall/dll_windows.go:99 +0x1e
+golang.org/x/sys/windows.FlushFileBuffers(0x608)
+	C:/Users/will/go/pkg/mod/golang.org/x/sys@v0.44.0/windows/zsyscall_windows.go:2199 +0x56
+modernc.org/libc.XFlushFileBuffers(0x2d515a972340, 0x1fb5b8db490?)
+	C:/Users/will/go/pkg/mod/modernc.org/libc@v1.67.6/libc_windows.go:2658 +0x1b
+modernc.org/sqlite/lib._winSync(0x2d515a972340, 0x1fb5bb70270, 0x5ab643d0?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:96391 +0x56
+modernc.org/sqlite/lib._sqlite3OsSync(0x2d515a972340?, 0x1fb5bb70270?, 0x5b8db470?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:31101 +0x25
+modernc.org/sqlite/lib._syncJournal(0x2d515a972340, 0x1fb5bb70028, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:106827 +0x28b
+modernc.org/sqlite/lib._sqlite3PagerCommitPhaseOne(0x2d515a972340, 0x1fb5bb70028, 0x0, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:108824 +0x208
+modernc.org/sqlite/lib._sqlite3BtreeCommitPhaseOne(0x2d515a972340, 0x1fb5b8a63a8, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:118499 +0xc8
+modernc.org/sqlite/lib._vdbeCommit(0x2d515a972340, 0x1fb5b879428, 0x1fb5b8e4c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:130709 +0xdb2
+modernc.org/sqlite/lib._sqlite3VdbeHalt(0x2d515a972340, 0x1fb5b8e4c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:131128 +0x2b1
+modernc.org/sqlite/lib._sqlite3VdbeExec(0x2d515a972340, 0x1fb5b8e4c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:137225 +0x4f28
+modernc.org/sqlite/lib._sqlite3Step(0x2d515a972340, 0x1fb5b8e4c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133877 +0x6c
+modernc.org/sqlite/lib.Xsqlite3_step(0x2d515a972340, 0x1fb5b8e4c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133940 +0xab
+modernc.org/sqlite.(*conn).step(0x2d515ab9a690, 0x1fb5b8e4c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:247 +0x31
+modernc.org/sqlite.(*stmt).exec.func2(0x2d515a8164f8, {0x7ff668d9ea80?, 0x1fb5b8b9240?, 0x1fb5b8bfb20?}, 0x2d515ab64fc0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:149 +0xef
+modernc.org/sqlite.(*stmt).exec(0x2d515a8164f8, {0x7ff668cd1ca8, 0x7ff668d9ea80}, {0x7ff668d9ea80, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:162 +0x1ae
+modernc.org/sqlite.(*conn).exec(0x0?, {0x7ff668cd1ca8, 0x7ff668d9ea80}, {0x7ff668528548?, 0x38?}, {0x7ff668d9ea80, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:814 +0xf6
+modernc.org/sqlite.(*conn).ExecContext(0x2d515ad80510?, {0x7ff668cd1ca8?, 0x7ff668d9ea80?}, {0x7ff668528548?, 0x2d515ab651b0?}, {0x7ff668d9ea80?, 0x2d515ab651b0?, 0x7ff668189122?})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:1060 +0x27
+database/sql.ctxDriverExec({0x7ff668cd1ca8?, 0x7ff668d9ea80?}, {0x1fb5b6c1600?, 0x2d515ab9a690?}, {0x0?, 0x0?}, {0x7ff668528548?, 0x0?}, {0x7ff668d9ea80, 0x0, ...})
+	C:/Program Files/Go/src/database/sql/ctxutil.go:31 +0xbf
+database/sql.(*DB).execDC.func2()
+	C:/Program Files/Go/src/database/sql/sql.go:1718 +0x15c
+database/sql.withLock({0x7ff668cd07a8, 0x2d515a760400}, 0x2d515ab65408)
+	C:/Program Files/Go/src/database/sql/sql.go:3615 +0x71
+database/sql.(*DB).execDC(0x7ff66856eb01?, {0x7ff668cd1ca8, 0x7ff668d9ea80}, 0x2d515a760400, 0x7ff66856ebb0?, {0x7ff668528548, 0xf9}, {0x0, 0x0, 0x0})
+	C:/Program Files/Go/src/database/sql/sql.go:1713 +0x1f6
+database/sql.(*DB).exec(0x2d515a972270, {0x7ff668cd1ca8, 0x7ff668d9ea80}, {0x7ff668528548, 0xf9}, {0x0, 0x0, 0x0}, 0x1f?)
+	C:/Program Files/Go/src/database/sql/sql.go:1698 +0xcf
+database/sql.(*DB).ExecContext.func1(0x40?)
+	C:/Program Files/Go/src/database/sql/sql.go:1677 +0x4f
+database/sql.(*DB).retry(0x2d515ab655f8?, 0x2d515ab655f8)
+	C:/Program Files/Go/src/database/sql/sql.go:1581 +0x42
+database/sql.(*DB).ExecContext(0x7ff66852cc45?, {0x7ff668cd1ca8?, 0x7ff668d9ea80?}, {0x7ff668528548?, 0x1?}, {0x0?, 0x2d515ab656c8?, 0x2d515ab656c0?})
+	C:/Program Files/Go/src/database/sql/sql.go:1676 +0x9b
+database/sql.(*DB).Exec(...)
+	C:/Program Files/Go/src/database/sql/sql.go:1690
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Migrate(0x2d515a972270)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/migrate.go:1053 +0x293
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.OpenWithOptions({{0x2d515a982240, 0x6c}, 0x0, 0x0, 0x0})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:35 +0xf8
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Open(...)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:17
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store.Open({0x2d515a982240?, 0x20?}, {0x2d515ab65ef0, 0x1, 0x1})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/store/store.go:173 +0x2e
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi.newOfficialFixture(0x2d515a5be200)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/httpapi/official_balance_test.go:202 +0x371
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi.TestOfficialBalanceConnectionRefusedKeepsSuccess(0x2d515a5be200)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/httpapi/official_balance_test.go:718 +0x1c
+testing.tRunner(0x2d515a5be200, 0x7ff668cd3a88)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 1
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+
+goroutine 7371 [IO wait]:
+internal/poll.runtime_pollWait(0x1fb5bf85000, 0x72)
+	C:/Program Files/Go/src/runtime/netpoll.go:351 +0x85
+internal/poll.(*pollDesc).wait(0x74?, 0x2d515ad2a030?, 0x0)
+	C:/Program Files/Go/src/internal/poll/fd_poll_runtime.go:84 +0x27
+internal/poll.(*FD).waitIO(0x2d515a91e000, 0x2d515a9ad5f0)
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:233 +0x3d
+internal/poll.(*FD).execIO(0x2d515a91e000, 0x72, 0x2d515ac43bd0, {0x0, 0x0, 0x7ff600000000?})
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:310 +0x27e
+internal/poll.(*FD).acceptOne(0x2d515a91e000, 0x5a0, {0x2d515a86a000?, 0xc8?, 0x7ff668c558d8?})
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:1111 +0x85
+internal/poll.(*FD).Accept(0x2d515a91e000, 0x2d515ac43db8)
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:1146 +0x18d
+net.(*netFD).accept(0x2d515a91e000)
+	C:/Program Files/Go/src/net/fd_windows.go:201 +0x4b
+net.(*TCPListener).accept(0x2d515a7ac300)
+	C:/Program Files/Go/src/net/tcpsock_posix.go:159 +0x1b
+net.(*TCPListener).Accept(0x2d515a7ac300)
+	C:/Program Files/Go/src/net/tcpsock.go:387 +0x30
+net/http.(*Server).Serve(0x2d515ac0cdc0, {0x7ff668cd18e0, 0x2d515a7ac300})
+	C:/Program Files/Go/src/net/http/server.go:3551 +0x379
+net/http/httptest.(*Server).goServe.func1()
+	C:/Program Files/Go/src/net/http/httptest/server.go:586 +0x55
+created by net/http/httptest.(*Server).goServe in goroutine 7370
+	C:/Program Files/Go/src/net/http/httptest/server.go:584 +0x92
+
+goroutine 7372 [IO wait]:
+internal/poll.runtime_pollWait(0x1fb5bb6a600, 0x72)
+	C:/Program Files/Go/src/runtime/netpoll.go:351 +0x85
+internal/poll.(*pollDesc).wait(0x2d5100000074?, 0x7ff668bd9b58?, 0x0)
+	C:/Program Files/Go/src/internal/poll/fd_poll_runtime.go:84 +0x27
+internal/poll.(*FD).waitIO(0x2d515a91e0e0, 0x2d515a8fcdb0)
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:233 +0x3d
+internal/poll.(*FD).execIO(0x2d515a91e0e0, 0x72, 0x2d515aaf3b80, {0x0, 0x0, 0x7ff600000000?})
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:310 +0x27e
+internal/poll.(*FD).acceptOne(0x2d515a91e0e0, 0x3bc, {0x2d515a86a1e0?, 0x2d515a7860e0?, 0x2d515ab882d0?})
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:1111 +0x85
+internal/poll.(*FD).Accept(0x2d515a91e0e0, 0x2d515aaf3d68)
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:1146 +0x18d
+net.(*netFD).accept(0x2d515a91e0e0)
+	C:/Program Files/Go/src/net/fd_windows.go:201 +0x4b
+net.(*TCPListener).accept(0x2d515a7ac380)
+	C:/Program Files/Go/src/net/tcpsock_posix.go:159 +0x1b
+net.(*TCPListener).Accept(0x2d515a7ac380)
+	C:/Program Files/Go/src/net/tcpsock.go:387 +0x30
+crypto/tls.(*listener).Accept(0x2d515a9a84f8)
+	C:/Program Files/Go/src/crypto/tls/tls.go:78 +0x24
+net/http.(*Server).Serve(0x2d515ac0cf00, {0x7ff668cd1820, 0x2d515a9a84f8})
+	C:/Program Files/Go/src/net/http/server.go:3551 +0x379
+net/http/httptest.(*Server).goServe.func1()
+	C:/Program Files/Go/src/net/http/httptest/server.go:586 +0x55
+created by net/http/httptest.(*Server).goServe in goroutine 7370
+	C:/Program Files/Go/src/net/http/httptest/server.go:584 +0x92
+
+goroutine 7373 [select]:
+database/sql.(*DB).connectionOpener(0x2d515a972270, {0x7ff668cd1d50, 0x2d515ab9a640})
+	C:/Program Files/Go/src/database/sql/sql.go:1266 +0x89
+created by database/sql.OpenDB in goroutine 7370
+	C:/Program Files/Go/src/database/sql/sql.go:846 +0x135
+
+goroutine 7374 [select]:
+database/sql.(*DB).connectionCleaner(0x2d515a972270, 0x2d515a9fbfb8?)
+	C:/Program Files/Go/src/database/sql/sql.go:1109 +0x9e
+created by database/sql.(*DB).startCleanerLocked in goroutine 7370
+	C:/Program Files/Go/src/database/sql/sql.go:1096 +0x109
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	240.698s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpqueue	1.662s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/model	1.387s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/processlock	1.035s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/accountaction	47.090s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/apikeyalias	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/codexinspection	204.632s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/codexreset	13.700s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/datamigration	167.990s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/deadletter	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/modelprice	87.203s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/providerkeyalias	14.471s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/quotacooldown	35.085s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/quotasnapshot	75.359s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/setting	2.007s
+2026/11/01 10:44:08 [derived-migration] post-listen index preparation started
+2026/11/01 10:44:08 [derived-migration] creating index idx_usage_events_timestamp
+2026/11/01 10:44:08 [derived-migration] creating index idx_usage_events_ts_latency_ttft_cover
+2026/11/01 10:44:09 [derived-migration] creating index idx_usage_events_request_id
+2026/11/01 10:44:09 [derived-migration] creating index idx_usage_events_model
+2026/11/01 10:44:09 [derived-migration] creating index idx_usage_events_auth_index
+2026/11/01 10:44:09 [derived-migration] creating index idx_usage_events_endpoint
+2026/11/01 10:44:09 [derived-migration] creating index idx_usage_events_header_quota_recover
+2026/11/01 10:44:09 [derived-migration] creating index idx_usage_events_header_error_kind
+2026/11/01 10:44:09 [derived-migration] creating index idx_usage_events_header_trace_id
+2026/11/01 10:44:10 [derived-migration] creating index idx_usage_events_latest_request_auth_file
+2026/11/01 10:44:10 [derived-migration] creating index idx_usage_events_latest_request_source
+2026/11/01 10:44:10 [derived-migration] creating index idx_account_action_candidates_pending_identity_action
+2026/11/01 10:44:10 [derived-migration] creating index idx_account_action_candidates_status_seen
+2026/11/01 10:44:10 [derived-migration] creating index idx_codex_inspection_runs_started_at
+2026/11/01 10:44:10 [derived-migration] creating index idx_codex_inspection_runs_status
+2026/11/01 10:44:11 [derived-migration] creating index idx_codex_inspection_runs_trigger
+2026/11/01 10:44:11 [derived-migration] creating index idx_codex_inspection_leases_expiry
+2026/11/01 10:44:11 [derived-migration] creating index idx_codex_inspection_results_run
+2026/11/01 10:44:11 [derived-migration] creating index idx_codex_inspection_logs_run
+2026/11/01 10:44:11 [derived-migration] creating index idx_quota_cooldowns_due
+2026/11/01 10:44:11 [derived-migration] creating index idx_quota_cooldowns_active_identity
+2026/11/01 10:44:11 [derived-migration] creating index idx_quota_observations_account_time
+2026/11/01 10:44:12 [derived-migration] creating index idx_quota_observations_inventory
+2026/11/01 10:44:12 [derived-migration] creating index idx_quota_observations_lifecycle_watermark
+2026/11/01 10:44:12 [derived-migration] creating index idx_quota_windows_account_state
+2026/11/01 10:44:12 [derived-migration] creating index idx_quota_windows_inventory
+2026/11/01 10:44:12 [derived-migration] creating index idx_quota_activations_active
+2026/11/01 10:44:12 [derived-migration] creating index idx_quota_cycles_active
+2026/11/01 10:44:12 [derived-migration] creating index idx_quota_cycles_history
+2026/11/01 10:44:13 [derived-migration] creating index idx_quota_snapshots_latest
+2026/11/01 10:44:13 [derived-migration] creating index idx_quota_snapshots_observation
+2026/11/01 10:44:13 [derived-migration] creating index idx_quota_snapshots_window_cycle
+2026/11/01 10:44:13 [derived-migration] creating index idx_quota_snapshots_cycle_evidence
+2026/11/01 10:44:13 [derived-migration] creating index idx_quota_snapshots_legacy_migration
+2026/11/01 10:44:13 [derived-migration] creating index idx_usage_account_model_rollups_last_seen
+2026/11/01 10:44:13 [derived-migration] creating index idx_usage_account_model_rollups_auth_index
+2026/11/01 10:44:14 [derived-migration] creating index idx_usage_pricing_hourly_bucket
+2026/11/01 10:44:14 [derived-migration] creating index idx_usage_pricing_account_key
+2026/11/01 10:44:14 [derived-migration] creating index idx_usage_monitoring_account_daily_bucket
+2026/11/01 10:44:14 [derived-migration] creating index idx_usage_monitoring_account_daily_credential_window
+2026/11/01 10:44:14 [derived-migration] creating index idx_usage_monitoring_account_daily_legacy_window
+2026/11/01 10:44:14 [derived-migration] creating index idx_usage_monitoring_api_key_daily_bucket
+2026/11/01 10:44:14 [derived-migration] creating index idx_usage_monitoring_selector_daily_bucket
+2026/11/01 10:44:15 [derived-migration] creating index idx_usage_monitoring_selector_revision_bucket
+2026/11/01 10:44:15 [derived-migration] creating index idx_usage_monitoring_event_projection_timestamp
+2026/11/01 10:44:15 [derived-migration] creating index idx_usage_monitoring_event_projection_account_window
+2026/11/01 10:44:15 [derived-migration] creating index idx_usage_monitoring_event_projection_model_timestamp
+2026/11/01 10:44:15 [derived-migration] creating index idx_usage_monitoring_header_latest_timestamp
+2026/11/01 10:44:15 [derived-migration] creating index idx_usage_event_identity_ledger_raw_event_id
+2026/11/01 10:44:15 [derived-migration] creating index idx_usage_event_identity_ledger_bucket
+2026/11/01 10:44:16 [derived-migration] post-listen index preparation completed created=50 removedAccountActionLegacy=false removedQuotaLegacy=false
+2026/11/01 10:44:20 [derived-migration] post-listen index preparation started
+2026/11/01 10:44:20 [derived-migration] creating index idx_usage_events_timestamp
+2026/11/01 10:44:21 [derived-migration] creating index idx_usage_events_ts_latency_ttft_cover
+2026/11/01 10:44:21 [derived-migration] creating index idx_usage_events_request_id
+2026/11/01 10:44:21 [derived-migration] creating index idx_usage_events_model
+2026/11/01 10:44:21 [derived-migration] creating index idx_usage_events_auth_index
+2026/11/01 10:44:21 [derived-migration] creating index idx_usage_events_endpoint
+2026/11/01 10:44:21 [derived-migration] creating index idx_usage_events_header_quota_recover
+2026/11/01 10:44:21 [derived-migration] creating index idx_usage_events_header_error_kind
+2026/11/01 10:44:21 [derived-migration] creating index idx_usage_events_header_trace_id
+2026/11/01 10:44:22 [derived-migration] creating index idx_usage_events_latest_request_auth_file
+2026/11/01 10:44:22 [derived-migration] creating index idx_usage_events_latest_request_source
+2026/11/01 10:44:22 [derived-migration] creating index idx_account_action_candidates_pending_identity_action
+2026/11/01 10:44:22 [derived-migration] creating index idx_account_action_candidates_status_seen
+2026/11/01 10:44:22 [derived-migration] creating index idx_codex_inspection_runs_started_at
+2026/11/01 10:44:22 [derived-migration] creating index idx_codex_inspection_runs_status
+2026/11/01 10:44:22 [derived-migration] creating index idx_codex_inspection_runs_trigger
+2026/11/01 10:44:22 [derived-migration] creating index idx_codex_inspection_leases_expiry
+2026/11/01 10:44:22 [derived-migration] creating index idx_codex_inspection_results_run
+2026/11/01 10:44:23 [derived-migration] creating index idx_codex_inspection_logs_run
+2026/11/01 10:44:23 [derived-migration] creating index idx_quota_cooldowns_due
+2026/11/01 10:44:23 [derived-migration] creating index idx_quota_cooldowns_active_identity
+2026/11/01 10:44:23 [derived-migration] creating index idx_quota_observations_account_time
+2026/11/01 10:44:23 [derived-migration] creating index idx_quota_observations_inventory
+2026/11/01 10:44:23 [derived-migration] creating index idx_quota_observations_lifecycle_watermark
+2026/11/01 10:44:23 [derived-migration] creating index idx_quota_windows_account_state
+2026/11/01 10:44:23 [derived-migration] creating index idx_quota_windows_inventory
+2026/11/01 10:44:23 [derived-migration] creating index idx_quota_activations_active
+2026/11/01 10:44:23 [derived-migration] creating index idx_quota_cycles_active
+2026/11/01 10:44:23 [derived-migration] creating index idx_quota_cycles_history
+2026/11/01 10:44:24 [derived-migration] creating index idx_quota_snapshots_latest
+2026/11/01 10:44:24 [derived-migration] creating index idx_quota_snapshots_observation
+2026/11/01 10:44:24 [derived-migration] creating index idx_quota_snapshots_window_cycle
+2026/11/01 10:44:24 [derived-migration] creating index idx_quota_snapshots_cycle_evidence
+2026/11/01 10:44:24 [derived-migration] creating index idx_quota_snapshots_legacy_migration
+2026/11/01 10:44:24 [derived-migration] creating index idx_usage_account_model_rollups_last_seen
+2026/11/01 10:44:24 [derived-migration] creating index idx_usage_account_model_rollups_auth_index
+2026/11/01 10:44:25 [derived-migration] creating index idx_usage_pricing_hourly_bucket
+2026/11/01 10:44:25 [derived-migration] creating index idx_usage_pricing_account_key
+2026/11/01 10:44:25 [derived-migration] creating index idx_usage_monitoring_account_daily_bucket
+2026/11/01 10:44:25 [derived-migration] creating index idx_usage_monitoring_account_daily_credential_window
+2026/11/01 10:44:25 [derived-migration] creating index idx_usage_monitoring_account_daily_legacy_window
+2026/11/01 10:44:25 [derived-migration] creating index idx_usage_monitoring_api_key_daily_bucket
+2026/11/01 10:44:25 [derived-migration] deferring index idx_usage_monitoring_selector_daily_bucket because usage_monitoring_selector_daily_rollups_v1 is non-empty
+2026/11/01 10:44:25 [derived-migration] deferring index idx_usage_monitoring_selector_revision_bucket because usage_monitoring_selector_daily_rollups_v1 is non-empty
+2026/11/01 10:44:25 [derived-migration] creating index idx_usage_monitoring_event_projection_timestamp
+2026/11/01 10:44:26 [derived-migration] creating index idx_usage_monitoring_event_projection_account_window
+2026/11/01 10:44:26 [derived-migration] creating index idx_usage_monitoring_event_projection_model_timestamp
+2026/11/01 10:44:26 [derived-migration] creating index idx_usage_monitoring_header_latest_timestamp
+2026/11/01 10:44:26 [derived-migration] creating index idx_usage_event_identity_ledger_raw_event_id
+2026/11/01 10:44:26 [derived-migration] creating index idx_usage_event_identity_ledger_bucket
+2026/11/01 10:44:26 [derived-migration] deferred index preparation indexes=2 accountActionLegacy=false quotaLegacy=false command=cleanup-derived
+2026/11/01 10:44:26 [derived-migration] post-listen index preparation completed created=48 removedAccountActionLegacy=false removedQuotaLegacy=false
+2026/11/01 10:44:26 [derived-migration] creating index idx_usage_monitoring_selector_daily_bucket
+2026/11/01 10:44:26 [derived-migration] creating index idx_usage_monitoring_selector_revision_bucket
+2026/11/01 10:44:33 [derived-migration] post-listen index preparation started
+2026/11/01 10:44:33 [derived-migration] creating index idx_usage_events_timestamp
+2026/11/01 10:44:33 [derived-migration] creating index idx_usage_events_ts_latency_ttft_cover
+2026/11/01 10:44:33 [derived-migration] creating index idx_usage_events_request_id
+2026/11/01 10:44:33 [derived-migration] creating index idx_usage_events_model
+2026/11/01 10:44:33 [derived-migration] creating index idx_usage_events_auth_index
+2026/11/01 10:44:34 [derived-migration] creating index idx_usage_events_endpoint
+2026/11/01 10:44:34 [derived-migration] creating index idx_usage_events_header_quota_recover
+2026/11/01 10:44:34 [derived-migration] creating index idx_usage_events_header_error_kind
+2026/11/01 10:44:34 [derived-migration] creating index idx_usage_events_header_trace_id
+2026/11/01 10:44:34 [derived-migration] creating index idx_usage_events_latest_request_auth_file
+2026/11/01 10:44:34 [derived-migration] creating index idx_usage_events_latest_request_source
+2026/11/01 10:44:35 [derived-migration] deferring index idx_account_action_candidates_pending_identity_action because account_action_candidates is non-empty
+2026/11/01 10:44:35 [derived-migration] deferring index idx_account_action_candidates_status_seen because account_action_candidates is non-empty
+2026/11/01 10:44:35 [derived-migration] creating index idx_codex_inspection_runs_started_at
+2026/11/01 10:44:35 [derived-migration] creating index idx_codex_inspection_runs_status
+2026/11/01 10:44:35 [derived-migration] creating index idx_codex_inspection_runs_trigger
+2026/11/01 10:44:35 [derived-migration] creating index idx_codex_inspection_leases_expiry
+2026/11/01 10:44:35 [derived-migration] creating index idx_codex_inspection_results_run
+2026/11/01 10:44:35 [derived-migration] creating index idx_codex_inspection_logs_run
+2026/11/01 10:44:35 [derived-migration] creating index idx_quota_cooldowns_due
+2026/11/01 10:44:35 [derived-migration] creating index idx_quota_cooldowns_active_identity
+2026/11/01 10:44:36 [derived-migration] creating index idx_quota_observations_account_time
+2026/11/01 10:44:36 [derived-migration] creating index idx_quota_observations_inventory
+2026/11/01 10:44:36 [derived-migration] creating index idx_quota_observations_lifecycle_watermark
+2026/11/01 10:44:36 [derived-migration] creating index idx_quota_windows_account_state
+2026/11/01 10:44:36 [derived-migration] creating index idx_quota_windows_inventory
+2026/11/01 10:44:36 [derived-migration] creating index idx_quota_activations_active
+2026/11/01 10:44:36 [derived-migration] creating index idx_quota_cycles_active
+2026/11/01 10:44:37 [derived-migration] creating index idx_quota_cycles_history
+2026/11/01 10:44:37 [derived-migration] creating index idx_quota_snapshots_latest
+2026/11/01 10:44:37 [derived-migration] creating index idx_quota_snapshots_observation
+2026/11/01 10:44:37 [derived-migration] creating index idx_quota_snapshots_window_cycle
+2026/11/01 10:44:37 [derived-migration] creating index idx_quota_snapshots_cycle_evidence
+2026/11/01 10:44:37 [derived-migration] creating index idx_quota_snapshots_legacy_migration
+2026/11/01 10:44:37 [derived-migration] creating index idx_usage_account_model_rollups_last_seen
+2026/11/01 10:44:37 [derived-migration] creating index idx_usage_account_model_rollups_auth_index
+2026/11/01 10:44:38 [derived-migration] creating index idx_usage_pricing_hourly_bucket
+2026/11/01 10:44:38 [derived-migration] creating index idx_usage_pricing_account_key
+2026/11/01 10:44:38 [derived-migration] creating index idx_usage_monitoring_account_daily_bucket
+2026/11/01 10:44:38 [derived-migration] creating index idx_usage_monitoring_account_daily_credential_window
+2026/11/01 10:44:38 [derived-migration] creating index idx_usage_monitoring_account_daily_legacy_window
+2026/11/01 10:44:38 [derived-migration] creating index idx_usage_monitoring_api_key_daily_bucket
+2026/11/01 10:44:38 [derived-migration] creating index idx_usage_monitoring_selector_daily_bucket
+2026/11/01 10:44:38 [derived-migration] creating index idx_usage_monitoring_selector_revision_bucket
+2026/11/01 10:44:39 [derived-migration] creating index idx_usage_monitoring_event_projection_timestamp
+2026/11/01 10:44:39 [derived-migration] creating index idx_usage_monitoring_event_projection_account_window
+2026/11/01 10:44:39 [derived-migration] creating index idx_usage_monitoring_event_projection_model_timestamp
+2026/11/01 10:44:39 [derived-migration] creating index idx_usage_monitoring_header_latest_timestamp
+2026/11/01 10:44:39 [derived-migration] creating index idx_usage_event_identity_ledger_raw_event_id
+2026/11/01 10:44:39 [derived-migration] creating index idx_usage_event_identity_ledger_bucket
+2026/11/01 10:44:39 [derived-migration] deferred index preparation indexes=2 accountActionLegacy=true quotaLegacy=false command=cleanup-derived
+2026/11/01 10:44:39 [derived-migration] post-listen index preparation completed created=48 removedAccountActionLegacy=false removedQuotaLegacy=false
+2026/11/01 10:44:39 [derived-migration] creating index idx_account_action_candidates_pending_identity_action
+2026/11/01 10:44:39 [derived-migration] creating index idx_account_action_candidates_status_seen
+2026/11/01 10:44:44 [derived-migration] post-listen index preparation started
+2026/11/01 10:44:44 [derived-migration] creating index idx_usage_events_timestamp
+2026/11/01 10:44:44 [derived-migration] creating index idx_usage_events_ts_latency_ttft_cover
+2026/11/01 10:44:44 [derived-migration] creating index idx_usage_events_request_id
+2026/11/01 10:44:44 [derived-migration] creating index idx_usage_events_model
+2026/11/01 10:44:44 [derived-migration] creating index idx_usage_events_auth_index
+2026/11/01 10:44:44 [derived-migration] creating index idx_usage_events_endpoint
+2026/11/01 10:44:44 [derived-migration] creating index idx_usage_events_header_quota_recover
+2026/11/01 10:44:44 [derived-migration] creating index idx_usage_events_header_error_kind
+2026/11/01 10:44:45 [derived-migration] creating index idx_usage_events_header_trace_id
+2026/11/01 10:44:45 [derived-migration] creating index idx_usage_events_latest_request_auth_file
+2026/11/01 10:44:45 [derived-migration] creating index idx_usage_events_latest_request_source
+2026/11/01 10:44:45 [derived-migration] creating index idx_account_action_candidates_pending_identity_action
+2026/11/01 10:44:45 [derived-migration] creating index idx_account_action_candidates_status_seen
+2026/11/01 10:44:45 [derived-migration] creating index idx_codex_inspection_runs_started_at
+2026/11/01 10:44:45 [derived-migration] creating index idx_codex_inspection_runs_status
+2026/11/01 10:44:45 [derived-migration] creating index idx_codex_inspection_runs_trigger
+2026/11/01 10:44:45 [derived-migration] creating index idx_codex_inspection_leases_expiry
+2026/11/01 10:44:45 [derived-migration] creating index idx_codex_inspection_results_run
+2026/11/01 10:44:46 [derived-migration] creating index idx_codex_inspection_logs_run
+2026/11/01 10:44:46 [derived-migration] creating index idx_quota_cooldowns_due
+2026/11/01 10:44:46 [derived-migration] creating index idx_quota_cooldowns_active_identity
+2026/11/01 10:44:46 [derived-migration] creating index idx_quota_observations_account_time
+2026/11/01 10:44:46 [derived-migration] creating index idx_quota_observations_inventory
+2026/11/01 10:44:46 [derived-migration] creating index idx_quota_observations_lifecycle_watermark
+2026/11/01 10:44:46 [derived-migration] creating index idx_quota_windows_account_state
+2026/11/01 10:44:46 [derived-migration] creating index idx_quota_windows_inventory
+2026/11/01 10:44:47 [derived-migration] creating index idx_quota_activations_active
+2026/11/01 10:44:47 [derived-migration] creating index idx_quota_cycles_active
+2026/11/01 10:44:47 [derived-migration] creating index idx_quota_cycles_history
+2026/11/01 10:44:47 [derived-migration] creating index idx_quota_snapshots_latest
+2026/11/01 10:44:47 [derived-migration] creating index idx_quota_snapshots_observation
+2026/11/01 10:44:47 [derived-migration] creating index idx_quota_snapshots_window_cycle
+2026/11/01 10:44:47 [derived-migration] creating index idx_quota_snapshots_cycle_evidence
+2026/11/01 10:44:47 [derived-migration] creating index idx_quota_snapshots_legacy_migration
+2026/11/01 10:44:48 [derived-migration] creating index idx_usage_account_model_rollups_last_seen
+2026/11/01 10:44:48 [derived-migration] creating index idx_usage_account_model_rollups_auth_index
+2026/11/01 10:44:48 [derived-migration] creating index idx_usage_pricing_hourly_bucket
+2026/11/01 10:44:48 [derived-migration] creating index idx_usage_pricing_account_key
+2026/11/01 10:44:48 [derived-migration] creating index idx_usage_monitoring_account_daily_bucket
+2026/11/01 10:44:48 [derived-migration] creating index idx_usage_monitoring_account_daily_credential_window
+2026/11/01 10:44:48 [derived-migration] creating index idx_usage_monitoring_account_daily_legacy_window
+2026/11/01 10:44:48 [derived-migration] creating index idx_usage_monitoring_api_key_daily_bucket
+2026/11/01 10:44:48 [derived-migration] deferring index idx_usage_monitoring_selector_daily_bucket because its name is retained by usage_monitoring_selector_daily_rollups_v1_legacy_recovery
+2026/11/01 10:44:48 [derived-migration] creating index idx_usage_monitoring_selector_revision_bucket
+2026/11/01 10:44:48 [derived-migration] creating index idx_usage_monitoring_event_projection_timestamp
+2026/11/01 10:44:49 [derived-migration] creating index idx_usage_monitoring_event_projection_account_window
+2026/11/01 10:44:49 [derived-migration] creating index idx_usage_monitoring_event_projection_model_timestamp
+2026/11/01 10:44:49 [derived-migration] creating index idx_usage_monitoring_header_latest_timestamp
+2026/11/01 10:44:49 [derived-migration] creating index idx_usage_event_identity_ledger_raw_event_id
+2026/11/01 10:44:49 [derived-migration] creating index idx_usage_event_identity_ledger_bucket
+2026/11/01 10:44:49 [derived-migration] deferred index preparation indexes=1 accountActionLegacy=false quotaLegacy=false command=cleanup-derived
+2026/11/01 10:44:49 [derived-migration] post-listen index preparation completed created=49 removedAccountActionLegacy=false removedQuotaLegacy=false
+2026/11/01 10:44:49 [derived-migration] removing stale index idx_usage_monitoring_selector_daily_bucket from usage_monitoring_selector_daily_rollups_v1_legacy_recovery
+2026/11/01 10:44:49 [derived-migration] creating index idx_usage_monitoring_selector_daily_bucket
+2026/11/01 10:44:49 [derived-migration] removed empty legacy table usage_monitoring_selector_daily_rollups_v1_legacy_recovery
+2026/11/01 10:44:53 [derived-migration] removed empty legacy table usage_account_model_rollups_legacy_v1120_rc2
+2026/11/01 10:44:58 [derived-migration] removed empty legacy table usage_account_model_rollups_legacy_identity_v3
+2026/11/01 10:45:03 [derived-migration] creating index idx_usage_events_timestamp
+2026/11/01 10:45:03 [derived-migration] creating index idx_usage_events_ts_latency_ttft_cover
+2026/11/01 10:45:03 [derived-migration] creating index idx_usage_events_request_id
+2026/11/01 10:45:04 [derived-migration] creating index idx_usage_events_model
+2026/11/01 10:45:04 [derived-migration] creating index idx_usage_events_auth_index
+2026/11/01 10:45:04 [derived-migration] creating index idx_usage_events_endpoint
+2026/11/01 10:45:04 [derived-migration] creating index idx_usage_events_header_quota_recover
+2026/11/01 10:45:04 [derived-migration] creating index idx_usage_events_header_error_kind
+2026/11/01 10:45:04 [derived-migration] creating index idx_usage_events_header_trace_id
+2026/11/01 10:45:04 [derived-migration] creating index idx_usage_events_latest_request_auth_file
+2026/11/01 10:45:04 [derived-migration] creating index idx_usage_events_latest_request_source
+2026/11/01 10:45:05 [derived-migration] creating index idx_account_action_candidates_pending_identity_action
+2026/11/01 10:45:05 [derived-migration] creating index idx_account_action_candidates_status_seen
+2026/11/01 10:45:05 [derived-migration] creating index idx_codex_inspection_runs_started_at
+2026/11/01 10:45:05 [derived-migration] creating index idx_codex_inspection_runs_status
+2026/11/01 10:45:05 [derived-migration] creating index idx_codex_inspection_runs_trigger
+2026/11/01 10:45:05 [derived-migration] creating index idx_codex_inspection_leases_expiry
+2026/11/01 10:45:05 [derived-migration] creating index idx_codex_inspection_results_run
+2026/11/01 10:45:05 [derived-migration] creating index idx_codex_inspection_logs_run
+2026/11/01 10:45:05 [derived-migration] creating index idx_quota_cooldowns_due
+2026/11/01 10:45:05 [derived-migration] creating index idx_quota_cooldowns_active_identity
+2026/11/01 10:45:06 [derived-migration] creating index idx_quota_observations_account_time
+2026/11/01 10:45:06 [derived-migration] creating index idx_quota_observations_inventory
+2026/11/01 10:45:06 [derived-migration] creating index idx_quota_observations_lifecycle_watermark
+2026/11/01 10:45:06 [derived-migration] creating index idx_quota_windows_account_state
+2026/11/01 10:45:06 [derived-migration] creating index idx_quota_windows_inventory
+2026/11/01 10:45:06 [derived-migration] creating index idx_quota_activations_active
+2026/11/01 10:45:06 [derived-migration] creating index idx_quota_cycles_active
+2026/11/01 10:45:07 [derived-migration] creating index idx_quota_cycles_history
+2026/11/01 10:45:07 [derived-migration] creating index idx_quota_snapshots_latest
+2026/11/01 10:45:07 [derived-migration] creating index idx_quota_snapshots_observation
+2026/11/01 10:45:07 [derived-migration] creating index idx_quota_snapshots_window_cycle
+2026/11/01 10:45:07 [derived-migration] creating index idx_quota_snapshots_cycle_evidence
+2026/11/01 10:45:07 [derived-migration] creating index idx_quota_snapshots_legacy_migration
+2026/11/01 10:45:08 [derived-migration] creating index idx_usage_account_model_rollups_last_seen
+2026/11/01 10:45:08 [derived-migration] creating index idx_usage_account_model_rollups_auth_index
+2026/11/01 10:45:08 [derived-migration] creating index idx_usage_pricing_hourly_bucket
+2026/11/01 10:45:08 [derived-migration] creating index idx_usage_pricing_account_key
+2026/11/01 10:45:08 [derived-migration] creating index idx_usage_monitoring_account_daily_bucket
+2026/11/01 10:45:08 [derived-migration] creating index idx_usage_monitoring_account_daily_credential_window
+2026/11/01 10:45:09 [derived-migration] creating index idx_usage_monitoring_account_daily_legacy_window
+2026/11/01 10:45:09 [derived-migration] creating index idx_usage_monitoring_api_key_daily_bucket
+2026/11/01 10:45:09 [derived-migration] creating index idx_usage_monitoring_selector_daily_bucket
+2026/11/01 10:45:09 [derived-migration] creating index idx_usage_monitoring_selector_revision_bucket
+2026/11/01 10:45:09 [derived-migration] creating index idx_usage_monitoring_header_latest_timestamp
+2026/11/01 10:45:09 [derived-migration] creating index idx_usage_event_identity_ledger_raw_event_id
+2026/11/01 10:45:10 [derived-migration] creating index idx_usage_event_identity_ledger_bucket
+2026/11/01 10:45:16 [derived-migration] creating index idx_usage_events_timestamp
+2026/11/01 10:45:16 [derived-migration] creating index idx_usage_events_ts_latency_ttft_cover
+2026/11/01 10:45:16 [derived-migration] creating index idx_usage_events_request_id
+2026/11/01 10:45:16 [derived-migration] creating index idx_usage_events_model
+2026/11/01 10:45:17 [derived-migration] creating index idx_usage_events_auth_index
+2026/11/01 10:45:17 [derived-migration] creating index idx_usage_events_endpoint
+2026/11/01 10:45:17 [derived-migration] creating index idx_usage_events_header_quota_recover
+2026/11/01 10:45:17 [derived-migration] creating index idx_usage_events_header_error_kind
+2026/11/01 10:45:17 [derived-migration] creating index idx_usage_events_header_trace_id
+2026/11/01 10:45:17 [derived-migration] creating index idx_usage_events_latest_request_auth_file
+2026/11/01 10:45:18 [derived-migration] creating index idx_usage_events_latest_request_source
+2026/11/01 10:45:18 [derived-migration] creating index idx_account_action_candidates_pending_identity_action
+2026/11/01 10:45:18 [derived-migration] creating index idx_account_action_candidates_status_seen
+2026/11/01 10:45:18 [derived-migration] creating index idx_codex_inspection_runs_started_at
+2026/11/01 10:45:18 [derived-migration] creating index idx_codex_inspection_runs_status
+2026/11/01 10:45:19 [derived-migration] creating index idx_codex_inspection_runs_trigger
+2026/11/01 10:45:19 [derived-migration] creating index idx_codex_inspection_leases_expiry
+2026/11/01 10:45:19 [derived-migration] creating index idx_codex_inspection_results_run
+2026/11/01 10:45:19 [derived-migration] creating index idx_codex_inspection_logs_run
+2026/11/01 10:45:19 [derived-migration] creating index idx_quota_cooldowns_due
+2026/11/01 10:45:20 [derived-migration] creating index idx_quota_cooldowns_active_identity
+2026/11/01 10:45:20 [derived-migration] creating index idx_quota_observations_account_time
+2026/11/01 10:45:20 [derived-migration] creating index idx_quota_observations_inventory
+2026/11/01 10:45:20 [derived-migration] creating index idx_quota_observations_lifecycle_watermark
+2026/11/01 10:45:20 [derived-migration] creating index idx_quota_windows_account_state
+2026/11/01 10:45:20 [derived-migration] creating index idx_quota_windows_inventory
+2026/11/01 10:45:21 [derived-migration] creating index idx_quota_activations_active
+2026/11/01 10:45:21 [derived-migration] creating index idx_quota_cycles_active
+2026/11/01 10:45:21 [derived-migration] creating index idx_quota_cycles_history
+2026/11/01 10:45:21 [derived-migration] creating index idx_quota_snapshots_latest
+2026/11/01 10:45:21 [derived-migration] creating index idx_quota_snapshots_observation
+2026/11/01 10:45:21 [derived-migration] creating index idx_quota_snapshots_window_cycle
+2026/11/01 10:45:21 [derived-migration] creating index idx_quota_snapshots_cycle_evidence
+2026/11/01 10:45:22 [derived-migration] creating index idx_quota_snapshots_legacy_migration
+2026/11/01 10:45:22 [derived-migration] creating index idx_usage_account_model_rollups_last_seen
+2026/11/01 10:45:22 [derived-migration] creating index idx_usage_account_model_rollups_auth_index
+2026/11/01 10:45:22 [derived-migration] creating index idx_usage_pricing_hourly_bucket
+2026/11/01 10:45:22 [derived-migration] creating index idx_usage_pricing_account_key
+2026/11/01 10:45:22 [derived-migration] creating index idx_usage_monitoring_account_daily_bucket
+2026/11/01 10:45:23 [derived-migration] creating index idx_usage_monitoring_account_daily_credential_window
+2026/11/01 10:45:23 [derived-migration] creating index idx_usage_monitoring_account_daily_legacy_window
+2026/11/01 10:45:23 [derived-migration] creating index idx_usage_monitoring_api_key_daily_bucket
+2026/11/01 10:45:23 [derived-migration] creating index idx_usage_monitoring_selector_daily_bucket
+2026/11/01 10:45:23 [derived-migration] creating index idx_usage_monitoring_selector_revision_bucket
+2026/11/01 10:45:23 [derived-migration] creating index idx_usage_monitoring_event_projection_timestamp
+2026/11/01 10:45:24 [derived-migration] creating index idx_usage_monitoring_event_projection_account_window
+2026/11/01 10:45:24 [derived-migration] creating index idx_usage_monitoring_event_projection_model_timestamp
+2026/11/01 10:45:24 [derived-migration] creating index idx_usage_monitoring_header_latest_timestamp
+2026/11/01 10:45:24 [derived-migration] creating index idx_usage_event_identity_ledger_raw_event_id
+2026/11/01 10:45:24 [derived-migration] creating index idx_usage_event_identity_ledger_bucket
+2026/11/01 10:45:35 [derived-migration] creating index idx_usage_events_timestamp
+2026/11/01 10:45:35 [derived-migration] creating index idx_usage_events_ts_latency_ttft_cover
+2026/11/01 10:45:35 [derived-migration] creating index idx_usage_events_request_id
+2026/11/01 10:45:35 [derived-migration] creating index idx_usage_events_model
+2026/11/01 10:45:36 [derived-migration] creating index idx_usage_events_auth_index
+2026/11/01 10:45:36 [derived-migration] creating index idx_usage_events_endpoint
+2026/11/01 10:45:36 [derived-migration] creating index idx_usage_events_header_quota_recover
+2026/11/01 10:45:36 [derived-migration] creating index idx_usage_events_header_error_kind
+2026/11/01 10:45:36 [derived-migration] creating index idx_usage_events_header_trace_id
+2026/11/01 10:45:36 [derived-migration] creating index idx_usage_events_latest_request_auth_file
+2026/11/01 10:45:36 [derived-migration] creating index idx_usage_events_latest_request_source
+2026/11/01 10:45:37 [derived-migration] creating index idx_account_action_candidates_pending_identity_action
+2026/11/01 10:45:37 [derived-migration] creating index idx_account_action_candidates_status_seen
+2026/11/01 10:45:37 [derived-migration] creating index idx_codex_inspection_runs_started_at
+2026/11/01 10:45:37 [derived-migration] creating index idx_codex_inspection_runs_status
+2026/11/01 10:45:37 [derived-migration] creating index idx_codex_inspection_runs_trigger
+2026/11/01 10:45:37 [derived-migration] creating index idx_codex_inspection_leases_expiry
+2026/11/01 10:45:38 [derived-migration] creating index idx_codex_inspection_results_run
+2026/11/01 10:45:38 [derived-migration] creating index idx_codex_inspection_logs_run
+2026/11/01 10:45:38 [derived-migration] creating index idx_quota_cooldowns_due
+2026/11/01 10:45:38 [derived-migration] creating index idx_quota_cooldowns_active_identity
+2026/11/01 10:45:38 [derived-migration] creating index idx_quota_observations_account_time
+2026/11/01 10:45:38 [derived-migration] creating index idx_quota_observations_inventory
+2026/11/01 10:45:38 [derived-migration] creating index idx_quota_observations_lifecycle_watermark
+2026/11/01 10:45:39 [derived-migration] creating index idx_quota_windows_account_state
+2026/11/01 10:45:39 [derived-migration] creating index idx_quota_windows_inventory
+2026/11/01 10:45:39 [derived-migration] creating index idx_quota_activations_active
+2026/11/01 10:45:39 [derived-migration] creating index idx_quota_cycles_active
+2026/11/01 10:45:39 [derived-migration] creating index idx_quota_cycles_history
+2026/11/01 10:45:39 [derived-migration] creating index idx_quota_snapshots_latest
+2026/11/01 10:45:40 [derived-migration] creating index idx_quota_snapshots_observation
+2026/11/01 10:45:40 [derived-migration] creating index idx_quota_snapshots_window_cycle
+2026/11/01 10:45:40 [derived-migration] creating index idx_quota_snapshots_cycle_evidence
+2026/11/01 10:45:40 [derived-migration] creating index idx_quota_snapshots_legacy_migration
+2026/11/01 10:45:40 [derived-migration] creating index idx_usage_account_model_rollups_last_seen
+2026/11/01 10:45:40 [derived-migration] creating index idx_usage_account_model_rollups_auth_index
+2026/11/01 10:45:41 [derived-migration] creating index idx_usage_pricing_hourly_bucket
+2026/11/01 10:45:41 [derived-migration] creating index idx_usage_pricing_account_key
+2026/11/01 10:45:41 [derived-migration] creating index idx_usage_monitoring_account_daily_bucket
+2026/11/01 10:45:41 [derived-migration] creating index idx_usage_monitoring_account_daily_credential_window
+2026/11/01 10:45:41 [derived-migration] creating index idx_usage_monitoring_account_daily_legacy_window
+2026/11/01 10:45:41 [derived-migration] creating index idx_usage_monitoring_api_key_daily_bucket
+2026/11/01 10:45:41 [derived-migration] creating index idx_usage_monitoring_selector_daily_bucket
+2026/11/01 10:45:41 [derived-migration] creating index idx_usage_monitoring_selector_revision_bucket
+2026/11/01 10:45:42 [derived-migration] creating index idx_usage_monitoring_event_projection_timestamp
+2026/11/01 10:45:42 [derived-migration] creating index idx_usage_monitoring_event_projection_account_window
+2026/11/01 10:45:42 [derived-migration] creating index idx_usage_monitoring_event_projection_model_timestamp
+2026/11/01 10:45:42 [derived-migration] creating index idx_usage_monitoring_header_latest_timestamp
+2026/11/01 10:45:42 [derived-migration] creating index idx_usage_event_identity_ledger_raw_event_id
+2026/11/01 10:45:42 [derived-migration] creating index idx_usage_event_identity_ledger_bucket
+2026/11/01 10:45:42 [derived-migration] cleanup started batchSize=1000
+2026/11/01 10:45:42 [derived-migration] removed empty legacy table usage_dashboard_hourly_rollups_legacy_v1120_rc2
+2026/11/01 10:45:48 [derived-migration] cleanup started batchSize=1000
+2026/11/01 10:46:43 [derived-migration] post-listen index preparation started
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_timestamp because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_ts_latency_ttft_cover because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_request_id because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_model because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_auth_index because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_endpoint because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_header_quota_recover because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_header_error_kind because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_header_trace_id because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_latest_request_auth_file because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] deferring index idx_usage_events_latest_request_source because usage_events is non-empty
+2026/11/01 10:46:43 [derived-migration] creating index idx_account_action_candidates_pending_identity_action
+2026/11/01 10:46:43 [derived-migration] creating index idx_account_action_candidates_status_seen
+2026/11/01 10:46:43 [derived-migration] creating index idx_codex_inspection_runs_started_at
+2026/11/01 10:46:43 [derived-migration] creating index idx_codex_inspection_runs_status
+2026/11/01 10:46:43 [derived-migration] creating index idx_codex_inspection_runs_trigger
+2026/11/01 10:46:44 [derived-migration] creating index idx_codex_inspection_leases_expiry
+2026/11/01 10:46:44 [derived-migration] creating index idx_codex_inspection_results_run
+2026/11/01 10:46:44 [derived-migration] creating index idx_codex_inspection_logs_run
+2026/11/01 10:46:44 [derived-migration] creating index idx_quota_cooldowns_due
+2026/11/01 10:46:44 [derived-migration] creating index idx_quota_cooldowns_active_identity
+2026/11/01 10:46:44 [derived-migration] creating index idx_quota_observations_account_time
+2026/11/01 10:46:44 [derived-migration] creating index idx_quota_observations_inventory
+2026/11/01 10:46:44 [derived-migration] creating index idx_quota_observations_lifecycle_watermark
+2026/11/01 10:46:44 [derived-migration] creating index idx_quota_windows_account_state
+2026/11/01 10:46:45 [derived-migration] creating index idx_quota_windows_inventory
+2026/11/01 10:46:45 [derived-migration] creating index idx_quota_activations_active
+2026/11/01 10:46:45 [derived-migration] creating index idx_quota_cycles_active
+2026/11/01 10:46:45 [derived-migration] creating index idx_quota_cycles_history
+2026/11/01 10:46:45 [derived-migration] creating index idx_quota_snapshots_latest
+2026/11/01 10:46:45 [derived-migration] creating index idx_quota_snapshots_observation
+2026/11/01 10:46:45 [derived-migration] creating index idx_quota_snapshots_window_cycle
+2026/11/01 10:46:46 [derived-migration] creating index idx_quota_snapshots_cycle_evidence
+2026/11/01 10:46:46 [derived-migration] creating index idx_quota_snapshots_legacy_migration
+2026/11/01 10:46:46 [derived-migration] creating index idx_usage_account_model_rollups_last_seen
+2026/11/01 10:46:46 [derived-migration] creating index idx_usage_account_model_rollups_auth_index
+2026/11/01 10:46:46 [derived-migration] creating index idx_usage_pricing_hourly_bucket
+2026/11/01 10:46:46 [derived-migration] creating index idx_usage_pricing_account_key
+2026/11/01 10:46:46 [derived-migration] creating index idx_usage_monitoring_account_daily_bucket
+2026/11/01 10:46:46 [derived-migration] creating index idx_usage_monitoring_account_daily_credential_window
+2026/11/01 10:46:46 [derived-migration] creating index idx_usage_monitoring_account_daily_legacy_window
+2026/11/01 10:46:47 [derived-migration] creating index idx_usage_monitoring_api_key_daily_bucket
+2026/11/01 10:46:47 [derived-migration] creating index idx_usage_monitoring_selector_daily_bucket
+2026/11/01 10:46:47 [derived-migration] creating index idx_usage_monitoring_selector_revision_bucket
+2026/11/01 10:46:47 [derived-migration] creating index idx_usage_monitoring_event_projection_timestamp
+2026/11/01 10:46:47 [derived-migration] creating index idx_usage_monitoring_event_projection_account_window
+2026/11/01 10:46:47 [derived-migration] creating index idx_usage_monitoring_event_projection_model_timestamp
+2026/11/01 10:46:47 [derived-migration] creating index idx_usage_monitoring_header_latest_timestamp
+2026/11/01 10:46:47 [derived-migration] creating index idx_usage_event_identity_ledger_raw_event_id
+2026/11/01 10:46:48 [derived-migration] creating index idx_usage_event_identity_ledger_bucket
+2026/11/01 10:46:48 [derived-migration] deferred index preparation indexes=11 accountActionLegacy=false quotaLegacy=false command=cleanup-derived
+2026/11/01 10:46:48 [derived-migration] post-listen index preparation completed created=39 removedAccountActionLegacy=false removedQuotaLegacy=false
+2026/11/01 10:46:48 [derived-migration] creating index idx_usage_events_timestamp
+2026/11/01 10:46:48 [derived-migration] creating index idx_usage_events_ts_latency_ttft_cover
+2026/11/01 10:46:48 [derived-migration] creating index idx_usage_events_request_id
+2026/11/01 10:46:48 [derived-migration] creating index idx_usage_events_model
+2026/11/01 10:46:48 [derived-migration] creating index idx_usage_events_auth_index
+2026/11/01 10:46:48 [derived-migration] creating index idx_usage_events_endpoint
+2026/11/01 10:46:48 [derived-migration] creating index idx_usage_events_header_quota_recover
+2026/11/01 10:46:49 [derived-migration] creating index idx_usage_events_header_error_kind
+2026/11/01 10:46:49 [derived-migration] creating index idx_usage_events_header_trace_id
+2026/11/01 10:46:49 [derived-migration] creating index idx_usage_events_latest_request_auth_file
+2026/11/01 10:46:49 [derived-migration] creating index idx_usage_events_latest_request_source
+2026/11/01 10:46:54 [derived-migration] post-listen index preparation started
+2026/11/01 10:46:54 [derived-migration] creating index idx_usage_events_timestamp
+2026/11/01 10:46:54 [derived-migration] creating index idx_usage_events_ts_latency_ttft_cover
+2026/11/01 10:46:54 [derived-migration] creating index idx_usage_events_request_id
+2026/11/01 10:46:54 [derived-migration] creating index idx_usage_events_model
+2026/11/01 10:46:54 [derived-migration] creating index idx_usage_events_auth_index
+2026/11/01 10:46:54 [derived-migration] creating index idx_usage_events_endpoint
+2026/11/01 10:46:54 [derived-migration] creating index idx_usage_events_header_quota_recover
+2026/11/01 10:46:54 [derived-migration] creating index idx_usage_events_header_error_kind
+2026/11/01 10:46:54 [derived-migration] creating index idx_usage_events_header_trace_id
+2026/11/01 10:46:54 [derived-migration] creating index idx_usage_events_latest_request_auth_file
+2026/11/01 10:46:55 [derived-migration] creating index idx_usage_events_latest_request_source
+2026/11/01 10:46:55 [derived-migration] creating index idx_account_action_candidates_pending_identity_action
+2026/11/01 10:46:55 [derived-migration] creating index idx_account_action_candidates_status_seen
+2026/11/01 10:46:55 [derived-migration] creating index idx_codex_inspection_runs_started_at
+2026/11/01 10:46:55 [derived-migration] creating index idx_codex_inspection_runs_status
+2026/11/01 10:46:55 [derived-migration] creating index idx_codex_inspection_runs_trigger
+2026/11/01 10:46:55 [derived-migration] creating index idx_codex_inspection_leases_expiry
+2026/11/01 10:46:55 [derived-migration] creating index idx_codex_inspection_results_run
+2026/11/01 10:46:55 [derived-migration] creating index idx_codex_inspection_logs_run
+2026/11/01 10:46:55 [derived-migration] creating index idx_quota_cooldowns_due
+2026/11/01 10:46:56 [derived-migration] creating index idx_quota_cooldowns_active_identity
+2026/11/01 10:46:56 [derived-migration] creating index idx_quota_observations_account_time
+2026/11/01 10:46:56 [derived-migration] creating index idx_quota_observations_inventory
+2026/11/01 10:46:56 [derived-migration] creating index idx_quota_observations_lifecycle_watermark
+2026/11/01 10:46:56 [derived-migration] creating index idx_quota_windows_account_state
+2026/11/01 10:46:56 [derived-migration] creating index idx_quota_windows_inventory
+2026/11/01 10:46:56 [derived-migration] creating index idx_quota_activations_active
+2026/11/01 10:46:56 [derived-migration] creating index idx_quota_cycles_active
+2026/11/01 10:46:57 [derived-migration] creating index idx_quota_cycles_history
+2026/11/01 10:46:57 [derived-migration] creating index idx_quota_snapshots_latest
+2026/11/01 10:46:57 [derived-migration] creating index idx_quota_snapshots_observation
+2026/11/01 10:46:57 [derived-migration] creating index idx_quota_snapshots_window_cycle
+2026/11/01 10:46:57 [derived-migration] creating index idx_quota_snapshots_cycle_evidence
+2026/11/01 10:46:57 [derived-migration] creating index idx_quota_snapshots_legacy_migration
+2026/11/01 10:46:57 [derived-migration] deferring index idx_usage_account_model_rollups_last_seen because usage_account_model_rollups is non-empty
+2026/11/01 10:46:57 [derived-migration] deferring index idx_usage_account_model_rollups_auth_index because usage_account_model_rollups is non-empty
+2026/11/01 10:46:57 [derived-migration] creating index idx_usage_pricing_hourly_bucket
+2026/11/01 10:46:57 [derived-migration] creating index idx_usage_pricing_account_key
+2026/11/01 10:46:58 [derived-migration] creating index idx_usage_monitoring_account_daily_bucket
+2026/11/01 10:46:58 [derived-migration] creating index idx_usage_monitoring_account_daily_credential_window
+2026/11/01 10:46:58 [derived-migration] creating index idx_usage_monitoring_account_daily_legacy_window
+2026/11/01 10:46:58 [derived-migration] creating index idx_usage_monitoring_api_key_daily_bucket
+2026/11/01 10:46:58 [derived-migration] creating index idx_usage_monitoring_selector_daily_bucket
+2026/11/01 10:46:58 [derived-migration] creating index idx_usage_monitoring_selector_revision_bucket
+2026/11/01 10:46:58 [derived-migration] creating index idx_usage_monitoring_event_projection_timestamp
+2026/11/01 10:46:58 [derived-migration] creating index idx_usage_monitoring_event_projection_account_window
+2026/11/01 10:46:59 [derived-migration] creating index idx_usage_monitoring_event_projection_model_timestamp
+2026/11/01 10:46:59 [derived-migration] creating index idx_usage_monitoring_header_latest_timestamp
+2026/11/01 10:46:59 [derived-migration] creating index idx_usage_event_identity_ledger_raw_event_id
+2026/11/01 10:46:59 [derived-migration] creating index idx_usage_event_identity_ledger_bucket
+2026/11/01 10:46:59 [derived-migration] deferred index preparation indexes=2 accountActionLegacy=false quotaLegacy=false command=cleanup-derived
+2026/11/01 10:46:59 [derived-migration] post-listen index preparation completed created=48 removedAccountActionLegacy=false removedQuotaLegacy=false
+2026/11/01 10:46:59 [derived-migration] creating index idx_usage_account_model_rollups_last_seen
+2026/11/01 10:46:59 [derived-migration] creating index idx_usage_account_model_rollups_auth_index
+panic: test timed out after 4m0s
+	running tests:
+		TestReadDerivedMaintenanceStatusReportsOfflineQuotaSnapshotMigration (3s)
+
+goroutine 2739 [running]:
+testing.(*M).startAlarm.func1()
+	C:/Program Files/Go/src/testing/testing.go:2959 +0x34a
+created by time.goFunc
+	C:/Program Files/Go/src/time/sleep.go:182 +0x2d
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0xebc05bc200, {0x7ff76a427737?, 0xebc0567aa8?}, 0x7ff76a81dbe0)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+testing.runTests.func1(0xebc05bc200)
+	C:/Program Files/Go/src/testing/testing.go:2742 +0x37
+testing.tRunner(0xebc05bc200, 0xebc0567bc8)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+testing.runTests({0x7ff76a422846, 0x36}, {0x7ff76a42a761, 0x51}, 0xebc0524228, {0x7ff76a85e350, 0x85, 0x85}, {0xc2b1c7ebdef33824, 0x37e14755cd, ...})
+	C:/Program Files/Go/src/testing/testing.go:2740 +0x505
+testing.(*M).Run(0xebc05ce460)
+	C:/Program Files/Go/src/testing/testing.go:2600 +0x6af
+main.main()
+	_testmain.go:310 +0x9b
+
+goroutine 2717 [select]:
+database/sql.(*DB).connectionOpener(0xebc084d450, {0x7ff76a81d198, 0xebc0702be0})
+	C:/Program Files/Go/src/database/sql/sql.go:1266 +0x89
+created by database/sql.OpenDB in goroutine 2716
+	C:/Program Files/Go/src/database/sql/sql.go:846 +0x135
+
+goroutine 2716 [syscall]:
+syscall.syscalln(0x7ff76a33b040?, 0xebc084d520?, {0xebc09fe2d0?, 0xebc084d520?, 0x7ff76a18f865?})
+	C:/Program Files/Go/src/runtime/syscall_windows.go:427 +0x48
+syscall.SyscallN(0x7ff76a18f865?, {0xebc09fe2d0?, 0x0?, 0x7ff76a34339c?})
+	C:/Program Files/Go/src/syscall/dll_windows.go:99 +0x1e
+golang.org/x/sys/windows.(*Proc).Call(0x184feb34380?, {0xebc09fe2d0?, 0xebc09fe2d0?, 0xebc0500008?})
+	C:/Users/will/go/pkg/mod/golang.org/x/sys@v0.44.0/windows/dll_windows.go:166 +0x1c
+golang.org/x/sys/windows.(*LazyProc).Call(0x7ff76a851210, {0xebc09fe2d0, 0x6, 0x6})
+	C:/Users/will/go/pkg/mod/golang.org/x/sys@v0.44.0/windows/dll_windows.go:316 +0x4a
+modernc.org/libc.XWriteFile(0xebc084d520, 0x294, 0x184fe8dc028, 0x1000, 0x184fe85d518, 0x184fe85d4f8)
+	C:/Users/will/go/pkg/mod/modernc.org/libc@v1.67.6/libc_windows.go:2548 +0x93
+modernc.org/sqlite/lib._winWrite(0xebc084d520, 0x184fe86d8c8, 0x184fe8dc028, 0x1000, 0xce370)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:96207 +0x15c
+modernc.org/sqlite/lib._sqlite3OsWrite(...)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:31090
+modernc.org/sqlite/lib._walWriteToLog(0xebc084d520?, 0x184fe86d828?, 0xfe85d440?, 0xfe8dc028?, 0x184fe85d4d0?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113194 +0xfe
+modernc.org/sqlite/lib._walWriteOneFrame(0xebc084d520, 0x184fe85d480, 0x184fe8dd060, 0x0, 0xce358)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113217 +0x10d
+modernc.org/sqlite/lib._walFrames(0xebc084d520, 0x184fe86d828, 0x1000, 0x184fe8dd060, 0x62, 0x1, 0xa)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113404 +0x64d
+modernc.org/sqlite/lib._sqlite3WalFrames(...)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113524
+modernc.org/sqlite/lib._pagerWalFrames(0xebc084d520, 0x184fe8c0028, 0x184fe8dd060, 0x62, 0x1)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:105745 +0x117
+modernc.org/sqlite/lib._sqlite3PagerCommitPhaseOne(0xebc084d520, 0x184fe8c0028, 0x0, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:108790 +0x172
+modernc.org/sqlite/lib._sqlite3BtreeCommitPhaseOne(0xebc084d520, 0x184fe82f5a8, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:118499 +0xc8
+modernc.org/sqlite/lib._vdbeCommit(0xebc084d520, 0x184fe7f8c28, 0x184fe866e28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:130709 +0xdb2
+modernc.org/sqlite/lib._sqlite3VdbeHalt(0xebc084d520, 0x184fe866e28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:131128 +0x2b1
+modernc.org/sqlite/lib._sqlite3VdbeExec(0xebc084d520, 0x184fe866e28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:137225 +0x4f28
+modernc.org/sqlite/lib._sqlite3Step(0xebc084d520, 0x184fe866e28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133877 +0x6c
+modernc.org/sqlite/lib.Xsqlite3_step(0xebc084d520, 0x184fe866e28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133940 +0xab
+modernc.org/sqlite.(*conn).step(0xebc0702c30, 0x184fe866e28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:247 +0x31
+modernc.org/sqlite.(*stmt).exec.func2(0xebc045ed20, {0x7ff76a8a9fe0?, 0x184fe83ccb0?, 0x184fe839920?}, 0xebc08c51a8)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:149 +0xef
+modernc.org/sqlite.(*stmt).exec(0xebc045ed20, {0x7ff76a81d0f0, 0x7ff76a8a9fe0}, {0x7ff76a8a9fe0, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:162 +0x1ae
+modernc.org/sqlite.(*conn).exec(0x0?, {0x7ff76a81d0f0, 0x7ff76a8a9fe0}, {0x7ff76a449dba?, 0x38?}, {0x7ff76a8a9fe0, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:814 +0xf6
+modernc.org/sqlite.(*conn).ExecContext(0x184fea01ae8?, {0x7ff76a81d0f0?, 0x7ff76a8a9fe0?}, {0x7ff76a449dba?, 0xebc08c5398?}, {0x7ff76a8a9fe0?, 0xebc08c5398?, 0x7ff76a15d922?})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:1060 +0x27
+database/sql.ctxDriverExec({0x7ff76a81d0f0?, 0x7ff76a8a9fe0?}, {0x184fe7d6650?, 0xebc0702c30?}, {0x0?, 0x0?}, {0x7ff76a449dba?, 0x0?}, {0x7ff76a8a9fe0, 0x0, ...})
+	C:/Program Files/Go/src/database/sql/ctxutil.go:31 +0xbf
+database/sql.(*DB).execDC.func2()
+	C:/Program Files/Go/src/database/sql/sql.go:1718 +0x15c
+database/sql.withLock({0x7ff76a81cca8, 0xebc0456200}, 0xebc08c55f0)
+	C:/Program Files/Go/src/database/sql/sql.go:3615 +0x71
+database/sql.(*DB).execDC(0x7ff76a45dd01?, {0x7ff76a81d0f0, 0x7ff76a8a9fe0}, 0xebc0456200, 0x7ff76a45ddc0?, {0x7ff76a449dba, 0x36f}, {0x0, 0x0, 0x0})
+	C:/Program Files/Go/src/database/sql/sql.go:1713 +0x1f6
+database/sql.(*DB).exec(0xebc084d450, {0x7ff76a81d0f0, 0x7ff76a8a9fe0}, {0x7ff76a449dba, 0x36f}, {0x0, 0x0, 0x0}, 0x1f?)
+	C:/Program Files/Go/src/database/sql/sql.go:1698 +0xcf
+database/sql.(*DB).ExecContext.func1(0x40?)
+	C:/Program Files/Go/src/database/sql/sql.go:1677 +0x4f
+database/sql.(*DB).retry(0xebc08c57e0?, 0xebc08c57e0)
+	C:/Program Files/Go/src/database/sql/sql.go:1581 +0x42
+database/sql.(*DB).ExecContext(0xebc084d450?, {0x7ff76a81d0f0?, 0x7ff76a8a9fe0?}, {0x7ff76a449dba?, 0x89?}, {0x0?, 0x0?, 0x0?})
+	C:/Program Files/Go/src/database/sql/sql.go:1676 +0x9b
+database/sql.(*DB).Exec(...)
+	C:/Program Files/Go/src/database/sql/sql.go:1690
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Migrate(0xebc084d450)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/migrate.go:1053 +0x293
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.OpenWithOptions({{0xebc05f2700, 0x84}, 0x0, 0x0, 0x0})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:35 +0xf8
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Open(...)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:17
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.TestReadDerivedMaintenanceStatusReportsOfflineQuotaSnapshotMigration(0xebc05bc400)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/derived_maintenance_status_test.go:267 +0x76
+testing.tRunner(0xebc05bc400, 0x7ff76a81dbe0)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 1
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+
+goroutine 2718 [select]:
+database/sql.(*DB).connectionCleaner(0xebc084d450, 0xebc06b01b0?)
+	C:/Program Files/Go/src/database/sql/sql.go:1109 +0x9e
+created by database/sql.(*DB).startCleanerLocked in goroutine 2716
+	C:/Program Files/Go/src/database/sql/sql.go:1096 +0x109
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite	241.230s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usageaggregate	83.223s
+panic: test timed out after 4m0s
+	running tests:
+		TestRepositoryDeleteRequiresEveryCurrentDerivedCoverageGate (1m1s)
+		TestRepositoryDeleteRequiresEveryCurrentDerivedCoverageGate/monitoring_metadata_status (3s)
+
+goroutine 5548 [running]:
+testing.(*M).startAlarm.func1()
+	C:/Program Files/Go/src/testing/testing.go:2959 +0x34a
+created by time.goFunc
+	C:/Program Files/Go/src/time/sleep.go:182 +0x2d
+
+goroutine 1 [chan receive, 2 minutes]:
+testing.(*T).Run(0x266eea2e8400, {0x7ff761314298?, 0x266eea421aa8?}, 0x7ff7616fd2d8)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+testing.runTests.func1(0x266eea2e8400)
+	C:/Program Files/Go/src/testing/testing.go:2742 +0x37
+testing.tRunner(0x266eea2e8400, 0x266eea421bc8)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+testing.runTests({0x7ff761312b7a, 0x36}, {0x7ff761318914, 0x57}, 0x266eea2f0240, {0x7ff76173b450, 0x25, 0x25}, {0xc2b1c7f11b7145ec, 0x37e1465141, ...})
+	C:/Program Files/Go/src/testing/testing.go:2740 +0x505
+testing.(*M).Run(0x266eea478460)
+	C:/Program Files/Go/src/testing/testing.go:2600 +0x6af
+main.main()
+	_testmain.go:120 +0x9b
+
+goroutine 5562 [select]:
+database/sql.(*DB).connectionCleaner(0x266eea3144e0, 0x266eea61ef50?)
+	C:/Program Files/Go/src/database/sql/sql.go:1109 +0x9e
+created by database/sql.(*DB).startCleanerLocked in goroutine 5585
+	C:/Program Files/Go/src/database/sql/sql.go:1096 +0x109
+
+goroutine 5585 [syscall]:
+syscall.syscalln(0x0?, 0x0?, {0x266eea397850?, 0x7ff761227b00?, 0x0?})
+	C:/Program Files/Go/src/runtime/syscall_windows.go:427 +0x48
+syscall.SyscallN(0x7ff7610a5bde?, {0x266eea397850?, 0x1fe72b47cc8?, 0x1fe72e30028?})
+	C:/Program Files/Go/src/syscall/dll_windows.go:99 +0x1e
+golang.org/x/sys/windows.FlushFileBuffers(0x3f8)
+	C:/Users/will/go/pkg/mod/golang.org/x/sys@v0.44.0/windows/zsyscall_windows.go:2199 +0x56
+modernc.org/libc.XFlushFileBuffers(0x266eea314a90, 0x6672b32440?)
+	C:/Users/will/go/pkg/mod/modernc.org/libc@v1.67.6/libc_windows.go:2658 +0x1b
+modernc.org/sqlite/lib._winSync(0x266eea314a90, 0x1fe72b47cc8, 0xea3978d0?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:96391 +0x56
+modernc.org/sqlite/lib._sqlite3OsSync(0x266eea314a90?, 0x1fe72b32480?, 0x72e31060?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:31101 +0x25
+modernc.org/sqlite/lib._walFrames(0x266eea314a90, 0x1fe72b47c28, 0x1000, 0x1fe72ccd060, 0x66, 0x1, 0xa)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113454 +0xabf
+modernc.org/sqlite/lib._sqlite3WalFrames(...)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113524
+modernc.org/sqlite/lib._pagerWalFrames(0x266eea314a90, 0x1fe72c60028, 0x1fe72ccd060, 0x66, 0x1)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:105745 +0x117
+modernc.org/sqlite/lib._sqlite3PagerCommitPhaseOne(0x266eea314a90, 0x1fe72c60028, 0x0, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:108790 +0x172
+modernc.org/sqlite/lib._sqlite3BtreeCommitPhaseOne(0x266eea314a90, 0x1fe72b0e7a8, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:118499 +0xc8
+modernc.org/sqlite/lib._vdbeCommit(0x266eea314a90, 0x1fe72add028, 0x1fe72b43228)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:130709 +0xdb2
+modernc.org/sqlite/lib._sqlite3VdbeHalt(0x266eea314a90, 0x1fe72b43228)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:131128 +0x2b1
+modernc.org/sqlite/lib._sqlite3VdbeExec(0x266eea314a90, 0x1fe72b43228)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:137225 +0x4f28
+modernc.org/sqlite/lib._sqlite3Step(0x266eea314a90, 0x1fe72b43228)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133877 +0x6c
+modernc.org/sqlite/lib.Xsqlite3_step(0x266eea314a90, 0x1fe72b43228)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133940 +0xab
+modernc.org/sqlite.(*conn).step(0x266eea61f090, 0x1fe72b43228)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:247 +0x31
+modernc.org/sqlite.(*stmt).exec.func2(0x266eea618228, {0x7ff7617880a0?, 0x1fe72b18c40?, 0x1fe72b1a8f0?}, 0x266eea398588)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:149 +0xef
+modernc.org/sqlite.(*stmt).exec(0x266eea618228, {0x7ff7616fca80, 0x7ff7617880a0}, {0x7ff7617880a0, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:162 +0x1ae
+modernc.org/sqlite.(*conn).exec(0x0?, {0x7ff7616fca80, 0x7ff7617880a0}, {0x7ff7613255ad?, 0x37?}, {0x7ff7617880a0, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:814 +0xf6
+modernc.org/sqlite.(*conn).ExecContext(0x266eea682000?, {0x7ff7616fca80?, 0x7ff7617880a0?}, {0x7ff7613255ad?, 0x266eea398778?}, {0x7ff7617880a0?, 0x266eea398778?, 0x7ff7610505a2?})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:1060 +0x27
+database/sql.ctxDriverExec({0x7ff7616fca80?, 0x7ff7617880a0?}, {0x1fe72915450?, 0x266eea61f090?}, {0x0?, 0x0?}, {0x7ff7613255ad?, 0x0?}, {0x7ff7617880a0, 0x0, ...})
+	C:/Program Files/Go/src/database/sql/ctxutil.go:31 +0xbf
+database/sql.(*DB).execDC.func2()
+	C:/Program Files/Go/src/database/sql/sql.go:1718 +0x15c
+database/sql.withLock({0x7ff7616fc5f0, 0x266eea418080}, 0x266eea3989d0)
+	C:/Program Files/Go/src/database/sql/sql.go:3615 +0x71
+database/sql.(*DB).execDC(0x7ff760f04b01?, {0x7ff7616fca80, 0x7ff7617880a0}, 0x266eea418080, 0x400000?, {0x7ff7613255ad, 0x264}, {0x0, 0x0, 0x0})
+	C:/Program Files/Go/src/database/sql/sql.go:1713 +0x1f6
+database/sql.(*DB).exec(0x266eea3144e0, {0x7ff7616fca80, 0x7ff7617880a0}, {0x7ff7613255ad, 0x264}, {0x0, 0x0, 0x0}, 0x29?)
+	C:/Program Files/Go/src/database/sql/sql.go:1698 +0xcf
+database/sql.(*DB).ExecContext.func1(0x40?)
+	C:/Program Files/Go/src/database/sql/sql.go:1677 +0x4f
+database/sql.(*DB).retry(0x266eea398bc0?, 0x266eea398bc0)
+	C:/Program Files/Go/src/database/sql/sql.go:1581 +0x42
+database/sql.(*DB).ExecContext(0x7ff761320d11?, {0x7ff7616fca80?, 0x7ff7617880a0?}, {0x7ff7613255ad?, 0x1?}, {0x0?, 0x266eeaa02c90?, 0x266eeaa02c88?})
+	C:/Program Files/Go/src/database/sql/sql.go:1676 +0x9b
+database/sql.(*DB).Exec(...)
+	C:/Program Files/Go/src/database/sql/sql.go:1690
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Migrate(0x266eea3144e0)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/migrate.go:1053 +0x293
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.OpenWithOptions({{0x266eea7481c0, 0x7b}, 0x0, 0x0, 0x0})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:35 +0xf8
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Open(...)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:17
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usagearchive.openArchiveTestDB(0x266eea520000)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/usagearchive/repository_test.go:2069 +0x65
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usagearchive.prepareVerifiedArchiveRun(_, {_, _})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/usagearchive/repository_test.go:1938 +0x7f
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usagearchive.TestRepositoryDeleteRequiresEveryCurrentDerivedCoverageGate.func24(0x266eea520000)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/usagearchive/repository_test.go:1786 +0x127
+testing.tRunner(0x266eea520000, 0x266eea62a600)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 3545
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+
+goroutine 3545 [chan receive]:
+testing.(*T).Run(0x266eea521000, {0x7ff761304f35?, 0x7ff7613753a7?}, 0x266eea62a600)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usagearchive.TestRepositoryDeleteRequiresEveryCurrentDerivedCoverageGate(0x266eea521000)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/usagearchive/repository_test.go:1785 +0x1f5
+testing.tRunner(0x266eea521000, 0x7ff7616fd2d8)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 1
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+
+goroutine 5586 [select]:
+database/sql.(*DB).connectionOpener(0x266eea3144e0, {0x7ff7616fcb28, 0x266eea61f040})
+	C:/Program Files/Go/src/database/sql/sql.go:1266 +0x89
+created by database/sql.OpenDB in goroutine 5585
+	C:/Program Files/Go/src/database/sql/sql.go:846 +0x135
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usagearchive	241.127s
+panic: test timed out after 4m0s
+	running tests:
+		TestResolveCodexLegacyAccountKeyRequiresProviderAndMatchingAccountIDs (35s)
+		TestResolveCodexLegacyAccountKeyRequiresProviderAndMatchingAccountIDs/missing_provider_blocks (3s)
+
+goroutine 4220 [running]:
+testing.(*M).startAlarm.func1()
+	C:/Program Files/Go/src/testing/testing.go:2959 +0x34a
+created by time.goFunc
+	C:/Program Files/Go/src/time/sleep.go:182 +0x2d
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0x2bc47cdbe400, {0x7ff6500992d5?, 0x2bc47ce77aa8?}, 0x7ff6504c33d0)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+testing.runTests.func1(0x2bc47cdbe400)
+	C:/Program Files/Go/src/testing/testing.go:2742 +0x37
+testing.tRunner(0x2bc47cdbe400, 0x2bc47ce77bc8)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+testing.runTests({0x7ff650094ee5, 0x36}, {0x7ff65009b862, 0x55}, 0x2bc47cdc6240, {0x7ff650503548, 0x57, 0x57}, {0xc2b1c7f2f07273bc, 0x37e155ce19, ...})
+	C:/Program Files/Go/src/testing/testing.go:2740 +0x505
+testing.(*M).Run(0x2bc47cf4c500)
+	C:/Program Files/Go/src/testing/testing.go:2600 +0x6af
+main.main()
+	_testmain.go:234 +0x9b
+
+goroutine 3570 [chan receive]:
+testing.(*T).Run(0x2bc47d4e8000, {0x7ff6500821e8?, 0x0?}, 0x2bc47cf6ca20)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usageevent.TestResolveCodexLegacyAccountKeyRequiresProviderAndMatchingAccountIDs(0x2bc47d4e8000)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/usageevent/account_identity_test.go:124 +0x137
+testing.tRunner(0x2bc47d4e8000, 0x7ff6504c33d0)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 1
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+
+goroutine 4238 [syscall]:
+syscall.syscalln(0x0?, 0x0?, {0x2bc47d493a78?, 0x7ff64ff73ba0?, 0x0?})
+	C:/Program Files/Go/src/runtime/syscall_windows.go:427 +0x48
+syscall.SyscallN(0x7ff64fdf1c7e?, {0x2bc47d493a78?, 0x1a6ebe6c0c8?, 0x1a6ebf38028?})
+	C:/Program Files/Go/src/syscall/dll_windows.go:99 +0x1e
+golang.org/x/sys/windows.FlushFileBuffers(0x488)
+	C:/Users/will/go/pkg/mod/golang.org/x/sys@v0.44.0/windows/zsyscall_windows.go:2199 +0x56
+modernc.org/libc.XFlushFileBuffers(0x2bc47cdebc70, 0x3500000001?)
+	C:/Users/will/go/pkg/mod/modernc.org/libc@v1.67.6/libc_windows.go:2658 +0x1b
+modernc.org/sqlite/lib._winSync(0x2bc47cdebc70, 0x1a6ebe6c0c8, 0x7d493af8?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:96391 +0x56
+modernc.org/sqlite/lib._sqlite3OsSync(0x2bc47cdebc70?, 0x1a6ebe54480?, 0xebf39060?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:31101 +0x25
+modernc.org/sqlite/lib._walFrames(0x2bc47cdebc70, 0x1a6ebe6c028, 0x1000, 0x1a6ebf37060, 0x35, 0x1, 0xa)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113454 +0xabf
+modernc.org/sqlite/lib._sqlite3WalFrames(...)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113524
+modernc.org/sqlite/lib._pagerWalFrames(0x2bc47cdebc70, 0x1a6ebeb0028, 0x1a6ebf37060, 0x35, 0x1)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:105745 +0x117
+modernc.org/sqlite/lib._sqlite3PagerCommitPhaseOne(0x2bc47cdebc70, 0x1a6ebeb0028, 0x0, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:108790 +0x172
+modernc.org/sqlite/lib._sqlite3BtreeCommitPhaseOne(0x2bc47cdebc70, 0x1a6ebe20928, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:118499 +0xc8
+modernc.org/sqlite/lib._vdbeCommit(0x2bc47cdebc70, 0x1a6ebdf0428, 0x1a6ebed8368)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:130709 +0xdb2
+modernc.org/sqlite/lib._sqlite3VdbeHalt(0x2bc47cdebc70, 0x1a6ebed8368)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:131128 +0x2b1
+modernc.org/sqlite/lib._sqlite3VdbeExec(0x2bc47cdebc70, 0x1a6ebed8368)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:137225 +0x4f28
+modernc.org/sqlite/lib._sqlite3Step(0x2bc47cdebc70, 0x1a6ebed8368)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133877 +0x6c
+modernc.org/sqlite/lib.Xsqlite3_step(0x2bc47cdebc70, 0x1a6ebed8368)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133940 +0xab
+modernc.org/sqlite.(*conn).step(0x2bc47d366d70, 0x1a6ebed8368)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:247 +0x31
+modernc.org/sqlite.(*stmt).exec.func2(0x2bc47d2ef4d0, {0x7ff650550800?, 0x1a6ebe3fbd0?, 0x1a6ebe3f6e0?}, 0x2bc47d4947b0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:149 +0xef
+modernc.org/sqlite.(*stmt).exec(0x2bc47d2ef4d0, {0x7ff6504c2828, 0x7ff650550800}, {0x7ff650550800, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:162 +0x1ae
+modernc.org/sqlite.(*conn).exec(0x0?, {0x7ff6504c2828, 0x7ff650550800}, {0x2bc47d2fa500?, 0x38?}, {0x7ff650550800, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:814 +0xf6
+modernc.org/sqlite.(*conn).ExecContext(0x2bc47ce70b40?, {0x7ff6504c2828?, 0x7ff650550800?}, {0x2bc47d2fa500?, 0x2bc47d4949a0?}, {0x7ff650550800?, 0x2bc47d4949a0?, 0x7ff64fd9b2e2?})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:1060 +0x27
+database/sql.ctxDriverExec({0x7ff6504c2828?, 0x7ff650550800?}, {0x1a6ebc34450?, 0x2bc47d366d70?}, {0x0?, 0x0?}, {0x2bc47d2fa500?, 0x0?}, {0x7ff650550800, 0x0, ...})
+	C:/Program Files/Go/src/database/sql/ctxutil.go:31 +0xbf
+database/sql.(*DB).execDC.func2()
+	C:/Program Files/Go/src/database/sql/sql.go:1718 +0x15c
+database/sql.withLock({0x7ff6504c2348, 0x2bc47ce76580}, 0x2bc47d494bf8)
+	C:/Program Files/Go/src/database/sql/sql.go:3615 +0x71
+database/sql.(*DB).execDC(0x7ff6500c0601?, {0x7ff6504c2828, 0x7ff650550800}, 0x2bc47ce76580, 0x7ff6500c0640?, {0x2bc47d2fa500, 0x136}, {0x0, 0x0, 0x0})
+	C:/Program Files/Go/src/database/sql/sql.go:1713 +0x1f6
+database/sql.(*DB).exec(0x2bc47cdebba0, {0x7ff6504c2828, 0x7ff650550800}, {0x2bc47d2fa500, 0x136}, {0x0, 0x0, 0x0}, 0x1f?)
+	C:/Program Files/Go/src/database/sql/sql.go:1698 +0xcf
+database/sql.(*DB).ExecContext.func1(0x40?)
+	C:/Program Files/Go/src/database/sql/sql.go:1677 +0x4f
+database/sql.(*DB).retry(0x2bc47d494de8?, 0x2bc47d494de8)
+	C:/Program Files/Go/src/database/sql/sql.go:1581 +0x42
+database/sql.(*DB).ExecContext(0x7ff6500a3779?, {0x7ff6504c2828?, 0x7ff650550800?}, {0x2bc47d2fa500?, 0x1?}, {0x0?, 0x2bc47d518eb8?, 0x2bc47d518eb0?})
+	C:/Program Files/Go/src/database/sql/sql.go:1676 +0x9b
+database/sql.(*DB).Exec(...)
+	C:/Program Files/Go/src/database/sql/sql.go:1690
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Migrate(0x2bc47cdebba0)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/migrate.go:1053 +0x293
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.OpenWithOptions({{0x2bc47d1f68c0, 0x7c}, 0x0, 0x0, 0x0})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:35 +0xf8
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Open(...)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:17
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usageevent.TestResolveCodexLegacyAccountKeyRequiresProviderAndMatchingAccountIDs.func13(0x2bc47d4e8600)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/usageevent/account_identity_test.go:125 +0xb4
+testing.tRunner(0x2bc47d4e8600, 0x2bc47cf6ca20)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 3570
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+
+goroutine 4215 [select]:
+database/sql.(*DB).connectionCleaner(0x2bc47cdebba0, 0x2bc47d216d70?)
+	C:/Program Files/Go/src/database/sql/sql.go:1109 +0x9e
+created by database/sql.(*DB).startCleanerLocked in goroutine 4238
+	C:/Program Files/Go/src/database/sql/sql.go:1096 +0x109
+
+goroutine 4239 [select]:
+database/sql.(*DB).connectionOpener(0x2bc47cdebba0, {0x7ff6504c28d0, 0x2bc47d366d20})
+	C:/Program Files/Go/src/database/sql/sql.go:1266 +0x89
+created by database/sql.OpenDB in goroutine 4238
+	C:/Program Files/Go/src/database/sql/sql.go:846 +0x135
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usageevent	240.920s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usagemonitoring	220.868s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usagepricing	60.262s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usageprojection	0.746s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/usagerollup	93.729s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/resp	2.168s
+--- FAIL: TestLoadOrCreateDataKeyCreatesStableRestrictedFile (0.00s)
+    security_test.go:282: data key permissions = 666, want 600
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/security	1.411s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/accountaction	61.497s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/adminauth	8.910s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/apikeyalias	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/automation	17.282s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/bootstrap	80.825s
+2026/11/01 10:45:44 finalize codex inspection run 1: codex inspection lease is no longer owned (fallback: codex inspection lease is no longer owned)
+2026/11/01 10:46:52 final lifecycle log for codex inspection run 1 failed: context deadline exceeded; retrying terminal state without log
+2026/11/01 10:46:56 heartbeat codex inspection run 1 timed out; lease has not yet expired
+2026/11/01 10:46:56 heartbeat codex inspection run 1 timed out; lease has not yet expired
+2026/11/01 10:46:56 heartbeat codex inspection run 1 timed out; lease has not yet expired
+2026/11/01 10:46:56 heartbeat codex inspection run 1 timed out; lease has not yet expired
+2026/11/01 10:46:56 heartbeat codex inspection run 1 timed out; lease has not yet expired
+2026/11/01 10:46:56 heartbeat codex inspection run 1 timed out; lease has not yet expired
+2026/11/01 10:47:01 finalize codex inspection run 1 via fenced recovery after primary failure: codex inspection lease is no longer owned
+2026/11/01 10:47:05 final lifecycle log for codex inspection run 1 failed: final lifecycle log insert failed; retrying terminal state without log
+2026/11/01 10:47:05 codex inspection run 1 finalized without lifecycle log
+2026/11/01 10:47:49 persist initial codex inspection results run 1: 1 writes failed
+panic: test timed out after 4m0s
+	running tests:
+		TestExecuteManualActionsRequiresEverySharedDeleteResultToBeSelected (1s)
+		TestExecuteManualActionsRequiresEverySharedDeleteResultToBeSelected/single_selected_result (1s)
+
+goroutine 10569 [running]:
+testing.(*M).startAlarm.func1()
+	C:/Program Files/Go/src/testing/testing.go:2959 +0x34a
+created by time.goFunc
+	C:/Program Files/Go/src/time/sleep.go:182 +0x2d
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0xc0ca0462400, {0x7ff6304557b0?, 0xc0ca05afaa8?}, 0x7ff630abb228)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+testing.runTests.func1(0xc0ca0462400)
+	C:/Program Files/Go/src/testing/testing.go:2742 +0x37
+testing.tRunner(0xc0ca0462400, 0xc0ca05afbc8)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+testing.runTests({0x7ff63044e0e0, 0x36}, {0x7ff63045a389, 0x57}, 0xc0ca046a2a0, {0x7ff630b37448, 0x97, 0x97}, {0xc2b1c80b11f326fc, 0x37e1553c65, ...})
+	C:/Program Files/Go/src/testing/testing.go:2740 +0x505
+testing.(*M).Run(0xc0ca06105a0)
+	C:/Program Files/Go/src/testing/testing.go:2600 +0x6af
+main.main()
+	_testmain.go:346 +0x9b
+
+goroutine 10625 [select]:
+database/sql.(*DB).connectionCleaner(0xc0ca063e340, 0xc0ca083f590?)
+	C:/Program Files/Go/src/database/sql/sql.go:1109 +0x9e
+created by database/sql.(*DB).startCleanerLocked in goroutine 10622
+	C:/Program Files/Go/src/database/sql/sql.go:1096 +0x109
+
+goroutine 10623 [IO wait]:
+internal/poll.runtime_pollWait(0x2557ff86e00, 0x72)
+	C:/Program Files/Go/src/runtime/netpoll.go:351 +0x85
+internal/poll.(*pollDesc).wait(0xc0c00000074?, 0x7ff62fd72249?, 0x0)
+	C:/Program Files/Go/src/internal/poll/fd_poll_runtime.go:84 +0x27
+internal/poll.(*FD).waitIO(0xc0ca06a00e0, 0xc0ca0c5bb60)
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:233 +0x3d
+internal/poll.(*FD).execIO(0xc0ca06a00e0, 0x72, 0xc0ca090fbd0, {0x0, 0x0, 0x7ff600000000?})
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:310 +0x27e
+internal/poll.(*FD).acceptOne(0xc0ca06a00e0, 0x650, {0xc0ca0518000?, 0xc8?, 0xc0ca090fc78?})
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:1111 +0x85
+internal/poll.(*FD).Accept(0xc0ca06a00e0, 0xc0ca090fdb8)
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:1146 +0x18d
+net.(*netFD).accept(0xc0ca06a00e0)
+	C:/Program Files/Go/src/net/fd_windows.go:201 +0x4b
+net.(*TCPListener).accept(0xc0ca07a2d40)
+	C:/Program Files/Go/src/net/tcpsock_posix.go:159 +0x1b
+net.(*TCPListener).Accept(0xc0ca07a2d40)
+	C:/Program Files/Go/src/net/tcpsock.go:387 +0x30
+net/http.(*Server).Serve(0xc0ca0729400, {0x7ff630ab8340, 0xc0ca07a2d40})
+	C:/Program Files/Go/src/net/http/server.go:3551 +0x379
+net/http/httptest.(*Server).goServe.func1()
+	C:/Program Files/Go/src/net/http/httptest/server.go:586 +0x55
+created by net/http/httptest.(*Server).goServe in goroutine 10622
+	C:/Program Files/Go/src/net/http/httptest/server.go:584 +0x92
+
+goroutine 10624 [select]:
+database/sql.(*DB).connectionOpener(0xc0ca063e340, {0x7ff630ab8698, 0xc0ca0af4870})
+	C:/Program Files/Go/src/database/sql/sql.go:1266 +0x89
+created by database/sql.OpenDB in goroutine 10622
+	C:/Program Files/Go/src/database/sql/sql.go:846 +0x135
+
+goroutine 10622 [syscall]:
+syscall.syscalln(0x0?, 0x0?, {0xc0ca070deb8?, 0x7ff63024be00?, 0x0?})
+	C:/Program Files/Go/src/runtime/syscall_windows.go:427 +0x48
+syscall.SyscallN(0x7ff6300c9ede?, {0xc0ca070deb8?, 0x255409b54c8?, 0x25540ea4028?})
+	C:/Program Files/Go/src/syscall/dll_windows.go:99 +0x1e
+golang.org/x/sys/windows.FlushFileBuffers(0x628)
+	C:/Users/will/go/pkg/mod/golang.org/x/sys@v0.44.0/windows/zsyscall_windows.go:2199 +0x56
+modernc.org/libc.XFlushFileBuffers(0xc0ca063e410, 0x51409a5440?)
+	C:/Users/will/go/pkg/mod/modernc.org/libc@v1.67.6/libc_windows.go:2658 +0x1b
+modernc.org/sqlite/lib._winSync(0xc0ca063e410, 0x255409b54c8, 0xa070df38?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:96391 +0x56
+modernc.org/sqlite/lib._sqlite3OsSync(0xc0ca063e410?, 0x255409a5480?, 0x40ea5060?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:31101 +0x25
+modernc.org/sqlite/lib._walFrames(0xc0ca063e410, 0x255409b5428, 0x1000, 0x25540b4d060, 0x51, 0x1, 0xa)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113454 +0xabf
+modernc.org/sqlite/lib._sqlite3WalFrames(...)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113524
+modernc.org/sqlite/lib._pagerWalFrames(0xc0ca063e410, 0x25540aa0028, 0x25540b4d060, 0x51, 0x1)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:105745 +0x117
+modernc.org/sqlite/lib._sqlite3PagerCommitPhaseOne(0xc0ca063e410, 0x25540aa0028, 0x0, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:108790 +0x172
+modernc.org/sqlite/lib._sqlite3BtreeCommitPhaseOne(0xc0ca063e410, 0x25540976aa8, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:118499 +0xc8
+modernc.org/sqlite/lib._vdbeCommit(0xc0ca063e410, 0x2557ffee028, 0x255409b0c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:130709 +0xdb2
+modernc.org/sqlite/lib._sqlite3VdbeHalt(0xc0ca063e410, 0x255409b0c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:131128 +0x2b1
+modernc.org/sqlite/lib._sqlite3VdbeExec(0xc0ca063e410, 0x255409b0c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:137225 +0x4f28
+modernc.org/sqlite/lib._sqlite3Step(0xc0ca063e410, 0x255409b0c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133877 +0x6c
+modernc.org/sqlite/lib.Xsqlite3_step(0xc0ca063e410, 0x255409b0c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133940 +0xab
+modernc.org/sqlite.(*conn).step(0xc0ca0af48c0, 0x255409b0c28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:247 +0x31
+modernc.org/sqlite.(*stmt).exec.func2(0xc0ca046ae28, {0x7ff630b84a60?, 0x2554098fb40?, 0x2554098f4e0?}, 0xc0ca070ebf0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:149 +0xef
+modernc.org/sqlite.(*stmt).exec(0xc0ca046ae28, {0x7ff630ab85b8, 0x7ff630b84a60}, {0x7ff630b84a60, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:162 +0x1ae
+modernc.org/sqlite.(*conn).exec(0x0?, {0x7ff630ab85b8, 0x7ff630b84a60}, {0x7ff630468fe9?, 0x37?}, {0x7ff630b84a60, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:814 +0xf6
+modernc.org/sqlite.(*conn).ExecContext(0xc0ca05141b0?, {0x7ff630ab85b8?, 0x7ff630b84a60?}, {0x7ff630468fe9?, 0xc0ca070ede0?}, {0x7ff630b84a60?, 0xc0ca070ede0?, 0x7ff63025dd82?})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:1060 +0x27
+database/sql.ctxDriverExec({0x7ff630ab85b8?, 0x7ff630b84a60?}, {0x2557ff8fd50?, 0xc0ca0af48c0?}, {0x0?, 0x0?}, {0x7ff630468fe9?, 0x0?}, {0x7ff630b84a60, 0x0, ...})
+	C:/Program Files/Go/src/database/sql/ctxutil.go:31 +0xbf
+database/sql.(*DB).execDC.func2()
+	C:/Program Files/Go/src/database/sql/sql.go:1718 +0x15c
+database/sql.withLock({0x7ff630ab7cb0, 0xc0ca07b8400}, 0xc0ca070f038)
+	C:/Program Files/Go/src/database/sql/sql.go:3615 +0x71
+database/sql.(*DB).execDC(0x7ff630482901?, {0x7ff630ab85b8, 0x7ff630b84a60}, 0xc0ca07b8400, 0x400000?, {0x7ff630468fe9, 0x2cf}, {0x0, 0x0, 0x0})
+	C:/Program Files/Go/src/database/sql/sql.go:1713 +0x1f6
+database/sql.(*DB).exec(0xc0ca063e340, {0x7ff630ab85b8, 0x7ff630b84a60}, {0x7ff630468fe9, 0x2cf}, {0x0, 0x0, 0x0}, 0x29?)
+	C:/Program Files/Go/src/database/sql/sql.go:1698 +0xcf
+database/sql.(*DB).ExecContext.func1(0x40?)
+	C:/Program Files/Go/src/database/sql/sql.go:1677 +0x4f
+database/sql.(*DB).retry(0xc0ca070f228?, 0xc0ca070f228)
+	C:/Program Files/Go/src/database/sql/sql.go:1581 +0x42
+database/sql.(*DB).ExecContext(0x7ff6304634cc?, {0x7ff630ab85b8?, 0x7ff630b84a60?}, {0x7ff630468fe9?, 0x1?}, {0x0?, 0xc0ca04a32f8?, 0xc0ca04a32f0?})
+	C:/Program Files/Go/src/database/sql/sql.go:1676 +0x9b
+database/sql.(*DB).Exec(...)
+	C:/Program Files/Go/src/database/sql/sql.go:1690
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Migrate(0xc0ca063e340)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/migrate.go:1053 +0x293
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.OpenWithOptions({{0xc0ca087c460, 0x7c}, 0x0, 0x0, 0x0})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:35 +0xf8
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Open(...)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:17
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store.Open({0xc0ca087c460?, 0x7ff62fd2f089?}, {0x0, 0x0, 0x0})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/store/store.go:173 +0x2e
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/codexinspection.newCodexInspectionTestStore(0xc0ca0462200)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/service/codexinspection/service_test.go:6022 +0x65
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/codexinspection.TestExecuteManualActionsRequiresEverySharedDeleteResultToBeSelected.func1(0xc0ca0462200)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/service/codexinspection/service_test.go:3870 +0xe6
+testing.tRunner(0xc0ca0462200, 0xc0ca0794340)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 10621
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+
+goroutine 10621 [chan receive]:
+testing.(*T).Run(0xc0ca0462000, {0x7ff6304310cd?, 0x0?}, 0xc0ca0794340)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/codexinspection.TestExecuteManualActionsRequiresEverySharedDeleteResultToBeSelected(0xc0ca0462000)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/service/codexinspection/service_test.go:3864 +0x76
+testing.tRunner(0xc0ca0462000, 0x7ff630abb228)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 1
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/codexinspection	240.888s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/collector	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpa	2.218s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpaauthfiles	0.786s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy	0.979s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/dashboard	61.601s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig	1.511s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/modelprice	84.884s
+2026/11/01 10:45:58 [derived-migration] post-listen index preparation started
+2026/11/01 10:45:58 [derived-migration] creating index idx_usage_events_timestamp
+2026/11/01 10:45:58 [derived-migration] creating index idx_usage_events_ts_latency_ttft_cover
+2026/11/01 10:45:58 [derived-migration] creating index idx_usage_events_request_id
+2026/11/01 10:45:58 [derived-migration] creating index idx_usage_events_model
+2026/11/01 10:45:58 [derived-migration] creating index idx_usage_events_auth_index
+2026/11/01 10:45:58 [derived-migration] creating index idx_usage_events_endpoint
+2026/11/01 10:45:59 [derived-migration] creating index idx_usage_events_header_quota_recover
+2026/11/01 10:45:59 [derived-migration] creating index idx_usage_events_header_error_kind
+2026/11/01 10:45:59 [derived-migration] creating index idx_usage_events_header_trace_id
+2026/11/01 10:45:59 [derived-migration] creating index idx_usage_events_latest_request_auth_file
+2026/11/01 10:45:59 [derived-migration] creating index idx_usage_events_latest_request_source
+2026/11/01 10:45:59 [derived-migration] creating index idx_account_action_candidates_pending_identity_action
+2026/11/01 10:45:59 [derived-migration] creating index idx_account_action_candidates_status_seen
+2026/11/01 10:46:00 [derived-migration] creating index idx_codex_inspection_runs_started_at
+2026/11/01 10:46:00 [derived-migration] creating index idx_codex_inspection_runs_status
+2026/11/01 10:46:00 [derived-migration] creating index idx_codex_inspection_runs_trigger
+2026/11/01 10:46:00 [derived-migration] creating index idx_codex_inspection_leases_expiry
+2026/11/01 10:46:00 [derived-migration] creating index idx_codex_inspection_results_run
+2026/11/01 10:46:00 [derived-migration] creating index idx_codex_inspection_logs_run
+2026/11/01 10:46:01 [derived-migration] creating index idx_quota_cooldowns_due
+2026/11/01 10:46:01 [derived-migration] creating index idx_quota_cooldowns_active_identity
+2026/11/01 10:46:01 [derived-migration] creating index idx_quota_observations_account_time
+2026/11/01 10:46:01 [derived-migration] creating index idx_quota_observations_inventory
+2026/11/01 10:46:01 [derived-migration] creating index idx_quota_observations_lifecycle_watermark
+2026/11/01 10:46:01 [derived-migration] creating index idx_quota_windows_account_state
+2026/11/01 10:46:01 [derived-migration] creating index idx_quota_windows_inventory
+2026/11/01 10:46:02 [derived-migration] creating index idx_quota_activations_active
+2026/11/01 10:46:02 [derived-migration] creating index idx_quota_cycles_active
+2026/11/01 10:46:02 [derived-migration] creating index idx_quota_cycles_history
+2026/11/01 10:46:02 [derived-migration] creating index idx_quota_snapshots_latest
+2026/11/01 10:46:02 [derived-migration] creating index idx_quota_snapshots_observation
+2026/11/01 10:46:02 [derived-migration] creating index idx_quota_snapshots_window_cycle
+2026/11/01 10:46:02 [derived-migration] creating index idx_quota_snapshots_cycle_evidence
+2026/11/01 10:46:03 [derived-migration] creating index idx_quota_snapshots_legacy_migration
+2026/11/01 10:46:03 [derived-migration] creating index idx_usage_account_model_rollups_last_seen
+2026/11/01 10:46:03 [derived-migration] creating index idx_usage_account_model_rollups_auth_index
+2026/11/01 10:46:03 [derived-migration] creating index idx_usage_pricing_hourly_bucket
+2026/11/01 10:46:03 [derived-migration] creating index idx_usage_pricing_account_key
+2026/11/01 10:46:03 [derived-migration] creating index idx_usage_monitoring_account_daily_bucket
+2026/11/01 10:46:04 [derived-migration] creating index idx_usage_monitoring_account_daily_credential_window
+2026/11/01 10:46:04 [derived-migration] creating index idx_usage_monitoring_account_daily_legacy_window
+2026/11/01 10:46:04 [derived-migration] creating index idx_usage_monitoring_api_key_daily_bucket
+2026/11/01 10:46:04 [derived-migration] creating index idx_usage_monitoring_selector_daily_bucket
+2026/11/01 10:46:04 [derived-migration] creating index idx_usage_monitoring_selector_revision_bucket
+2026/11/01 10:46:04 [derived-migration] creating index idx_usage_monitoring_event_projection_timestamp
+2026/11/01 10:46:04 [derived-migration] creating index idx_usage_monitoring_event_projection_account_window
+2026/11/01 10:46:05 [derived-migration] creating index idx_usage_monitoring_event_projection_model_timestamp
+2026/11/01 10:46:05 [derived-migration] creating index idx_usage_monitoring_header_latest_timestamp
+2026/11/01 10:46:05 [derived-migration] creating index idx_usage_event_identity_ledger_raw_event_id
+2026/11/01 10:46:05 [derived-migration] creating index idx_usage_event_identity_ledger_bucket
+2026/11/01 10:46:05 [derived-migration] post-listen index preparation completed created=50 removedAccountActionLegacy=false removedQuotaLegacy=false
+panic: test timed out after 4m0s
+	running tests:
+		TestAccountWindowUsageRejectsWeakDisplayIdentity (0s)
+
+goroutine 16393 [running]:
+testing.(*M).startAlarm.func1()
+	C:/Program Files/Go/src/testing/testing.go:2959 +0x34a
+created by time.goFunc
+	C:/Program Files/Go/src/time/sleep.go:182 +0x2d
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0x1271bf550400, {0x7ff75f443949?, 0x1271bf689aa8?}, 0x7ff75f8f90e8)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+testing.runTests.func1(0x1271bf550400)
+	C:/Program Files/Go/src/testing/testing.go:2742 +0x37
+testing.tRunner(0x1271bf550400, 0x1271bf689bc8)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+testing.runTests({0x7ff75f4464b9, 0x36}, {0x7ff75f44d019, 0x52}, 0x1271bf558240, {0x7ff75f939270, 0x62, 0x62}, {0xc2b1c814417e0f6c, 0x37e1570a81, ...})
+	C:/Program Files/Go/src/testing/testing.go:2740 +0x505
+testing.(*M).Run(0x1271bf6dc5a0)
+	C:/Program Files/Go/src/testing/testing.go:2600 +0x6af
+main.main()
+	_testmain.go:258 +0x9b
+
+goroutine 16390 [syscall]:
+syscall.syscalln(0x0?, 0x0?, {0x1271bf9fc3e8?, 0x202ec50c028?, 0x0?})
+	C:/Program Files/Go/src/runtime/syscall_windows.go:427 +0x48
+syscall.SyscallN(0x7ff75f2625fc?, {0x1271bf9fc3e8?, 0x202ec4dc480?, 0x202ec50c028?})
+	C:/Program Files/Go/src/syscall/dll_windows.go:99 +0x1e
+golang.org/x/sys/windows.FlushFileBuffers(0x460)
+	C:/Users/will/go/pkg/mod/golang.org/x/sys@v0.44.0/windows/zsyscall_windows.go:2199 +0x56
+modernc.org/libc.XFlushFileBuffers(0x1271bf57fc70, 0xc009fc468?)
+	C:/Users/will/go/pkg/mod/modernc.org/libc@v1.67.6/libc_windows.go:2658 +0x1b
+modernc.org/sqlite/lib._winSync(0x1271bf57fc70, 0x202ec4f01b0, 0xbf9fc458?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:96391 +0x56
+modernc.org/sqlite/lib._sqlite3OsSync(0x1271bf57fc70?, 0x202ec4f01b0?, 0x15?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:31101 +0x25
+modernc.org/sqlite/lib._sqlite3PagerSync(0x1271bf57fc70?, 0x202ec4f0160?, 0x202ec503060?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:108694 +0x77
+modernc.org/sqlite/lib._sqlite3PagerCommitPhaseOne(0x1271bf57fc70, 0x202ec4f0028, 0x0, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:108851 +0x2c5
+modernc.org/sqlite/lib._sqlite3BtreeCommitPhaseOne(0x1271bf57fc70, 0x202ec4a93a8, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:118499 +0xc8
+modernc.org/sqlite/lib._vdbeCommit(0x1271bf57fc70, 0x202ec478028, 0x202ec4e2a28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:130709 +0xdb2
+modernc.org/sqlite/lib._sqlite3VdbeHalt(0x1271bf57fc70, 0x202ec4e2a28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:131128 +0x2b1
+modernc.org/sqlite/lib._sqlite3VdbeExec(0x1271bf57fc70, 0x202ec4e2a28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:137225 +0x4f28
+modernc.org/sqlite/lib._sqlite3Step(0x1271bf57fc70, 0x202ec4e2a28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133877 +0x6c
+modernc.org/sqlite/lib.Xsqlite3_step(0x1271bf57fc70, 0x202ec4e2a28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133940 +0xab
+modernc.org/sqlite.(*conn).step(0x1271bf791630, 0x202ec4e2a28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:247 +0x31
+modernc.org/sqlite.(*stmt).exec.func2(0x1271bf559bd8, {0x7ff75f985ec0?, 0x202ec4bd620?, 0x202ec4bd670?}, 0x1271bf9fd018)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:149 +0xef
+modernc.org/sqlite.(*stmt).exec(0x1271bf559bd8, {0x7ff75f8f8130, 0x7ff75f985ec0}, {0x7ff75f985ec0, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:162 +0x1ae
+modernc.org/sqlite.(*conn).exec(0x0?, {0x7ff75f8f8130, 0x7ff75f985ec0}, {0x7ff75f45cd35?, 0x1fe?}, {0x7ff75f985ec0, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:814 +0xf6
+modernc.org/sqlite.(*conn).ExecContext(0x202ec4f01b0?, {0x7ff75f8f8130?, 0x7ff75f985ec0?}, {0x7ff75f45cd35?, 0x100000000?}, {0x7ff75f985ec0?, 0x7ff75f0cfe82?, 0x1271bf57fc70?})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:1060 +0x27
+database/sql.ctxDriverExec({0x7ff75f8f8130?, 0x7ff75f985ec0?}, {0x202ec2b8450?, 0x1271bf791630?}, {0x0?, 0x0?}, {0x7ff75f45cd35?, 0x0?}, {0x7ff75f985ec0, 0x0, ...})
+	C:/Program Files/Go/src/database/sql/ctxutil.go:31 +0xbf
+database/sql.(*DB).execDC.func2()
+	C:/Program Files/Go/src/database/sql/sql.go:1718 +0x15c
+database/sql.withLock({0x7ff75f8f7c18, 0x1271bf842500}, 0x1271bf9fd460)
+	C:/Program Files/Go/src/database/sql/sql.go:3615 +0x71
+database/sql.(*DB).execDC(0x1271bf842501?, {0x7ff75f8f8130, 0x7ff75f985ec0}, 0x1271bf842500, 0x1271bf9fd578?, {0x7ff75f45cd35, 0x18e}, {0x0, 0x0, 0x0})
+	C:/Program Files/Go/src/database/sql/sql.go:1713 +0x1f6
+database/sql.(*DB).exec(0x1271bf57fba0, {0x7ff75f8f8130, 0x7ff75f985ec0}, {0x7ff75f45cd35, 0x18e}, {0x0, 0x0, 0x0}, 0xf9?)
+	C:/Program Files/Go/src/database/sql/sql.go:1698 +0xcf
+database/sql.(*DB).ExecContext.func1(0x0?)
+	C:/Program Files/Go/src/database/sql/sql.go:1677 +0x4f
+database/sql.(*DB).retry(0x1271bf9fd608?, 0x1271bf9fd650)
+	C:/Program Files/Go/src/database/sql/sql.go:1581 +0x42
+database/sql.(*DB).ExecContext(0x1271bf9fd790?, {0x7ff75f8f8130?, 0x7ff75f985ec0?}, {0x7ff75f45cd35?, 0x1271bf9fd7f0?}, {0x0?, 0x1271bf559bc0?, 0x1271bf9fd790?})
+	C:/Program Files/Go/src/database/sql/sql.go:1676 +0x9b
+database/sql.(*DB).Exec(...)
+	C:/Program Files/Go/src/database/sql/sql.go:1690
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.ensureDerivedCleanupJobSchema(0x1271bf57fba0)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/derived_cleanup.go:60 +0x4e
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Migrate(0x1271bf57fba0)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/migrate.go:214 +0xd6
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.OpenWithOptions({{0x1271bf70e240, 0x6c}, 0x0, 0x0, 0x0})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:35 +0xf8
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Open(...)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:17
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store.Open({0x1271bf70e240?, 0x7ff75ef47b00?}, {0x0, 0x0, 0x0})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/store/store.go:173 +0x2e
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/monitoring.newMonitoringTestStore(0x1271bf550000)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/service/monitoring/service_test.go:4620 +0x65
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/monitoring.TestAccountWindowUsageRejectsWeakDisplayIdentity(0x1271bf550000)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/service/monitoring/service_test.go:2752 +0x2a
+testing.tRunner(0x1271bf550000, 0x7ff75f8f90e8)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 1
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+
+goroutine 16391 [select]:
+database/sql.(*DB).connectionOpener(0x1271bf57fba0, {0x7ff75f8f81d8, 0x1271bf7915e0})
+	C:/Program Files/Go/src/database/sql/sql.go:1266 +0x89
+created by database/sql.OpenDB in goroutine 16390
+	C:/Program Files/Go/src/database/sql/sql.go:846 +0x135
+
+goroutine 16392 [select]:
+database/sql.(*DB).connectionCleaner(0x1271bf57fba0, 0x1271bf8faa20?)
+	C:/Program Files/Go/src/database/sql/sql.go:1109 +0x9e
+created by database/sql.(*DB).startCleanerLocked in goroutine 16390
+	C:/Program Files/Go/src/database/sql/sql.go:1096 +0x109
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/monitoring	240.625s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/panel	1.664s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/pricing	1.751s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providerkeyalias	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/proxy	84.826s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/quotasnapshot	222.453s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/setup	29.730s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/updatecheck	1.845s
+2026/11/01 10:46:37 [usage-archive] inspect requested stage: context canceled
+2026/11/01 10:46:42 [usage-archive] process run 179f292d2ab1b77d69d8160e70002880 stage archiving: usage archive coverage is incomplete: usage cache accounting migration is not complete
+2026/11/01 10:46:47 [usage-archive] process run bcf90bfa331d46929819c9de7e2e8fec stage archiving: usage archive coverage is incomplete: usage cache accounting migration is not complete
+2026/11/01 10:47:07 [usage-archive] inspect requested stage: context canceled
+--- FAIL: TestUsageArchiveServiceFullLifecycle (3.43s)
+    archive_test.go:57: archive directory mode C:\Users\will\AppData\Local\Temp\TestUsageArchiveServiceFullLifecycle2640576464\002\usage-archives = drwxrwxrwx
+2026/11/01 10:47:53 usage archive progress update failed for run 526e4bc0e5ff1e9fe2093e6514e8cf77 phase archive_finalizing: constraint failed: telemetry unavailable (1811)
+2026/11/01 10:47:53 usage archive progress update failed for run 526e4bc0e5ff1e9fe2093e6514e8cf77 phase archive_finalizing: constraint failed: telemetry unavailable (1811)
+2026/11/01 10:47:53 usage archive progress update failed for run 526e4bc0e5ff1e9fe2093e6514e8cf77 phase archive_publishing: constraint failed: telemetry unavailable (1811)
+--- FAIL: TestUsageArchiveDetectsPublishedFileReplacement (0.00s)
+    archive_test.go:1327: publish replacement archive file: Access is denied.
+2026/11/01 10:49:55 cleanup usage import sessions during request: cleanup expired usage import sessions: cleanup session b03243c38274779c9b230169f47a63a9: filesystem unavailable
+2026/11/01 10:49:55 cleanup usage import sessions during request: cleanup expired usage import sessions: retry cleanup session b03243c38274779c9b230169f47a63a9: filesystem unavailable
+2026/11/01 10:49:55 cleanup usage import sessions during request: cleanup expired usage import sessions: retry cleanup session b03243c38274779c9b230169f47a63a9: filesystem unavailable
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/usage	210.887s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/usagehourly	40.309s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/usagemonitoring	6.290s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/sqliteutil	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store	82.495s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/usage	14.457s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/usageidentity	1.348s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/worker	163.291s
+FAIL
+go: unlinkat C:\Users\will\AppData\Local\Temp\go-build3245689174\b001\cpa-manager-plus.test.exe: Access is denied.

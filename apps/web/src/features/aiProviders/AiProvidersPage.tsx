@@ -61,6 +61,7 @@ export function AiProvidersPage() {
   const { t } = useTranslation();
   const { showNotification, showConfirmation } = useNotificationStore();
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
+  const balanceManagementKey = useAuthStore((state) => state.managementKey);
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const featureAvailability = usePanelFeatureAvailability();
 
@@ -1704,6 +1705,7 @@ export function AiProvidersPage() {
       </div>
 
       <ProviderDetailDrawer
+        officialBalance={{ base: featureAvailability.managerServiceBase, managementKey: balanceManagementKey, binding: detailRow ? forProvider(detailRow).binding : undefined, disabled: !featureAvailability.managerServiceAvailable }}
         row={detailRow}
         open={detailRowKey !== null}
         usageByProvider={usageByProvider}

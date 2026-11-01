@@ -21,12 +21,11 @@ func (r *integrationCredentialResolver) ResolveCredential(context.Context, strin
 	return r.value, r.err
 }
 
-// The merged work remains unwired to HTTP. These offline checks preserve its
-// declared public failure contract without contacting any billing service.
+// Offline querier interface regressions supplement the HTTP/SQLite/TLS tests.
 func TestBalanceIntegrationCapabilityAndFailureContract(t *testing.T) {
 	q := balance.New()
 	caps, err := q.ListCapabilities(context.Background())
-	if err != nil || len(caps) != 1 || caps[0].Adapter != "deepinfra" || !caps[0].Supported {
+	if err != nil || len(caps) != 2 || caps[0].Adapter != "deepseek" || !caps[0].Supported || caps[1].Adapter != "deepinfra" || caps[1].Supported {
 		t.Fatalf("capabilities: %+v %v", caps, err)
 	}
 	for _, tc := range []struct {
@@ -35,9 +34,9 @@ func TestBalanceIntegrationCapabilityAndFailureContract(t *testing.T) {
 		calls                                               int
 	}{
 		{name: "unknown adapter", adapter: "unknown", code: "ADAPTER_NOT_FOUND", status: "unsupported", capability: "unsupported", calls: 0},
-		{name: "resolver failure", adapter: "deepinfra", err: errors.New("private resolver diagnostic"), code: "CREDENTIAL_RESOLVE_FAILED", status: "auth_error", capability: "supported", calls: 1},
-		{name: "empty credential", adapter: " DeepInfra ", value: " ", code: "CREDENTIAL_MISSING", status: "needs_configuration", capability: "supported", calls: 1},
-		{name: "private endpoint rejected offline", adapter: "deepinfra", value: "fixture-only", url: "https://127.0.0.1/billing", code: "INVALID_ENDPOINT", status: "network_error", capability: "supported", calls: 1},
+		{name: "resolver failure", adapter: "deepseek", err: errors.New("private resolver diagnostic"), code: "CREDENTIAL_RESOLVE_FAILED", status: "auth_error", capability: "supported", calls: 1},
+		{name: "empty credential", adapter: " DeepSeek ", value: " ", code: "CREDENTIAL_MISSING", status: "needs_configuration", capability: "supported", calls: 1},
+		{name: "private endpoint rejected offline", adapter: "deepseek", value: "fixture-only", url: "https://127.0.0.1/billing", code: "INVALID_ENDPOINT", status: "network_error", capability: "supported", calls: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resolver := &integrationCredentialResolver{value: tc.value, err: tc.err}

@@ -1,3 +1,5 @@
+import { OfficialBalancePanel } from '../OfficialBalancePanel';
+import type { OfficialBalancePanelProps } from '../OfficialBalancePanel';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
@@ -19,6 +21,7 @@ import type { ProviderRow } from '../ProviderTable/rowData';
 import styles from './ProviderDetailDrawer.module.scss';
 
 interface ProviderDetailDrawerProps {
+ officialBalance?: OfficialBalancePanelProps;
   row: ProviderRow | null;
   open: boolean;
   usageByProvider: ProviderRecentUsageMap;
@@ -50,6 +53,7 @@ function FieldRow({ label, value }: FieldRowProps) {
 }
 
 export function ProviderDetailDrawer({
+ officialBalance,
   row,
   open,
   usageByProvider,
@@ -231,6 +235,13 @@ export function ProviderDetailDrawer({
   const renderBody = () => {
     if (!row) return null;
 
+    // Protocol availability only; durable identity still comes from the verified
+    // issued binding, never this hostname or a provider label.
+    let balanceSupported = false;
+    try {
+      const endpoint = new URL(row.baseUrl);
+      balanceSupported = endpoint.protocol === 'https:' && endpoint.hostname === 'api.deepseek.com';
+    } catch { /* Unknown protocols remain explicitly unsupported. */ }
     const headerEntries = Object.entries(row.raw.headers ?? {});
     const models = row.raw.models ?? [];
     const excludedModels =
@@ -238,6 +249,7 @@ export function ProviderDetailDrawer({
 
     return (
       <>
+        {officialBalance && <OfficialBalancePanel {...officialBalance} supported={balanceSupported} />}
         <section className={styles.section}>
           {!row.enabled && (
             <div className={styles.disabledBadge}>{t('ai_providers.config_disabled_badge')}</div>

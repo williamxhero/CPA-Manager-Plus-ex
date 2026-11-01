@@ -1,0 +1,11 @@
+=== RUN   TestOfficialBalanceUIFixture
+2026/11/01 10:34:28 http GET /usage-service/official-balance status=200 duration=3.9358ms remote=127.0.0.1:4395
+2026/11/01 10:34:28 http PUT /usage-service/official-balance status=200 duration=5.4068ms remote=127.0.0.1:4395
+2026/11/01 10:34:28 http GET /usage-service/official-balance status=200 duration=1.0776ms remote=127.0.0.1:4398
+2026/11/01 10:34:28 http POST /usage-service/official-balance status=202 duration=1.77ms remote=127.0.0.1:4395
+2026/11/01 10:34:28 http GET /usage-service/official-balance status=200 duration=2.1423ms remote=127.0.0.1:4395
+2026/11/01 10:34:28 http POST /usage-service/official-balance status=202 duration=1.7705ms remote=127.0.0.1:4395
+2026/11/01 10:34:28 http GET /usage-service/official-balance status=200 duration=2.3746ms remote=127.0.0.1:4395
+--- PASS: TestOfficialBalanceUIFixture (15.42s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	16.157s

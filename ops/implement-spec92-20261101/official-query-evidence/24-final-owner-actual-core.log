@@ -1,0 +1,3 @@
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	41.474s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance	0.769s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/app	1.776s

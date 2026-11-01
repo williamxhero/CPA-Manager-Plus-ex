@@ -1,0 +1,17 @@
+
+> cpa-manager-plus-web@0.0.0 test
+> vitest run src/components/providers/OfficialBalancePanel.test.tsx src/components/providers/ProviderDetailDrawer/ProviderDetailDrawer.test.tsx
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:27:57). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+The system cannot find the path specified.
+The system cannot find the path specified.
+
+ RUN  v4.1.12 D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/web
+
+
+ Test Files  2 passed (2)
+      Tests  16 passed (16)
+   Start at  11:09:37
+   Duration  1.49s (transform 693ms, setup 0ms, import 1.39s, tests 501ms, environment 0ms)

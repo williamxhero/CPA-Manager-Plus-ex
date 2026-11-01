@@ -23,6 +23,7 @@ import (
 	managerconfigsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
 	modelpricesvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/modelprice"
 	monitoringsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/monitoring"
+	officialbalancesvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
 	panelsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/panel"
 	providerkeyaliassvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providerkeyalias"
 	proxysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/proxy"
@@ -47,10 +48,11 @@ type DatabaseMaintenanceStatusProvider interface {
 }
 
 type Context struct {
-	UpdateCheckService *updatechecksvc.Service
-	Config             config.Config
-	Store              *store.Store
-	Collector          *collector.Manager
+	OfficialBalanceService *officialbalancesvc.Service
+	UpdateCheckService     *updatechecksvc.Service
+	Config                 config.Config
+	Store                  *store.Store
+	Collector              *collector.Manager
 
 	StartedAt int64
 	ServiceID string
@@ -168,19 +170,21 @@ func fromExisting(
 		AggregateReadsEnabled: cfg.DashboardHourlyRollupEnabled,
 	}))
 	authFileMutationCoordinator := cpaauthfiles.NewMutationCoordinator()
+	identityService := resourcecapabilitysvc.New(accountProcessingPolicyService, managerConfigService)
 	return &Context{
-		UpdateCheckService:   updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
-		Config:               cfg,
-		Store:                st,
-		Collector:            collectorManager,
-		StartedAt:            startedAt,
-		ServiceID:            serviceID,
-		AdminAuthService:     adminauthsvc.New(cfg, st),
-		SetupService:         setupsvc.New(cfg, st, collectorService, managerConfigService, startedAt, serviceID),
-		ManagerConfigService: managerConfigService,
-		CollectorService:     collectorService,
-		UsageService:         usageService,
-		DashboardService:     dashboardsvc.New(st, cfg.DashboardHourlyRollupEnabled),
+		OfficialBalanceService: officialbalancesvc.New(st, identityService),
+		UpdateCheckService:     updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
+		Config:                 cfg,
+		Store:                  st,
+		Collector:              collectorManager,
+		StartedAt:              startedAt,
+		ServiceID:              serviceID,
+		AdminAuthService:       adminauthsvc.New(cfg, st),
+		SetupService:           setupsvc.New(cfg, st, collectorService, managerConfigService, startedAt, serviceID),
+		ManagerConfigService:   managerConfigService,
+		CollectorService:       collectorService,
+		UsageService:           usageService,
+		DashboardService:       dashboardsvc.New(st, cfg.DashboardHourlyRollupEnabled),
 		CodexInspectionService: codexinspectionsvc.NewWithOptions(
 			st,
 			managerConfigService,
@@ -197,7 +201,7 @@ func fromExisting(
 			authFileMutationCoordinator,
 		),
 		AccountProcessingPolicyService: accountProcessingPolicyService,
-		ResourceCapabilityService:      resourcecapabilitysvc.New(accountProcessingPolicyService, managerConfigService),
+		ResourceCapabilityService:      identityService,
 		AuthFileMutationCoordinator:    authFileMutationCoordinator,
 		ProxyService: proxysvc.NewWithMutationCoordinator(
 			managerConfigService,

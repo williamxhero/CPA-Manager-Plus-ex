@@ -1,0 +1,6 @@
+=== RUN   TestOfficialBalanceActualCoreChain
+    official_balance_core_test.go:48: binary was set but independent expected SHA256/source revision provenance is missing or invalid
+--- FAIL: TestOfficialBalanceActualCoreChain (0.00s)
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	0.626s
+FAIL

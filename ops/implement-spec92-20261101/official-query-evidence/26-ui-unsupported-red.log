@@ -1,0 +1,50 @@
+
+> cpa-manager-plus-web@0.0.0 test
+> vitest run src/components/providers/OfficialBalancePanel.test.tsx
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:27:57). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+The system cannot find the path specified.
+The system cannot find the path specified.
+
+ RUN  v4.1.12 D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/web
+
+stderr | src/components/providers/OfficialBalancePanel.test.tsx > keeps an unimplemented source honestly unsupported, without configuration or query controls
+react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+The current testing environment is not configured to support act(...)
+
+ ❯ src/components/providers/OfficialBalancePanel.test.tsx (2 tests | 1 failed | 1 skipped) 18ms
+   × keeps an unimplemented source honestly unsupported, without configuration or query controls 16ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/providers/OfficialBalancePanel.test.tsx > keeps an unimplemented source honestly unsupported, without configuration or query controls
+AssertionError: expected '{"type":"section","props":{"aria-labe…' to contain 'unsupported'
+
+Expected: "unsupported"
+Received: "{"type":"section","props":{"aria-label":"官方余额"},"children":[{"type":"h4","props":{},"children":["官方余额 · Manager 独立只读查询"]},{"type":"p","props":{},"children":["不代表 Core 查询或门禁 ACK；不修改推理凭证或自动策略。"]},{"type":"p","props":{"role":"status"},"children":["identity_unavailable · 需完整、已核实的来源身份"]}]}"
+
+ ❯ src/components/providers/OfficialBalancePanel.test.tsx:101:44
+
+     99|  let renderer!: ReactTestRenderer;
+    100|  await act(async()=>{renderer=create(<OfficialBalancePanel base="" man…
+    101|  expect(JSON.stringify(renderer.toJSON())).toContain('unsupported');
+       |                                            ^
+    102|  expect(renderer.root.findAllByType('input')).toHaveLength(0);
+    103|  expect(renderer.root.findAllByType('button')).toHaveLength(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 skipped (2)
+   Start at  11:08:25
+   Duration  300ms (transform 47ms, setup 0ms, import 118ms, tests 18ms, environment 0ms)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path D:\WILL\AGENT\CPA\ops\implement-spec92-20261101\worktrees\official-query\apps\web
+npm error workspace cpa-manager-plus-web@0.0.0
+npm error location D:\WILL\AGENT\CPA\ops\implement-spec92-20261101\worktrees\official-query\apps\web
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c vitest run src/components/providers/OfficialBalancePanel.test.tsx

@@ -1,0 +1,73 @@
+{
+  "ticket": 71,
+  "spec_frontier": 92,
+  "branch": "spec/92-official-query",
+  "tested_base": "38af4658a0a38efe3fc0244066838fd279ffd9c1",
+  "actual_core": {
+    "path": "ops/implement-spec92-20261101/integration-evidence/core-identity-final-f78e509f.exe",
+    "sha256": "9fb3cb67dd879df1a32719c35e7ceed939e4c49956fbe97b3036466af50784e5",
+    "source": "f78e509fc1b231fb071d1522a704b172c19dcad7",
+    "modified": false,
+    "enabled": true,
+    "log": "25-provenance-current-core-chain.log",
+    "result": "PASS",
+    "denied_startup_requests": 4,
+    "inference_calls": 0,
+    "billing_calls": 4,
+    "original_compatibility_logs": [
+      "22-actual-core-chain.log",
+      "23-final-race-actual-core.log"
+    ],
+    "independent_expected_sha256": "9fb3cb67dd879df1a32719c35e7ceed939e4c49956fbe97b3036466af50784e5",
+    "independent_expected_revision": "f78e509fc1b231fb071d1522a704b172c19dcad7",
+    "expected_values_origin": "Existing parent trusted integration artifact receipt; explicit run inputs, not derived by test from binary",
+    "contract": "Capture before/after capabilities/source/manual state unchanged; no protection ACK; no permanent global gate/query=false requirement"
+  },
+  "node": "24.22.1",
+  "npm_cli": "11.17.0",
+  "go": "go1.27.0 windows/amd64",
+  "authority_contract": {
+    "durable": "instance ID/incarnation + all Target IDs/incarnations/versions",
+    "operation": "full Scope boot/revision + full Targets + source CAS + current attempt ID",
+    "manager_direct_query": "independent DeepSeek adapter only",
+    "core_query": false,
+    "core_gate": false
+  },
+  "real_runtime_account_provider_access": false,
+  "deployment": false,
+  "push_pr_close": false,
+  "source_commit": "Recorded after commit in parent official-query-evidence/DELIVERY.json",
+  "tests": {
+    "actual_core_chain": "PASS explicitly enabled",
+    "race_with_actual_core": "PASS 38.422s, 23-final-race-actual-core.log",
+    "frontend_full": "5080 passed / 1 opt-in live fixture skipped; live fixture separately explicitly enabled and passed",
+    "type_check": "PASS",
+    "scoped_lint": "PASS",
+    "full_lint": "0 errors / 7 existing warnings",
+    "frontend_build": "PASS",
+    "backend_build": "PASS",
+    "full_backend": "NOT GREEN: documented eight platform failures plus overlapping package timeouts; see report",
+    "repository_tests": "NOT GREEN: Windows shell/installer failures; not asserted as a proven baseline",
+    "final_owner": "httpapi/balance/app all PASS 24-final-owner-actual-core.log",
+    "final_ui": "16 passed in 2 files, live fixture explicitly enabled, 27-final-ui.log",
+    "missing_provenance": "Expected failure exit 1, 25-missing-provenance-rejected.log",
+    "race_top_level_count": {
+      "passed": 22,
+      "ui_launcher_skipped": 1,
+      "race_reports": 0
+    }
+  },
+  "scope_exclusions": [
+    "other adapters",
+    "#76 hourly scheduler",
+    "#77/#75 gate or auto-policy",
+    "#93 global/row switch redesign",
+    "blocked #95 legacy security migration",
+    "main/dev merge",
+    "push",
+    "PR",
+    "issue closure",
+    "deployment",
+    "worktree cleanup"
+  ]
+}

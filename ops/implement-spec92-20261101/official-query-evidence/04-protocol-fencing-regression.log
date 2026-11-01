@@ -1,0 +1,120 @@
+=== RUN   TestOfficialBalanceConfigurationCAS
+2026/11/01 10:27:16 http PUT /usage-service/official-balance status=200 duration=3.6386ms remote=192.0.2.1:1234
+2026/11/01 10:27:16 http PUT /usage-service/official-balance status=409 duration=2.148ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceConfigurationCAS (0.23s)
+=== RUN   TestOfficialBalanceExactQueryPersists
+2026/11/01 10:27:17 http PUT /usage-service/official-balance status=200 duration=1.5416ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=2.0425ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=518.3µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=521.1µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=2.9268ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.0624ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=509.2µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=511.6µs remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceExactQueryPersists (0.12s)
+=== RUN   TestOfficialBalanceTimeoutRetainsLastSuccess
+2026/11/01 10:27:17 http PUT /usage-service/official-balance status=200 duration=2.6344ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=2.693ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=18.0064ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=2.1077ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.0393ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.1018ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.071ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=618.4µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.1117ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=507.6µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=515.7µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=508.8µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=638.7µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.6771ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceTimeoutRetainsLastSuccess (0.25s)
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess
+2026/11/01 10:27:17 http PUT /usage-service/official-balance status=200 duration=1.6777ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.5632ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=19.133ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/auth
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.5607ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.1796ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=511.5µs remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/forbidden
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.5644ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=509.6µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.0407ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/limited
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.6283ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.5653ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.1515ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/html
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.5723ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.0576ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.5622ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/missing
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.092ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.0564ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.2182ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/null
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.1132ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.5353ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.0292ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/nan
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.6168ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.0295ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.6136ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/infinite
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.5984ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.6348ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=511.4µs remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/number
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=2.0921ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=521.2µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=515.7µs remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/too_large
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.0391ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.557ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=520.9µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=2.633ms remote=192.0.2.1:1234
+    official_balance_test.go:268: unsafe failure semantics: {"id":"b2820b3d-c019-4f77-b2f9-1c01a989b407","state":"interrupted","binding":{"scope":{"instance_id":"11111111-1111-4111-8111-111111111111","instance_incarnation":"22222222-2222-4222-8222-222222222222","boot_epoch":"33333333-3333-4333-8333-333333333333","snapshot_revision":7},"targets":[{"resource_id":"44444444-4444-4444-8444-444444444444","incarnation":"55555555-5555-4555-8555-555555555555","identity_version":2,"credential_version":3,"config_version":4,"membership_version":0}]},"version":1}
+=== RUN   TestOfficialBalanceProtocolFailuresRetainExactSuccess/redirect
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.0784ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.036ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.2726ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=1.109ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=528.8µs remote=192.0.2.1:1234
+--- FAIL: TestOfficialBalanceProtocolFailuresRetainExactSuccess (0.21s)
+    --- PASS: TestOfficialBalanceProtocolFailuresRetainExactSuccess/auth (0.01s)
+    --- PASS: TestOfficialBalanceProtocolFailuresRetainExactSuccess/forbidden (0.01s)
+    --- PASS: TestOfficialBalanceProtocolFailuresRetainExactSuccess/limited (0.01s)
+    --- PASS: TestOfficialBalanceProtocolFailuresRetainExactSuccess/html (0.01s)
+    --- PASS: TestOfficialBalanceProtocolFailuresRetainExactSuccess/missing (0.01s)
+    --- PASS: TestOfficialBalanceProtocolFailuresRetainExactSuccess/null (0.01s)
+    --- PASS: TestOfficialBalanceProtocolFailuresRetainExactSuccess/nan (0.01s)
+    --- PASS: TestOfficialBalanceProtocolFailuresRetainExactSuccess/infinite (0.01s)
+    --- PASS: TestOfficialBalanceProtocolFailuresRetainExactSuccess/number (0.01s)
+    --- FAIL: TestOfficialBalanceProtocolFailuresRetainExactSuccess/too_large (0.02s)
+    --- PASS: TestOfficialBalanceProtocolFailuresRetainExactSuccess/redirect (0.01s)
+=== RUN   TestOfficialBalanceSecretsAuthAndCAS
+2026/11/01 10:27:17 http PUT /usage-service/official-balance status=200 duration=2.6024ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=401 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:27:17 http PUT /usage-service/official-balance status=401 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=401 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:27:17 http PUT /usage-service/official-balance status=200 duration=2.0854ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http PUT /usage-service/official-balance status=409 duration=1.0591ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http PUT /usage-service/official-balance status=200 duration=1.578ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceSecretsAuthAndCAS (0.09s)
+=== RUN   TestOfficialBalanceSingleFlightAndSourceChangeFence
+2026/11/01 10:27:17 http PUT /usage-service/official-balance status=200 duration=2.1517ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=1.026ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http POST /usage-service/official-balance status=202 duration=14.8101ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http PUT /usage-service/official-balance status=200 duration=2.0796ms remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=409 duration=523.4µs remote=192.0.2.1:1234
+2026/11/01 10:27:17 http GET /usage-service/official-balance status=200 duration=524.4µs remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceSingleFlightAndSourceChangeFence (0.34s)
+=== RUN   TestOfficialBalanceDynamicCoreIdentityFence
+2026/11/01 10:27:18 http PUT /usage-service/official-balance status=200 duration=5.0338ms remote=192.0.2.1:1234
+2026/11/01 10:27:18 http POST /usage-service/official-balance status=202 duration=2.0457ms remote=192.0.2.1:1234
+2026/11/01 10:27:18 http GET /usage-service/official-balance status=409 duration=1.0395ms remote=192.0.2.1:1234
+2026/11/01 10:27:18 http GET /usage-service/official-balance status=409 duration=517µs remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceDynamicCoreIdentityFence (0.26s)
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	2.255s
+FAIL

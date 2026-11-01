@@ -1,0 +1,12 @@
+=== RUN   TestOfficialBalanceVerifiedRebindPreservesDurableSecret
+2026/11/01 10:32:52 http PUT /usage-service/official-balance status=200 duration=3.2353ms remote=192.0.2.1:1234
+2026/11/01 10:32:52 http POST /usage-service/official-balance status=202 duration=2.1159ms remote=192.0.2.1:1234
+2026/11/01 10:32:52 http GET /usage-service/official-balance status=200 duration=17.581ms remote=192.0.2.1:1234
+2026/11/01 10:32:52 http GET /usage-service/official-balance status=200 duration=1.0567ms remote=192.0.2.1:1234
+2026/11/01 10:32:52 http GET /usage-service/official-balance status=409 duration=531.8µs remote=192.0.2.1:1234
+2026/11/01 10:32:52 http POST /usage-service/official-balance status=202 duration=1.5779ms remote=192.0.2.1:1234
+2026/11/01 10:32:52 http GET /usage-service/official-balance status=200 duration=535.8µs remote=192.0.2.1:1234
+2026/11/01 10:32:52 http GET /usage-service/official-balance status=200 duration=1.0717ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceVerifiedRebindPreservesDurableSecret (0.54s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	1.058s

@@ -1,0 +1,6 @@
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	90.839s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance	0.568s
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store	46.765s
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance	[no test files]
+?   	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability	[no test files]
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite	106.422s

@@ -1,0 +1,7 @@
+=== RUN   TestOfficialBalanceTranslatedMetadataNeverDials
+2026/11/01 10:31:36 http PUT /usage-service/official-balance status=200 duration=3.1965ms remote=192.0.2.1:1234
+2026/11/01 10:31:36 http POST /usage-service/official-balance status=202 duration=2.9853ms remote=192.0.2.1:1234
+2026/11/01 10:31:36 http GET /usage-service/official-balance status=200 duration=16.7619ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceTranslatedMetadataNeverDials (0.23s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	0.798s

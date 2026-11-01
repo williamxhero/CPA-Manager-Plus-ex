@@ -1,0 +1,10 @@
+=== RUN   TestOfficialBalanceVerifiedRebindPreservesDurableSecret
+2026/11/01 10:32:38 http PUT /usage-service/official-balance status=200 duration=2.5555ms remote=192.0.2.1:1234
+2026/11/01 10:32:38 http POST /usage-service/official-balance status=202 duration=24.4347ms remote=192.0.2.1:1234
+2026/11/01 10:32:38 http GET /usage-service/official-balance status=200 duration=29.4011ms remote=192.0.2.1:1234
+2026/11/01 10:32:38 http GET /usage-service/official-balance status=200 duration=1.6587ms remote=192.0.2.1:1234
+    official_balance_test.go:498: unchanged durable authority lost source credential after restart: {"scope":{"instance_id":"11111111-1111-4111-8111-111111111111","instance_incarnation":"22222222-2222-4222-8222-222222222222","boot_epoch":"88888888-8888-4888-8888-888888888888","snapshot_revision":8},"targets":[{"resource_id":"44444444-4444-4444-8444-444444444444","incarnation":"55555555-5555-4555-8555-555555555555","identity_version":2,"credential_version":3,"config_version":4,"membership_version":0}],"version":1,"adapter":"","endpoint":"","configured":false,"state":"needs_configuration","managerDirectQuery":false,"coreQuery":false,"coreGate":false,"stale":false}
+--- FAIL: TestOfficialBalanceVerifiedRebindPreservesDurableSecret (0.32s)
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	0.931s
+FAIL
