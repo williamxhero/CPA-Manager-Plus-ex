@@ -158,11 +158,15 @@ T01, the child SPEC and the parent SPEC remain open.
 
 The loader now requests `?inventory=1&bindings=1`; old summary-only Managers remain compatible.
 The opt-in response supplies Core scope/target versions but never a gate ACK.
-`identity_only` is shown only for a current host-issued runtime binding matching
-the exact catalog scope and targets; auth_index is a scoped lookup, never identity.
+`identity_only` requires a current host-issued runtime binding or verified native
+source marker matching the exact catalog scope and targets; auth_index is a scoped lookup, never identity.
 The tooltip displays these opaque identity/version preconditions. Other rows are
-unbound, not mapped by name/key/array position. Native provider rows remain unbound
-pending proven source-marker normalization. `unsupported_mode` explains an actual negotiation blocker;
+unbound, not mapped by name/key/array position. Supported native provider rows now
+carry Core-issued resource-id through normalization and editing/saving. Their
+unique source marker must match a ready catalog row of the expected family/kind;
+OpenAI groups also require the complete distinct issued-member set and parent
+relations. Only catalog scope and full targets are displayed, not a manufactured
+runtime binding. Missing/ambiguous markers remain unbound. `unsupported_mode` explains an actual negotiation blocker;
 unknown transport/auth results never expose response text. New source-binding
 metadata is available through the typed public API. Existing context/request/
 unmount fencing and all manual controls remain in place. Credential switch

@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import type { RuntimeResourceBinding } from '@/services/api/usageService';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
-import type { ResourceProtectionCapability } from './resourceProtection';
+import type { ResourceProtectionCapability, ResourceIdentityEvidence } from './resourceProtection';
 import styles from './ResourceProtectionIndicator.module.scss';
 
 // Informational manager capability only; never an account health or enforcement ACK.
@@ -10,7 +9,7 @@ export function ResourceProtectionIndicator({
   binding,
 }: {
   status?: ResourceProtectionCapability;
-  binding?: RuntimeResourceBinding;
+  binding?: ResourceIdentityEvidence;
 }) {
   const { t } = useTranslation();
   const title = t('resource_protection.title');

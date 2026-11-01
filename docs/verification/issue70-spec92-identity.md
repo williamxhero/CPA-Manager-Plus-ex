@@ -127,7 +127,7 @@ go test ./internal/httpapi -run '^TestResourceInventoryRealCoreLifecycle$' -coun
 ```
 
 Strict mode creates a disabled native file credential and independently obtains its
-actual runtime selector through the public Core auth-files metadata API, then
+actual runtime selector through the supported public Core `/v8/management/credentials` metadata API, then
 requires Manager's producer-consumed Scope/Targets to identify that same source.
 The name only locates a synthetic fixture; it is not identity. This mode must be
 run against the delivered Core producer and recorded before integration acceptance.
@@ -140,9 +140,9 @@ Do NOT mark full #70 or #92 complete from this commit:
 1. Delivered-producer Manager HTTP/SQLite runtime-binding exercise and known Qwen/
    OpenCode plus native source completeness/lifecycle evidence must be combined.
    Synthetic protocol/UI fixtures alone do not discharge this dependency.
-2. Native provider UI source-marker association remains unimplemented where the
-   existing normalized configuration does not carry a verified issued marker.
-   Those rows remain unbound; no key/name/index fallback was introduced.
+2. Supported native provider source-marker association is implemented in the
+   follow-up below. Sources without issued/current/unambiguous proof stay unbound;
+   that is not a missing mapping for a currently supported issued source.
 3. Rendered-browser layouts/keyboard/mobile checks and independent full-ticket
    review remain pending. React renderer tests are not browser screenshots.
 4. Queries, balances, switches, policy/gate ACK/enforcement, live inventory
@@ -150,3 +150,43 @@ Do NOT mark full #70 or #92 complete from this commit:
 
 No main merge/push, issue closure, deployment, deletion or live mutation occurred.
 Migration/rollback is additive and Manager-schema-free; see resource-capabilities.md.
+
+
+## Native-provider follow-up (2026-11-01; after a7458730)
+
+Public source API -> real normalizers -> real capability hook/ProviderTable tests
+cover Gemini, Interactions, Codex, xAI, Meta, Claude, Vertex and OpenAI. Issued
+resource-id markers are carried unchanged (not invented from raw key/position
+matches); they become display evidence only after exact current catalog matching.
+OpenAI group/member targets remain distinct, including membership versions.
+Duplicate source/member/catalog markers, malformed markers, family/kind mismatch,
+ambiguous/not-ready rows and missing member proof do not become associations.
+Late source-list completions cannot restore invalidated evidence. Tooltip canaries
+prove no source keys, URLs or management key enter capability identity output.
+
+Real OpenAI drawer and routed layout public outlet edit/save tests demonstrate
+that both group and member markers survive renamed form payloads. The routed
+layout test uses its exported child-route context, not a browser-rendered portal.
+Public API tests cover raw-config unavailable saves, same-name/reordered edits,
+key edits, marker non-invention and refusal of ambiguous marked updates. Existing
+legacy manual selectors are not used to establish catalog authority. A browser
+numeric timer-ref typing correction in Modal is required because the Node HTTP
+fixtures bring Node timer overloads into test type checking; runtime is unchanged.
+
+The strict process test now uses the actual credentials route and waits for full
+Manager inventory/bindings negotiation within its existing 20-second startup
+context. HTTP 200/not_ready is never ready; persistent unavailability still fails.
+Auth/schema errors fail immediately. Explicit plugin unsupported states retain
+their separate negative assertions. Scope, target/version and per-fixture binding
+assertions have not been relaxed. Parent's early strict failure remains failure
+(parent-cross-contract-wip.log); producer diagnostic23-debug.log identified the
+publication-readiness transition. Parent owns the final committed/integrated Core
+run; this follow-up does not duplicate or claim it. Browser fixture success is
+not rendered-browser acceptance; parent reported host-policy rejection before
+navigation and cleaned its owned fixture/session. Browser acceptance is pending.
+
+Follow-up raw logs, exact commands and results:
+D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/identity-evidence/native-provider/.
+See REPORT.md there for the terminal verification receipt and RED/GREEN ledger.
+Full original Go baseline remains exit 1 with the eight known Windows failures;
+no all-green global claim. No Core, gate, live config or deployment changes.

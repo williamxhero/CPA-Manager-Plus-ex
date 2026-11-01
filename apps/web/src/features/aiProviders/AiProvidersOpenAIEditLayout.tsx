@@ -533,12 +533,14 @@ export function AiProvidersOpenAIEditLayout() {
     setSaving(true);
     try {
       const payload: OpenAIProviderConfig = {
+        resourceId: initialData?.resourceId,
         name,
         prefix: form.prefix?.trim() || undefined,
         baseUrl,
         headers: buildHeaderObject(form.headers),
         apiKeyEntries: form.apiKeyEntries.filter(hasOpenAIKeyEntryConfiguration).map((entry) => ({
           apiKey: entry.apiKey.trim(),
+          resourceId: entry.resourceId,
           weight: normalizeCredentialWeight(entry.weight),
           proxyUrl: entry.proxyUrl?.trim() || undefined,
           authIndex: normalizeAuthIndex(entry.authIndex) ?? undefined,
@@ -606,6 +608,7 @@ export function AiProvidersOpenAIEditLayout() {
     form,
     handleBack,
     initialData?.disabled,
+    initialData?.resourceId,
     providers,
     setDraftBaseline,
     setForm,

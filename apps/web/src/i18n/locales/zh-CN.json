@@ -1,11 +1,11 @@
 {
   "resource_protection": {
-    "unbound": "未验证运行时身份关联",
+    "unbound": "未验证资源身份关联",
     "unbound_description": "当前行没有绑定到目录实例与目标版本的宿主证明。名称、密钥、位置或 auth index 单独不能成为持久身份。自动保护不可用，手动操作不变。",
     "unsupported_mode": "当前模式不支持 Core 目录",
     "unsupported_mode_description": "Core 返回 unsupported_mode。尚未建立完整持久目录或自动保护。不能通过遗漏插件资源或修改线上配置来隐藏此限制。手动开关不变。",
     "identity_only": "目录身份可用；自动门禁不可用",
-    "identity_only_description": "Core 已为当前行签发运行时与目录关联。下方展示完整实例范围及目标版本。这仅是身份凭据：查询与独立门禁消费者不可用，不代表保护确认。手动操作不变。",
+    "identity_only_description": "Core 为当前行签发的来源身份或运行时绑定已与当前目录核对。下方展示完整实例范围及目标版本。这仅是身份凭据：查询与独立门禁消费者不可用，不代表运行时就绪或保护确认。手动操作不变。",
     "title": "自动保护能力",
     "unknown": "未知",
     "unknown_description": "尚未核实管理器集成支持。这是管理器级支持摘要，不是资源身份、保护、路由、健康或配额的证据。手动开关保持不变。",

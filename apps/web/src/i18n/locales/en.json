@@ -1,11 +1,11 @@
 {
   "resource_protection": {
-    "unbound": "No verified runtime identity association",
+    "unbound": "No verified resource identity association",
     "unbound_description": "This row has no current host-issued binding to the catalog scope and target versions. Its name, key, position or auth index alone is not durable identity. Automatic protection is unavailable; manual controls are unchanged.",
     "unsupported_mode": "Core catalog unavailable in this mode",
     "unsupported_mode_description": "Core reports unsupported_mode for this instance. No complete durable inventory or automatic protection is established. Do not omit plugin resources or change live configuration to hide this blocker. The manual switch is unchanged.",
     "identity_only": "Catalog identity available; automatic gate unavailable",
-    "identity_only_description": "Core has issued a current runtime-to-catalog association for this row. The full instance scope and target versions are shown below. This is identity evidence only: query and independent gate consumers are unavailable, and no protection ACK is implied. Manual controls are unchanged.",
+    "identity_only_description": "Core has issued the source identity or runtime binding for this row, verified against the current catalog. The full instance scope and target versions are shown below. This is identity evidence only: query and independent gate consumers are unavailable, and no runtime-readiness or protection ACK is implied. Manual controls are unchanged.",
     "title": "Automatic protection capability",
     "unknown": "Unknown",
     "unknown_description": "Manager integration support is unverified. This is a manager-wide support summary, not evidence of resource identity, protection, routing, health or quota. The manual switch is unchanged.",

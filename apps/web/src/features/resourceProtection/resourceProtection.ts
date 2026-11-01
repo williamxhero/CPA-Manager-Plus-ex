@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ProviderRow } from '@/components/providers/ProviderTable/rowData';
 import type { PanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability';
 import {
   usageServiceApi,
@@ -214,6 +215,43 @@ function readBindings(value: unknown): RuntimeResourceBinding[] {
   return accepted;
 }
 
+export type ResourceIdentityEvidence = Pick<RuntimeResourceBinding, 'scope' | 'targets'>;
+export type ResourceProtectionEvidence = {
+  status: ResourceProtectionCapability;
+  binding?: ResourceIdentityEvidence;
+};
+
+// Source markers carry no authority by themselves: resolve them only against the
+// same current, complete negotiated snapshot. Do not manufacture runtime bindings.
+function readSourceInventory(value: unknown) {
+  if (!isRecord(value) || !isRecord(value.negotiated) || !isRecord(value.negotiated.snapshot))
+    return null;
+  const snapshot = value.negotiated.snapshot;
+  if (!Array.isArray(snapshot.resources)) return null;
+  const scope: ResourceScope = {
+    instance_id: String(snapshot.instance_id),
+    instance_incarnation: String(snapshot.instance_incarnation),
+    boot_epoch: String(snapshot.boot_epoch),
+    snapshot_revision: Number(snapshot.snapshot_revision),
+  };
+  const rows = snapshot.resources.flatMap((row) => {
+    if (!isRecord(row)) return [];
+    const target = readTarget(row);
+    if (!target) return [];
+    return [
+      {
+        target,
+        kind: row.kind,
+        family: row.family,
+        parent: row.parent_id,
+        members: row.members,
+        ready: row.identity === 'valid' && row.catalog_readiness === 'ready',
+      },
+    ];
+  });
+  return { scope, rows };
+}
+
 // Call once at page level, never per row. No persistent evidence cache or polling.
 export function useResourceProtection(availability: ManagerAvailability, sourceRevision?: unknown) {
   const apiBase = useAuthStore((state) => state.apiBase);
@@ -245,6 +283,7 @@ export function useResourceProtection(availability: ManagerAvailability, sourceR
     scope: typeof scope;
     status: ResourceProtectionCapability;
     bindings: RuntimeResourceBinding[];
+    inventory: ReturnType<typeof readSourceInventory>;
   } | null>(null);
 
   const load = useCallback(() => {
@@ -259,7 +298,12 @@ export function useResourceProtection(availability: ManagerAvailability, sourceR
       .getResourceCapabilities(scope.managerBase, scope.managementKey, pending.signal, true, true)
       .then((response) => {
         if (generation.current === request && currentScope.current === scope) {
-          setResult({ scope, status: readCapability(response), bindings: readBindings(response) });
+          setResult({
+            scope,
+            status: readCapability(response),
+            bindings: readBindings(response),
+            inventory: readSourceInventory(response),
+          });
         }
       })
       .catch(() => {
@@ -297,5 +341,64 @@ export function useResourceProtection(availability: ManagerAvailability, sourceR
         : undefined;
     return binding ? { status: 'identity_only', binding } : { status: 'unbound' };
   };
-  return { status, refresh, forCredential };
+  const forProvider = (
+    row: ProviderRow,
+    sourceRows: readonly ProviderRow[] = [row]
+  ): ResourceProtectionEvidence => {
+    if (status !== 'identity_only') return { status };
+    const marker = row.raw.resourceId;
+    const inventory = result?.scope === scope ? result.inventory : null;
+    const sourceMarkers = sourceRows.flatMap((source) =>
+      source.kind === 'openai'
+        ? [source.raw.resourceId, ...source.raw.apiKeyEntries.map((entry) => entry.resourceId)]
+        : [source.raw.resourceId]
+    );
+    if (
+      !uuid(marker) ||
+      !inventory ||
+      sourceMarkers.filter((value) => value === marker).length !== 1
+    )
+      return { status: 'unbound' };
+    const matches = inventory.rows.filter((source) => source.target.resource_id === marker);
+    if (matches.length !== 1) return { status: 'unbound' };
+    const source = matches[0];
+    if (!source.ready) return { status: 'unbound' };
+    if (row.kind === 'openai') {
+      if (source.kind !== 'provider' || source.family !== 'openai-compatibility')
+        return { status: 'unbound' };
+      const members = source.members === undefined ? [] : source.members;
+      const supplied = row.raw.apiKeyEntries.map((entry) => entry.resourceId);
+      if (
+        !Array.isArray(members) ||
+        !members.every(uuid) ||
+        !supplied.every(uuid) ||
+        new Set(members).size !== members.length ||
+        new Set(supplied).size !== supplied.length ||
+        members.length !== supplied.length ||
+        !members.every((member) => supplied.includes(member))
+      )
+        return { status: 'unbound' };
+      const targets: ResourceTarget[] = [source.target];
+      for (const member of members) {
+        const candidates = inventory.rows.filter((entry) => entry.target.resource_id === member);
+        if (
+          sourceMarkers.filter((value) => value === member).length !== 1 ||
+          candidates.length !== 1 ||
+          !candidates[0].ready ||
+          candidates[0].kind !== 'credential' ||
+          candidates[0].family !== 'openai-compatibility' ||
+          candidates[0].parent !== marker
+        )
+          return { status: 'unbound' };
+        targets.push(candidates[0].target);
+      }
+      return { status: 'identity_only', binding: { scope: inventory.scope, targets } };
+    }
+    if (source.kind !== 'credential' || source.family !== row.kind) return { status: 'unbound' };
+    return {
+      status: 'identity_only',
+      binding: { scope: inventory.scope, targets: [source.target] },
+    };
+  };
+  return { status, refresh, forCredential, forProvider };
 }
