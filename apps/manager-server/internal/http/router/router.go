@@ -5,13 +5,14 @@ import (
 	"strings"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/app"
-	credentialpolicycontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/credentialpolicy"
 	accountactioncontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/accountaction"
 	apikeyaliascontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/apikeyalias"
 	automationcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/automation"
 	codexinspectioncontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/codexinspection"
+	credentialpolicycontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/credentialpolicy"
 	credentialquotacontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/credentialquota"
 	dashboardcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/dashboard"
+	fullrefreshcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/fullrefresh"
 	healthcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/health"
 	managerconfigcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/managerconfig"
 	modelpricecontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/modelprice"
@@ -55,6 +56,8 @@ func New(appCtx *app.Context) http.Handler {
 	credentialPolicyHandler := &credentialpolicycontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/credential-policy", credentialPolicyHandler.Handle)
 	mux.HandleFunc("/usage-service/credential-policy/resume", credentialPolicyHandler.Handle)
+	fullRefreshHandler := &fullrefreshcontroller.Handler{App: appCtx}
+	mux.HandleFunc("/usage-service/full-refresh", fullRefreshHandler.Handle)
 	credentialQuotaHandler := &credentialquotacontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/credential-quota", credentialQuotaHandler.Handle)
 	mux.HandleFunc("/usage-service/credential-quota/jobs/", credentialQuotaHandler.Handle)

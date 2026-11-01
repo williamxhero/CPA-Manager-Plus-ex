@@ -63,5 +63,5 @@ func secureClient(target QueryTarget, n NetworkOptions) *http.Client {
 			return nil, errors.New("connection failed")
 		},
 	}
-	return &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect refused") }}
+	return &http.Client{Transport: retryAfterTransport{transport}, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect refused") }}
 }

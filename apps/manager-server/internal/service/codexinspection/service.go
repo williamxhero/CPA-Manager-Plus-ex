@@ -28,6 +28,7 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpa"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpaauthfiles"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managementquery"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
 	quotasnapshotsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/quotasnapshot"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
@@ -71,6 +72,8 @@ var (
 )
 
 type Service struct {
+	// Startup-only: no parallel private quota loop in scoped Manager mode.
+	LegacyQuotaGuard     *managementquery.LegacyGuard
 	store                *store.Store
 	managerConfigService *managerconfig.Service
 	client               *http.Client
@@ -1873,6 +1876,14 @@ func (s *Service) requestCodexUsageAt(
 	item account,
 	path string,
 ) (apiCallResponse, int, error) {
+	if s.LegacyQuotaGuard != nil {
+		operation, release, err := s.LegacyQuotaGuard.Begin(ctx)
+		if err != nil {
+			return apiCallResponse{}, http.StatusConflict, err
+		}
+		defer release()
+		ctx = operation
+	}
 	headers := map[string]string{
 		"Authorization": "Bearer $TOKEN$",
 		"Content-Type":  "application/json",

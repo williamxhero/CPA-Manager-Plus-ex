@@ -51,7 +51,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			response.JSON(w, 400, map[string]string{"error": "invalid_query"})
 			return
 		}
-		out, err = h.App.OfficialBalanceService.Start(ctx, q)
+		out, err = h.App.FullRefreshService.StartOfficial(ctx, q)
 		if err == nil {
 			response.JSON(w, 202, out)
 			return

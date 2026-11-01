@@ -22,6 +22,8 @@ import (
 	credentialpolicysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy"
 	credentialquotasvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
 	dashboardsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/dashboard"
+	fullrefreshsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managementquery"
 	managerconfigsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
 	modelpricesvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/modelprice"
 	monitoringsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/monitoring"
@@ -51,12 +53,14 @@ type DatabaseMaintenanceStatusProvider interface {
 
 type Context struct {
 	CredentialPolicyService *credentialpolicysvc.Service
-	OfficialBalanceService *officialbalancesvc.Service
-	CredentialQuotaService *credentialquotasvc.Service
-	UpdateCheckService     *updatechecksvc.Service
-	Config                 config.Config
-	Store                  *store.Store
-	Collector              *collector.Manager
+	ManagementQueryBudget   *managementquery.Budget
+	FullRefreshService      *fullrefreshsvc.Service
+	OfficialBalanceService  *officialbalancesvc.Service
+	CredentialQuotaService  *credentialquotasvc.Service
+	UpdateCheckService      *updatechecksvc.Service
+	Config                  config.Config
+	Store                   *store.Store
+	Collector               *collector.Manager
 
 	StartedAt int64
 	ServiceID string
@@ -175,23 +179,27 @@ func fromExisting(
 	}))
 	authFileMutationCoordinator := cpaauthfiles.NewMutationCoordinator()
 	identityService := resourcecapabilitysvc.New(accountProcessingPolicyService, managerConfigService)
-	credentialQuotaService := credentialquotasvc.New(st, identityService)
-	return &Context{
+	managementBudget := managementquery.NewBudget(st)
+	officialBalanceService := officialbalancesvc.New(st, identityService, officialbalancesvc.WithBudget(managementBudget))
+	credentialQuotaService := credentialquotasvc.New(st, identityService, credentialquotasvc.WithBudget(managementBudget))
+	out := &Context{
 		CredentialPolicyService: credentialpolicysvc.New(st, credentialQuotaService, managerConfigService, cfg.QuotaCooldownEnvSet && !cfg.QuotaCooldownEnabled),
-		OfficialBalanceService: officialbalancesvc.New(st, identityService),
-		CredentialQuotaService: credentialQuotaService,
-		UpdateCheckService:     updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
-		Config:                 cfg,
-		Store:                  st,
-		Collector:              collectorManager,
-		StartedAt:              startedAt,
-		ServiceID:              serviceID,
-		AdminAuthService:       adminauthsvc.New(cfg, st),
-		SetupService:           setupsvc.New(cfg, st, collectorService, managerConfigService, startedAt, serviceID),
-		ManagerConfigService:   managerConfigService,
-		CollectorService:       collectorService,
-		UsageService:           usageService,
-		DashboardService:       dashboardsvc.New(st, cfg.DashboardHourlyRollupEnabled),
+		ManagementQueryBudget:   managementBudget,
+		FullRefreshService:      fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget)),
+		OfficialBalanceService:  officialBalanceService,
+		CredentialQuotaService:  credentialQuotaService,
+		UpdateCheckService:      updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
+		Config:                  cfg,
+		Store:                   st,
+		Collector:               collectorManager,
+		StartedAt:               startedAt,
+		ServiceID:               serviceID,
+		AdminAuthService:        adminauthsvc.New(cfg, st),
+		SetupService:            setupsvc.New(cfg, st, collectorService, managerConfigService, startedAt, serviceID),
+		ManagerConfigService:    managerConfigService,
+		CollectorService:        collectorService,
+		UsageService:            usageService,
+		DashboardService:        dashboardsvc.New(st, cfg.DashboardHourlyRollupEnabled),
 		CodexInspectionService: codexinspectionsvc.NewWithOptions(
 			st,
 			managerConfigService,
@@ -218,4 +226,8 @@ func fromExisting(
 		PanelService:             panelsvc.New(cfg.PanelPath, embeddedPanel),
 		AutomationRuntimeService: runtimeService,
 	}
+	legacyGuard := &managementquery.LegacyGuard{Budget: managementBudget, Identity: identityService}
+	out.ProxyService.LegacyQuotaGuard = legacyGuard
+	out.CodexInspectionService.LegacyQuotaGuard = legacyGuard
+	return out
 }

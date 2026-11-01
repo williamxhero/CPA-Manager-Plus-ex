@@ -20,11 +20,13 @@ import (
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/model"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpaauthfiles"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managementquery"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
 
 type Service struct {
+	LegacyQuotaGuard     *managementquery.LegacyGuard
 	managerConfigService *managerconfig.Service
 	store                *store.Store
 	authFileMutations    *cpaauthfiles.MutationCoordinator
@@ -212,6 +214,27 @@ func (s *Service) ProxyV8APIKeysConfig(w http.ResponseWriter, r *http.Request, w
 }
 
 func (s *Service) proxyToSavedSetup(w http.ResponseWriter, r *http.Request, writeError func(http.ResponseWriter, int, error), useSavedManagementKey bool, rewritePluginOrigin bool) {
+	if s.LegacyQuotaGuard != nil {
+		quota, err := isLegacyQuotaRequest(r)
+		if err != nil {
+			writeError(w, 400, errors.New("invalid management quota request"))
+			return
+		}
+		if quota {
+			operation, release, err := s.LegacyQuotaGuard.Begin(r.Context())
+			if err != nil {
+				code := 409
+				if errors.Is(err, managementquery.ErrBusy) {
+					code = 429
+				}
+				writeError(w, code, err)
+				return
+			}
+			defer release()
+			r = r.WithContext(operation)
+		}
+	}
+
 	setup, ok, err := s.resolveSetup(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)

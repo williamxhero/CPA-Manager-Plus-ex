@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpa"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managementquery"
 )
 
 // Supported CPA management endpoints used by the recovery probe. Both are
@@ -63,6 +64,7 @@ func (r quotaProbeResult) AnyExhausted() bool {
 }
 
 type httpQuotaRecoveryProbe struct {
+	guard  *managementquery.LegacyGuard
 	client *http.Client
 }
 
@@ -74,6 +76,14 @@ func newHTTPQuotaRecoveryProbe() *httpQuotaRecoveryProbe {
 // to a provider usage request through api-call. Both deliver real HTTP status
 // codes; a transport/protocol error is returned so the caller can back off.
 func (p *httpQuotaRecoveryProbe) ProbeQuotaRecovery(ctx context.Context, baseURL, managementKey, provider, authIndex, accountID string) (quotaProbeResult, error) {
+	if p.guard != nil {
+		operation, release, err := p.guard.Begin(ctx)
+		if err != nil {
+			return quotaProbeResult{}, err
+		}
+		defer release()
+		ctx = operation
+	}
 	baseURL = strings.TrimSpace(baseURL)
 	managementKey = strings.TrimSpace(managementKey)
 	authIndex = strings.TrimSpace(authIndex)
@@ -337,9 +347,9 @@ func numericField(obj map[string]any, keys ...string) (float64, bool) {
 // reported, in which case only the body is used.
 func decodeAPICallEnvelope(body []byte) (int, []byte) {
 	var raw struct {
-		StatusCode json.RawMessage `json:"status_code"`
+		StatusCode  json.RawMessage `json:"status_code"`
 		StatusCode2 json.RawMessage `json:"statusCode"`
-		Body       json.RawMessage `json:"body"`
+		Body        json.RawMessage `json:"body"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return 0, nil
@@ -382,5 +392,13 @@ func providerUsageProbeURL(provider string) string {
 		return xaiUsageProbeURL
 	default:
 		return ""
+	}
+}
+
+// SetLegacyQuotaGuard is startup-only wiring. In current scoped mode the new
+// policy owner requests recovery through fullrefresh, not this legacy fallback.
+func (w *RateLimitAutoDisableWorker) SetLegacyQuotaGuard(g *managementquery.LegacyGuard) {
+	if p, ok := w.quotaProbe.(*httpQuotaRecoveryProbe); ok {
+		p.guard = g
 	}
 }

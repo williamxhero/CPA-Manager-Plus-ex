@@ -850,6 +850,15 @@ func (s *Service) requestProviderAPICallAt(
 	header map[string]string,
 	requestData string,
 ) (apiCallResponse, int, error) {
+	// Billing is management work; response/inference probes below are unchanged.
+	if s.LegacyQuotaGuard != nil && (strings.HasPrefix(targetURL, xaiBillingMonthlyURL) || targetURL == xaiOfficialAPIMeURL) {
+		operation, release, err := s.LegacyQuotaGuard.Begin(ctx)
+		if err != nil {
+			return apiCallResponse{}, http.StatusConflict, err
+		}
+		defer release()
+		ctx = operation
+	}
 	if strings.TrimSpace(method) == "" {
 		method = http.MethodGet
 	}
