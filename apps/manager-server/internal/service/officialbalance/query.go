@@ -116,7 +116,7 @@ func (s *Service) run(job Job, st Status, flight, id string) {
 	if loadErr != nil || record.Version != st.Version {
 		record.SecretRef = "invalid"
 	}
-	obs, err := s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve}, resolver{s.Store, id, st.Version})
+	obs, err := s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI}, resolver{s.Store, id, st.Version})
 	// Revalidate full Core scope/versions, even after failures; no cached authority.
 	valid := s.verify(ctx, job.Binding)
 	s.mu.Lock()

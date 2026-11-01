@@ -4,9 +4,27 @@ export interface BalanceBinding {
   scope: ResourceScope;
   targets: ResourceTarget[];
 }
-export type OfficialBalanceAdapter = 'deepseek' | 'deepinfra';
+export type OfficialBalanceAdapter =
+  | 'deepseek'
+  | 'deepinfra'
+  | 'newapi-user-self-v1'
+  | 'newapi-token-usage-v1';
+export interface NewAPIConfig {
+  protocolConfirmed: boolean;
+  instanceVersion: string;
+  auth: string;
+  userID?: string;
+  accountScope?: string;
+  nativeUnit: 'newapi_quota';
+}
 
 export interface BalanceObservation {
+  nativeQuota?: {
+    unit: 'newapi_quota';
+    state: 'finite' | 'unlimited' | 'unknown';
+    remaining?: string;
+    unlimited?: boolean;
+  };
   semantic?: string;
   amountDecimal?: string;
   currency?: string;
@@ -17,6 +35,7 @@ export interface BalanceObservation {
   balances?: { currency: string; total: string; granted: string; toppedUp: string }[];
 }
 export interface OfficialBalanceStatus extends BalanceBinding {
+  newAPI?: NewAPIConfig;
   version: number;
   adapter: string;
   endpoint: string;
