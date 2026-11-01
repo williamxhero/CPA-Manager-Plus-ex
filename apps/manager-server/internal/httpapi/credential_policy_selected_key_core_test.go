@@ -72,12 +72,17 @@ func runSelectedKeyPolicyFixture(t *testing.T, f *selectedKeyPolicyFixture, grou
 	acquire()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- f.manager.AppContext().FullRefreshService.Run(ctx) }()
-	defer func() {
+	service := f.manager.AppContext().FullRefreshService
+	start := func() {
+		go func(ctx context.Context, target interface{ Run(context.Context) error }, result chan error) {
+			result <- target.Run(ctx)
+		}(ctx, service, done)
+	}
+	stop := func() {
 		cancel()
 		shutdown, stop := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stop()
-		if err := f.manager.AppContext().FullRefreshService.Shutdown(shutdown); err != nil {
+		if err := service.Shutdown(shutdown); err != nil {
 			t.Error(err)
 		}
 		select {
@@ -88,7 +93,17 @@ func runSelectedKeyPolicyFixture(t *testing.T, f *selectedKeyPolicyFixture, grou
 		case <-shutdown.Done():
 			t.Error("lifecycle did not join")
 		}
-	}()
+	}
+	start()
+	defer func() { stop() }()
+	f.cycleManager = func() {
+		stop()
+		f.reopenManager()
+		ctx, cancel = context.WithCancel(context.Background())
+		done = make(chan error, 1)
+		service = f.manager.AppContext().FullRefreshService
+		start()
+	}
 	// Both selected descriptors were issued by Core; only actual proof may assign
 	// the successful query's key evidence to A. B must remain unavailable.
 	var selected, other cq.Source
@@ -151,6 +166,9 @@ func runSelectedKeyPolicyFixture(t *testing.T, f *selectedKeyPolicyFixture, grou
 	}
 	f.depleted.Store(true)
 	acquire()
+	if f.beforePauseWait != nil {
+		f.beforePauseWait(&configured)
+	}
 	wait := func(action string) {
 		deadline := time.Now().Add(10 * time.Second)
 		for {

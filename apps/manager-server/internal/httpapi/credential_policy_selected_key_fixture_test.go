@@ -45,11 +45,32 @@ type selectedKeyPolicyFixture struct {
 	onPause          func(cp.Status)
 	onEnd            func()
 	onPrerequisite   func(ob.Status, cq.Source, cq.Source)
+	beforePauseWait  func(*ob.Status)
+	reopenManager    func()
+	cycleManager     func()
 	billingOnlyKey   atomic.Bool
 	orphanNative     cp.GateOperation
+	tenantBusiness   atomic.Int32
+	otherOrigin      func() string
 }
 
 func newSelectedKeyPolicyFixture(t *testing.T, nativeGrant ...bool) (*selectedKeyPolicyFixture, ob.Binding, string) {
+	opts := selectedKeyFixtureOptions{}
+	if len(nativeGrant) > 0 {
+		opts.nativeGrant = nativeGrant[0]
+	}
+	if len(nativeGrant) > 1 {
+		opts.orphanNative = nativeGrant[1]
+	}
+	return newSelectedKeyPolicyFixtureOptions(t, opts)
+}
+
+type selectedKeyFixtureOptions struct {
+	nativeGrant, orphanNative  bool
+	authOverride, tenantPrefix string
+}
+
+func newSelectedKeyPolicyFixtureOptions(t *testing.T, opts selectedKeyFixtureOptions) (*selectedKeyPolicyFixture, ob.Binding, string) {
 	t.Helper()
 	binary := os.Getenv("CORE_QUOTA_TEST_BINARY")
 	if binary == "" {
@@ -95,7 +116,18 @@ func newSelectedKeyPolicyFixture(t *testing.T, nativeGrant ...bool) (*selectedKe
 				remaining = "0"
 			}
 			fmt.Fprintf(w, `{"code":true,"data":{"object":"token_usage","total_available":%s,"unlimited_quota":false}}`, remaining)
-		case "/v1/responses", "/backend-api/codex/responses":
+		case "/api/user/self":
+			if r.Header.Get("Authorization") != "Bearer WALLET-PAT" || r.Header.Get("New-Api-User") != "42" {
+				t.Error("wallet PAT auth changed")
+				w.WriteHeader(403)
+				return
+			}
+			f.quotaCalls[0].Add(1)
+			io.WriteString(w, `{"success":true,"data":{"id":42,"quota":0}}`)
+		case "/v1/responses", "/backend-api/codex/responses", "/tenant/B/v1/responses":
+			if r.URL.Path == "/tenant/B/v1/responses" {
+				f.tenantBusiness.Add(1)
+			}
 			if token := r.Header.Get("Authorization"); token == "Bearer SYNTHETIC-INITIAL-ACCESS" || strings.HasPrefix(token, "Bearer SYNTHETIC-ROTATED-") {
 				f.oauthSends.Add(1)
 			} else {
@@ -151,20 +183,31 @@ func newSelectedKeyPolicyFixture(t *testing.T, nativeGrant ...bool) (*selectedKe
 	upstream.TLS.Certificates[0] = certificate
 	upstream.StartTLS()
 	t.Cleanup(upstream.Close)
+	f.otherOrigin = func() string {
+		other := httptest.NewUnstartedServer(upstream.Config.Handler)
+		other.TLS = upstream.TLS.Clone()
+		other.StartTLS()
+		t.Cleanup(other.Close)
+		return other.URL
+	}
 	dir := t.TempDir()
 	state := filepath.Join(dir, "state")
 	auth := filepath.Join(state, "auth")
 	if err := os.MkdirAll(auth, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if len(nativeGrant) > 0 && nativeGrant[0] {
+	if opts.nativeGrant {
 		jwt := "a." + base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"controlled-issuer","sub":"controlled-subject","https://api.openai.com/auth":{"chatgpt_account_id":"synthetic-continuity-account"}}`)) + ".b"
 		raw, _ := json.Marshal(map[string]any{"type": "codex", "access_token": "SYNTHETIC-INITIAL-ACCESS", "refresh_token": "SYNTHETIC-INITIAL-GRANT", "account_id": "synthetic-continuity-account", "id_token": jwt, "expired": "2099-01-01T00:00:00Z", "disabled": false, "priority": 200})
 		if err := os.WriteFile(filepath.Join(auth, "codex.json"), raw, 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	config := fmt.Sprintf("server: {port: 0}\nmanagement: {secret-key: test-password}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\napi-keys:\n  codex:\n    - name: selected-key-fixture\n      base-url: %q\n      keys: [{api-key: SELECTED-KEY-A, priority: 100}, {api-key: SELECTED-KEY-B, priority: 0}]\nplugins:\n  enabled: true\n  dir: %q\n  configs:\n    opencode-go-cliproxyapi:\n      enabled: true\n      base-url: https://opencode.ai/zen/go/v1\n      api-keys: [{name: fixture-only, value: NATIVE-FIXTURE-PLUGIN}]\n", filepath.ToSlash(auth), upstream.URL+"/v1", filepath.ToSlash(plugin))
+	extraHeaders := ""
+	if opts.authOverride != "" {
+		extraHeaders = fmt.Sprintf("      headers: {Authorization: %q}\n", opts.authOverride)
+	}
+	config := fmt.Sprintf("server: {port: 0}\nmanagement: {secret-key: test-password}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\napi-keys:\n  codex:\n    - name: selected-key-fixture\n      base-url: %q\n%s      keys: [{api-key: SELECTED-KEY-A, priority: 100}, {api-key: SELECTED-KEY-B, priority: 0}]\nplugins:\n  enabled: true\n  dir: %q\n  configs:\n    opencode-go-cliproxyapi:\n      enabled: true\n      base-url: https://opencode.ai/zen/go/v1\n      api-keys: [{name: fixture-only, value: NATIVE-FIXTURE-PLUGIN}]\n", filepath.ToSlash(auth), upstream.URL+opts.tenantPrefix+"/v1", extraHeaders, filepath.ToSlash(plugin))
 	if err := os.WriteFile(filepath.Join(state, "config.yaml"), []byte(config), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +300,7 @@ func newSelectedKeyPolicyFixture(t *testing.T, nativeGrant ...bool) (*selectedKe
 			time.Sleep(25 * time.Millisecond)
 		}
 	}
-	if len(nativeGrant) > 1 && nativeGrant[1] {
+	if opts.orphanNative {
 		// REAL authenticated pause followed by ordinary account replacement,
 		// before Manager enrollment. The watcher-free process publishes the
 		// replacement on real restart; no gate/source row is fabricated.
@@ -308,6 +351,21 @@ func newSelectedKeyPolicyFixture(t *testing.T, nativeGrant ...bool) (*selectedKe
 	roots.AddCert(upstream.Certificate())
 	f.manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(balance.NetworkOptions{RootCAs: roots})
 	f.manager.AppContext().FullRefreshService.Subscribe(func(_ context.Context, e fr.CompletedObservation) { f.completed <- e })
+	f.reopenManager = func() {
+		// Caller MUST have stopped/joined the old coordinator and query hosts.
+		// The same real SQLite, encrypted74 secrets and installation UUID reopen.
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db, err = store.Open(cfg.DBPath, protector)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.db = db
+		f.manager = New(cfg, db, collector.NewManager(cfg, db))
+		f.manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(balance.NetworkOptions{RootCAs: roots})
+		f.manager.AppContext().FullRefreshService.Subscribe(func(_ context.Context, e fr.CompletedObservation) { f.completed <- e })
+	}
 	// Select the unique issued two-member configured group, not a key hash,
 	// filename or account label. Only the actual HMAC proof can distinguish A/B.
 	var group ob.Binding

@@ -181,12 +181,17 @@ func runActualNativePolicyContinuity(t *testing.T, paused bool) {
 	if after.Targets[0] == before.Targets[0] {
 		t.Fatal("native refresh did not rotate issued full credential authority")
 	}
+	// No policy/UI read or save may be required to rebind the enabled intent.
+	// The real next admitted query must resolve certified continuity itself.
+	query(after)
 	var rebound cp.Status
 	f.api("GET", "/usage-service/credential-policy?authIndex="+after.AuthIndex, nil, 200, &rebound)
-	if !rebound.Enabled || rebound.Generation != 2 || rebound.Owner != saved.Owner || rebound.SubjectID == saved.SubjectID || rebound.Applied {
+	if !rebound.Enabled || rebound.Generation != 2 || rebound.Owner != saved.Owner || rebound.SubjectID == saved.SubjectID {
 		t.Fatalf("certified healthy ON continuity lost or invented ACK: %+v", rebound)
 	}
-	query(after) // fresh current binding, no UI resave and no old-boot/version reuse
+	if rebound.Applied && (rebound.Operation == nil || !rebound.Operation.ReceiptConfirmed || !rebound.Operation.CurrentApplied || rebound.Operation.Action != "clear") {
+		t.Fatal("continuity migration fabricated applied state instead of a real fresh recovery receipt")
+	}
 	if paused {
 		wait(after, "clear")
 		f.sendHTTP()
