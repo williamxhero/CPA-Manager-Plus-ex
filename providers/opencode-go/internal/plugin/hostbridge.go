@@ -44,11 +44,14 @@ func NewHostBridge(call RawCaller) *HostBridge {
 
 // hostHTTPReq is the wire shape accepted by host.http.do / do_stream.
 type hostHTTPReq struct {
-	Method  string      `json:"method"`
-	URL     string      `json:"url"`
-	Headers http.Header `json:"headers"`
-	Body    []byte      `json:"body"`
+	HostCallbackID string      `json:"host_callback_id,omitempty"`
+	Method         string      `json:"method"`
+	URL            string      `json:"url"`
+	Headers        http.Header `json:"headers"`
+	Body           []byte      `json:"body"`
 }
+
+type quotaCallbackContextKey struct{}
 
 type hostAuthListResponse struct {
 	Files []pluginapi.HostAuthFileEntry `json:"files"`
@@ -287,8 +290,10 @@ func (b *HostBridge) invoke(ctx context.Context, method string, payload any, wha
 // "host.http.do"; transport-level failures surface as errors whose text is
 // safe for logs (no keys, no response bodies).
 func (b *HostBridge) Do(ctx context.Context, req pluginapi.HTTPRequest) (pluginapi.HTTPResponse, error) {
+	callbackID, _ := ctx.Value(quotaCallbackContextKey{}).(string)
 	env, err := b.invoke(ctx, pluginabi.MethodHostHTTPDo, hostHTTPReq{
-		Method: req.Method, URL: req.URL, Headers: req.Headers, Body: req.Body,
+		HostCallbackID: callbackID,
+		Method:         req.Method, URL: req.URL, Headers: req.Headers, Body: req.Body,
 	}, "host http do")
 	if err != nil {
 		return pluginapi.HTTPResponse{}, err

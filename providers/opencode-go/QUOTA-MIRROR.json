@@ -1,0 +1,22 @@
+{
+  "canonicalSourceRevision": "75ec552f826035a0b3270c8c824cff21329d3f3a",
+  "scope": "SPEC92 reused #75 invocation-scoped quota callback and additive describe wire only; no dependency/configuration changes",
+  "preservedDifferences": "Vendor version/default zen endpoint and unrelated source differences retained. Canonical default inference endpoint is described by actual selected binary.",
+  "files": [
+    {
+      "path": "internal/plugin/hostbridge.go",
+      "canonicalSHA256": "d88732163db82affe74b0b5429f65ec4773a00b01de806be1088190e85b7dafd",
+      "vendoredSHA256": "d88732163db82affe74b0b5429f65ec4773a00b01de806be1088190e85b7dafd"
+    },
+    {
+      "path": "internal/plugin/plugin.go",
+      "canonicalSHA256": "13f0e4bcda92c5813ff0378e47f3cb6d18bf4da047dcf57a251ccada8fe41f50",
+      "vendoredSHA256": "221da7793f7142452c3520187801beb8e237752edca0c8837bfb5a7e9faeabc9"
+    },
+    {
+      "path": "internal/plugin/quota_context_test.go",
+      "canonicalSHA256": "f428894bbff507b0f0e883fff3bb458a729af5bc193fe0e91933c8f0e116312b",
+      "vendoredSHA256": "f428894bbff507b0f0e883fff3bb458a729af5bc193fe0e91933c8f0e116312b"
+    }
+  ]
+}

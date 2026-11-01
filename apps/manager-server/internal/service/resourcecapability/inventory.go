@@ -16,6 +16,7 @@ import (
 // Negotiated is read evidence only. Neither capability flags nor catalog identity
 // are an applied gate ACK. Legacy support fields remain unchanged.
 type Negotiated struct {
+	CredentialQuery   Capability       `json:"credentialQuery"`
 	BindingCapability *Capability      `json:"bindingCapability,omitempty"`
 	Bindings          []RuntimeBinding `json:"bindings,omitempty"`
 	Snapshot          *Snapshot        `json:"snapshot,omitempty"`
@@ -27,6 +28,11 @@ type Negotiated struct {
 }
 
 type coreCapabilities struct {
+	CredentialQuery *struct {
+		Version     int  `json:"version"`
+		Sources     bool `json:"sources"`
+		ScopedQuery bool `json:"scoped_query"`
+	} `json:"credential_query"`
 	Scope        *Scope `json:"scope"`
 	Version      int    `json:"version"`
 	Inventory    bool   `json:"inventory"`
@@ -38,7 +44,7 @@ type coreCapabilities struct {
 }
 
 func unavailable(reason string) *Negotiated {
-	return &Negotiated{Identity: Capability{"unknown", reason}, Query: Capability{"unknown", "query_contract_unverified"}, IndependentGate: Capability{"unavailable", "consumer_contract_unconfigured"}, PolicyLocked: true}
+	return &Negotiated{CredentialQuery: Capability{"unknown", "credential_query_contract_unverified"}, Identity: Capability{"unknown", reason}, Query: Capability{"unknown", "query_contract_unverified"}, IndependentGate: Capability{"unavailable", "consumer_contract_unconfigured"}, PolicyLocked: true}
 }
 
 // Inventory contacts only the saved/env-resolved Core management connection.
@@ -117,6 +123,15 @@ func (s *Service) Inventory(ctx context.Context, bindings ...bool) (out *Negotia
 			return unavailable("stale_inventory")
 		}
 		result.Identity = Capability{"available", "durable_inventory"}
+		if caps.CredentialQuery != nil && caps.CredentialQuery.Version == 1 && caps.CredentialQuery.Sources && caps.CredentialQuery.ScopedQuery && current.CredentialQuery != nil && *caps.CredentialQuery == *current.CredentialQuery {
+			var query struct {
+				Version int               `json:"version"`
+				Sources []json.RawMessage `json:"sources"`
+			}
+			if readCore(ctx, conn.CPABaseURL, conn.ManagementKey, "credential-quota/sources", &query) == "" && query.Version == 1 && validQuotaSourceHeaders(snapshot, query.Sources) {
+				result.CredentialQuery = Capability{"available", "scoped_credential_query_v1"}
+			}
+		}
 		result.Snapshot = &snapshot
 		result.Query = Capability{"unavailable", "query_consumer_unconfigured"}
 	}

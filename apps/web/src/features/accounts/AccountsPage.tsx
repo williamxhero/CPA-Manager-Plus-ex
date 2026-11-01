@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
+import { useAccountCredentialMutationRevisionStore } from '@/stores/useAccountCredentialMutationRevisionStore';
+import { CredentialQuotaPanel } from '@/components/quota/CredentialQuotaPanel';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
@@ -1301,6 +1303,11 @@ export function AccountsPage() {
   const connectionFingerprint = useMemo(
     () => createCodexInspectionConnectionFingerprint(apiBase, managementKey) ?? '',
     [apiBase, managementKey]
+  );
+  const credentialQuotaRevision = useAccountCredentialMutationRevisionStore((state) =>
+    Object.values(state.events)
+      .filter((event) => event.connectionFingerprint === connectionFingerprint && event.kind !== 'quota')
+      .reduce((sum, event) => sum + event.revision, 0)
   );
   const authFilesRequestScope = useMemo(
     () => ({ apiBase, managementKey }),
@@ -10132,6 +10139,13 @@ export function AccountsPage() {
     const renderActiveDetail = () => {
       if (detailTab === 'quota') {
         return (
+          <>
+          {managerStorageAvailable && <CredentialQuotaPanel
+            base={featureAvailability.managerServiceBase ?? ''}
+            managementKey={managementKey}
+            authIndex={selectedRow.authIndex || undefined}
+            revision={credentialQuotaRevision}
+          />}
           <AccountQuotaTab
             detailView={detailView}
             windowUsageError={accountWindowUsageError}
@@ -10143,6 +10157,7 @@ export function AccountsPage() {
               !canResetCodexQuota(selectedRow) || resettingSelectedQuota || configurationSaving
             }
           />
+          </>
         );
       }
       if (detailTab === 'config') {
