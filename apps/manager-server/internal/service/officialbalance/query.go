@@ -60,8 +60,17 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 		if e == nil {
 			e = json.Unmarshal([]byte(doc), &job)
 		}
-		job.Joined = true
-		return job, e
+		if e != nil {
+			return Job{}, e
+		}
+		if job.State == "running" {
+			job.Joined = true
+			return job, nil
+		}
+		// Durable terminal publication ends provider singleflight. Completion
+		// consumers may still be running; their old worker keeps its own budget
+		// slot but must not turn a legitimate new query into a cached response.
+		delete(s.running, flight)
 	}
 	if retry, err := s.budget.RetryAt(ctx, "official:"+flight); err != nil {
 		return Job{}, err
@@ -108,7 +117,14 @@ func managementBudget(st Status) time.Duration {
 }
 
 func (s *Service) run(job Job, st Status, flight, id string) {
-	defer func() { s.mu.Lock(); delete(s.running, flight); s.mu.Unlock(); s.budget.Release(job.ID) }()
+	defer func() {
+		s.mu.Lock()
+		if s.running[flight] == job.ID {
+			delete(s.running, flight)
+		}
+		s.mu.Unlock()
+		s.budget.Release(job.ID)
+	}()
 	deadline := time.UnixMilli(job.DeadlineMS)
 	budget := time.Until(deadline)
 	ctx, cancel := context.WithDeadline(s.budget.Context(job.ID), deadline)
@@ -222,6 +238,9 @@ func (s *Service) TryJoin(ctx context.Context, q Query) (Job, bool, error) {
 	var job Job
 	if err = json.Unmarshal([]byte(doc), &job); err != nil {
 		return Job{}, true, err
+	}
+	if job.State != "running" {
+		return Job{}, false, nil
 	}
 	job.Joined = true
 	return job, true, nil

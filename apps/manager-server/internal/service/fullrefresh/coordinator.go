@@ -210,12 +210,26 @@ func (s *Service) StartSingleSource(ctx context.Context, request SourceRequest, 
 	if err = s.ensureLocked(ctx); err != nil {
 		return Progress{}, err
 	}
+rounds:
 	for _, p := range s.rounds {
 		if p.State != "running" || p.Scope != inv.Scope {
 			continue
 		}
 		for i := range p.Items {
 			if requestSame(p.Items[i].Request, request) {
+				item := &p.Items[i]
+				if request.Kind == Official && item.JobID != "" && canRetireOfficialItem(p, item) {
+					job, err := s.Official.Job(ctx, item.JobID)
+					if err != nil {
+						return Progress{}, ErrInput
+					}
+					if job.State != "running" {
+						if job.State == "complete" && job.Status != nil && job.Status.Attempt != nil && job.Status.Attempt.QueryID == job.ID {
+							s.finishItemLocked(p, item, job.Status.Attempt, job.Status.LastSuccess, job.Status.Stale)
+						}
+						continue rounds
+					}
+				}
 				if request.Credential != nil && p.Items[i].JobID != "" {
 					job, e := s.Credential.Job(ctx, p.Items[i].JobID)
 					if e != nil || request.Credential.Version != job.RequestedVersion && request.Credential.Version != job.Query.Version {
@@ -629,7 +643,15 @@ func (s *Service) finishManual(id string, attempt, last *balance.Observation, st
 	if p == nil || p.State != "running" || len(p.Items) == 0 || p.Items[0].JobID != id {
 		return
 	}
-	item := &p.Items[0]
+	s.finishManualLocked(p, attempt, last, stale)
+}
+
+// Caller holds the coordinator lock; the host already published this exact
+// persisted terminal attempt. This refresh never replays observer callbacks.
+func (s *Service) finishManualLocked(p *Progress, attempt, last *balance.Observation, stale bool) {
+	s.finishItemLocked(p, &p.Items[0], attempt, last, stale)
+}
+func (s *Service) finishItemLocked(p *Progress, item *Item, attempt, last *balance.Observation, stale bool) {
 	item.Attempt = attempt
 	item.LastSuccess = last
 	item.Stale = stale

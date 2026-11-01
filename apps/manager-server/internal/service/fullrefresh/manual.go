@@ -46,6 +46,15 @@ func (s *Service) StartOfficial(ctx context.Context, q ob.Query) (ob.Job, error)
 			}
 			if item.JobID != "" {
 				job, err := s.Official.Job(ctx, item.JobID)
+				if err == nil && canRetireOfficialItem(p, item) && job.State != "running" {
+					// A manual source root is not a full inventory round. Its
+					// terminal host result cannot cache subsequent same-CAS POSTs.
+					// Do not emit another completion notification here.
+					if job.State == "complete" && job.Status != nil && job.Status.Attempt != nil && job.Status.Attempt.QueryID == job.ID {
+						s.finishItemLocked(p, item, job.Status.Attempt, job.Status.LastSuccess, job.Status.Stale)
+					}
+					continue
+				}
 				if err == nil {
 					item.Joined = true
 					_ = s.save(ctx, p)
@@ -153,4 +162,23 @@ func (s *Service) recordManual(ctx context.Context, id string, scope rc.Scope, s
 		s.purposes[id] = Manual
 	}
 	return nil
+}
+
+// Completed source caching belongs only to a round with other pending work.
+// A manual adapter root (whose ID is its host job) is never such a full round.
+func canRetireOfficialItem(p *Progress, item *Item) bool {
+	if p.ID == item.JobID {
+		return true
+	}
+	for i := range p.Items {
+		other := &p.Items[i]
+		if other == item {
+			continue
+		}
+		switch other.Outcome {
+		case "queued", "running", "waiting_shared":
+			return false
+		}
+	}
+	return true
 }
