@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
@@ -43,6 +44,7 @@ type refreshFixture struct {
 	entered                   chan struct{}
 	release                   chan struct{}
 	upstream                  *httptest.Server
+	waveTokens                chan struct{}
 }
 
 func verifiedRefreshArtifact(t *testing.T, path, sha, revision string) {
@@ -85,7 +87,7 @@ func newRefreshFixture(t *testing.T) *refreshFixture {
 	if os.Getenv("CORE_QUOTA_PLUGIN_SDK_REVISION") != os.Getenv("CORE_QUOTA_EXPECTED_REVISION") {
 		t.Fatal("plugin SDK provenance mismatch")
 	}
-	f := &refreshFixture{t: t, entered: make(chan struct{}, 64), release: make(chan struct{})}
+	f := &refreshFixture{t: t, entered: make(chan struct{}, 64), release: make(chan struct{}), waveTokens: make(chan struct{}, 64)}
 	t.Cleanup(func() {
 		select {
 		case <-f.release:
@@ -110,9 +112,25 @@ func newRefreshFixture(t *testing.T) *refreshFixture {
 		case f.entered <- struct{}{}:
 		default:
 		}
+		if f.mode.Load() == 4 && r.URL.Path == "/user/balance" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+		}
 		if f.mode.Load() == 1 || f.mode.Load() == 4 && r.URL.Path == "/user/balance" {
 			select {
 			case <-f.release:
+			case <-r.Context().Done():
+				return
+			}
+		}
+		if f.mode.Load() == 6 {
+			// Slow response body, not a stalled15s response-header handshake.
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			select {
+			case <-f.waveTokens:
 			case <-r.Context().Done():
 				return
 			}
@@ -140,6 +158,15 @@ func newRefreshFixture(t *testing.T) *refreshFixture {
 			}
 			reset := time.Now().Add(time.Hour).Format(time.RFC3339)
 			fmt.Fprintf(w, `{"usage":{"rolling":{"status":"allowed","percent":20,"resetsAt":%q},"weekly":{"status":"allowed","percent":15,"resetsAt":%q},"monthly":{"status":"allowed","percent":10,"resetsAt":%q}}}`, reset, reset, reset)
+		case "/api/user/self":
+			if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer explicit-billing-") {
+				t.Error("missing explicit independent wallet authorization")
+			}
+			id := r.Header.Get("New-Api-User")
+			if id != "42" && id != "43" {
+				t.Error("unverified account")
+			}
+			fmt.Fprintf(w, `{"success":true,"data":{"id":%s,"quota":123456789}}`, id)
 		case "/user/balance":
 			if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer explicit-billing-") {
 				t.Error("query authorization was not configured explicit secret")
@@ -305,7 +332,7 @@ func TestFullRefreshActualCoreInventory(t *testing.T) {
 	}
 }
 
-func (f *refreshFixture) configuredSources() fr.Inventory {
+func (f *refreshFixture) configuredSources(timeouts ...int64) fr.Inventory {
 	f.t.Helper()
 	code, data := f.api("GET", "/usage-service/full-refresh", nil)
 	if code != 200 {
@@ -321,7 +348,11 @@ func (f *refreshFixture) configuredSources() fr.Inventory {
 			continue
 		}
 		q := src.Request.Official
-		u := ob.Update{Config: ob.Config{Binding: q.Binding, Version: q.Version, Adapter: "deepseek", Endpoint: f.upstream.URL + "/user/balance", PrivateTargets: []string{"127.0.0.1"}}, Secret: fmt.Sprintf("explicit-billing-%d", configured)}
+		timeout := int64(0)
+		if len(timeouts) > 0 {
+			timeout = timeouts[0]
+		}
+		u := ob.Update{Config: ob.Config{TimeoutMS: timeout, Binding: q.Binding, Version: q.Version, Adapter: "deepseek", Endpoint: f.upstream.URL + "/user/balance", PrivateTargets: []string{"127.0.0.1"}}, Secret: fmt.Sprintf("explicit-billing-%d", configured)}
 		code, data = f.api("PUT", balancePath, u)
 		if code != 200 {
 			f.t.Fatalf("configure %d %s", code, data)
@@ -416,6 +447,9 @@ func TestFullRefreshActualCoreRoundPersistsAndJoinsManual(t *testing.T) {
 		t.Fatalf("progress side effects %d %s", code, data)
 	}
 	for _, item := range done.Items {
+		if item.Outcome == "success" && item.Stale {
+			t.Fatal("fresh successful current attempt was mislabeled stale")
+		}
 		if item.Outcome == "success" && (item.JobID == "" || item.LastSuccess == nil || item.LastSuccess.QueryID != item.JobID) {
 			t.Fatal("success missing persisted host attempt")
 		}
@@ -442,7 +476,9 @@ func (f *refreshFixture) waitRound(id string) fr.Progress {
 
 func TestFullRefreshActualCoreCompletedSourceJoinsUntilRoundEnds(t *testing.T) {
 	f := newRefreshFixture(t)
-	inv := f.configuredSources()
+	// Explicit allowed hard budget for deliberately occupied slow-body work. Other
+	// default-budget and timeout assertions are unchanged.
+	inv := f.configuredSources(60000)
 	f.mode.Store(4)
 	code, data := f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "manual"})
 	if code != 202 {
@@ -606,6 +642,9 @@ func TestFullRefreshActualCoreFailureRetainsSuccessAndNotifiesRecoveryContext(t 
 	var p fr.Progress
 	json.Unmarshal(data, &p)
 	first := f.waitRound(p.ID)
+	if first.Succeeded != 9 || first.Failed != 0 {
+		t.Fatalf("first round did not establish all9 independent auth successes: %+v", first)
+	}
 	old := map[string]string{}
 	for _, item := range first.Items {
 		if item.Outcome == "success" {
@@ -620,7 +659,7 @@ func TestFullRefreshActualCoreFailureRetainsSuccessAndNotifiesRecoveryContext(t 
 	json.Unmarshal(data, &p)
 	failed := f.waitRound(p.ID)
 	if failed.Succeeded != 0 || failed.Failed != len(old) || failed.State != "partial" {
-		t.Fatalf("failure reported success %+v", failed)
+		t.Fatalf("failure reported success/history-map size%d firstSucceeded%d: %+v", len(old), first.Succeeded, failed)
 	}
 	for _, item := range failed.Items {
 		if last, ok := old[item.ID]; ok {
@@ -728,5 +767,614 @@ func TestFullRefreshActualCoreRetryAfterBlocksManualAndRecovery(t *testing.T) {
 	recovery := f.waitRound(p.ID)
 	if recovery.Succeeded != 0 || f.calls.Load() != before {
 		t.Fatal("recovery bypassed source cooldown")
+	}
+}
+
+func TestFullRefreshActualCoreVerifiedWalletDedupeNeedsIndependentAuthProof(t *testing.T) {
+	f := newRefreshFixture(t)
+	code, data := f.api("GET", "/usage-service/full-refresh", nil)
+	if code != 200 {
+		t.Fatal(string(data))
+	}
+	var inv fr.Inventory
+	json.Unmarshal(data, &inv)
+	configured := 0
+	for _, src := range inv.Sources {
+		if src.Request.Kind != fr.Official || !src.ManualDisabled {
+			continue
+		}
+		account := "42"
+		if configured == 0 {
+			account = "43"
+		}
+		q := src.Request.Official
+		u := ob.Update{Config: ob.Config{Binding: q.Binding, Version: q.Version, Adapter: balance.NewAPIUserSelfV1, Endpoint: f.upstream.URL + "/api/user/self", PrivateTargets: []string{"127.0.0.1"}, NewAPI: &balance.NewAPIConfig{ProtocolConfirmed: true, InstanceVersion: "controlled-0.6", Auth: balance.NewAPIUserPATWithIDV1, UserID: account, AccountScope: "same-label-is-not-account", NativeUnit: "newapi_quota"}}, Secret: fmt.Sprintf("explicit-billing-%d", configured)}
+		code, data = f.api("PUT", balancePath, u)
+		if code != 200 {
+			t.Fatalf("configurewallet %d %s", code, data)
+		}
+		configured++
+	}
+	start := func() fr.Progress {
+		t.Helper()
+		code, data := f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "manual"})
+		if code != 202 {
+			t.Fatalf("wallet round%d %s", code, data)
+		}
+		var p fr.Progress
+		json.Unmarshal(data, &p)
+		return f.waitRound(p.ID)
+	}
+	first := start()
+	if first.Succeeded != configured+2 || f.calls.Load() != int64(configured+2) {
+		t.Fatalf("unverified credentials skipped independent auth: %+v calls%d", first, f.calls.Load())
+	}
+	before := f.calls.Load()
+	second := start()
+	// TWO real distinct accounts on the SAME origin/protocol/label, plus native
+	// OAuth and projected plugin windows: exactly FOUR real upstream operations.
+	if f.calls.Load() != before+4 {
+		t.Fatalf("verified wallet groups were not coalesced or disjoint accounts merged: calls%d->%d progress%+v", before, f.calls.Load(), second)
+	}
+	if second.Succeeded != 4 || second.Shared != configured-2 {
+		t.Fatalf("shared observations falsely counted unique credential successes: %+v", second)
+	}
+	for _, item := range second.Items {
+		if item.Outcome == "shared_wallet" {
+			if item.SharedWallet == nil || item.SharedWallet.Observation.NativeQuota == nil || item.LastSuccess.QueryID == item.SharedWallet.AttemptID || item.Queried {
+				t.Fatal("wallet sharing fabricated per-key authentication success")
+			}
+		}
+	}
+}
+func TestFullRefreshActualCoreConnectionReplacementFencesLateResults(t *testing.T) {
+	f := newRefreshFixture(t)
+	f.configuredSources()
+	f.mode.Store(1)
+	var notifications atomic.Int64
+	f.manager.AppContext().FullRefreshService.Subscribe(func(context.Context, fr.CompletedObservation) { notifications.Add(1) })
+	code, data := f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "manual"})
+	if code != 202 {
+		t.Fatalf("start%d %s", code, data)
+	}
+	var p fr.Progress
+	json.Unmarshal(data, &p)
+	select {
+	case <-f.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no blocked query")
+	}
+	config, _, err := f.db.LoadManagerConfig(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.CPAConnection.ManagementKey = "replaced-connection-key"
+	if err = f.db.SaveManagerConfig(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+	close(f.release)
+	done := f.waitRound(p.ID)
+	if done.Succeeded != 0 || done.Shared != 0 || notifications.Load() != 0 {
+		t.Fatalf("late old-connection results escaped fence: %+v notifications%d", done, notifications.Load())
+	}
+}
+func TestFullRefreshActualCoreCancellationPreservesJoinedManualSource(t *testing.T) {
+	f := newRefreshFixture(t)
+	f.configuredSources()
+	f.mode.Store(1)
+	code, data := f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "manual"})
+	if code != 202 {
+		t.Fatalf("start%d %s", code, data)
+	}
+	var p fr.Progress
+	json.Unmarshal(data, &p)
+	select {
+	case <-f.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no query")
+	}
+	_, data = f.api("GET", "/usage-service/full-refresh?id="+p.ID, nil)
+	json.Unmarshal(data, &p)
+	var selected fr.Item
+	for _, item := range p.Items {
+		if item.Outcome == "running" {
+			selected = item
+			break
+		}
+	}
+	if selected.JobID == "" {
+		t.Fatal("no running source")
+	}
+	path := balancePath
+	var request any = selected.Request.Official
+	if selected.Request.Kind == fr.Credential {
+		path = "/usage-service/credential-quota"
+		request = selected.Request.Credential
+	}
+	code, data = f.api("POST", path, request)
+	if code != 202 {
+		t.Fatalf("join%d %s", code, data)
+	}
+	var job struct{ ID string }
+	json.Unmarshal(data, &job)
+	if job.ID != selected.JobID {
+		t.Fatal("join duplicated source job")
+	}
+	code, data = f.api("DELETE", "/usage-service/full-refresh?id="+p.ID, nil)
+	if code != 200 {
+		t.Fatalf("cancel%d %s", code, data)
+	}
+	close(f.release)
+	jobPath := balancePath + "?job=" + job.ID
+	if selected.Request.Kind == fr.Credential {
+		jobPath = "/usage-service/credential-quota/jobs/" + job.ID
+	}
+	until := time.Now().Add(10 * time.Second)
+	for {
+		code, data = f.api("GET", jobPath, nil)
+		var job struct{ State string }
+		json.Unmarshal(data, &job)
+		if code == 200 && job.State == "complete" {
+			break
+		}
+		if time.Now().After(until) {
+			t.Fatalf("joined manual job was cancelled/leaked%d %s", code, data)
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+}
+func TestFullRefreshActualCoreRunningProgressHasDurableCurrentAttempt(t *testing.T) {
+	f := newRefreshFixture(t)
+	f.configuredSources()
+	f.mode.Store(1)
+	code, data := f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "manual"})
+	if code != 202 {
+		t.Fatalf("start%d %s", code, data)
+	}
+	var p fr.Progress
+	json.Unmarshal(data, &p)
+	select {
+	case <-f.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no source work")
+	}
+	_, data = f.api("GET", "/usage-service/full-refresh?id="+p.ID, nil)
+	json.Unmarshal(data, &p)
+	running := 0
+	for _, item := range p.Items {
+		if item.Outcome == "running" {
+			running++
+			if item.Attempt == nil || item.Attempt.QueryID != item.JobID || item.Attempt.QueryStatus != "running" {
+				t.Fatalf("progress does not expose persisted current attempt: %+v", item)
+			}
+		}
+	}
+	if running == 0 {
+		t.Fatal("no running progress")
+	}
+	close(f.release)
+	f.waitRound(p.ID)
+}
+func TestFullRefreshActualCoreRestartKeepsDueAndSQLiteHistory(t *testing.T) {
+	f := newRefreshFixture(t)
+	f.configuredSources()
+	old := f.manager.AppContext()
+	clock := &refreshClock{now: time.Now(), ticks: make(chan time.Time, 8)}
+	old.FullRefreshService = fr.New(f.db, old.ResourceCapabilityService, old.OfficialBalanceService, old.CredentialQuotaService, fr.WithBudget(old.ManagementQueryBudget), fr.WithClock(clock))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- old.FullRefreshService.Run(ctx) }()
+	first := f.waitLatestRound()
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	before := f.calls.Load()
+	if err := f.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	protector, _ := security.NewProtector([]byte("0123456789abcdef0123456789abcdef"))
+	db, err := store.Open(old.Config.DBPath, protector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	f.db = db
+	f.manager = New(old.Config, db, collector.NewManager(old.Config, db))
+	roots := x509.NewCertPool()
+	roots.AddCert(f.upstream.Certificate())
+	f.manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(balance.NetworkOptions{RootCAs: roots})
+	app := f.manager.AppContext()
+	clock.advance(30 * time.Minute)
+	// New scheduler clock shares the due anchor, but does not supply any upstream
+	// freshness evidence. SQLite is actually closed/reopened, not an in-memory fake.
+	restartedClock := &refreshClock{now: clock.Now(), ticks: make(chan time.Time, 8)}
+	app.FullRefreshService = fr.New(db, app.ResourceCapabilityService, app.OfficialBalanceService, app.CredentialQuotaService, fr.WithBudget(app.ManagementQueryBudget), fr.WithClock(restartedClock))
+	server := httptest.NewServer(f.manager.Handler())
+	t.Cleanup(server.Close)
+	f.api = func(method, path string, body any) (int, []byte) {
+		t.Helper()
+		data, _ := json.Marshal(body)
+		req, _ := http.NewRequest(method, server.URL+path, bytes.NewReader(data))
+		req.Header.Set("Authorization", "Bearer "+testutil.AdminKey)
+		res, e := http.DefaultClient.Do(req)
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer res.Body.Close()
+		out, _ := io.ReadAll(res.Body)
+		return res.StatusCode, out
+	}
+	code, data := f.api("GET", "/usage-service/full-refresh?id="+first.ID, nil)
+	var restored fr.Progress
+	json.Unmarshal(data, &restored)
+	if code != 200 || restored.State != first.State || restored.Succeeded != first.Succeeded || f.calls.Load() != before {
+		t.Fatalf("restart lost persisted progress/history%d %s", code, data)
+	}
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+	done = make(chan error, 1)
+	go func() { done <- app.FullRefreshService.Run(ctx) }()
+	until := time.Now().Add(5 * time.Second)
+	for {
+		code, data = f.api("GET", "/usage-service/full-refresh", nil)
+		var inv fr.Inventory
+		json.Unmarshal(data, &inv)
+		if code == 200 && inv.SchedulerCheckedAtMS == restartedClock.Now().UnixMilli() {
+			break
+		}
+		if time.Now().After(until) {
+			t.Fatal("restarted scheduler did not process persisted due")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if f.calls.Load() != before {
+		t.Fatal("restart flooded a not-due periodic round")
+	}
+	restartedClock.advance(30 * time.Minute)
+	second := f.waitNextRound(first.ID)
+	if second.Succeeded != first.Succeeded || f.calls.Load() != before+int64(first.Succeeded) {
+		t.Fatalf("restart lost hourly full coverage %+v calls%d", second, f.calls.Load())
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+func TestFullRefreshActualCoreStartedFenceIsDurableAndBeforeUpstream(t *testing.T) {
+	f := newRefreshFixture(t)
+	f.configuredSources()
+	started := make(chan fr.StartedObservation, 64)
+	gate := make(chan struct{})
+	defer func() {
+		select {
+		case <-gate:
+		default:
+			close(gate)
+		}
+	}()
+	f.manager.AppContext().FullRefreshService.SubscribeStarted(func(ctx context.Context, e fr.StartedObservation) error {
+		select {
+		case started <- e:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		select {
+		case <-gate:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
+	code, data := f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "recovery"})
+	if code != 202 {
+		t.Fatalf("round%d %s", code, data)
+	}
+	var p fr.Progress
+	json.Unmarshal(data, &p)
+	var first fr.StartedObservation
+	select {
+	case first = <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no trusted start fence")
+	}
+	if first.AttemptID == "" || first.Purpose != fr.Recovery || first.DeadlineMS <= time.Now().UnixMilli() {
+		t.Fatalf("invalid trusted start %+v", first)
+	}
+	path := balancePath + "?job=" + first.AttemptID
+	if first.Source.Kind == fr.Credential {
+		path = "/usage-service/credential-quota/jobs/" + first.AttemptID
+	}
+	code, data = f.api("GET", path, nil)
+	if code != 200 || !strings.Contains(string(data), `"state":"running"`) || !strings.Contains(string(data), first.AttemptID) {
+		t.Fatalf("start was not actual persisted host job%d %s", code, data)
+	}
+	if f.calls.Load() != 0 {
+		t.Fatal("upstream started before synchronous generation fence completed")
+	}
+	close(gate)
+	finished := f.waitRound(p.ID)
+	if finished.Succeeded != 9 {
+		t.Fatalf("fenced round lost coverage %+v", finished)
+	}
+	ids := map[string]bool{first.AttemptID: true}
+	for len(started) > 0 {
+		e := <-started
+		if ids[e.AttemptID] {
+			t.Fatal("singleflight job acquired duplicate/newer start fence")
+		}
+		ids[e.AttemptID] = true
+	}
+	if len(ids) != 9 {
+		t.Fatalf("missing started context union%d/9", len(ids))
+	}
+}
+
+func TestFullRefreshActualCoreStartedFenceFailurePreventsAllUpstream(t *testing.T) {
+	f := newRefreshFixture(t)
+	f.configuredSources()
+	f.manager.AppContext().FullRefreshService.SubscribeStarted(func(context.Context, fr.StartedObservation) error { return errors.New("START-SECRET-CANARY") })
+	code, data := f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "recovery"})
+	if code != 202 {
+		t.Fatalf("start%d %s", code, data)
+	}
+	var p fr.Progress
+	json.Unmarshal(data, &p)
+	failed := f.waitRound(p.ID)
+	if failed.Succeeded != 0 || failed.Failed != 9 || f.calls.Load() != 0 {
+		t.Fatalf("failed generation fence leaked queries %+v calls%d", failed, f.calls.Load())
+	}
+	for _, item := range failed.Items {
+		if item.Attempt == nil || item.Attempt.ErrorCode != "START_FENCE_UNAVAILABLE" || item.Attempt.QueryStatus != "network_error" || item.LastSuccess != nil {
+			t.Fatalf("missing safe failure attempt %+v", item)
+		}
+	}
+}
+func TestFullRefreshActualCoreRoundCancellationCannotCancelEarlierManualJob(t *testing.T) {
+	f := newRefreshFixture(t)
+	inv := f.configuredSources()
+	f.mode.Store(1)
+	var source fr.SourceRequest
+	for _, src := range inv.Sources {
+		if src.Request.Kind == fr.Official && src.QueryCapable {
+			source = src.Request
+			break
+		}
+	}
+	code, data := f.api("POST", balancePath, source.Official)
+	if code != 202 {
+		t.Fatalf("manual%d %s", code, data)
+	}
+	var manual ob.Job
+	json.Unmarshal(data, &manual)
+	select {
+	case <-f.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("manual query not sent")
+	}
+	code, data = f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "periodic"})
+	if code != 202 {
+		t.Fatalf("round%d %s", code, data)
+	}
+	var p fr.Progress
+	json.Unmarshal(data, &p)
+	until := time.Now().Add(5 * time.Second)
+	for {
+		_, data = f.api("GET", "/usage-service/full-refresh?id="+p.ID, nil)
+		json.Unmarshal(data, &p)
+		joined := false
+		for _, item := range p.Items {
+			if item.JobID == manual.ID {
+				joined = true
+				break
+			}
+		}
+		if joined {
+			break
+		}
+		if time.Now().After(until) {
+			t.Fatal("round did not join manual host job")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	code, data = f.api("DELETE", "/usage-service/full-refresh?id="+p.ID, nil)
+	if code != 200 {
+		t.Fatalf("cancel%d %s", code, data)
+	}
+	close(f.release)
+	until = time.Now().Add(10 * time.Second)
+	for {
+		code, data = f.api("GET", balancePath+"?job="+manual.ID, nil)
+		var job ob.Job
+		json.Unmarshal(data, &job)
+		if code == 200 && job.State == "complete" && job.Status != nil && job.Status.Attempt != nil && job.Status.Attempt.QueryStatus == "success" {
+			break
+		}
+		if time.Now().After(until) {
+			t.Fatalf("earlier manual job cancelled by joined round%d %s", code, data)
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+}
+
+func TestFullRefreshActualCoreFairMultiwaveTailSurvivesMinuteAndRemainsDue(t *testing.T) {
+	f := newRefreshFixture(t)
+	inv := f.configuredSources(60000)
+	f.mode.Store(6)
+	clock := &refreshClock{now: time.Now(), ticks: make(chan time.Time, 16)}
+	var offset atomic.Int64
+	app := f.manager.AppContext()
+	if err := app.ManagementQueryBudget.SetClock(func() time.Time { return time.Now().Add(time.Duration(offset.Load())) }); err != nil {
+		t.Fatal(err)
+	}
+	app.FullRefreshService = fr.New(f.db, app.ResourceCapabilityService, app.OfficialBalanceService, app.CredentialQuotaService, fr.WithBudget(app.ManagementQueryBudget), fr.WithClock(clock))
+	occupied := 0
+	for _, source := range inv.Sources {
+		if source.Request.Kind == fr.Official && source.QueryCapable && occupied < 4 {
+			code, data := f.api("POST", balancePath, source.Request.Official)
+			if code != 202 {
+				t.Fatalf("occupy%d %s", code, data)
+			}
+			occupied++
+		}
+	}
+	if occupied != 4 {
+		t.Fatal("four occupied shared budget slots required")
+	}
+	waitCalls := func(want int64) {
+		t.Helper()
+		until := time.Now().Add(10 * time.Second)
+		for f.calls.Load() < want {
+			if time.Now().After(until) {
+				t.Fatalf("multiwave stalled at%d/%d calls", f.calls.Load(), want)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+	waitCalls(4)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- app.FullRefreshService.Run(ctx) }()
+	until := time.Now().Add(10 * time.Second)
+	var p fr.Progress
+	var tail string
+	for {
+		code, data := f.api("GET", "/usage-service/full-refresh", nil)
+		var current fr.Inventory
+		json.Unmarshal(data, &current)
+		if code == 200 && current.LatestRound != nil && current.LatestRound.Purpose == fr.Periodic {
+			p = *current.LatestRound
+			untaken := 0
+			for _, item := range p.Items {
+				if item.QueryCapable && item.JobID == "" {
+					untaken++
+					tail = item.ID
+					for _, source := range current.Sources {
+						if source.ID == item.ID && source.NextDueMS != 0 {
+							t.Fatalf("untaken source advanced next hour before admission: %s due%d", source.ID, source.NextDueMS)
+						}
+					}
+				}
+			}
+			if untaken >= 5 {
+				break
+			}
+		}
+		if time.Now().After(until) {
+			t.Fatal("full multiwave round did not snapshot the occupied budget and tail")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	// Queue time crosses the former global60second cutoff, while real individual
+	// request/observation clocks do NOT change or wait60seconds.
+	offset.Store(int64(61 * time.Second))
+	clock.advance(61 * time.Second)
+	f.waitSchedulerChecked(clock.Now().UnixMilli())
+	_, data := f.api("GET", "/usage-service/full-refresh?id="+p.ID, nil)
+	json.Unmarshal(data, &p)
+	for _, item := range p.Items {
+		if item.ID == tail && item.Outcome != "queued" {
+			t.Fatalf("stable tail expired before its admission wave %+v", item)
+		}
+	}
+	for i := 0; i < 4; i++ {
+		f.waveTokens <- struct{}{}
+	}
+	waitCalls(8)
+	offset.Store(int64(122 * time.Second))
+	clock.advance(61 * time.Second)
+	f.waitSchedulerChecked(clock.Now().UnixMilli())
+	for i := 0; i < 4; i++ {
+		f.waveTokens <- struct{}{}
+	}
+	waitCalls(9)
+	f.waveTokens <- struct{}{}
+	finished := f.waitRound(p.ID)
+	if finished.Succeeded != 9 || finished.Failed != 0 || finished.Pending != 0 || f.calls.Load() != 9 || f.peak.Load() > 4 {
+		t.Fatalf("not every current source admitted fairly: %+v calls%d peak%d", finished, f.calls.Load(), f.peak.Load())
+	}
+	for _, item := range finished.Items {
+		if item.ID == tail && item.Outcome != "success" {
+			t.Fatalf("stable tail was not actually refreshed %+v", item)
+		}
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+func (f *refreshFixture) waitSchedulerChecked(at int64) {
+	f.t.Helper()
+	until := time.Now().Add(10 * time.Second)
+	for {
+		code, data := f.api("GET", "/usage-service/full-refresh", nil)
+		var inv fr.Inventory
+		json.Unmarshal(data, &inv)
+		if code == 200 && inv.SchedulerCheckedAtMS == at {
+			return
+		}
+		if time.Now().After(until) {
+			f.t.Fatalf("scheduler did not acknowledge controlled tick%d %s", code, data)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestFullRefreshActualCoreRecoveryJoinsNotDueSourceInCatchupRound(t *testing.T) {
+	f := newRefreshFixture(t)
+	f.configuredSources(60000)
+	code, data := f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "periodic"})
+	if code != 202 {
+		t.Fatalf("initial%d %s", code, data)
+	}
+	var p fr.Progress
+	json.Unmarshal(data, &p)
+	first := f.waitRound(p.ID)
+	if first.Succeeded != 9 {
+		t.Fatalf("initial coverage %+v", first)
+	}
+	_, data = f.api("GET", "/usage-service/full-refresh", nil)
+	var inv fr.Inventory
+	json.Unmarshal(data, &inv)
+	var official *ob.Query
+	var native fr.SourceRequest
+	for _, src := range inv.Sources {
+		if src.Request.Kind == fr.Official {
+			q := *src.Request.Official
+			official = &q
+		}
+		if src.Request.Kind == fr.Credential {
+			native = src.Request
+		}
+	}
+	u := ob.Update{Config: ob.Config{Binding: official.Binding, Version: official.Version, Adapter: "deepseek", Endpoint: f.upstream.URL + "/user/balance", PrivateTargets: []string{"127.0.0.1"}, TimeoutMS: 60000}, Secret: "explicit-billing-replaced"}
+	if code, data = f.api("PUT", balancePath, u); code != 200 {
+		t.Fatalf("replace%d %s", code, data)
+	}
+	f.mode.Store(4)
+	code, data = f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "periodic"})
+	json.Unmarshal(data, &p)
+	if code != 202 || p.NotDue != 8 {
+		t.Fatalf("catchup did not preserve covered sources%d %+v", code, p)
+	}
+	before := f.nativeCalls.Load()
+	code, data = f.api("POST", "/usage-service/full-refresh", map[string]any{"purpose": "recovery", "source": native})
+	var joined fr.Progress
+	json.Unmarshal(data, &joined)
+	if code != 202 || joined.ID != p.ID {
+		t.Fatalf("not_due recovery did not join%d %s", code, data)
+	}
+	until := time.Now().Add(10 * time.Second)
+	for f.nativeCalls.Load() != before+1 {
+		if time.Now().After(until) {
+			t.Fatal("not_due source recovery was silently skipped")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	close(f.release)
+	finished := f.waitRound(p.ID)
+	if finished.Succeeded != 2 || finished.NotDue != 7 || finished.Failed != 0 {
+		t.Fatalf("dishonest catchup progress %+v", finished)
 	}
 }

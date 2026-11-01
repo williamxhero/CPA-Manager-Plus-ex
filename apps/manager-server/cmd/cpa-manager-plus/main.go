@@ -199,6 +199,7 @@ func runServer() {
 		},
 	)
 	serverApp.AppContext().QuotaCooldownRecoveryService = rateLimitAutoDisableWorker
+	rateLimitAutoDisableWorker.SetLegacyQuotaGuard(serverApp.AppContext().ProxyService.LegacyQuotaGuard)
 	accountActionWorker := worker.NewAccountActionCandidateWorkerWithMutationCoordinator(
 		db,
 		serverApp.AppContext().AuthFileMutationCoordinator,

@@ -80,11 +80,13 @@ type Status struct {
 	LastSuccess     *balance.Observation `json:"lastSuccess,omitempty"`
 }
 type Job struct {
-	RequestedVersion int64  `json:"requestedVersion"`
-	ID               string `json:"id"`
-	State            string `json:"state"`
-	DeadlineMS       int64  `json:"deadlineMs"`
-	Query            Query  `json:"query"`
+	Joined           bool    `json:"joined"`
+	Status           *Status `json:"status,omitempty"`
+	RequestedVersion int64   `json:"requestedVersion"`
+	ID               string  `json:"id"`
+	State            string  `json:"state"`
+	DeadlineMS       int64   `json:"deadlineMs"`
+	Query            Query   `json:"query"`
 }
 type Service struct {
 	Store     *store.Store
@@ -93,6 +95,7 @@ type Service struct {
 	running   map[string]string
 	budget    *managementquery.Budget
 	completed func(Job, Status)
+	starting  func(context.Context, Job) error
 }
 
 type Option func(*Service)
@@ -106,6 +109,22 @@ func WithBudget(b *managementquery.Budget) Option {
 }
 
 // SetCompletionObserver is startup wiring, not a second query path.
+// SetStartedObserver is coordinator startup wiring. Called after durable job
+// creation, outside locks, before upstream I/O; failure prevents the query.
+func (s *Service) SetStartedObserver(fn func(context.Context, Job) error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.starting = fn
+}
+func (s *Service) queryStarted(ctx context.Context, job Job) error {
+	s.mu.Lock()
+	observer := s.starting
+	s.mu.Unlock()
+	if observer != nil {
+		return observer(ctx, job)
+	}
+	return ctx.Err()
+}
 func (s *Service) SetCompletionObserver(fn func(Job, Status)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -270,11 +289,12 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 		if q.Version != job.RequestedVersion && q.Version != job.Query.Version {
 			return Job{}, store.ErrQuotaConflict
 		}
+		job.Joined = true
 		return job, e
 	}
 	if retry, err := s.budget.RetryAt(ctx, "credential:"+flight); err != nil {
 		return Job{}, err
-	} else if time.Now().UnixMilli() < retry {
+	} else if s.budget.Now().UnixMilli() < retry {
 		return Job{}, ErrBusy
 	}
 	old, err := s.Store.CredentialQuota(ctx, id)
@@ -329,10 +349,17 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 		TimeoutMS     int64  `json:"timeoutMs"`
 	}{job.Query.Binding, job.Query.SourceVersion, job.Query.AuthIndex, (budget - reserve).Milliseconds()}
 	var result CoreObservation
-	err := s.Identity.CredentialQuotaRequest(network, query, &result)
+	startErr := s.queryStarted(network, job)
+	err := startErr
+	if err == nil {
+		err = s.Identity.CredentialQuotaRequest(network, query, &result)
+	}
 	ncancel()
 	current, verifyErr := s.source(ctx, job.Query.AuthIndex)
 	obs := balance.Observation{QueryID: job.ID, QueryStatus: "network_error", ErrorCode: "QUOTA_QUERY_FAILED", ObservedAtMS: time.Now().UnixMilli(), DeadlineMS: job.DeadlineMS, Semantic: "quota_windows"}
+	if startErr != nil {
+		obs.ErrorCode = "START_FENCE_UNAVAILABLE"
+	}
 	obs.Binding, _ = json.Marshal(job.Query.Binding)
 	job.State = "complete"
 	if verifyErr != nil || operation(current) != operation(source) {
@@ -468,6 +495,11 @@ func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 	if job.State == "running" && (!active || time.Now().UnixMilli() >= job.DeadlineMS) {
 		job.State = "interrupted"
 	}
+	current, readErr := s.read(ctx, source)
+	if readErr != nil {
+		return Job{}, readErr
+	}
+	job.Status = &current
 	return job, nil
 }
 
@@ -475,4 +507,29 @@ func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 // conservative hourly backoff. This is not a reset/recovery proof.
 func (s *Service) NextSourceRetry(ctx context.Context, source Source) (int64, error) {
 	return s.budget.RetryAt(ctx, "credential:"+key(source.Binding)+":"+operation(source))
+}
+
+// TryJoin has no network side effects. All authority is subsequently revalidated
+// through Job, including full binding/sourceVersion and current persisted CAS.
+func (s *Service) TryJoin(ctx context.Context, q Query) (Job, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, id := range s.running {
+		doc, err := s.Store.CredentialQuotaJob(ctx, id)
+		if err != nil {
+			return Job{}, true, err
+		}
+		var job Job
+		if err = json.Unmarshal([]byte(doc), &job); err != nil {
+			return Job{}, true, err
+		}
+		if same(job.Query.Binding, q.Binding) && job.Query.SourceVersion == q.SourceVersion && job.Query.AuthIndex == q.AuthIndex {
+			if q.Version != job.RequestedVersion && q.Version != job.Query.Version {
+				return Job{}, true, store.ErrQuotaConflict
+			}
+			job.Joined = true
+			return job, true, nil
+		}
+	}
+	return Job{}, false, nil
 }

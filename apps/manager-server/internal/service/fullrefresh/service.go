@@ -11,6 +11,7 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managementquery"
 )
@@ -36,7 +37,9 @@ type Service struct {
 	observers        []Observer
 	clock            Clock
 	recoveryNeeded   bool
+	schedulerAnchor  time.Time
 	schedulerRunning bool
+	startedObservers []StartedObserver
 }
 
 type Option func(*Service)
@@ -56,7 +59,9 @@ func New(st *store.Store, identity *rc.Service, official *ob.Service, credential
 		option(s)
 	}
 	official.SetCompletionObserver(s.completedOfficial)
+	official.SetStartedObserver(s.startedOfficial)
 	credential.SetCompletionObserver(s.completedCredential)
+	credential.SetStartedObserver(s.startedCredential)
 	return s
 }
 
@@ -139,7 +144,7 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 		if err != nil {
 			return Inventory{}, err
 		}
-		out.Sources = append(out.Sources, SourceStatus{RetryNotBeforeMS: retry, QueryCapable: status.Configured && status.DirectQuery, ID: string(Official) + ":" + targets[0].ResourceID + ":" + targets[0].Incarnation, Request: SourceRequest{Kind: Official, Official: &ob.Query{Binding: b, Version: status.Version}}, Targets: targets, State: state, Reason: reason, ManualDisabled: disabled, Attempt: status.Attempt, LastSuccess: status.LastSuccess, Stale: status.Stale})
+		out.Sources = append(out.Sources, SourceStatus{WalletProof: verifiedWallet(status), RetryNotBeforeMS: retry, QueryCapable: status.Configured && status.DirectQuery, ID: sourceID(Official, out.Scope, targets), Request: SourceRequest{Kind: Official, Official: &ob.Query{Binding: b, Version: status.Version}}, Targets: targets, State: state, Reason: reason, ManualDisabled: disabled, Attempt: status.Attempt, LastSuccess: status.LastSuccess, Stale: status.Stale})
 	}
 	if n.CredentialQuery.State == "available" {
 		sources, err := s.Credential.Sources(ctx)
@@ -165,8 +170,8 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 			}
 			q := &cq.Query{Binding: source.Binding, SourceVersion: source.SourceVersion, AuthIndex: source.AuthIndex, Version: status.Version}
 			id := ""
-			if len(source.Targets) > 0 {
-				id = string(Credential) + ":" + source.Targets[0].ResourceID + ":" + source.Targets[0].Incarnation
+			if len(source.Targets) > 0 && source.Targets[0].ResourceID != "" {
+				id = sourceID(Credential, out.Scope, source.Targets)
 			}
 			retry, err := s.Credential.NextSourceRetry(ctx, source)
 			if err != nil {
@@ -206,6 +211,20 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 		var latest Progress
 		if json.Unmarshal([]byte(doc), &latest) == nil && latest.Scope.InstanceID == out.Scope.InstanceID && latest.Scope.InstanceIncarnation == out.Scope.InstanceIncarnation {
 			out.LatestRound = &latest
+			if latest.Scope == out.Scope {
+				for i := range out.Sources {
+					source := &out.Sources[i]
+					if source.WalletProof == nil {
+						continue
+					}
+					for _, item := range latest.Items {
+						if item.SharedWallet != nil && requestSame(source.Request, item.Request) && sameMembership(*source.WalletProof, item.SharedWallet.Membership) {
+							copy := *item.SharedWallet
+							source.SharedWallet = &copy
+						}
+					}
+				}
+			}
 		}
 	}
 	return out, nil

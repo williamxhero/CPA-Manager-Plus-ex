@@ -30,7 +30,7 @@ func isLegacyQuotaRequest(r *http.Request) (bool, error) {
 	}
 	path := strings.TrimRight(u.Path, "/")
 	switch path {
-	case "/backend-api/wham/usage", "/user/balance", "/payment/checklist", "/api/usage/token", "/api/user/self", "/zen/go/v1/usage", "/inference/go/v1/usage":
+	case "/backend-api/wham/usage", "/user/balance", "/payment/checklist", "/api/usage/token", "/api/user/self", "/v1/billing", "/v1/me", "/zen/go/v1/usage", "/inference/go/v1/usage":
 		return true, nil
 	}
 	return false, nil

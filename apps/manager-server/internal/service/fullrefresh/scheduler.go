@@ -37,6 +37,7 @@ func (s *Service) Run(ctx context.Context) error {
 		return err
 	}
 	s.schedulerRunning = true
+	s.schedulerAnchor = s.now()
 	s.mu.Unlock()
 	defer func() {
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -79,9 +80,9 @@ func (s *Service) schedule(parent context.Context) {
 	if err != nil {
 		return
 	}
-	needed := due == 0 || now >= due
+	needed := due == 0 || now >= due || inv.LatestRound != nil && inv.LatestRound.State == "interrupted"
 	for _, source := range inv.Sources {
-		if source.QueryCapable && source.NextDueMS == 0 {
+		if source.QueryCapable && (source.NextDueMS == 0 || source.NextDueMS <= now) {
 			needed = true
 		}
 	}
@@ -92,19 +93,48 @@ func (s *Service) schedule(parent context.Context) {
 	if needed {
 		p, err := s.StartRound(ctx, Periodic)
 		if err == nil {
-			// Advance the fixed periodic anchor ONLY for due periodic cycles. Manual and
-			// recovery work never postpone it. Many missed hours coalesce into one round.
-			next := due
-			if due == 0 || now >= due {
-				next = now + time.Hour.Milliseconds()
-			}
-			_ = s.Store.SaveFullRefreshDue(ctx, key, next)
-			for _, item := range p.Items {
-				if item.QueryCapable {
-					_ = s.Store.SaveFullRefreshDue(ctx, sourceScheduleKey(item.SourceStatus), next)
-				}
-			}
+			_ = s.Store.SaveFullRefreshDue(ctx, key, p.PeriodicNextDueMS)
 		}
 	}
 	_ = s.Store.SaveFullRefreshDue(ctx, key+":checked", now)
+}
+
+// A joined periodic round retains its original cycle anchor.
+func (s *Service) enrollPeriodic(ctx context.Context, p *Progress, inv Inventory) {
+	if p.PeriodicNextDueMS != 0 {
+		return
+	}
+	due, err := s.Store.FullRefreshDue(ctx, roundScheduleKey(inv))
+	if err != nil {
+		return
+	}
+	now := s.now().UnixMilli()
+	if due == 0 {
+		anchor := s.schedulerAnchor
+		if anchor.IsZero() {
+			anchor = s.now()
+		}
+		due = anchor.Add(time.Hour).UnixMilli()
+	}
+	if due <= now {
+		due += ((now-due)/time.Hour.Milliseconds() + 1) * time.Hour.Milliseconds()
+	}
+	p.PeriodicNextDueMS = due
+	for i := range p.Items {
+		if p.Items[i].Queried || p.Items[i].Outcome == "shared_wallet" {
+			s.markAdmitted(ctx, p, &p.Items[i])
+		}
+	}
+}
+func (s *Service) markAdmitted(ctx context.Context, p *Progress, item *Item) {
+	if p.PeriodicNextDueMS == 0 {
+		return
+	}
+	next := p.PeriodicNextDueMS
+	if next <= s.now().UnixMilli() {
+		next = s.now().Add(time.Hour).UnixMilli()
+	}
+	if err := s.Store.SaveFullRefreshDue(ctx, sourceScheduleKey(item.SourceStatus), next); err == nil {
+		item.NextDueMS = next
+	}
 }

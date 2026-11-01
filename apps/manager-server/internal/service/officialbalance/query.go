@@ -18,6 +18,7 @@ type Query struct {
 	Version int64 `json:"version"`
 }
 type Job struct {
+	Joined     bool    `json:"joined"`
 	ID         string  `json:"id"`
 	DeadlineMS int64   `json:"deadlineMs"`
 	State      string  `json:"state"`
@@ -59,11 +60,12 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 		if e == nil {
 			e = json.Unmarshal([]byte(doc), &job)
 		}
+		job.Joined = true
 		return job, e
 	}
 	if retry, err := s.budget.RetryAt(ctx, "official:"+flight); err != nil {
 		return Job{}, err
-	} else if time.Now().UnixMilli() < retry {
+	} else if s.budget.Now().UnixMilli() < retry {
 		return Job{}, ErrBusy
 	}
 	// No unbounded goroutine queue; concurrent refresh callers get a retryable failure.
@@ -118,11 +120,22 @@ func (s *Service) run(job Job, st Status, flight, id string) {
 	if reserve > 2*time.Second {
 		reserve = 2 * time.Second
 	}
-	record, loadErr := s.Store.OfficialBalance(ctx, id)
-	if loadErr != nil || record.Version != st.Version {
-		record.SecretRef = "invalid"
+
+	var obs balance.Observation
+	var err error
+	startErr := s.queryStarted(ctx, job)
+	if startErr == nil && !s.verify(ctx, job.Binding) {
+		startErr = ErrIdentity
 	}
-	obs, err := s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI}, resolver{s.Store, id, st.Version})
+	if startErr != nil {
+		obs = balance.Observation{QueryStatus: "network_error", ErrorCode: "START_FENCE_UNAVAILABLE", ObservedAtMS: time.Now().UnixMilli(), DeadlineMS: job.DeadlineMS}
+	} else {
+		record, loadErr := s.Store.OfficialBalance(ctx, id)
+		if loadErr != nil || record.Version != st.Version {
+			record.SecretRef = "invalid"
+		}
+		obs, err = s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI}, resolver{s.Store, id, st.Version})
+	}
 	// Revalidate full Core scope/versions, even after failures; no cached authority.
 	valid := s.verify(ctx, job.Binding)
 	s.mu.Lock()
@@ -175,6 +188,7 @@ func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 	if st.Version != job.Version {
 		return Job{}, store.ErrBalanceConflict
 	}
+	job.Status = &st
 	// A persisted running job from a previous host has no active query to await.
 
 	if job.State == "running" && !active {
@@ -189,4 +203,26 @@ func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 
 func (s *Service) NextRetry(ctx context.Context, q Query) (int64, error) {
 	return s.budget.RetryAt(ctx, "official:"+key(q.Binding)+":"+strconv.FormatInt(q.Version, 10)+":"+operationKey(q.Binding))
+}
+
+// TryJoin probes only the bounded local flight set and durable job, never sends
+// a query. The coordinator revalidates through Job before publishing progress.
+func (s *Service) TryJoin(ctx context.Context, q Query) (Job, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	flight := key(q.Binding) + ":" + strconv.FormatInt(q.Version, 10) + ":" + operationKey(q.Binding)
+	id := s.running[flight]
+	if id == "" {
+		return Job{}, false, nil
+	}
+	doc, err := s.Store.OfficialBalanceJob(ctx, id)
+	if err != nil {
+		return Job{}, true, err
+	}
+	var job Job
+	if err = json.Unmarshal([]byte(doc), &job); err != nil {
+		return Job{}, true, err
+	}
+	job.Joined = true
+	return job, true, nil
 }

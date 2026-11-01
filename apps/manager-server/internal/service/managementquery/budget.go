@@ -15,12 +15,14 @@ type Budget struct {
 	contexts map[string]context.Context
 	wg       sync.WaitGroup
 	closed   bool
+	used     bool
+	now      func() time.Time
 	store    *store.Store
 	retry    map[string]int64
 }
 
 func NewBudget(stores ...*store.Store) *Budget {
-	b := &Budget{jobs: map[string]context.CancelFunc{}, contexts: map[string]context.Context{}, retry: map[string]int64{}}
+	b := &Budget{now: time.Now, jobs: map[string]context.CancelFunc{}, contexts: map[string]context.Context{}, retry: map[string]int64{}}
 	if len(stores) > 0 {
 		b.store = stores[0]
 	}
@@ -57,6 +59,7 @@ func (b *Budget) TryAcquire(id string) (context.Context, bool) {
 		return nil, false
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	b.used = true
 	b.jobs[id] = cancel
 	b.contexts[id] = ctx
 	b.wg.Add(1)
@@ -104,4 +107,32 @@ func (b *Budget) Close(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// SetClock varies only admission/backoff time, at startup before any job. Query
+// deadlines and observation freshness always retain their independent real clock.
+func (b *Budget) SetClock(now func() time.Time) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if now == nil || b.used || b.closed {
+		return ErrBusy
+	}
+	b.now = now
+	return nil
+}
+func (b *Budget) Now() time.Time {
+	b.mu.Lock()
+	now := b.now
+	b.mu.Unlock()
+	if now == nil {
+		return time.Now()
+	}
+	return now()
+}
+
+func (b *Budget) Active(id string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	_, ok := b.jobs[id]
+	return ok
 }

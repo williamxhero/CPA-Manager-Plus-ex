@@ -55,6 +55,7 @@ type Service struct {
 	running   map[string]string
 	budget    *managementquery.Budget
 	completed func(Job, Status)
+	starting  func(context.Context, Job) error
 	Store     *store.Store
 	Identity  *rc.Service
 	Querier   balance.Querier
@@ -72,6 +73,22 @@ func WithBudget(b *managementquery.Budget) Option {
 }
 
 // SetCompletionObserver is startup wiring, not a second query path.
+// SetStartedObserver is coordinator startup wiring. Called after durable job
+// creation, outside locks, before upstream I/O; failure prevents the query.
+func (s *Service) SetStartedObserver(fn func(context.Context, Job) error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.starting = fn
+}
+func (s *Service) queryStarted(ctx context.Context, job Job) error {
+	s.mu.Lock()
+	observer := s.starting
+	s.mu.Unlock()
+	if observer != nil {
+		return observer(ctx, job)
+	}
+	return ctx.Err()
+}
 func (s *Service) SetCompletionObserver(fn func(Job, Status)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
