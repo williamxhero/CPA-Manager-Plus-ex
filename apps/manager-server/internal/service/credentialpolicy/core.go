@@ -74,6 +74,16 @@ func (c coreClient) request(ctx context.Context, method, path string, body, out 
 	}
 	defer res.Body.Close()
 	switch res.StatusCode {
+	case 400:
+		raw, readErr := io.ReadAll(io.LimitReader(res.Body, 4097))
+		if readErr != nil {
+			return "gate_request_invalid"
+		}
+		current, _, _, configErr := c.connection.ResolveManagerConfigWithSource(ctx)
+		if configErr != nil || current.CPAConnection != conn || current.UpdatedAtMS != cfg.UpdatedAtMS {
+			return "gate_connection_changed"
+		}
+		return DecodeGateBadRequest(raw)
 	case 401, 403:
 		return "gate_auth_error"
 	case 404:

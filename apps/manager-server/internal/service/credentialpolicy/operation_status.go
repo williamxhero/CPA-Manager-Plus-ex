@@ -67,12 +67,16 @@ func (s *Service) attachOperation(ctx context.Context, status *Status, current b
 	}
 	op := &OperationStatus{OpID: record.ID, PolicyGeneration: record.Generation, State: record.State, Action: intent.Operation.Action, Revision: record.Revision, Attempted: record.Attempted, Planned: intent.Planned, ExpectedGateRevision: intent.Operation.ExpectedGateRevision, EvidenceVersion: intent.Evidence.EvidenceVersion, Reason: "current_gate_unverified"}
 	status.Operation = op
+	if parsed, err := uuid.Parse(record.ID); err != nil || parsed.Version() != 4 {
+		op.State, op.Reason = "conflict", "gate_operation_id_unsupported"
+		return nil // never promote an unsupported historical ID to receipt/ACK
+	}
 	op.Retry, op.PreviousOpID = intent.Retry, intent.PreviousOpID
 	if intent.Evidence.ModelAutomationReason == "model_scope_unsupported" {
 		op.ModelAutomationReason = intent.Evidence.ModelAutomationReason
 	}
 	switch record.LastError {
-	case "outcome_unverified", "policy_generation_changed", "gate_cas_replanned", "gate_replan_limit", "gate_conflict_requery_required", "fresh_authoritative_evidence_required", "current_binding_unverified", "source_authority_changed", "gate_core_unavailable", "gate_auth_error", "gate_current_readback_unconfirmed", "gate_ack_unconfirmed", "gate_replan_outcome_unverified", "no_owned_pause", "owned_pause_evidence_mismatch", "gate_connection_unavailable", "gate_contract_unavailable":
+	case "gate_operation_id_unsupported", "gate_operation_invalid", "gate_request_invalid", "outcome_unverified", "policy_generation_changed", "gate_cas_replanned", "gate_replan_limit", "gate_conflict_requery_required", "fresh_authoritative_evidence_required", "current_binding_unverified", "source_authority_changed", "gate_core_unavailable", "gate_auth_error", "gate_current_readback_unconfirmed", "gate_ack_unconfirmed", "gate_replan_outcome_unverified", "no_owned_pause", "owned_pause_evidence_mismatch", "gate_connection_unavailable", "gate_contract_unavailable":
 		op.Reason = record.LastError
 	}
 	var receipt GateResult

@@ -336,6 +336,43 @@ func TestCredentialPolicyKnownSubjectCanStopOffline(t *testing.T) {
 
 func TestCredentialPolicyActualCoreDefaultOff(t *testing.T) {
 	base := policyOldCore(t)
+	// The pinned4c fixture has no gate contract; modern pinned management-only
+	// fixtures expose v1 but install NO business executors. Negotiate the actual
+	// public contract and assert its precise negative, never an arbitrary reason.
+	probe := func(method, path string, body any) (int, []byte) {
+		t.Helper()
+		data, _ := json.Marshal(body)
+		req, err := http.NewRequest(method, base+"/v8/management/inference-gates"+path, strings.NewReader(string(data)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer test-password")
+		req.Header.Set("Content-Type", "application/json")
+		res, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var raw json.RawMessage
+		if res.StatusCode == 200 && json.NewDecoder(res.Body).Decode(&raw) != nil {
+			t.Fatal("invalid actual Core gate negotiation")
+		}
+		return res.StatusCode, raw
+	}
+	capStatus, capBody := probe("GET", "/capabilities", nil)
+	modern := capStatus == 200
+	if modern {
+		var cap struct {
+			Version int    `json:"version"`
+			Durable bool   `json:"durable"`
+			Mode    string `json:"mode"`
+		}
+		if json.Unmarshal(capBody, &cap) != nil || cap.Version != 1 || !cap.Durable || cap.Mode != "standalone" {
+			t.Fatal("unexpected current gate contract")
+		}
+	} else if capStatus != 404 {
+		t.Fatalf("unexpected gate capability status %d", capStatus)
+	}
 	cfg := testutil.NewConfig(t)
 	db := testutil.NewStore(t, cfg)
 	if err := db.SaveManagerConfig(context.Background(), store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: base, ManagementKey: "test-password"}}); err != nil {
@@ -354,6 +391,27 @@ func TestCredentialPolicyActualCoreDefaultOff(t *testing.T) {
 			continue
 		}
 		count++
+		wantReason := "gate_contract_unavailable"
+		if modern {
+			code, raw := probe("POST", "/eligibility", map[string]any{"version": 1, "scope": src.Scope, "targets": src.Targets, "auth_index": src.AuthIndex, "sourceVersion": src.SourceVersion, "route": "all-current-source"})
+			var selected struct {
+				Version   int  `json:"version"`
+				Ready     bool `json:"ready"`
+				Supported bool `json:"supported"`
+				Routes    []struct {
+					Supported bool `json:"supported"`
+				} `json:"routes"`
+			}
+			if code != 200 || json.Unmarshal(raw, &selected) != nil || selected.Version != 1 || selected.Ready || selected.Supported || len(selected.Routes) == 0 {
+				t.Fatal("management-only fixture unexpectedly has eligible business source")
+			}
+			for _, route := range selected.Routes {
+				if route.Supported {
+					t.Fatal("management-only fixture unexpectedly protects an actual route")
+				}
+			}
+			wantReason = "gate_source_unsupported"
+		}
 		rr = testutil.Request(t, h, "GET", "/usage-service/credential-policy?authIndex="+src.AuthIndex, "", testutil.AdminKey)
 		testutil.RequireStatus(t, rr, 200)
 		var status struct {
@@ -364,7 +422,7 @@ func TestCredentialPolicyActualCoreDefaultOff(t *testing.T) {
 			Applied    bool   `json:"applied"`
 		}
 		testutil.DecodeJSON(t, rr, &status)
-		if status.Enabled || status.Generation != 0 || status.State != "off" || status.Applied || status.Reason != "gate_contract_unavailable" {
+		if status.Enabled || status.Generation != 0 || status.State != "off" || status.Applied || status.Reason != wantReason {
 			t.Fatalf("new credential is not honestly OFF: %s", rr.Body.String())
 		}
 		if strings.Contains(rr.Body.String(), "CANARY") {
