@@ -21,6 +21,44 @@ import (
 
 const newAPISelfContract = `"newAPI":{"protocolConfirmed":true,"instanceVersion":"operator-confirmed-synthetic-v1","auth":"user-pat-with-user-id-v1","userID":"42","accountScope":"synthetic-account-A","nativeUnit":"newapi_quota"}`
 
+const newAPIConversionProfile = `{"confirmed":true,"nativeUnit":"newapi_quota","currency":"CNY","moneyPerNativeQuota":"0.000002","proofReference":"synthetic-operator-proof-1","contractVersion":"synthetic-conversion-v1"}`
+
+func withNewAPIConversion(contract, profile string) string {
+	return strings.TrimSuffix(contract, "}") + `,"conversion":` + profile + `}`
+}
+
+func TestOfficialBalanceNewAPIExplicitConversionPersistsNativeAndMoney(t *testing.T) {
+	f := newOfficialFixture(t)
+	f.adapter = "newapi-user-self-v1"
+	f.path = "/api/user/self"
+	f.response.Store(`{"success":true,"data":{"id":42,"quota":-9007199254740993}}`)
+	configured := newAPIConfigure(f, withNewAPIConversion(newAPISelfContract, newAPIConversionProfile), 0, "synthetic-query-canary")
+	if !strings.Contains(configured, `"proofReference":"synthetic-operator-proof-1"`) {
+		t.Fatal("missing persisted explicit operator contract:", configured)
+	}
+	raw := f.wait(f.query())
+	if !strings.Contains(raw, `"amountDecimal":"-18014398509.481986"`) || !strings.Contains(raw, `"currency":"CNY"`) || !strings.Contains(raw, `"remaining":"-9007199254740993"`) || !strings.Contains(raw, `"semantic":"account_wallet"`) || !strings.Contains(raw, `"qualification":"operator_asserted_contract_not_live_verified"`) {
+		t.Fatal("native quota or exact converted debt lost:", raw)
+	}
+	n := f.count.Load()
+	f.handler = New(f.server.AppContext().Config, f.db, collector.NewManager(f.server.AppContext().Config, f.db)).Handler()
+	if got := f.status(); !strings.Contains(got, `"amountDecimal":"-18014398509.481986"`) || f.count.Load() != n || strings.Contains(got, "synthetic-query-canary") {
+		t.Fatal("SQLite conversion readback lost or queried upstream:", got)
+	}
+}
+
+func TestOfficialBalanceNewAPIConversionNullIsNotAbsent(t *testing.T) {
+	f := newOfficialFixture(t)
+	f.adapter = "newapi-user-self-v1"
+	f.path = "/api/user/self"
+	newAPIConfigure(f, newAPISelfContract, 0, "synthetic-query-canary")
+	body := `{` + balanceBinding + `,"version":1,"adapter":"` + f.adapter + `","endpoint":"` + f.upstream.URL + f.path + `",` + withNewAPIConversion(newAPISelfContract, "null") + `}`
+	testutil.RequireStatus(t, testutil.Request(t, f.handler, "PUT", balancePath, body, testutil.AdminKey), 400)
+	if got := f.status(); !strings.Contains(got, `"version":1`) || !strings.Contains(got, `"configured":true`) || f.count.Load() != 0 {
+		t.Fatal("invalid null conversion changed source or queried upstream:", got)
+	}
+}
+
 func newAPIConfigure(f *officialFixture, contract string, version int, secret string) string {
 	f.t.Helper()
 	body := `{` + balanceBinding + `,"version":` + jsonNumber(version) + `,"adapter":"` + f.adapter + `","endpoint":"` + f.upstream.URL + f.path + `","privateTargets":["127.0.0.1"],` + contract + `,"secret":"` + secret + `"}`
@@ -211,7 +249,7 @@ func TestOfficialBalanceNewAPICapabilities(t *testing.T) {
 	}
 }
 
-func TestOfficialBalanceNewAPIMissingContractAndUnimplementedConversionRejected(t *testing.T) {
+func TestOfficialBalanceNewAPIMissingContractAndLegacyMoneyFieldsRejected(t *testing.T) {
 	f := newOfficialFixture(t)
 	f.adapter = "newapi-user-self-v1"
 	f.path = "/api/user/self"
