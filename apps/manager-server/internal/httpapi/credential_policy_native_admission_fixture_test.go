@@ -1,11 +1,15 @@
 package httpapi
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/sha1"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -19,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,22 +36,147 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
 )
 
+// Minimal RFC6455 client at the downstream wire boundary; no SDK dependency or
+// private selector/session hooks. Every turn traverses Core's actual WS route.
+func (f *nativeAdmissionFixture) reusedWSTurn() func() {
+	t := f.t
+	t.Helper()
+	u, err := url.Parse(f.base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.DialTimeout("tcp", u.Host, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	keyBytes := make([]byte, 16)
+	if _, err = rand.Read(keyBytes); err != nil {
+		t.Fatal(err)
+	}
+	key := base64.StdEncoding.EncodeToString(keyBytes)
+	fmt.Fprintf(conn, "GET /v1/responses HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: %s\r\nAuthorization: Bearer synthetic-client\r\n\r\n", u.Host, key)
+	reader := bufio.NewReader(conn)
+	response, err := http.ReadResponse(reader, &http.Request{Method: "GET"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := sha1.Sum([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+	if response.StatusCode != 101 || response.Header.Get("Sec-WebSocket-Accept") != base64.StdEncoding.EncodeToString(expected[:]) {
+		t.Fatal("actual downstream WS handshake not verified")
+	}
+	writeFrame := func(opcode byte, data []byte) {
+		t.Helper()
+		if len(data) > 65535 {
+			t.Fatal("bounded WS fixture frame exceeded")
+		}
+		frame := []byte{0x80 | opcode}
+		if len(data) < 126 {
+			frame = append(frame, 0x80|byte(len(data)))
+		} else {
+			frame = append(frame, 0x80|126, byte(len(data)>>8), byte(len(data)))
+		}
+		mask := make([]byte, 4)
+		if _, err := rand.Read(mask); err != nil {
+			t.Fatal(err)
+		}
+		frame = append(frame, mask...)
+		for i, b := range data {
+			frame = append(frame, b^mask[i%4])
+		}
+		if _, err := conn.Write(frame); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return func() {
+		t.Helper()
+		if err := conn.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		writeFrame(1, []byte(`{"type":"response.create","model":"native-admission-model","input":[{"role":"user","content":"synthetic WS turn"}]}`))
+		var message []byte
+		for {
+			header := make([]byte, 2)
+			if _, err := io.ReadFull(reader, header); err != nil {
+				t.Fatal(err)
+			}
+			if header[1]&0x80 != 0 {
+				t.Fatal("server sent masked WS frame")
+			}
+			length := uint64(header[1] & 127)
+			if length == 126 {
+				var size [2]byte
+				if _, err := io.ReadFull(reader, size[:]); err != nil {
+					t.Fatal(err)
+				}
+				length = uint64(binary.BigEndian.Uint16(size[:]))
+			} else if length == 127 {
+				var size [8]byte
+				if _, err := io.ReadFull(reader, size[:]); err != nil {
+					t.Fatal(err)
+				}
+				length = binary.BigEndian.Uint64(size[:])
+			}
+			if length > 2<<20 {
+				t.Fatal("oversized actual WS fixture response")
+			}
+			data := make([]byte, int(length))
+			if _, err := io.ReadFull(reader, data); err != nil {
+				t.Fatal(err)
+			}
+			switch header[0] & 15 {
+			case 9:
+				writeFrame(10, data)
+				continue
+			case 10:
+				continue
+			case 8:
+				t.Fatal("reused WS closed before turn completion")
+			case 0, 1:
+				message = append(message, data...)
+			default:
+				t.Fatal("unexpected WS data opcode")
+			}
+			if header[0]&0x80 == 0 {
+				continue
+			}
+			var event struct {
+				Type string `json:"type"`
+			}
+			if json.Unmarshal(message, &event) != nil {
+				t.Fatal("invalid actual WS event")
+			}
+			switch event.Type {
+			case "error", "response.failed":
+				t.Fatalf("actual WS turn failed: %s", message)
+			case "response.completed":
+				conn.SetDeadline(time.Time{})
+				return
+			}
+			message = nil
+		}
+	}
+}
+
 // This fixture only substitutes the external provider. Manager subscriptions,
 // SQLite, Core inventory, quota adapter, native executor and admission stay real.
 type nativeAdmissionFixture struct {
-	t          *testing.T
-	manager    *Server
-	db         *store.Store
-	base       string
-	client     *http.Client
-	sources    map[string]cq.Source
-	completed  chan fr.CompletedObservation
-	quotaCalls [2]atomic.Int64
-	sends      [2]atomic.Int64
-	depleted   atomic.Bool
+	t            *testing.T
+	manager      *Server
+	db           *store.Store
+	base         string
+	client       *http.Client
+	sources      map[string]cq.Source
+	completed    chan fr.CompletedObservation
+	quotaCalls   [2]atomic.Int64
+	sends        [2]atomic.Int64
+	depleted     atomic.Bool
+	drainRelease chan struct{}
+	drainEntered chan struct{}
+	drainOnce    sync.Once
 }
 
-func newNativeAdmissionFixture(t *testing.T) *nativeAdmissionFixture {
+func newNativeAdmissionFixture(t *testing.T, manualA ...bool) *nativeAdmissionFixture {
 	t.Helper()
 	binary := os.Getenv("CORE_QUOTA_TEST_BINARY")
 	if binary == "" {
@@ -59,6 +189,8 @@ func newNativeAdmissionFixture(t *testing.T) *nativeAdmissionFixture {
 		t.Fatal("plugin SDK provenance mismatch")
 	}
 	f := &nativeAdmissionFixture{t: t, client: &http.Client{Timeout: 15 * time.Second}, sources: map[string]cq.Source{}, completed: make(chan fr.CompletedObservation, 32)}
+	f.drainRelease = make(chan struct{})
+	f.drainEntered = make(chan struct{}, 1)
 	t.Cleanup(func() {
 		t.Logf("exact controlled counts quota[A,B]=[%d,%d] business[A,B]=[%d,%d]", f.quotaCalls[0].Load(), f.quotaCalls[1].Load(), f.sends[0].Load(), f.sends[1].Load())
 	})
@@ -95,8 +227,23 @@ func newNativeAdmissionFixture(t *testing.T) *nativeAdmissionFixture {
 			fmt.Fprintf(w, `{"rate_limit":{"allowed":%t,"limit_reached":%t,"primary_window":{"used_percent":%d,"reset_at":%d,"limit_window_seconds":18000},"secondary_window":{"used_percent":%d,"reset_at":%d,"limit_window_seconds":604800}}}`, used < 100, used == 100, used, reset, used, reset)
 		case "/backend-api/codex/responses", "/v1/responses":
 			f.sends[i].Add(1)
-			io.Copy(io.Discard, r.Body)
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Error(err)
+				return
+			}
 			w.Header().Set("Content-Type", "text/event-stream")
+			if bytes.Contains(body, []byte("native-admission-drain")) {
+				io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"admitted-before-pause\"}\n\n")
+				w.(http.Flusher).Flush()
+				f.drainEntered <- struct{}{}
+				select {
+				case <-f.drainRelease:
+				case <-r.Context().Done():
+					return
+				}
+				io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"drained-after-pause\"}\n\n")
+			}
 			io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"native-admission-response\",\"status\":\"completed\",\"output\":[]}}\n\n")
 		default:
 			t.Errorf("unapproved controlled endpoint %s", r.URL.Path)
@@ -122,6 +269,7 @@ func newNativeAdmissionFixture(t *testing.T) *nativeAdmissionFixture {
 	upstream.TLS.Certificates[0] = cert
 	upstream.StartTLS()
 	t.Cleanup(upstream.Close)
+	t.Cleanup(f.releaseDrain)
 	dir := t.TempDir()
 	state := filepath.Join(dir, "state")
 	auth := filepath.Join(state, "auth")
@@ -129,7 +277,8 @@ func newNativeAdmissionFixture(t *testing.T) *nativeAdmissionFixture {
 		t.Fatal(err)
 	}
 	for i, name := range []string{"A", "B"} {
-		body := fmt.Sprintf(`{"type":"codex","access_token":"NATIVE-ADMISSION-%s","account_id":"native-admission-account-%s","disabled":false,"priority":%d}`, name, name, 100-i*100)
+		disabled := name == "A" && len(manualA) > 0 && manualA[0]
+		body := fmt.Sprintf(`{"type":"codex","access_token":"NATIVE-ADMISSION-%s","account_id":"native-admission-account-%s","disabled":%t,"priority":%d}`, name, name, disabled, 100-i*100)
 		if err = os.WriteFile(filepath.Join(auth, map[string]string{"A": "codex.json", "B": "native-B.json"}[name]), []byte(body), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -265,6 +414,59 @@ func newNativeAdmissionFixture(t *testing.T) *nativeAdmissionFixture {
 		}
 	}
 	return f
+}
+
+func (f *nativeAdmissionFixture) coreAPI(method, path string, body, out any) {
+	f.t.Helper()
+	data, err := json.Marshal(body)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	req, _ := http.NewRequest(method, f.base+"/v8/management/"+path, bytes.NewReader(data))
+	req.Header.Set("Authorization", "Bearer test-password")
+	req.Header.Set("Content-Type", "application/json")
+	response, err := f.client.Do(req)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	defer response.Body.Close()
+	data, err = io.ReadAll(response.Body)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	if response.StatusCode != 200 {
+		f.t.Fatalf("actual Core %s %s status=%d body=%s", method, path, response.StatusCode, data)
+	}
+	if err = json.Unmarshal(data, out); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
+func (f *nativeAdmissionFixture) releaseDrain() { f.drainOnce.Do(func() { close(f.drainRelease) }) }
+
+func (f *nativeAdmissionFixture) openSSE(drain bool) *http.Response {
+	f.t.Helper()
+	input := "ordinary-native-sse"
+	if drain {
+		input = "native-admission-drain"
+	}
+	data, _ := json.Marshal(map[string]any{"model": "native-admission-model", "input": []any{map[string]any{"role": "user", "content": input}}, "stream": true})
+	req, _ := http.NewRequest("POST", f.base+"/v1/responses", bytes.NewReader(data))
+	req.Header.Set("Authorization", "Bearer synthetic-client")
+	req.Header.Set("Content-Type", "application/json")
+	response, err := f.client.Do(req)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.t.Cleanup(func() { response.Body.Close() })
+	if response.StatusCode != 200 {
+		response.Body.Close()
+		f.t.Fatalf("SSE status=%d", response.StatusCode)
+	}
+	if !strings.Contains(response.Header.Get("Content-Type"), "text/event-stream") {
+		f.t.Fatal("not actual downstream SSE")
+	}
+	return response
 }
 
 func (f *nativeAdmissionFixture) api(method, path string, body any, want int, out any) {
