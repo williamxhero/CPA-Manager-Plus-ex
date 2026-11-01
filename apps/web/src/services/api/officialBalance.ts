@@ -10,6 +10,7 @@ export type OfficialBalanceAdapter =
   | 'newapi-user-self-v1'
   | 'newapi-token-usage-v1';
 export interface NewAPIConfig {
+  conversion?: NewAPIConversionProfile;
   protocolConfirmed: boolean;
   instanceVersion: string;
   auth: string;
@@ -17,8 +18,19 @@ export interface NewAPIConfig {
   accountScope?: string;
   nativeUnit: 'newapi_quota';
 }
+export interface NewAPIConversionProfile {
+  confirmed: boolean;
+  nativeUnit: 'newapi_quota';
+  currency: string;
+  moneyPerNativeQuota: string;
+  proofReference: string;
+  contractVersion: string;
+}
 
 export interface BalanceObservation {
+  conversion?: NewAPIConversionProfile & {
+    qualification: 'operator_asserted_contract_not_live_verified';
+  };
   nativeQuota?: {
     unit: 'newapi_quota';
     state: 'finite' | 'unlimited' | 'unknown';
