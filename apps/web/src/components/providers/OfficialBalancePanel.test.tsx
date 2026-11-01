@@ -2,16 +2,54 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { OfficialBalancePanel } from './OfficialBalancePanel';
+import { ProviderDetailDrawer } from './ProviderDetailDrawer/ProviderDetailDrawer';
+import { buildProviderRows } from './ProviderTable/rowData';
 
 const fixtureDir = process.env.OFFICIAL_BALANCE_UI_FIXTURE;
 it.skipIf(!fixtureDir)(
   'provider config -> exact wallet -> auth failure retains stale wallet through live Manager/SQLite/TLS',
   async () => {
     const f = JSON.parse(readFileSync(`${fixtureDir}/fixture.json`, 'utf8'));
+    expect(f.binding.targets).toHaveLength(2);
+    const row = buildProviderRows({
+      gemini: [],
+      codex: [],
+      claude: [],
+      vertex: [],
+      openai: [
+        {
+          name: 'Synthetic DeepSeek',
+          baseUrl: 'https://api.deepseek.com/v1',
+          resourceId: f.binding.targets[0].resource_id,
+          apiKeyEntries: [
+            {
+              apiKey: 'SYNTHETIC-INFERENCE-NOT-BILLING',
+              resourceId: f.binding.targets[1].resource_id,
+            },
+          ],
+        },
+      ],
+      usageByProvider: new Map(),
+    })[0];
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(
-        <OfficialBalancePanel base={f.base} managementKey={f.managementKey} binding={f.binding} />
+        <ProviderDetailDrawer
+          row={row}
+          open
+          usageByProvider={new Map()}
+          resolvedTheme="light"
+          actionsDisabled={false}
+          toggleDisabled={false}
+          onClose={() => {}}
+          onEdit={() => {}}
+          onDelete={() => {}}
+          onToggle={() => {}}
+          onToggleWebsockets={() => {}}
+          onToggleCloak={() => {}}
+          onToggleDisableCooling={() => {}}
+          officialBalance={{ base: f.base, managementKey: f.managementKey, binding: f.binding }}
+        />
       );
     });
     for (

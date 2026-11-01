@@ -31,12 +31,13 @@ type defaultQuerier struct{ network NetworkOptions }
 func (q *defaultQuerier) ListCapabilities(context.Context) ([]AdapterCapability, error) {
 	return []AdapterCapability{
 		{Adapter: "deepseek", Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential"}, SupportedScopes: []string{"account_wallet"}, SupportedFormats: []string{"exact_currency_balances"}},
-		{Adapter: "deepinfra", Supported: false, RequiresConfig: true},
+		{Adapter: "deepinfra", Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential"}, SupportedScopes: []string{"signed_prepaid_net"}, SupportedFormats: []string{"exact_decimal_amount"}},
 	}, nil
 }
 func (q *defaultQuerier) Query(ctx context.Context, target QueryTarget, resolver CredentialResolver) (Observation, error) {
 	out := Observation{QueryID: uuid.NewString(), ObservedAtMS: time.Now().UnixMilli(), CapabilityStatus: "unsupported", QueryStatus: "unsupported", ErrorCode: "ADAPTER_NOT_FOUND"}
-	if strings.ToLower(strings.TrimSpace(target.Adapter)) != "deepseek" {
+	adapter := strings.ToLower(strings.TrimSpace(target.Adapter))
+	if adapter != "deepseek" && adapter != "deepinfra" {
 		return out, nil
 	}
 	out.CapabilityStatus = "supported"
@@ -53,8 +54,11 @@ func (q *defaultQuerier) Query(ctx context.Context, target QueryTarget, resolver
 	}
 	if target.EndpointURL == "" {
 		target.EndpointURL = "https://api.deepseek.com/user/balance"
+		if adapter == "deepinfra" {
+			target.EndpointURL = "https://api.deepinfra.com/payment/checklist"
+		}
 	}
-	if ValidateSource(target.EndpointURL, target.PrivateTargets) != nil {
+	if ValidateAdapterSource(adapter, target.EndpointURL, target.PrivateTargets) != nil {
 		out.QueryStatus = "network_error"
 		out.ErrorCode = "INVALID_ENDPOINT"
 		return out, nil
@@ -68,5 +72,8 @@ func (q *defaultQuerier) Query(ctx context.Context, target QueryTarget, resolver
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	if adapter == "deepinfra" {
+		return queryDeepInfra(ctx, target, credential, q.network, out), nil
+	}
 	return queryDeepSeek(ctx, target, credential, q.network, out), nil
 }

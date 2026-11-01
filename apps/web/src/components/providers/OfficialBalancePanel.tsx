@@ -4,9 +4,18 @@ import {
   type BalanceBinding,
   type BalanceJob,
   type OfficialBalanceStatus,
+  type OfficialBalanceAdapter,
 } from '@/services/api/officialBalance';
 
+const endpoints: Record<OfficialBalanceAdapter, string> = {
+  deepseek: 'https://api.deepseek.com/user/balance',
+  deepinfra: 'https://api.deepinfra.com/payment/checklist',
+};
+const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =>
+  value === 'deepseek' || value === 'deepinfra';
+
 export interface OfficialBalancePanelProps {
+  adapter?: OfficialBalanceAdapter;
   base: string;
   managementKey: string;
   binding?: BalanceBinding;
@@ -20,11 +29,12 @@ export function OfficialBalancePanel({
   binding,
   disabled = false,
   supported = true,
+  adapter = 'deepseek',
 }: OfficialBalancePanelProps) {
   const bindingJSON = JSON.stringify(binding);
   const context = useMemo(
-    () => ({ base, managementKey, bindingJSON }),
-    [base, managementKey, bindingJSON]
+    () => ({ base, managementKey, bindingJSON, adapter }),
+    [base, managementKey, bindingJSON, adapter]
   );
   const current = useRef(context);
   const [view, setView] = useState<{
@@ -35,6 +45,7 @@ export function OfficialBalancePanel({
   }>({ context });
   const [editor, setEditor] = useState({
     context,
+    adapter: undefined as OfficialBalanceAdapter | undefined,
     secret: '',
     endpoint: '',
     permits: undefined as string | undefined,
@@ -48,11 +59,17 @@ export function OfficialBalancePanel({
       ? editor
       : {
           context,
+          adapter: undefined as OfficialBalanceAdapter | undefined,
           secret: '',
           endpoint: '',
           permits: undefined as string | undefined,
           clear: false,
         };
+  const selectedAdapter = edit.adapter ?? (isAdapter(data?.adapter) ? data.adapter : adapter);
+  const endpoint =
+    edit.endpoint ||
+    (data?.adapter === selectedAdapter ? data.endpoint : '') ||
+    endpoints[selectedAdapter];
   const usable = !!base && !!managementKey && !!binding && !disabled && supported;
 
   useEffect(() => {
@@ -100,8 +117,8 @@ export function OfficialBalancePanel({
           {
             ...binding,
             version: previous.version,
-            adapter: 'deepseek',
-            endpoint: edit.endpoint || previous.endpoint || 'https://api.deepseek.com/user/balance',
+            adapter: selectedAdapter,
+            endpoint,
             privateTargets:
               edit.permits !== undefined
                 ? edit.permits
@@ -128,6 +145,7 @@ export function OfficialBalancePanel({
           setView({ context, data: value });
           setEditor({
             context,
+            adapter: undefined as OfficialBalanceAdapter | undefined,
             secret: '',
             endpoint: '',
             permits: undefined as string | undefined,
@@ -187,9 +205,29 @@ export function OfficialBalancePanel({
                 查询凭据：{data.configured ? 'configured' : 'needs_configuration'} · 服务端加密保存
               </p>
               <p>
-                首个已验证协议：DeepSeek GET /user/balance。DeepInfra
-                及其他协议：unsupported（待适配）。
+                DeepSeek：账户钱包；DeepInfra：第一方客户端协议支持的有符号预付净额。其他协议仍未交付。
               </p>
+              <label>
+                官方余额协议
+                <select
+                  aria-label="官方余额协议"
+                  value={selectedAdapter}
+                  disabled={busy}
+                  onChange={(event) => {
+                    if (isAdapter(event.target.value))
+                      setEditor({
+                        ...edit,
+                        adapter: event.target.value,
+                        endpoint: '',
+                        secret: '',
+                        clear: false,
+                      });
+                  }}
+                >
+                  <option value="deepseek">DeepSeek · account_wallet</option>
+                  <option value="deepinfra">DeepInfra · signed_prepaid_net</option>
+                </select>
+              </label>
               <label>
                 只读查询密钥
                 <input
@@ -216,7 +254,7 @@ export function OfficialBalancePanel({
                 查询 HTTPS 地址
                 <input
                   aria-label="查询 HTTPS 地址"
-                  value={edit.endpoint || data.endpoint || 'https://api.deepseek.com/user/balance'}
+                  value={endpoint}
                   disabled={busy}
                   onChange={(event) => setEditor({ ...edit, endpoint: event.target.value })}
                 />
@@ -254,18 +292,39 @@ export function OfficialBalancePanel({
                 <>
                   <p>
                     最近成功：{new Date(data.lastSuccess.observedAtMs).toISOString()} ·
-                    account_wallet · 来源 {data.endpoint}
+                    {data.lastSuccess.semantic} · 来源 {data.endpoint}
                   </p>
-                  <p>平台可用标志：{String(data.lastSuccess.available)}（不等于余额为零）</p>
-                  <ul>
-                    {data.lastSuccess.balances?.map((wallet) => (
-                      <li key={wallet.currency}>
-                        {wallet.currency} 总余额 {wallet.total} · 赠送部分 {wallet.granted} ·
-                        充值部分 {wallet.toppedUp}
-                      </li>
-                    ))}
-                  </ul>
-                  <p>不同币种不求和；赠送与充值是总余额的组成部分，不重复累计。</p>
+                  {data.lastSuccess.semantic === 'signed_prepaid_net' ? (
+                    <>
+                      <p>
+                        DeepInfra 预付净额：{data.lastSuccess.currency}{' '}
+                        {data.lastSuccess.amountDecimal}
+                      </p>
+                      <p>
+                        {data.lastSuccess.amountDecimal?.startsWith('-')
+                          ? '负值表示账户欠款。'
+                          : '正值表示预付净信用；零值仅来自实际有效观测。'}
+                      </p>
+                      <p>
+                        第一方账单客户端的
+                        signed_prepaid_net；并非全部赠送额度、消费限额或通用实时可支配钱包。不推定
+                        recent 的结算时间语义。
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p>平台可用标志：{String(data.lastSuccess.available)}（不等于余额为零）</p>
+                      <ul>
+                        {data.lastSuccess.balances?.map((wallet) => (
+                          <li key={wallet.currency}>
+                            {wallet.currency} 总余额 {wallet.total} · 赠送部分 {wallet.granted} ·
+                            充值部分 {wallet.toppedUp}
+                          </li>
+                        ))}
+                      </ul>
+                      <p>不同币种不求和；赠送与充值是总余额的组成部分，不重复累计。</p>
+                    </>
+                  )}
                 </>
               )}
             </>
