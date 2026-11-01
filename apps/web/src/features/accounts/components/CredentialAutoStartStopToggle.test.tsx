@@ -1,200 +1,127 @@
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, expect, it, vi } from 'vitest';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import type { AccountProcessingPolicy } from '@/services/api/usageService';
 import { CredentialAutoStartStopToggle } from './CredentialAutoStartStopToggle';
-
-const { mocks } = vi.hoisted(() => ({
-  mocks: {
-    getAccountProcessingPolicy: vi.fn(),
-    updateAccountProcessingPolicy: vi.fn(),
-  },
-}));
-
-vi.mock('@/services/api/usageService', () => ({
-  usageServiceApi: {
-    getAccountProcessingPolicy: mocks.getAccountProcessingPolicy,
-    updateAccountProcessingPolicy: mocks.updateAccountProcessingPolicy,
-  },
-}));
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: { message?: string }) =>
-      options?.message ? `${key}:${options.message}` : key,
-  }),
-}));
-
-const MANAGER_BASE = 'http://manager.local:18317';
-const MANAGEMENT_KEY = 'manager-key';
-
-const buildPolicy = (
-  overrides: { enabled?: boolean; locked?: boolean } = {}
-): AccountProcessingPolicy => {
-  const enabled = overrides.enabled ?? false;
-  const locked = overrides.locked ?? false;
-  return {
-    source: 'db',
-    updatedAtMs: 1,
-    codexQuotaCooldown: {
-      enabled,
-      configured: enabled,
-      source: 'db',
-      locked,
-      envKey: 'USAGE_QUOTA_COOLDOWN_ENABLED',
-      configFileKey: 'quotaCooldownEnabled',
-    },
-    authIssueQueue: {
-      enabled: false,
-      configured: false,
-      source: 'startup',
-      locked: false,
-      envKey: 'USAGE_ACCOUNT_ACTIONS_ENABLED',
-      configFileKey: 'accountActionsEnabled',
-    },
-    authIssueAutoDisable: {
-      enabled: false,
-      configured: false,
-      source: 'startup',
-      locked: false,
-      envKey: 'USAGE_ACCOUNT_ACTIONS_AUTO_DISABLE',
-      configFileKey: 'accountActionsAutoDisable',
-    },
-  };
-};
-
-const readText = (value: unknown): string => {
-  if (typeof value === 'string' || typeof value === 'number') return String(value);
-  if (Array.isArray(value)) return value.map(readText).join('');
-  if (value && typeof value === 'object' && 'children' in value) {
-    return readText((value as { children?: unknown }).children);
-  }
-  if (value && typeof value === 'object' && 'props' in value) {
-    return readText((value as ReactTestInstance).props.children);
-  }
-  return '';
-};
-
-const pageText = (renderer: ReactTestRenderer) => readText(renderer.toJSON());
-
-const flush = async () => {
-  await act(async () => {
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-};
-
-const render = async (props: { managerServiceBase?: string; managementKey?: string } = {}) => {
-  let renderer: ReactTestRenderer | null = null;
-  await act(async () => {
-    renderer = create(
-      <CredentialAutoStartStopToggle
-        managerServiceBase={props.managerServiceBase ?? MANAGER_BASE}
-        managementKey={props.managementKey ?? MANAGEMENT_KEY}
-      />
-    );
-  });
+import type { CredentialPolicyStatus } from '@/services/api/credentialPolicy';
+vi.mock('react-i18next', () => ({useTranslation: () => ({t: (k: string) => k})}));
+const source = (auth_index = 'a', enabled = false): CredentialPolicyStatus => ({
+  auth_index, subjectId: `issued-${auth_index}`, scope: {instance_id:'instance', instance_incarnation:'incarnation', boot_epoch:'boot', snapshot_revision:1},
+  targets:[{resource_id:auth_index, incarnation:'one', identity_version:1, credential_version:1, config_version:1, membership_version:0}],
+  sourceVersion:'v1', protocol:'codex', accountProvenance:'oauth', manualDisabled:false,
+  bindingCurrent:true, enabled, generation:0, owner:'server-owner', state:'off', reason:'', applied:false,
+  availability:{state:'available', reason:''}, queryAvailability:{state:'ready',reason:''},
+});
+const flush = async () => {await act(async () => {await new Promise(r => setTimeout(r, 0));});};
+const toggle = (r: ReactTestRenderer, i = 0) => r.root.findAllByType(ToggleSwitch)[i];
+afterEach(() => vi.unstubAllGlobals());
+it('ticket93 saves one issued subject and requires separate server readback, leaving B OFF', async () => {
+  const states = {a:source(), b:source('b')};
+  const writes: unknown[] = [];
+  let readback!: (v: Response) => void;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+    if(init.method === 'PUT') {const body=JSON.parse(String(init.body)); writes.push(body); states.a={...states.a, enabled:true,generation:1}; return Response.json(states.a);}
+    if(url.includes('subjectId=')) return new Promise<Response>(resolve => {readback=resolve;});
+    return Response.json(url.includes('authIndex=b') ? states.b : states.a);
+  }));
+  let r!: ReactTestRenderer;
+  await act(async () => {r=create(<><CredentialAutoStartStopToggle managerServiceBase="http://fixture" managementKey="test" authIndex="a"/><CredentialAutoStartStopToggle managerServiceBase="http://fixture" managementKey="test" authIndex="b"/></>);});
   await flush();
-  return renderer!;
-};
-
-const findToggle = (renderer: ReactTestRenderer) => renderer.root.findAllByType(ToggleSwitch)[0];
-
-afterEach(() => {
-  mocks.getAccountProcessingPolicy.mockReset();
-  mocks.updateAccountProcessingPolicy.mockReset();
+  await act(async () => {toggle(r).props.onChange(true);});
+  expect(toggle(r).props.checked).toBe(false);
+  expect(toggle(r).props.disabled).toBe(true);
+  expect(toggle(r,1).props.checked).toBe(false);
+  expect(writes).toEqual([{scope:states.a.scope,targets:states.a.targets,auth_index:'a',sourceVersion:'v1',expectedGeneration:0,owner:'server-owner',enabled:true}]);
+  await act(async () => {readback(Response.json(states.a));});
+  expect(toggle(r).props.checked).toBe(true);
+  expect(toggle(r,1).props.checked).toBe(false);
+  await act(async () => r.unmount());
 });
 
-describe('CredentialAutoStartStopToggle', () => {
-  it('shows the persisted ON state and persists OFF through the shared policy API', async () => {
-    mocks.getAccountProcessingPolicy.mockResolvedValue(buildPolicy({ enabled: true }));
-    mocks.updateAccountProcessingPolicy.mockResolvedValue(buildPolicy({ enabled: false }));
-    const renderer = await render();
+it('ticket93 rejects ON without fresh common76 evidence, preserves OFF and explains refresh without retry', async () => {
+  let puts=0;
+  vi.stubGlobal('fetch', vi.fn(async (_url:string,init:RequestInit) => {
+    if(init.method === 'PUT') {puts++;return Response.json({error:'fresh_authoritative_evidence_required'},{status:503});}
+    return Response.json(source());
+  }));
+  let r!:ReactTestRenderer;
+  await act(async () => {r=create(<CredentialAutoStartStopToggle managerServiceBase="http://fixture" managementKey="test" authIndex="a"/>);});
+  await act(async () => {toggle(r).props.onChange(true);});
+  expect(toggle(r).props.checked).toBe(false);
+  expect(JSON.stringify(r.toJSON())).toContain('fresh_authoritative_evidence_required');
+  expect(puts).toBe(1);
+  await act(async () => r.unmount());
+});
 
-    expect(mocks.getAccountProcessingPolicy).toHaveBeenCalledWith(MANAGER_BASE, MANAGEMENT_KEY);
-    expect(findToggle(renderer).props.checked).toBe(true);
-    expect(findToggle(renderer).props.disabled).toBe(false);
-    expect(pageText(renderer)).toContain('accounts.auto_start_stop');
-    expect(findToggle(renderer).props.labelPosition).toBe('left');
-    expect(renderer.root.findByType(InfoTooltip).props.content).toBe(
-      'accounts.auto_start_stop_on_hint'
-    );
+it('ticket93 rechecks current capability after readback so a saved OFF can explicitly turn ON again', async () => {
+  let state=source('a',true);
+  vi.stubGlobal('fetch',vi.fn(async (url:string, init:RequestInit) => {
+    if(init.method==='PUT') {state={...state, enabled:JSON.parse(String(init.body)).enabled, generation:state.generation+1};return Response.json(state);}
+    return Response.json(url.includes('subjectId=') ? {...state,bindingCurrent:false,availability:{state:'unavailable',reason:'current_binding_unverified'}} : state);
+  }));
+  let r!:ReactTestRenderer;
+  await act(async () => {r=create(<CredentialAutoStartStopToggle managerServiceBase="http://fixture" managementKey="test" authIndex="a"/>);});
+  await act(async () => {toggle(r).props.onChange(false);});
+  expect(toggle(r).props.checked).toBe(false);
+  expect(toggle(r).props.disabled).toBe(false);
+  await act(async () => {toggle(r).props.onChange(true);});
+  expect(toggle(r).props.checked).toBe(true);
+  await act(async () => r.unmount());
+});
 
-    await act(async () => {
-      findToggle(renderer).props.onChange(false);
-      await Promise.resolve();
-    });
-    await flush();
+it('keeps a known ON subject OFF-capable while Core unavailable and ignores a rapid duplicate submission',async () => {
+ let state={...source('a',true),bindingCurrent:false,availability:{state:'unavailable' as const,reason:'gate_core_unavailable'}};
+ let done!:(r:Response)=>void;let puts=0;
+ vi.stubGlobal('fetch',vi.fn(async(_url:string,init:RequestInit)=> {
+  if(init.method==='PUT'){puts++;return new Promise<Response>(r=>{done=r;});}return Response.json(state);
+ }));
+ let r!:ReactTestRenderer;
+ await act(async()=>{r=create(<CredentialAutoStartStopToggle managerServiceBase="http://fixture" managementKey="test" authIndex="a"/>);});
+ expect(toggle(r).props.disabled).toBe(false);
+ await act(async()=>{toggle(r).props.onChange(false);toggle(r).props.onChange(false);});
+ expect(puts).toBe(1);
+ state={...state,enabled:false,generation:1};
+ await act(async()=>{done(Response.json(state));});
+ expect(toggle(r).props.checked).toBe(false);
+ expect(toggle(r).props.disabled).toBe(true);
+ expect(JSON.stringify(r.toJSON())).toContain('credential_policy.saved_off');
+ await act(async()=>r.unmount());
+});
+it('never publishes a late old-instance ON result or a reused-selector mutation result',async()=>{
+ let done!:(r:Response)=>void;
+ vi.stubGlobal('fetch',vi.fn(async(url:string,init:RequestInit)=>{
+  if(init.method==='PUT')return new Promise<Response>(r=>{done=r;});
+  return Response.json(url.startsWith('http://old')?source():{...source('b'),sourceVersion:'v2'});
+ }));
+ let r!:ReactTestRenderer;
+ await act(async()=>{r=create(<CredentialAutoStartStopToggle managerServiceBase="http://old" managementKey="test" authIndex="a"/>);});
+ await act(async()=>{toggle(r).props.onChange(true);});
+ await act(async()=>{r.update(<CredentialAutoStartStopToggle managerServiceBase="http://new" managementKey="test" authIndex="a" revision={2}/>);});
+ await act(async()=>{done(Response.json({...source(),enabled:true,generation:1}));});
+ expect(toggle(r).props.checked).toBe(false);
+ expect(JSON.stringify(r.toJSON())).not.toContain('credential_policy.saved_on');
+ await act(async()=>r.unmount());
+});
+it('management lock cannot enable a false healthy ON without a current operation',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json({...source(),availability:{state:'unavailable',reason:'environment_locked_off'}})));
+ let r!:ReactTestRenderer;
+ await act(async()=>{r=create(<CredentialAutoStartStopToggle managerServiceBase="http://fixture" managementKey="test" authIndex="a"/>);});
+ expect(toggle(r).props.disabled).toBe(true);
+ expect(JSON.stringify(r.toJSON())).toContain('environment_locked_off');
+ expect(JSON.stringify(r.toJSON())).not.toContain('credential available');
+ await act(async()=>r.unmount());
+});
 
-    expect(mocks.updateAccountProcessingPolicy).toHaveBeenCalledWith(MANAGER_BASE, MANAGEMENT_KEY, {
-      codexQuotaCooldownEnabled: false,
-    });
-    expect(findToggle(renderer).props.checked).toBe(false);
-    expect(renderer.root.findByType(InfoTooltip).props.content).toBe(
-      'accounts.auto_start_stop_off_hint'
-    );
-  });
-
-  it('reflects the persisted OFF state and honestly describes the OFF gating', async () => {
-    mocks.getAccountProcessingPolicy.mockResolvedValue(buildPolicy({ enabled: false }));
-    const renderer = await render();
-
-    expect(findToggle(renderer).props.checked).toBe(false);
-    expect(renderer.root.findByProps({ 'data-credential-auto-start-stop': 'ready' })).toBeTruthy();
-    expect(renderer.root.findByType(InfoTooltip).props.content).toBe(
-      'accounts.auto_start_stop_off_hint'
-    );
-  });
-
-  it('keeps the persisted value and surfaces a save failure instead of a fake state', async () => {
-    mocks.getAccountProcessingPolicy.mockResolvedValue(buildPolicy({ enabled: true }));
-    mocks.updateAccountProcessingPolicy.mockRejectedValue(new Error('boom'));
-    const renderer = await render();
-
-    await act(async () => {
-      findToggle(renderer).props.onChange(false);
-      await Promise.resolve();
-    });
-    await flush();
-
-    expect(findToggle(renderer).props.checked).toBe(true);
-    const alert = renderer.root.findByProps({ role: 'alert' });
-    expect(readText(alert)).toBe('accounts.auto_start_stop_save_failed:boom');
-  });
-
-  it('disables the switch and reports the environment lock', async () => {
-    mocks.getAccountProcessingPolicy.mockResolvedValue(
-      buildPolicy({ enabled: true, locked: true })
-    );
-    const renderer = await render();
-
-    expect(findToggle(renderer).props.disabled).toBe(true);
-    expect(renderer.root.findByType(InfoTooltip).props.content).toBe(
-      'accounts.auto_start_stop_locked_hint'
-    );
-  });
-
-  it('disables the switch and reports a load failure honestly', async () => {
-    mocks.getAccountProcessingPolicy.mockRejectedValue(new Error('offline'));
-    const renderer = await render();
-
-    expect(findToggle(renderer).props.disabled).toBe(true);
-    const errorNode = renderer.root.findByProps({
-      'data-credential-auto-start-stop': 'error',
-    });
-    expect(errorNode.findByType(InfoTooltip).props.content).toBe(
-      'accounts.auto_start_stop_load_failed:offline'
-    );
-  });
-
-  it('is unavailable when no Manager service base is configured', async () => {
-    const renderer = await render({ managerServiceBase: '', managementKey: '' });
-
-    expect(mocks.getAccountProcessingPolicy).not.toHaveBeenCalled();
-    expect(findToggle(renderer).props.disabled).toBe(true);
-    expect(renderer.root.findByType(InfoTooltip).props.content).toBe(
-      'accounts.auto_start_stop_unavailable'
-    );
-  });
+it('drops old source authority when readback discovers a new incarnation under the same selector',async()=>{
+ let reads=0;
+ vi.stubGlobal('fetch',vi.fn(async(url:string,init:RequestInit)=>{
+  if(init.method==='PUT' || url.includes('subjectId=')) return Response.json({...source(),enabled:true,generation:1});
+  return Response.json(reads++ ? {...source(),subjectId:'new-incarnation',sourceVersion:'v2'}:source());
+ }));
+ let r!:ReactTestRenderer;
+ await act(async()=>{r=create(<CredentialAutoStartStopToggle managerServiceBase="http://fixture" managementKey="test" authIndex="a"/>);});
+ await act(async()=>{toggle(r).props.onChange(true);});
+ expect(toggle(r).props.checked).toBe(false);
+ expect(toggle(r).props.disabled).toBe(true);
+ expect(JSON.stringify(r.toJSON())).toContain('identity_changed');
+ await act(async()=>r.unmount());
 });

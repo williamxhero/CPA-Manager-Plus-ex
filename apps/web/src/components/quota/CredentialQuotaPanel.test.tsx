@@ -64,6 +64,7 @@ it('keeps the prior window mounted through refresh and reconciles the persisted 
   });
   let read = 0;
   const request = vi.fn(async (_url: string, options?: RequestInit) => {
+    if (_url.endsWith('/full-refresh') && options?.method === 'GET') return json({sources:[{id:'host-source',queryCapable:true,request:{kind:'credential_quota',credential:{...status(),auth_index:'a',sourceVersion:'host-source-v1'}},targets:status().targets}]});
     if (options?.method === 'POST') return waiting;
     return json(status(read++ ? 80 : 42));
   });
@@ -84,11 +85,8 @@ it('keeps the prior window mounted through refresh and reconciles the persisted 
   });
   expect(JSON.stringify(renderer.toJSON())).toContain('80');
   expect(request.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(1);
-  expect(JSON.parse(String(request.mock.calls[1][1]?.body))).toMatchObject({
-    auth_index: 'a',
-    version: 1,
-    targets: [{ resource_id: 'issued-resource' }],
-  });
+  expect(JSON.parse(String(request.mock.calls.find(c=>c[1]?.method === 'POST')?.[1]?.body))).toMatchObject({purpose:'manual',source:{kind:'credential_quota',credential:{auth_index:'a',version:1,targets:[{resource_id:'issued-resource'}]}}});
+  expect(request.mock.calls.filter(c=>c[1]?.method==='POST').map(c=>c[0])).toEqual(['http://manager/usage-service/full-refresh']);
   await act(async () => renderer.unmount());
 });
 
@@ -127,7 +125,7 @@ it('removes invalid old authority on conflict without reflecting authenticated e
   vi.stubGlobal(
     'fetch',
     vi.fn(async (_url: string, options?: RequestInit) =>
-      options?.method === 'POST' ? new Response('SECRET-CANARY', { status: 409 }) : json(status())
+      options?.method === 'POST' ? new Response('SECRET-CANARY', { status: 409 }) : _url.endsWith('/full-refresh') ? json({sources:[{id:'host-source',queryCapable:true,request:{kind:'credential_quota',credential:{auth_index:'a'}}}]}) : json(status())
     )
   );
   let renderer!: ReactTestRenderer;

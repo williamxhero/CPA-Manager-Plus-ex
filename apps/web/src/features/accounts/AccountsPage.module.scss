@@ -7789,3 +7789,27 @@
     gap: 6px;
   }
 }
+
+// Independent credential intent occupies its own row, not an old icon-grid cell.
+.rowActions > [data-credential-auto-start-stop] {
+  grid-column: 1 / -1;
+  width: 100%;
+  white-space: normal;
+}
+.accountGridCardActions {
+  flex-wrap: wrap;
+  > [data-credential-auto-start-stop] {
+    flex-basis: 100%;
+    order: 3;
+    white-space: normal;
+  }
+}
+
+// Detail actions use the shared Button but are not fixed-size icon controls.
+.rowActions > [data-credential-auto-start-stop] :global(.btn) {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  white-space: normal;
+  padding: 4px;
+}

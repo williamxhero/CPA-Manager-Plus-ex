@@ -933,13 +933,13 @@ describe('page refresh interactions', () => {
     const capability = { enabled: true, configured: true, source: 'database', locked: false, envKey: 'ENV', configFileKey: 'field' };
     mocks.policy.mockResolvedValueOnce({ codexQuotaCooldown: capability, authIssueQueue: capability, authIssueAutoDisable: capability });
     await mount(<AccountProcessingPolicySection />);
-    expect(renderer.root.findAllByType(ToggleSwitch).map(n => n.props.checked)).toEqual([true, true, true]);
+    expect(renderer.root.findAllByType(ToggleSwitch).map(n => n.props.checked)).toEqual([true, true]);
     const next = deferred<unknown>(); mocks.policy.mockReturnValueOnce(next.promise);
     const refreshButton = renderer.root.findAllByType('button').find(n => text(n) === 'accountPolicy.refresh')!;
     let pending!: Promise<unknown>; act(() => { pending = refreshButton.props.onClick(); });
     expect(renderer.root.findAllByType(ToggleSwitch).every(n => n.props.disabled)).toBe(true);
     await act(async () => { next.reject(new Error('offline')); await pending; });
-    expect(renderer.root.findAllByType(ToggleSwitch).map(n => n.props.checked)).toEqual([true, true, true]);
+    expect(renderer.root.findAllByType(ToggleSwitch).map(n => n.props.checked)).toEqual([true, true]);
     expect(text(renderer.root)).toContain('offline');
     mocks.policy.mockReturnValue(new Promise(() => {})); mocks.managerBase = 'https://new-manager.test';
     await act(async () => { renderer.update(<AccountProcessingPolicySection />); });

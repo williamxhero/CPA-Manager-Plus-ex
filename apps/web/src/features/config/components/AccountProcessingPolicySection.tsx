@@ -258,7 +258,7 @@ function AccountProcessingPolicyContent() {
   };
 
   const groups = status
-    ? buildAccountProcessingPolicyViewModel(status, { loading, savingKey })
+    ? buildAccountProcessingPolicyViewModel(status, { loading, savingKey }).filter(group => group.key !== 'quota')
     : [];
 
   return (
