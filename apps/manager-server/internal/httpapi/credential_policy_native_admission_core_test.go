@@ -23,10 +23,16 @@ func TestCredentialPolicyNativeAdmissionHTTPDepletion(t *testing.T) {
 			t.Fatalf("%s intent not independently saved: %+v", name, saved)
 		}
 	}
+	// Current production accepts these ON writes before any qualifying query.
+	// This RED is NOT acceptance of the frozen ON freshness prerequisite. When
+	// that prerequisite is wired, obtain real evidence through76 before ON;
+	// never seed evidence or retain a total-call assertion that forbids it.
 	f.sendHTTP()
 	if f.sends[0].Load() != 1 || f.sends[1].Load() != 0 {
 		t.Fatal("native priority did not select exact A before pause")
 	}
+	quotaBaseline := [2]int64{f.quotaCalls[0].Load(), f.quotaCalls[1].Load()}
+	t.Logf("pre-depletion quota baseline[A,B]=%v (not ON prerequisite acceptance)", quotaBaseline)
 	f.depleted.Store(true)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -99,7 +105,7 @@ func TestCredentialPolicyNativeAdmissionHTTPDepletion(t *testing.T) {
 	if f.sends[0].Load() != 1 || f.sends[1].Load() != 1 {
 		t.Fatal("paused A admitted new HTTP or OFF B failed to receive it")
 	}
-	if f.quotaCalls[0].Load() != 1 || f.quotaCalls[1].Load() != 1 {
-		t.Fatal("native quota did not use exactly one selected A/B credential")
+	if f.quotaCalls[0].Load()-quotaBaseline[0] != 1 || f.quotaCalls[1].Load()-quotaBaseline[1] != 1 {
+		t.Fatal("depletion phase did not query each exact selected A/B credential once")
 	}
 }
