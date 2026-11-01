@@ -63,8 +63,12 @@ func TestLegacyIsolationRequiresExplicitLegacyAndRetainsGlobalBudget(t *testing.
 			t.Fatalf("HTTP%d became legacy permission: %v", status, err)
 		}
 	}
+	code.Store(200)
+	if _, _, err := guard.Begin(ctx, server.URL, "synthetic"); !errors.Is(err, ErrLegacyModeUnverified) {
+		t.Fatalf("HTTP200 version2 became legacy query admission: %v", err)
+	}
 	code.Store(503)
-	if _, _, err := guard.Begin(ctx); !errors.Is(err, ErrLegacyModeUnverified) {
+	if _, _, err := guard.Begin(ctx, server.URL, "synthetic"); !errors.Is(err, ErrLegacyModeUnverified) {
 		t.Fatalf("transient inventory failure fell back to legacy Begin: %v", err)
 	}
 	code.Store(404)

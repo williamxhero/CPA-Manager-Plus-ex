@@ -1877,7 +1877,7 @@ func (s *Service) requestCodexUsageAt(
 	path string,
 ) (apiCallResponse, int, error) {
 	if s.LegacyQuotaGuard != nil {
-		operation, release, err := s.LegacyQuotaGuard.Begin(ctx)
+		operation, release, err := s.LegacyQuotaGuard.Begin(ctx, setup.CPAUpstreamURL, setup.ManagementKey)
 		if err != nil {
 			return apiCallResponse{}, http.StatusConflict, err
 		}

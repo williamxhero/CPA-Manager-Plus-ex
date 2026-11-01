@@ -72,14 +72,11 @@ func (g *LegacyGuard) checkMode(ctx context.Context) error {
 	return nil
 }
 
-func (g *LegacyGuard) Begin(ctx context.Context, target ...string) (context.Context, func(), error) {
+// Begin requires the caller's resolved management target, so unsupported
+// positive capability responses can never become untargeted legacy admission.
+func (g *LegacyGuard) Begin(ctx context.Context, baseURL, key string) (context.Context, func(), error) {
 	operation, cancel := context.WithTimeout(ctx, 15*time.Second)
-	var err error
-	if len(target) == 2 {
-		err = g.CheckTarget(operation, target[0], target[1])
-	} else {
-		err = g.checkMode(operation)
-	}
+	err := g.CheckTarget(operation, baseURL, key)
 	if err != nil || g.Budget == nil {
 		cancel()
 		if err == nil {

@@ -852,7 +852,7 @@ func (s *Service) requestProviderAPICallAt(
 ) (apiCallResponse, int, error) {
 	// Billing is management work; response/inference probes below are unchanged.
 	if s.LegacyQuotaGuard != nil && (strings.HasPrefix(targetURL, xaiBillingMonthlyURL) || targetURL == xaiOfficialAPIMeURL) {
-		operation, release, err := s.LegacyQuotaGuard.Begin(ctx)
+		operation, release, err := s.LegacyQuotaGuard.Begin(ctx, setup.CPAUpstreamURL, setup.ManagementKey)
 		if err != nil {
 			return apiCallResponse{}, http.StatusConflict, err
 		}
