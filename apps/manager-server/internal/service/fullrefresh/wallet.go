@@ -49,6 +49,12 @@ func verifiedWallet(status ob.Status) *WalletMembership {
 func sameMembership(a, b WalletMembership) bool { return reflect.DeepEqual(a, b) }
 func planWallets(p *Progress) {
 	leaders := map[string]string{}
+	// A promoted catchup item joins the same already-admitted verified wallet read.
+	for _, item := range p.Items {
+		if item.WalletProof != nil && item.SharedFromID == "" && item.JobID != "" && (item.Outcome == "running" || item.Outcome == "success") {
+			leaders[item.WalletProof.GroupID] = item.ID
+		}
+	}
 	for i := range p.Items {
 		item := &p.Items[i]
 		if item.Outcome != "queued" || item.WalletProof == nil {

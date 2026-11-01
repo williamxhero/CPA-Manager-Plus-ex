@@ -1244,7 +1244,11 @@ func TestFullRefreshActualCoreFairMultiwaveTailSurvivesMinuteAndRemainsDue(t *te
 		var current fr.Inventory
 		json.Unmarshal(data, &current)
 		if code == 200 && current.LatestRound != nil && current.LatestRound.Purpose == fr.Periodic {
-			p = *current.LatestRound
+			// Inventory exposes current source rows plus a separately persisted latest
+			// document. Read linearized Progress before judging "never admitted";
+			// a concurrently admitted job may already have its due persisted.
+			_, progressData := f.api("GET", "/usage-service/full-refresh?id="+current.LatestRound.ID, nil)
+			json.Unmarshal(progressData, &p)
 			untaken := 0
 			for _, item := range p.Items {
 				if item.QueryCapable && item.JobID == "" {

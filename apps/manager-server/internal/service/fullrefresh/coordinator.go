@@ -94,6 +94,7 @@ func (s *Service) StartRound(ctx context.Context, purpose Purpose) (Progress, er
 						p.Items[i].Outcome = "queued"
 					}
 				}
+				planWallets(p)
 				recount(p)
 				_ = s.save(ctx, p)
 			}
@@ -202,6 +203,7 @@ func (s *Service) StartSingleSource(ctx context.Context, request SourceRequest, 
 				}
 				if p.Items[i].Outcome == "not_due" {
 					p.Items[i].Outcome = "queued"
+					planWallets(p)
 					recount(p)
 				}
 				p.Items[i].Joined = true
