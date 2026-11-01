@@ -43,6 +43,8 @@ type selectedKeyPolicyFixture struct {
 	restart          func()
 	onPause          func(cp.Status)
 	onEnd            func()
+	onPrerequisite   func(ob.Status, cq.Source, cq.Source)
+	billingOnlyKey   atomic.Bool
 }
 
 func newSelectedKeyPolicyFixture(t *testing.T, nativeGrant ...bool) (*selectedKeyPolicyFixture, ob.Binding, string) {
@@ -71,7 +73,8 @@ func newSelectedKeyPolicyFixture(t *testing.T, nativeGrant ...bool) (*selectedKe
 			fmt.Fprintf(w, `{"access_token":"SYNTHETIC-ROTATED-%d","refresh_token":"SYNTHETIC-GRANT-%d","id_token":%q,"token_type":"Bearer","expires_in":3600}`, n, n, jwt)
 			return
 		case "/api/usage/token/":
-			if r.Header.Get("Authorization") != "Bearer SELECTED-KEY-A" || r.Header.Get("New-Api-User") != "" {
+			allowed := r.Header.Get("Authorization") == "Bearer SELECTED-KEY-A" || f.billingOnlyKey.Load() && r.Header.Get("Authorization") == "Bearer BILLING-ONLY-KEY"
+			if !allowed || r.Header.Get("New-Api-User") != "" {
 				t.Error("official key-only auth changed")
 				w.WriteHeader(403)
 				return

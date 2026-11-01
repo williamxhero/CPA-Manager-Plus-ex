@@ -107,6 +107,10 @@ func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited, downstreamWS, 
 		t.Fatal("proof widened to unrelated configured key")
 	}
 	f.sources = map[string]cq.Source{"A": selected, "B": other}
+	if f.onPrerequisite != nil {
+		f.onPrerequisite(configured, selected, other)
+		return // dedicated prerequisite/CAS negative; no route claim from this branch
+	}
 	generation := int64(0)
 	enabled := true
 	var saved cp.Status
