@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 )
@@ -251,7 +252,7 @@ func newAPIUnambiguousJSON(body []byte) bool {
 					return false
 				}
 				name, ok := key.(string)
-				name = strings.ToLower(name)
+				name = newAPIKeyFold(name)
 				if !ok || seen[name] {
 					return false
 				}
@@ -279,6 +280,21 @@ func newAPIUnambiguousJSON(body []byte) bool {
 	}
 	_, err := d.Token()
 	return err == io.EOF
+}
+
+// encoding/json matches struct field aliases using Unicode simple folding,
+// not strings.ToLower (e.g. long s U+017F also matches ASCII S). Select the
+// smallest rune in each SimpleFold orbit, just as encoding/json's foldRune.
+func newAPIKeyFold(name string) string {
+	return strings.Map(func(r rune) rune {
+		minimum := r
+		for next := unicode.SimpleFold(r); next != r; next = unicode.SimpleFold(next) {
+			if next < minimum {
+				minimum = next
+			}
+		}
+		return minimum
+	}, name)
 }
 
 // Exact protocol-path validation is separate from transport/address policy.

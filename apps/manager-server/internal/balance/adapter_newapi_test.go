@@ -43,6 +43,28 @@ func TestNewAPIUnknownProtocolIsUnsupported(t *testing.T) {
 	}
 }
 
+func TestNewAPIUnicodeSuccessAliasCannotOverrideFailure(t *testing.T) {
+	for _, adapter := range []string{balance.NewAPIUserSelfV1, balance.NewAPITokenUsageV1} {
+		t.Run(adapter, func(t *testing.T) {
+			path := "/api/user/self"
+			body := `{"success":false,"ſuccess":true,"data":{"id":42,"quota":7}}`
+			c := balance.NewAPIConfig{ProtocolConfirmed: true, InstanceVersion: "fixture", Auth: balance.NewAPIUserPATWithIDV1, UserID: "42"}
+			if adapter == balance.NewAPITokenUsageV1 {
+				path = "/api/usage/token/"
+				body = `{"code":true,"success":false,"ſuccess":true,"data":{"object":"token_usage","total_available":7,"unlimited_quota":false}}`
+				c.Auth = balance.NewAPIInferenceKeyReadOnlyV1
+				c.UserID = ""
+			}
+			target, network := newAPIUpstream(t, path, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) })
+			target.Adapter = adapter
+			got := balance.QueryNewAPI(context.Background(), target, c, newAPISecret("SYNTHETIC-CANARY"), network)
+			if got.QueryStatus != "parse_error" || got.NativeQuota != nil || got.AmountDecimal != "" {
+				t.Fatalf("Unicode alias overrode failure: %+v", got)
+			}
+		})
+	}
+}
+
 func TestNewAPIUpstreamFailuresAreSafe(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
