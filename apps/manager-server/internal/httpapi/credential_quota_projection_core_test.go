@@ -32,6 +32,30 @@ func TestCredentialQuotaActualSourcesSingleAuthenticatedProjection(t *testing.T)
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	var mu sync.Mutex
 	calls := map[string]int{}
+	var sourceBindingFlags []bool
+	proxy.ModifyResponse = func(response *http.Response) error {
+		if response.Request.URL.Path != "/v8/management/resource-capabilities" {
+			return nil
+		}
+		data, err := io.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil {
+			return err
+		}
+		response.Body = io.NopCloser(bytes.NewReader(data))
+		var caps struct {
+			CredentialQuery struct {
+				SourceBindings bool `json:"source_bindings"`
+			} `json:"credential_query"`
+		}
+		if err := json.Unmarshal(data, &caps); err != nil {
+			return err
+		}
+		mu.Lock()
+		sourceBindingFlags = append(sourceBindingFlags, caps.CredentialQuery.SourceBindings)
+		mu.Unlock()
+		return nil
+	}
 	edge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		calls[r.URL.Path]++
@@ -46,18 +70,25 @@ func TestCredentialQuotaActualSourcesSingleAuthenticatedProjection(t *testing.T)
 	f.api("GET", "/usage-service/credential-quota", nil, 200, nil)
 	mu.Lock()
 	defer mu.Unlock()
-	t.Logf("one public source read elapsed=%s authenticated management calls=%v", time.Since(started), calls)
+	t.Logf("one public source read elapsed=%s authenticated management calls=%v source_bindings=%v", time.Since(started), calls, sourceBindingFlags)
+	if len(sourceBindingFlags) != 2 || sourceBindingFlags[0] != sourceBindingFlags[1] {
+		t.Fatal("capability changed across source read")
+	}
+	wantBindingCalls := 1 // absent/false: frozen legacy path, not new-view proof
+	if sourceBindingFlags[0] {
+		wantBindingCalls = 0
+	}
 	for path, want := range map[string]int{
 		"/v8/management/resource-capabilities":    2,
 		"/v8/management/resources":                1,
-		"/v8/management/resource-bindings":        1,
+		"/v8/management/resource-bindings":        wantBindingCalls,
 		"/v8/management/credential-quota/sources": 1,
 	} {
 		if calls[path] != want {
 			t.Errorf("%s calls=%d want=%d", path, calls[path], want)
 		}
 	}
-	if len(calls) != 4 || f.quotaCalls[0].Load() != 0 || f.quotaCalls[1].Load() != 0 {
+	if len(calls) != 3+wantBindingCalls || f.quotaCalls[0].Load() != 0 || f.quotaCalls[1].Load() != 0 {
 		t.Fatal("source read performed unexpected management or upstream query I/O")
 	}
 }
@@ -89,8 +120,9 @@ func TestCredentialQuotaActualProjectionRejectsSourceAndConnectionChanges(t *tes
 					return err
 				}
 				var envelope struct {
-					Version int         `json:"version"`
-					Sources []cq.Source `json:"sources"`
+					Version  int             `json:"version"`
+					Sources  []cq.Source     `json:"sources"`
+					Bindings json.RawMessage `json:"bindings,omitempty"`
 				}
 				if err := json.Unmarshal(data, &envelope); err != nil {
 					return err
