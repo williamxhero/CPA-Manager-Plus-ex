@@ -14,6 +14,7 @@ import (
 	managerconfigcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/managerconfig"
 	modelpricecontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/modelprice"
 	monitoringcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/monitoring"
+	officialbalancecontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/officialbalance"
 	panelcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/panel"
 	providerkeyaliascontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/providerkeyalias"
 	proxycontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/proxy"
@@ -49,6 +50,8 @@ func New(appCtx *app.Context) http.Handler {
 	panelHandler := &panelcontroller.Handler{App: appCtx}
 
 	mux := http.NewServeMux()
+	officialBalanceHandler := &officialbalancecontroller.Handler{App: appCtx}
+	mux.HandleFunc("/usage-service/official-balance", officialBalanceHandler.Handle)
 	updates := &updatecheckcontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/updates", middleware.WithCORS(appCtx.Config, updates.Handle))
 	mux.HandleFunc("/usage-service/updates/", middleware.WithCORS(appCtx.Config, updates.Handle))

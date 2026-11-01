@@ -1,0 +1,5 @@
+=== RUN   TestOfficialBalanceMetadataCannotBePermitted
+2026/11/01 10:28:01 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceMetadataCannotBePermitted (0.24s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	0.897s

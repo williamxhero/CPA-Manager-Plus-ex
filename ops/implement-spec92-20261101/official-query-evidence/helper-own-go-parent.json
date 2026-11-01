@@ -1,0 +1,6 @@
+{
+  "ProcessId": 11276,
+  "ParentProcessId": 21356,
+  "CreationDate": "2026-11-01T10:41:38.278416+08:00",
+  "CommandLine": "\"C:\\Users\\will\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\ngo test ./... -count=1 -timeout 240s *> D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/official-query-evidence/backend-full.log; Get-Content D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/official-query-evidence/backend-full.log | Select-Object -Last 18\""
+}

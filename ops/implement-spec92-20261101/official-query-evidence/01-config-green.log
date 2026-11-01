@@ -1,0 +1,6 @@
+=== RUN   TestOfficialBalanceConfigurationCAS
+2026/11/01 10:24:13 http PUT /usage-service/official-balance status=200 duration=6.3212ms remote=192.0.2.1:1234
+2026/11/01 10:24:13 http PUT /usage-service/official-balance status=409 duration=1.0435ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceConfigurationCAS (0.27s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	1.057s

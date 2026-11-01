@@ -1,0 +1,47 @@
+=== RUN   TestOfficialBalanceProductionTransport
+=== RUN   TestOfficialBalanceProductionTransport/pin_numeric
+2026/11/01 10:29:23 http PUT /usage-service/official-balance status=200 duration=3.1319ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http POST /usage-service/official-balance status=202 duration=2.1078ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http GET /usage-service/official-balance status=200 duration=17.7566ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProductionTransport/mixed_dns
+2026/11/01 10:29:23 http PUT /usage-service/official-balance status=200 duration=2.0862ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http POST /usage-service/official-balance status=202 duration=2.8593ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http GET /usage-service/official-balance status=200 duration=1.5839ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http GET /usage-service/official-balance status=200 duration=1.0341ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http GET /usage-service/official-balance status=200 duration=1.6764ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http GET /usage-service/official-balance status=200 duration=502.8µs remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProductionTransport/unpermitted_private
+2026/11/01 10:29:23 http PUT /usage-service/official-balance status=200 duration=2.5621ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http POST /usage-service/official-balance status=202 duration=2.2645ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http GET /usage-service/official-balance status=200 duration=17.4236ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProductionTransport/untrusted_certificate
+2026/11/01 10:29:23 http PUT /usage-service/official-balance status=200 duration=2.6296ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http POST /usage-service/official-balance status=202 duration=2.1587ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http GET /usage-service/official-balance status=200 duration=1.5695ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http: TLS handshake error from 127.0.0.1:2717: remote error: tls: bad certificate
+2026/11/01 10:29:23 http GET /usage-service/official-balance status=200 duration=2.8047ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProductionTransport/plaintext_refused
+2026/11/01 10:29:23 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProductionTransport/metadata_dns
+2026/11/01 10:29:23 http PUT /usage-service/official-balance status=200 duration=1.6024ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http POST /usage-service/official-balance status=202 duration=1.0592ms remote=192.0.2.1:1234
+2026/11/01 10:29:23 http GET /usage-service/official-balance status=200 duration=27.7575ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProductionTransport/metadata_ipv6
+2026/11/01 10:29:24 http PUT /usage-service/official-balance status=200 duration=2.7493ms remote=192.0.2.1:1234
+2026/11/01 10:29:24 http POST /usage-service/official-balance status=202 duration=1.6063ms remote=192.0.2.1:1234
+2026/11/01 10:29:24 http GET /usage-service/official-balance status=200 duration=27.4554ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceProductionTransport/mapped_metadata
+2026/11/01 10:29:24 http PUT /usage-service/official-balance status=200 duration=1.0251ms remote=192.0.2.1:1234
+2026/11/01 10:29:24 http POST /usage-service/official-balance status=202 duration=2.5785ms remote=192.0.2.1:1234
+2026/11/01 10:29:24 http GET /usage-service/official-balance status=200 duration=25.8027ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceProductionTransport (1.14s)
+    --- PASS: TestOfficialBalanceProductionTransport/pin_numeric (0.29s)
+    --- PASS: TestOfficialBalanceProductionTransport/mixed_dns (0.10s)
+    --- PASS: TestOfficialBalanceProductionTransport/unpermitted_private (0.15s)
+    --- PASS: TestOfficialBalanceProductionTransport/untrusted_certificate (0.09s)
+    --- PASS: TestOfficialBalanceProductionTransport/plaintext_refused (0.08s)
+    --- PASS: TestOfficialBalanceProductionTransport/metadata_dns (0.11s)
+    --- PASS: TestOfficialBalanceProductionTransport/metadata_ipv6 (0.20s)
+    --- PASS: TestOfficialBalanceProductionTransport/mapped_metadata (0.13s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	1.905s

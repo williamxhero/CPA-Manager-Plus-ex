@@ -1,0 +1,63 @@
+=== RUN   TestOfficialBalanceVerifiedRebindPreservesDurableSecret
+2026/11/01 10:39:13 http PUT /usage-service/official-balance status=200 duration=3.5474ms remote=192.0.2.1:1234
+2026/11/01 10:39:13 http POST /usage-service/official-balance status=202 duration=1.5565ms remote=192.0.2.1:1234
+2026/11/01 10:39:13 http GET /usage-service/official-balance status=200 duration=15.1257ms remote=192.0.2.1:1234
+2026/11/01 10:39:13 http GET /usage-service/official-balance status=200 duration=512.6µs remote=192.0.2.1:1234
+2026/11/01 10:39:13 http GET /usage-service/official-balance status=409 duration=516µs remote=192.0.2.1:1234
+2026/11/01 10:39:13 http POST /usage-service/official-balance status=202 duration=1.6261ms remote=192.0.2.1:1234
+2026/11/01 10:39:13 http GET /usage-service/official-balance status=200 duration=1.0254ms remote=192.0.2.1:1234
+2026/11/01 10:39:13 http GET /usage-service/official-balance status=200 duration=1.0254ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceVerifiedRebindPreservesDurableSecret (0.25s)
+=== RUN   TestOfficialBalanceRebindRejectsPreBootCompletion
+2026/11/01 10:39:13 http PUT /usage-service/official-balance status=200 duration=2.1187ms remote=192.0.2.1:1234
+2026/11/01 10:39:13 http POST /usage-service/official-balance status=202 duration=1.0492ms remote=192.0.2.1:1234
+2026/11/01 10:39:13 http POST /usage-service/official-balance status=202 duration=509.6µs remote=192.0.2.1:1234
+2026/11/01 10:39:13 http GET /usage-service/official-balance status=200 duration=553.4µs remote=192.0.2.1:1234
+2026/11/01 10:39:13 http GET /usage-service/official-balance status=200 duration=1.0572ms remote=192.0.2.1:1234
+2026/11/01 10:39:13 http GET /usage-service/official-balance status=409 duration=1.0472ms remote=192.0.2.1:1234
+2026/11/01 10:39:13 http GET /usage-service/official-balance status=200 duration=1.04ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceRebindRejectsPreBootCompletion (0.26s)
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"credential_version":3
+2026/11/01 10:39:14 http PUT /usage-service/official-balance status=200 duration=1.5082ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=409 duration=1.8229ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"config_version":4
+2026/11/01 10:39:14 http PUT /usage-service/official-balance status=200 duration=1.6183ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=200 duration=1.0341ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=409 duration=515.5µs remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"identity_version":2
+2026/11/01 10:39:14 http PUT /usage-service/official-balance status=200 duration=1.5163ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=200 duration=511.5µs remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=409 duration=515µs remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"membership_version":0
+2026/11/01 10:39:14 http PUT /usage-service/official-balance status=200 duration=1.5901ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=200 duration=521.8µs remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=409 duration=1.0763ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/55555555-5555-4555-8555-555555555555
+2026/11/01 10:39:14 http PUT /usage-service/official-balance status=200 duration=2.041ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=200 duration=1.5215ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=409 duration=1.0897ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/22222222-2222-4222-8222-222222222222
+2026/11/01 10:39:14 http PUT /usage-service/official-balance status=200 duration=6.119ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=200 duration=2.2222ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=409 duration=1.6488ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/11111111-1111-4111-8111-111111111111
+2026/11/01 10:39:14 http PUT /usage-service/official-balance status=200 duration=3.1808ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=200 duration=1.085ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=409 duration=520.8µs remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets (0.61s)
+    --- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"credential_version":3 (0.07s)
+    --- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"config_version":4 (0.07s)
+    --- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"identity_version":2 (0.07s)
+    --- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"membership_version":0 (0.08s)
+    --- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/55555555-5555-4555-8555-555555555555 (0.07s)
+    --- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/22222222-2222-4222-8222-222222222222 (0.15s)
+    --- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/11111111-1111-4111-8111-111111111111 (0.10s)
+=== RUN   TestOfficialBalanceDeepInfraRemainsUnsupported
+2026/11/01 10:39:14 http PUT /usage-service/official-balance status=200 duration=2.8136ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http POST /usage-service/official-balance status=202 duration=2.0224ms remote=192.0.2.1:1234
+2026/11/01 10:39:14 http GET /usage-service/official-balance status=200 duration=15.939ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceDeepInfraRemainsUnsupported (0.10s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	1.738s

@@ -1,0 +1,38 @@
+=== RUN   TestOfficialBalanceActualCoreChain
+    official_balance_core_test.go:68: actual Core sha256=9fb3cb67dd879df1a32719c35e7ceed939e4c49956fbe97b3036466af50784e5 source=f78e509fc1b231fb071d1522a704b172c19dcad7 modified=false
+2026/11/01 10:57:59 http GET /usage-service/resource-capabilities status=200 duration=2.1539ms remote=127.0.0.1:13228
+2026/11/01 10:58:00 http GET /usage-service/resource-capabilities status=200 duration=507.7µs remote=127.0.0.1:13228
+2026/11/01 10:58:00 http GET /usage-service/resource-capabilities status=200 duration=503µs remote=127.0.0.1:13228
+2026/11/01 10:58:00 http GET /usage-service/resource-capabilities status=200 duration=509µs remote=127.0.0.1:13228
+2026/11/01 10:58:00 http GET /usage-service/resource-capabilities status=200 duration=1.637ms remote=127.0.0.1:13228
+2026/11/01 10:58:00 http GET /usage-service/resource-capabilities status=200 duration=1.0341ms remote=127.0.0.1:13228
+2026/11/01 10:58:00 http GET /usage-service/resource-capabilities status=200 duration=1.0478ms remote=127.0.0.1:13228
+2026/11/01 10:58:00 http GET /usage-service/resource-capabilities status=200 duration=1.0562ms remote=127.0.0.1:13228
+2026/11/01 10:58:00 http GET /usage-service/resource-capabilities status=200 duration=179.7794ms remote=127.0.0.1:13228
+2026/11/01 10:58:00 http GET /usage-service/resource-capabilities status=200 duration=172.9439ms remote=127.0.0.1:13228
+2026/11/01 10:58:00 http PUT /usage-service/official-balance status=200 duration=179.4273ms remote=127.0.0.1:13228
+2026/11/01 10:58:00 http POST /usage-service/official-balance status=202 duration=187.6445ms remote=127.0.0.1:13228
+2026/11/01 10:58:01 http GET /usage-service/official-balance status=200 duration=190.7285ms remote=127.0.0.1:13228
+2026/11/01 10:58:01 http GET /usage-service/official-balance status=200 duration=170.2915ms remote=127.0.0.1:13228
+2026/11/01 10:58:01 http GET /usage-service/official-balance status=200 duration=169.8677ms remote=127.0.0.1:13228
+2026/11/01 10:58:01 http GET /usage-service/official-balance status=200 duration=171.7498ms remote=127.0.0.1:13228
+2026/11/01 10:58:01 http POST /usage-service/official-balance status=202 duration=174.3948ms remote=127.0.0.1:13228
+2026/11/01 10:58:02 http GET /usage-service/official-balance status=200 duration=178.3406ms remote=127.0.0.1:13228
+2026/11/01 10:58:02 http GET /usage-service/official-balance status=200 duration=181.9258ms remote=127.0.0.1:13228
+2026/11/01 10:58:02 http POST /usage-service/official-balance status=202 duration=175.4188ms remote=127.0.0.1:13228
+2026/11/01 10:58:02 http GET /usage-service/resource-capabilities status=200 duration=549.9µs remote=127.0.0.1:13228
+2026/11/01 10:58:02 http GET /usage-service/resource-capabilities status=200 duration=1.193ms remote=127.0.0.1:13228
+2026/11/01 10:58:02 http GET /usage-service/resource-capabilities status=200 duration=518.6µs remote=127.0.0.1:13228
+2026/11/01 10:58:02 http GET /usage-service/resource-capabilities status=200 duration=516.1µs remote=127.0.0.1:13228
+2026/11/01 10:58:02 http GET /usage-service/resource-capabilities status=200 duration=182.8248ms remote=127.0.0.1:13228
+2026/11/01 10:58:02 http GET /usage-service/resource-capabilities status=200 duration=174.3508ms remote=127.0.0.1:13228
+2026/11/01 10:58:03 http GET /usage-service/official-balance status=200 duration=176.2776ms remote=127.0.0.1:13228
+2026/11/01 10:58:03 http POST /usage-service/official-balance status=202 duration=198.6402ms remote=127.0.0.1:13228
+2026/11/01 10:58:03 http GET /usage-service/official-balance status=200 duration=178.4778ms remote=127.0.0.1:13228
+2026/11/01 10:58:03 http GET /usage-service/official-balance status=200 duration=176.8896ms remote=127.0.0.1:13228
+2026/11/01 10:58:17 http GET /usage-service/official-balance status=409 duration=185.2472ms remote=127.0.0.1:13228
+2026/11/01 10:58:17 http GET /usage-service/official-balance status=200 duration=177.1457ms remote=127.0.0.1:13228
+    official_balance_core_test.go:372: ACTUAL_CHAIN_PASS: full native provider/member targets; exact multi-currency wallet; auth failure retains success; GET billing calls=0; restart rebind secret resubmissions=0; old in-flight result fenced; Core gate/query remain false; denied startup=4 inference calls=0 billing calls=4
+--- PASS: TestOfficialBalanceActualCoreChain (18.07s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	18.960s

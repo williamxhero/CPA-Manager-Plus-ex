@@ -1,0 +1,12 @@
+=== RUN   TestOfficialBalanceConfigurationCAS
+2026/11/01 10:25:47 http PUT /usage-service/official-balance status=200 duration=3.1146ms remote=192.0.2.1:1234
+2026/11/01 10:25:47 http PUT /usage-service/official-balance status=409 duration=1.0439ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceConfigurationCAS (0.25s)
+=== RUN   TestOfficialBalanceExactQueryPersists
+2026/11/01 10:25:47 http PUT /usage-service/official-balance status=200 duration=2.0863ms remote=192.0.2.1:1234
+2026/11/01 10:25:47 http POST /usage-service/official-balance status=202 duration=1.0451ms remote=192.0.2.1:1234
+2026/11/01 10:25:47 http GET /usage-service/official-balance status=200 duration=24.129ms remote=192.0.2.1:1234
+2026/11/01 10:25:47 http GET /usage-service/official-balance status=200 duration=644.1µs remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceExactQueryPersists (0.14s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	1.041s

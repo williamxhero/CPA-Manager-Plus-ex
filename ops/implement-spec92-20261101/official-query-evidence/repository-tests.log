@@ -1,0 +1,2645 @@
+
+> cpa-manager-plus@0.0.0 test:repo
+> node bin/test-repo.mjs
+
+
+ RUN  v4.1.12 D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query
+
+ ❯ tests/ciWorkflowIntegrity.test.mjs (28 tests | 1 failed) 10601ms
+     × only passes Required checks when Dependency Security succeeds (success) 9698ms
+ ❯ tests/forkReleaseWorkflow.test.mjs (28 tests | 5 failed) 52282ms
+     × runs authorization unconditionally and accepts only explicit main fork dry-runs 9699ms
+     × fails rather than skips unauthorized dispatch {"GITHUB_REF_TYPE":"tag"} 10009ms
+     × fails rather than skips unauthorized dispatch {"GITHUB_SHA":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"} 10017ms
+     × fails rather than skips unauthorized dispatch {"EXPECTED_SHA":""} 10020ms
+     × requires the exact approved run, attempt, receipt and confirmation for publish 10013ms
+ ❯ tests/installerScript.test.mjs (132 tests | 131 failed) 105086ms
+     × passes shell syntax validation 9854ms
+     × refuses interactive execution when stdin is not a terminal 195ms
+     × keeps explicit non-interactive stdin execution available 149ms
+     × prints a full Docker stack dry-run plan 316ms
+     × keeps CPAMP-only non-interactive installs in first-setup mode by default 30131ms
+     × rejects native full stack installs 300ms
+     × rejects CPA URLs that would inject extra env lines 313ms
+     × rejects CPA URLs with URL fragments 272ms
+     × rejects CPA URLs with query strings 271ms
+     × rejects Docker image references with compose interpolation syntax 331ms
+     × rejects Docker Compose project names that Docker would normalize differently 357ms
+     × rejects an empty persisted Docker Compose project name 30213ms
+     × fails instead of looping when the random source yields no alphanumeric characters 235ms
+     × generates full Docker config with CPA image paths 230ms
+     × generates CPAMP-only Docker config for a host CPA URL 229ms
+     × reuses an existing CPA Management Key secret for CPAMP-only Docker env installs 211ms
+     × reuses an existing CPA Management Key secret during dry runs 229ms
+     × imports a fresh Docker CPA connection once and removes the temporary secret 232ms
+     × blocks non-interactive installs when an orphaned Docker data volume exists 303ms
+     × requires the original install scope for non-interactive orphan-volume repair 247ms
+     × rejects skipped execution for orphan-volume repair before writing a new secret 226ms
+     × fails before writing Docker config when the Docker daemon is unavailable 229ms
+     × does not create a replacement admin secret before repair preflight succeeds 245ms
+     × does not create a half-repaired admin secret when repair execution is skipped 250ms
+     × repairs an orphaned Docker deployment and verifies the generated admin key 237ms
+     × upgrades a managed Docker install without rewriting config or secrets 240ms
+     × uses the resolved custom Docker database and data-key paths ('mapping'/'short') 278ms
+     × uses the resolved custom Docker database and data-key paths ('list'/'long') 335ms
+     × uses the Docker Compose resolved service configuration for custom paths 297ms
+     × treats resolved YAML null paths as unset and uses Manager defaults 236ms
+     × resolves Compose environment pass-through entries from the project environment 280ms
+     × restores a custom Docker database, sidecars, and data key after CPA validation fails 250ms
+     × fails closed before Docker import when a custom path is not mounted 306ms
+     × fails closed when a custom Docker path is not readable in the container 331ms
+     × fails closed when exact file mounts cannot provide a persistent snapshot directory 285ms
+     × fails closed when Docker Compose cannot resolve the existing configuration 272ms
+     × fails closed on malformed .env interpolation instead of using default data paths 299ms
+     × fails closed on duplicate legacy Docker CPA key environment entries 229ms
+     × migrates legacy Docker CPA env secrets with targeted config edits 243ms
+     × migrates legacy Docker Compose secrets written in long syntax 251ms
+     × migrates a legacy Docker .env CPA Management Key and removes rollback copies 262ms
+     × migrates a legacy Docker inline Compose CPA Management Key and removes rollback copies 253ms
+     × unwraps quoted legacy Docker env values before importing the CPA connection 226ms
+     × imports a legacy Docker CPA key from CPA_MANAGEMENT_KEY_FILE without deleting an external file 260ms
+     × preserves an external CPA key at the canonical managed path across reruns 257ms
+     × never deletes an external canonical CPA key after a failed import retry 261ms
+     × treats a managed-path CPA key symlink as external during a Docker migration 228ms
+     × keeps a managed-path CPA key symlink intact when the Docker migration fails 230ms
+     × ignores a managed-path CPA key symlink when finalizing a Docker rerun 234ms
+     × sweeps stale CPA key import copies on a successful Docker rerun 263ms
+     × keeps stale CPA key import copies when the Docker rerun proxy validation fails 247ms
+     × materializes an inline Docker CPA key next to a dangling managed-path symlink 231ms
+     × uses process CPA inputs instead of stale env and installer-managed secret values 247ms
+     × materializes a process CPA key separately from a stale managed secret file 262ms
+     × ignores stale CPA declarations and secret files that Compose does not reference 209ms
+     × rejects an unterminated quoted legacy Docker CPA key 285ms
+     × fails closed when a sidecar still references the legacy CPA env or secret 226ms
+     × keeps a legacy Docker migration untouched when execution is skipped 248ms
+     × keeps legacy Docker config and secret when CPA connection import conflicts 232ms
+     × restores legacy Docker config when post-import admin verification fails 346ms
+     × finalizes a leftover installer-managed CPA key on a successful rerun (Docker) 248ms
+     × keeps a leftover installer-managed CPA key when the rerun proxy validation fails (Docker) 269ms
+     × finalizes a leftover installer-managed CPA key on a successful native rerun 786ms
+     × keeps a leftover installer-managed CPA key when the native rerun proxy validation fails 290ms
+     × treats a managed-path CPA key symlink as external during a native upgrade 343ms
+     × keeps a managed-path CPA key symlink intact when the native migration fails 344ms
+     × does not roll back a committed Docker migration when snapshot cleanup fails 284ms
+     × does not roll back a committed Docker migration when runtime backup cleanup fails 239ms
+     × restores legacy Docker config when the imported CPA connection cannot be used 245ms
+     × repairs a managed Docker login without pulling unrelated service images 246ms
+     × does not report success when post-start admin key verification fails 246ms
+     × backs up generated config before regenerating a managed Docker install 245ms
+     × blocks a partial Docker install before writing additional generated files 226ms
+     × does not change existing admin-secret permissions during dry runs 258ms
+     × rejects empty existing secret files before generating config 245ms
+     × fails when existing secret file permissions cannot be restricted 239ms
+     × does not leave partial native files when the runtime directory already exists 247ms
+     × upgrades a legacy native install and imports its CPA connection without replacing existing data or settings 284ms
+     × uses the native run and systemd resolved custom database and data-key paths 283ms
+     × fails closed before native upgrade when the configured data key is missing 270ms
+     × rejects conflicting native run and systemd data paths before upgrade 248ms
+     × recognizes the active native runtime on a second upgrade after multiple runtime directories exist 297ms
+     × rejects native versions that could escape the runtime directory 229ms
+     × rejects a native runtime marker that contains path separators 244ms
+     × keeps a legacy native install untouched when upgrade execution is skipped 271ms
+     × rejects unsupported legacy native path values before changing the install 253ms
+     × refuses to stop a live process from an unrelated native PID file 314ms
+     × does not start a duplicate legacy process when the old process refuses to stop 58ms
+     × fails closed when a native upgrade has no PID file but its port is listening 285ms
+     × restores legacy native data and entry files when the offline CPA import fails 305ms
+     × restores the complete native data file-set after a partially mutating import failure 331ms
+     × restores absent native sidecars and an absent data key after rollback 292ms
+     × does not restart the previous native runtime when snapshot restore fails 89ms
+     × stops a new native process when PID publication fails before rollback 280ms
+     × retains a native snapshot when post-commit cleanup fails 350ms
+     × rolls back a native upgrade on an unhandled set -e exit after data mutation 317ms
+     × keeps a legacy CPA key outside the installer-managed secret path after import 289ms
+     × rolls back a legacy native upgrade when 'health check' fails 289ms
+     × rolls back a legacy native upgrade when 'admin authentication' fails 335ms
+     × rolls back a legacy native upgrade when 'CPA connection validation' fails 305ms
+     × does not restore native data while the replacement process still owns the database 398ms
+     × keeps native runtime config secret-free and prints the one-time import command 264ms
+     × keeps the native temporary CPA key when admin verification fails 299ms
+     × fails native installs when the started process exits before health is ready 305ms
+     × generates a Linux systemd unit for native installs 246ms
+     × quotes native systemd paths containing spaces and percent signs 236ms
+     × retries a failed first Docker CPA import from the retained pending state 273ms
+     × retries a failed first native CPA import from the retained pending state 293ms
+     × migrates mixed-case native CPA fields and removes every semantic variant 355ms
+     × rejects duplicate case-insensitive native CPA fields before changing the install 266ms
+     × recovers a pre-pending Docker failure only with an explicit CPA URL 278ms
+     × rejects a symlinked CPA import pending state without touching its target 293ms
+     × upgrades a legacy native layout with config ./data using canonical root data files (#782) 296ms
+     × falls back to root data when native config dataDir is omitted 268ms
+     × prefers existing runtime-local data over root data when runtime DB exists 318ms
+     × fails closed when config.json specifies custom dbPath that does not exist 236ms
+     × fails closed when run.sh specifies custom USAGE_DB_PATH that does not exist 255ms
+     × fails closed when systemd and run.sh specify matching custom USAGE_DB_PATH that does not exist 232ms
+     × treats installation without run.sh as partial instead of native-managed even if service file exists 239ms
+     × does not fall back when canonical root data.key is missing 319ms
+     × fails closed when config.json specifies custom non-canonical dataKeyPath 257ms
+     × does not fall back when runtime DB is a directory 271ms
+     × does not fall back when runtime DB is a dangling symlink 297ms
+     × does not fall back when legacy runtime dataset has leftover WAL file 262ms
+     × does not fall back when legacy runtime dataset has leftover data.key 273ms
+     × rolls back root data and sidecars when #782 legacy layout upgrade fails after mutation 348ms
+     × self-heals #782 legacy layout so subsequent upgrade uses explicit launcher authority without fallback 299ms
+     × accepts positional "update" argument for non-interactive native upgrade 290ms
+     × rejects conflicting CPAMP_OPERATION and positional argument 248ms
+     × rejects unsupported positional operation argument 229ms
+     × rejects multiple positional arguments 239ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 137 ⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ciWorkflowIntegrity.test.mjs > GitHub Actions workflow integrity > only passes Required checks when Dependency Security succeeds (success)
+AssertionError: Dependency Security did not complete successfully: missing
+: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/ciWorkflowIntegrity.test.mjs:143:78
+    141|       const result = spawnSync('bash', ['-c', step.run], { env, encodi…
+    142|       expect(result.error).toBeUndefined();
+    143|       if (securityResult === 'success') expect(result.status, result.s…
+       |                                                                              ^
+    144|       else expect(result.status).not.toBe(0);
+    145|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/137]⎯
+
+ FAIL  tests/forkReleaseWorkflow.test.mjs > fork native/web release workflow > runs authorization unconditionally and accepts only explicit main fork dry-runs
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/forkReleaseWorkflow.test.mjs:117:39
+    115|     expect(authorize.needs).toBeUndefined();
+    116|     expect(authorize.steps[0].if).toBeUndefined();
+    117|     expect(runAuthorization().status).toBe(0);
+       |                                       ^
+    118|   });
+    119|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/137]⎯
+
+ FAIL  tests/forkReleaseWorkflow.test.mjs > fork native/web release workflow > fails rather than skips unauthorized dispatch {"GITHUB_REF_TYPE":"tag"}
+ FAIL  tests/forkReleaseWorkflow.test.mjs > fork native/web release workflow > fails rather than skips unauthorized dispatch {"GITHUB_SHA":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+ FAIL  tests/forkReleaseWorkflow.test.mjs > fork native/web release workflow > fails rather than skips unauthorized dispatch {"EXPECTED_SHA":""}
+Error: spawnSync bash ETIMEDOUT
+ ❯ runAuthorization tests/forkReleaseWorkflow.test.mjs:42:18
+     40| };
+     41| const runAuthorization = (overrides = {}) => {
+     42|   const result = spawnSync('bash', ['--noprofile', '--norc', '-s'], {
+       |                  ^
+     43|     cwd: repoRoot,
+     44|     input: authorizeScript,
+ ❯ tests/forkReleaseWorkflow.test.mjs:147:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/137]⎯
+
+ FAIL  tests/forkReleaseWorkflow.test.mjs > fork native/web release workflow > requires the exact approved run, attempt, receipt and confirmation for publish
+Error: spawnSync bash ETIMEDOUT
+ ❯ runAuthorization tests/forkReleaseWorkflow.test.mjs:42:18
+     40| };
+     41| const runAuthorization = (overrides = {}) => {
+     42|   const result = spawnSync('bash', ['--noprofile', '--norc', '-s'], {
+       |                  ^
+     43|     cwd: repoRoot,
+     44|     input: authorizeScript,
+ ❯ tests/forkReleaseWorkflow.test.mjs:154:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > passes shell syntax validation
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:655:27
+    653|     });
+    654|
+    655|     expect(result.status).toBe(0);
+       |                           ^
+    656|     expect(result.stderr).toBe('');
+    657|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > refuses interactive execution when stdin is not a terminal
+AssertionError: expected '\n/bin/bash: line 1: D:\WILL\AGENT\CP…' to contain 'Interactive install requires a termin…'
+
+- Expected
++ Received
+
+- Interactive install requires a terminal on stdin
++
++ /bin/bash: line 1: D:\WILL\AGENT\CPA\ops\implement-spec92-20261101\worktrees\official-query\bin\install-cpamp.sh: No such file or directory
++
+
+ ❯ tests/installerScript.test.mjs:663:36
+    661|
+    662|     expect(result.status).toBe(1);
+    663|     expect(combinedOutput(result)).toContain('Interactive install requ…
+       |                                    ^
+    664|   });
+    665|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps explicit non-interactive stdin execution available
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:674:27
+    672|     });
+    673|
+    674|     expect(result.status).toBe(0);
+       |                           ^
+    675|     expect(result.stdout).toContain('Install scope: CPA + CPAMP stack'…
+    676|     expect(result.stdout).toContain('docker compose pull');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > prints a full Docker stack dry-run plan
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:685:27
+    683|     });
+    684|
+    685|     expect(result.status).toBe(0);
+       |                           ^
+    686|     expect(result.stdout).toContain('Install scope: CPA + CPAMP stack'…
+    687|     expect(result.stdout).toContain('CPA URL for CPAMP: http://cli-pro…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps CPAMP-only non-interactive installs in first-setup mode by default
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/installerScript.test.mjs:698:27
+    696|     });
+    697|
+    698|     expect(result.status).toBe(0);
+       |                           ^
+    699|     expect(result.stdout).toContain('CPA connection: enter during firs…
+    700|     expect(result.stdout).toContain('Dry-run plan completed');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects native full stack installs
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:710:27
+    708|     const output = `${result.stdout}\n${result.stderr}`;
+    709|
+    710|     expect(result.status).toBe(1);
+       |                           ^
+    711|     expect(output).toContain('Native stack install is not supported ye…
+    712|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects CPA URLs that would inject extra env lines
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:723:27
+    721|     });
+    722|
+    723|     expect(result.status).toBe(1);
+       |                           ^
+    724|     expect(combinedOutput(result)).toContain('CPA URL must be a single…
+    725|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects CPA URLs with URL fragments
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:736:27
+    734|     });
+    735|
+    736|     expect(result.status).toBe(1);
+       |                           ^
+    737|     expect(combinedOutput(result)).toContain('CPA URL contains unsuppo…
+    738|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects CPA URLs with query strings
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:749:27
+    747|     });
+    748|
+    749|     expect(result.status).toBe(1);
+       |                           ^
+    750|     expect(combinedOutput(result)).toContain('CPA URL contains unsuppo…
+    751|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects Docker image references with compose interpolation syntax
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:760:27
+    758|     });
+    759|
+    760|     expect(result.status).toBe(1);
+       |                           ^
+    761|     expect(combinedOutput(result)).toContain('CPAMP Docker image conta…
+    762|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects Docker Compose project names that Docker would normalize differently
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:771:27
+    769|     });
+    770|
+    771|     expect(result.status).toBe(1);
+       |                           ^
+    772|     expect(combinedOutput(result)).toContain(
+    773|       'Docker Compose project name contains unsupported characters'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects an empty persisted Docker Compose project name
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:802:29
+    800|       });
+    801|
+    802|       expect(result.status).toBe(1);
+       |                             ^
+    803|       expect(combinedOutput(result)).toContain('Docker Compose project…
+    804|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails instead of looping when the random source yields no alphanumeric characters
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:823:29
+    821|       });
+    822|
+    823|       expect(result.status).toBe(1);
+       |                             ^
+    824|       expect(combinedOutput(result)).toContain(
+    825|         'Random source produced no usable alphanumeric characters'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > generates full Docker config with CPA image paths
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:851:29
+    849|       });
+    850|
+    851|       expect(result.status).toBe(0);
+       |                             ^
+    852|
+    853|       const compose = readFileSync(path.join(installDir, 'compose.yaml…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > generates CPAMP-only Docker config for a host CPA URL
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:908:29
+    906|       });
+    907|
+    908|       expect(result.status).toBe(0);
+       |                             ^
+    909|
+    910|       const envFile = readFileSync(path.join(installDir, '.env'), 'utf…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > reuses an existing CPA Management Key secret for CPAMP-only Docker env installs
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:965:29
+    963|       });
+    964|
+    965|       expect(result.status).toBe(0);
+       |                             ^
+    966|       expect(readFileSync(path.join(installDir, 'secrets/cpa-managemen…
+    967|         'cpa_reused_management_key'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > reuses an existing CPA Management Key secret during dry runs
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:1005:29
+    1003|       });
+    1004|
+    1005|       expect(result.status).toBe(0);
+       |                             ^
+    1006|       expect(combinedOutput(result)).not.toContain('secrets/cpa-manage…
+    1007|       expect(result.stdout).toContain('first setup');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > imports a fresh Docker CPA connection once and removes the temporary secret
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:1043:29
+    1041|       });
+    1042|
+    1043|       expect(result.status).toBe(0);
+       |                             ^
+    1044|       const calls = readFileSync(dockerLog, 'utf8');
+    1045|       const compose = readFileSync(path.join(installDir, 'compose.yaml…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > blocks non-interactive installs when an orphaned Docker data volume exists
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1085:29
+    1083|       });
+    1084|
+    1085|       expect(result.status).toBe(1);
+       |                             ^
+    1086|       expect(combinedOutput(result)).toContain('old Docker data volume…
+    1087|       expect(existsSync(path.join(installDir, 'compose.yaml'))).toBe(f…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > requires the original install scope for non-interactive orphan-volume repair
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1116:29
+    1114|       });
+    1115|
+    1116|       expect(result.status).toBe(1);
+       |                             ^
+    1117|       expect(combinedOutput(result)).toContain('requires CPAMP_INSTALL…
+    1118|       expect(existsSync(path.join(installDir, 'compose.yaml'))).toBe(f…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects skipped execution for orphan-volume repair before writing a new secret
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1148:29
+    1146|       });
+    1147|
+    1148|       expect(result.status).toBe(1);
+       |                             ^
+    1149|       expect(combinedOutput(result)).toContain('cannot use CPAMP_SKIP_…
+    1150|       expect(existsSync(path.join(installDir, 'secrets/cpamp-admin-key…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails before writing Docker config when the Docker daemon is unavailable
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1179:29
+    1177|       });
+    1178|
+    1179|       expect(result.status).toBe(1);
+       |                             ^
+    1180|       expect(combinedOutput(result)).toContain('Docker daemon is not a…
+    1181|       expect(existsSync(path.join(installDir, '.env'))).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not create a replacement admin secret before repair preflight succeeds
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1220:29
+    1218|       });
+    1219|
+    1220|       expect(result.status).toBe(1);
+       |                             ^
+    1221|       expect(combinedOutput(result)).toContain('Docker daemon is not a…
+    1222|       expect(existsSync(path.join(installDir, 'secrets/cpamp-admin-key…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not create a half-repaired admin secret when repair execution is skipped
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:1256:29
+    1254|       });
+    1255|
+    1256|       expect(result.status).toBe(0);
+       |                             ^
+    1257|       expect(existsSync(path.join(installDir, 'secrets/cpamp-admin-key…
+    1258|       expect(result.stdout).toContain('upgrade or repair commands were…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > repairs an orphaned Docker deployment and verifies the generated admin key
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:1293:29
+    1291|       });
+    1292|
+    1293|       expect(result.status).toBe(0);
+       |                             ^
+    1294|       expect(readFileSync(dockerLog, 'utf8')).toContain(
+    1295|         'compose run --rm cpa-manager-plus reset-admin-key --admin-key…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > upgrades a managed Docker install without rewriting config or secrets
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:1352:29
+    1350|       });
+    1351|
+    1352|       expect(result.status).toBe(0);
+       |                             ^
+    1353|       expect(readFileSync(path.join(installDir, '.env'), 'utf8')).toBe…
+    1354|       expect(readFileSync(path.join(installDir, 'compose.yaml'), 'utf8…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > uses the resolved custom Docker database and data-key paths ('mapping'/'short')
+ FAIL  tests/installerScript.test.mjs > installer script > uses the resolved custom Docker database and data-key paths ('list'/'long')
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:1412:31
+    1410|         });
+    1411|
+    1412|         expect(result.status).toBe(0);
+       |                               ^
+    1413|         const calls = readFileSync(dockerLog, 'utf8');
+    1414|         expect(calls).toContain('--db-path /data/custom.sqlite');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > uses the Docker Compose resolved service configuration for custom paths
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:1501:29
+    1499|       });
+    1500|
+    1501|       expect(result.status).toBe(0);
+       |                             ^
+    1502|       const calls = readFileSync(dockerLog, 'utf8');
+    1503|       expect(calls).toContain('compose config');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > treats resolved YAML null paths as unset and uses Manager defaults
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:1572:29
+    1570|       });
+    1571|
+    1572|       expect(result.status).toBe(0);
+       |                             ^
+    1573|       const calls = readFileSync(dockerLog, 'utf8');
+    1574|       expect(calls).toContain('--db-path /data/usage.sqlite');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > resolves Compose environment pass-through entries from the project environment
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:1639:29
+    1637|       });
+    1638|
+    1639|       expect(result.status).toBe(0);
+       |                             ^
+    1640|       const calls = readFileSync(dockerLog, 'utf8');
+    1641|       expect(calls).toContain('--db-path /data/custom.sqlite');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores a custom Docker database, sidecars, and data key after CPA validation fails
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1697:29
+    1695|       });
+    1696|
+    1697|       expect(result.status).toBe(1);
+       |                             ^
+    1698|       expect(combinedOutput(result)).toContain('CPA connection validat…
+    1699|       const calls = readFileSync(dockerLog, 'utf8');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[35/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed before Docker import when a custom path is not mounted
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1762:29
+    1760|       });
+    1761|
+    1762|       expect(result.status).toBe(1);
+       |                             ^
+    1763|       expect(combinedOutput(result)).toContain('not covered by a cpa-m…
+    1764|       expect(readFileSync(path.join(installDir, 'compose.yaml'), 'utf8…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[36/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when a custom Docker path is not readable in the container
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1807:29
+    1805|       });
+    1806|
+    1807|       expect(result.status).toBe(1);
+       |                             ^
+    1808|       expect(combinedOutput(result)).toContain(
+    1809|         'not readable inside the cpa-manager-plus container'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[37/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when exact file mounts cannot provide a persistent snapshot directory
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1851:29
+    1849|       });
+    1850|
+    1851|       expect(result.status).toBe(1);
+       |                             ^
+    1852|       expect(combinedOutput(result)).toContain('exact file mounts');
+    1853|       expect(readFileSync(fixture.databasePath, 'utf8')).toBe('custom-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[38/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when Docker Compose cannot resolve the existing configuration
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1893:29
+    1891|       });
+    1892|
+    1893|       expect(result.status).toBe(1);
+       |                             ^
+    1894|       expect(combinedOutput(result)).toContain(
+    1895|         'Unable to resolve the existing Docker Compose configuration'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[39/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed on malformed .env interpolation instead of using default data paths
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:1943:29
+    1941|       });
+    1942|
+    1943|       expect(result.status).toBe(1);
+       |                             ^
+    1944|       expect(combinedOutput(result)).toContain('Unable to resolve USAG…
+    1945|       expect(readFileSync(fixture.databasePath, 'utf8')).toBe('custom-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[40/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed on duplicate legacy Docker CPA key environment entries
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:2000:29
+    1998|       });
+    1999|
+    2000|       expect(result.status).toBe(1);
+       |                             ^
+    2001|       expect(combinedOutput(result)).toContain('duplicate CPA_MANAGEME…
+    2002|       expect(readFileSync(path.join(installDir, '.env'), 'utf8')).toBe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[41/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > migrates legacy Docker CPA env secrets with targeted config edits
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:2066:29
+    2064|       });
+    2065|
+    2066|       expect(result.status).toBe(0);
+       |                             ^
+    2067|       const migratedEnv = readFileSync(path.join(installDir, '.env'), …
+    2068|       const migratedCompose = readFileSync(path.join(installDir, 'comp…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[42/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > migrates legacy Docker Compose secrets written in long syntax
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:2147:29
+    2145|       });
+    2146|
+    2147|       expect(result.status).toBe(0);
+       |                             ^
+    2148|       const migratedEnv = readFileSync(path.join(installDir, '.env'), …
+    2149|       const migratedCompose = readFileSync(path.join(installDir, 'comp…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[43/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > migrates a legacy Docker .env CPA Management Key and removes rollback copies
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:2213:29
+    2211|       });
+    2212|
+    2213|       expect(result.status).toBe(0);
+       |                             ^
+    2214|       const migratedEnv = readFileSync(path.join(installDir, '.env'), …
+    2215|       const migratedCompose = readFileSync(path.join(installDir, 'comp…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[44/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > migrates a legacy Docker inline Compose CPA Management Key and removes rollback copies
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:2290:29
+    2288|       });
+    2289|
+    2290|       expect(result.status).toBe(0);
+       |                             ^
+    2291|       const migratedEnv = readFileSync(path.join(installDir, '.env'), …
+    2292|       const migratedCompose = readFileSync(path.join(installDir, 'comp…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[45/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > unwraps quoted legacy Docker env values before importing the CPA connection
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:2361:29
+    2359|       });
+    2360|
+    2361|       expect(result.status).toBe(1);
+       |                             ^
+    2362|       expect(readFileSync(path.join(installDir, 'secrets/cpa-managemen…
+    2363|         'cpa_quoted_key\n'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[46/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > imports a legacy Docker CPA key from CPA_MANAGEMENT_KEY_FILE without deleting an external file
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:2420:29
+    2418|       });
+    2419|
+    2420|       expect(result.status).toBe(0);
+       |                             ^
+    2421|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('cpa_external…
+    2422|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[47/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > preserves an external CPA key at the canonical managed path across reruns
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:2487:29
+    2485|       });
+    2486|
+    2487|       expect(result.status).toBe(0);
+       |                             ^
+    2488|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('cpa_external…
+    2489|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[48/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > never deletes an external canonical CPA key after a failed import retry
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:2565:29
+    2563|       });
+    2564|
+    2565|       expect(failed.status).toBe(1);
+       |                             ^
+    2566|       expect(combinedOutput(failed)).toContain('CPA connection validat…
+    2567|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('cpa_external…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[49/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > treats a managed-path CPA key symlink as external during a Docker migration
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:2646:29
+    2644|       });
+    2645|
+    2646|       expect(result.status).toBe(0);
+       |                             ^
+    2647|       // The external target keeps its exact content, mode, and existe…
+    2648|       expect(existsSync(externalKeyPath)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[50/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a managed-path CPA key symlink intact when the Docker migration fails
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:2719:29
+    2717|       });
+    2718|
+    2719|       expect(result.status).toBe(1);
+       |                             ^
+    2720|       expect(existsSync(externalKeyPath)).toBe(true);
+    2721|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('EXTERNAL_SEC…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[51/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > ignores a managed-path CPA key symlink when finalizing a Docker rerun
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:2777:29
+    2775|       });
+    2776|
+    2777|       expect(result.status).toBe(0);
+       |                             ^
+    2778|       expect(readFileSync(dockerLog, 'utf8')).not.toContain('store-cpa…
+    2779|       expect(existsSync(externalKeyPath)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[52/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > sweeps stale CPA key import copies on a successful Docker rerun
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:2833:29
+    2831|       });
+    2832|
+    2833|       expect(result.status).toBe(0);
+       |                             ^
+    2834|       expect(readFileSync(dockerLog, 'utf8')).not.toContain('store-cpa…
+    2835|       // The stored connection is re-verified before the stale copy is…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[53/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps stale CPA key import copies when the Docker rerun proxy validation fails
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:2880:29
+    2878|       });
+    2879|
+    2880|       expect(result.status).toBe(1);
+       |                             ^
+    2881|       expect(combinedOutput(result)).toContain('CPA connection validat…
+    2882|       expect(existsSync(staleCopyPath)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[54/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > materializes an inline Docker CPA key next to a dangling managed-path symlink
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:2946:29
+    2944|       });
+    2945|
+    2946|       expect(result.status).toBe(0);
+       |                             ^
+    2947|       // The import used the installer-created copy, not the symlink t…
+    2948|       expect(readFileSync(dockerLog, 'utf8')).toContain('store-cpa-con…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[55/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > uses process CPA inputs instead of stale env and installer-managed secret values
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:3029:29
+    3027|       });
+    3028|
+    3029|       expect(result.status).toBe(0);
+       |                             ^
+    3030|       expect(readFileSync(importedKeyLog, 'utf8')).toBe('cpa_process_f…
+    3031|       expect(readFileSync(dockerLog, 'utf8')).toContain(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[56/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > materializes a process CPA key separately from a stale managed secret file
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:3097:29
+    3095|       });
+    3096|
+    3097|       expect(result.status).toBe(0);
+       |                             ^
+    3098|       expect(readFileSync(importedKeyLog, 'utf8')).toBe('cpa_process_d…
+    3099|       expect(readFileSync(managedKeyPath, 'utf8')).toBe('cpa_stale_man…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[57/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > ignores stale CPA declarations and secret files that Compose does not reference
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:3151:29
+    3149|       });
+    3150|
+    3151|       expect(result.status).toBe(0);
+       |                             ^
+    3152|       expect(readFileSync(path.join(installDir, '.env'), 'utf8')).toBe…
+    3153|       expect(readFileSync(path.join(installDir, 'compose.yaml'), 'utf8…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[58/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects an unterminated quoted legacy Docker CPA key
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:3208:29
+    3206|       });
+    3207|
+    3208|       expect(result.status).toBe(1);
+       |                             ^
+    3209|       expect(combinedOutput(result)).toContain(
+    3210|         'Unable to resolve CPA_MANAGEMENT_KEY from the existing Docker…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[59/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when a sidecar still references the legacy CPA env or secret
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:3273:29
+    3271|       });
+    3272|
+    3273|       expect(result.status).toBe(1);
+       |                             ^
+    3274|       expect(combinedOutput(result)).toContain(
+    3275|         'previous runtime config and temporary secret were preserved'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[60/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a legacy Docker migration untouched when execution is skipped
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:3333:29
+    3331|       });
+    3332|
+    3333|       expect(result.status).toBe(0);
+       |                             ^
+    3334|       expect(readFileSync(path.join(installDir, '.env'), 'utf8')).toBe…
+    3335|       expect(readFileSync(path.join(installDir, 'compose.yaml'), 'utf8…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[61/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps legacy Docker config and secret when CPA connection import conflicts
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:3396:29
+    3394|       });
+    3395|
+    3396|       expect(result.status).toBe(1);
+       |                             ^
+    3397|       expect(combinedOutput(result)).toContain(
+    3398|         'previous runtime config and temporary secret were preserved'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[62/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores legacy Docker config when post-import admin verification fails
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:3476:29
+    3474|       });
+    3475|
+    3476|       expect(result.status).toBe(1);
+       |                             ^
+    3477|       expect(readFileSync(path.join(installDir, '.env'), 'utf8')).toBe…
+    3478|       expect(readFileSync(path.join(installDir, 'compose.yaml'), 'utf8…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[63/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > finalizes a leftover installer-managed CPA key on a successful rerun (Docker)
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:3540:29
+    3538|       });
+    3539|
+    3540|       expect(result.status).toBe(0);
+       |                             ^
+    3541|       const calls = readFileSync(dockerLog, 'utf8');
+    3542|       expect(calls).not.toContain('store-cpa-connection');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[64/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a leftover installer-managed CPA key when the rerun proxy validation fails (Docker)
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:3589:29
+    3587|       });
+    3588|
+    3589|       expect(result.status).toBe(1);
+       |                             ^
+    3590|       expect(combinedOutput(result)).toContain('CPA connection validat…
+    3591|       expect(existsSync(managedKeyPath)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[65/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > finalizes a leftover installer-managed CPA key on a successful native rerun
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:3636:29
+    3634|       });
+    3635|
+    3636|       expect(result.status).toBe(0);
+       |                             ^
+    3637|       // No import may run during the stored-mode rerun; the fake bina…
+    3638|       // creates the command log when store-cpa-connection is invoked.
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[66/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a leftover installer-managed CPA key when the native rerun proxy validation fails
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:3685:29
+    3683|       });
+    3684|
+    3685|       expect(result.status).toBe(1);
+       |                             ^
+    3686|       expect(combinedOutput(result)).toContain('CPA connection validat…
+    3687|       expect(existsSync(legacy.cpaKeyPath)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[67/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > treats a managed-path CPA key symlink as external during a native upgrade
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:3732:29
+    3730|       });
+    3731|
+    3732|       expect(result.status).toBe(0);
+       |                             ^
+    3733|       // The external target keeps its exact content, mode, and existe…
+    3734|       expect(existsSync(externalKeyPath)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[68/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a managed-path CPA key symlink intact when the native migration fails
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:3797:29
+    3795|       });
+    3796|
+    3797|       expect(result.status).toBe(1);
+       |                             ^
+    3798|       expect(existsSync(externalKeyPath)).toBe(true);
+    3799|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('EXTERNAL_SEC…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[69/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not roll back a committed Docker migration when snapshot cleanup fails
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:3873:29
+    3871|       });
+    3872|
+    3873|       expect(result.status).toBe(0);
+       |                             ^
+    3874|       expect(combinedOutput(result)).toContain('Install steps complete…
+    3875|       expect(combinedOutput(result)).toContain('cleaning the Manager d…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[70/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not roll back a committed Docker migration when runtime backup cleanup fails
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:3953:29
+    3951|       });
+    3952|
+    3953|       expect(result.status).toBe(0);
+       |                             ^
+    3954|       expect(combinedOutput(result)).toContain(
+    3955|         'legacy CPA runtime rollback backup could not be removed'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[71/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores legacy Docker config when the imported CPA connection cannot be used
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4032:29
+    4030|       });
+    4031|
+    4032|       expect(result.status).toBe(1);
+       |                             ^
+    4033|       expect(combinedOutput(result)).toContain('CPA connection validat…
+    4034|       expect(readFileSync(path.join(installDir, '.env'), 'utf8')).toBe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[72/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > repairs a managed Docker login without pulling unrelated service images
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:4091:29
+    4089|       });
+    4090|
+    4091|       expect(result.status).toBe(0);
+       |                             ^
+    4092|       const calls = readFileSync(dockerLog, 'utf8');
+    4093|       expect(calls).toContain(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[73/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not report success when post-start admin key verification fails
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4136:29
+    4134|       });
+    4135|
+    4136|       expect(result.status).toBe(1);
+       |                             ^
+    4137|       expect(combinedOutput(result)).toContain('admin key verification…
+    4138|       expect(result.stdout).not.toContain('Install steps completed');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[74/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > backs up generated config before regenerating a managed Docker install
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:4173:29
+    4171|       });
+    4172|
+    4173|       expect(result.status).toBe(0);
+       |                             ^
+    4174|       const backupNames = readdirSync(path.join(installDir, 'backups')…
+    4175|       expect(backupNames).toHaveLength(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[75/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > blocks a partial Docker install before writing additional generated files
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4214:29
+    4212|       });
+    4213|
+    4214|       expect(result.status).toBe(1);
+       |                             ^
+    4215|       expect(combinedOutput(result)).toContain('Non-interactive mode r…
+    4216|       expect(existsSync(path.join(installDir, '.env'))).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[76/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not change existing admin-secret permissions during dry runs
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:4253:29
+    4251|       });
+    4252|
+    4253|       expect(result.status).toBe(0);
+       |                             ^
+    4254|       expect(statSync(secretFile).mode & 0o777).toBe(0o644);
+    4255|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[77/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects empty existing secret files before generating config
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4282:29
+    4280|       });
+    4281|
+    4282|       expect(result.status).toBe(1);
+       |                             ^
+    4283|       expect(combinedOutput(result)).toContain('secrets/cpamp-admin-ke…
+    4284|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[78/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails when existing secret file permissions cannot be restricted
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4316:29
+    4314|       });
+    4315|
+    4316|       expect(result.status).toBe(1);
+       |                             ^
+    4317|       expect(combinedOutput(result)).toContain('Unable to restrict sec…
+    4318|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[79/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not leave partial native files when the runtime directory already exists
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4350:29
+    4348|       });
+    4349|
+    4350|       expect(result.status).toBe(1);
+       |                             ^
+    4351|       expect(combinedOutput(result)).toContain('Directory already exis…
+    4352|       expect(existsSync(path.join(installDir, 'secrets/cpamp-admin-key…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[80/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > upgrades a legacy native install and imports its CPA connection without replacing existing data or settings
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:4399:29
+    4397|       });
+    4398|
+    4399|       expect(result.status).toBe(0);
+       |                             ^
+    4400|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+    4401|       expect(readFileSync(legacy.dataKeyPath, 'utf8')).toBe('existing-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[81/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > uses the native run and systemd resolved custom database and data-key paths
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:4479:29
+    4477|       });
+    4478|
+    4479|       expect(result.status).toBe(0);
+       |                             ^
+    4480|       const commands = readFileSync(commandLog, 'utf8');
+    4481|       expect(commands).toContain(`--db-path ${realpathSync(customDbPat…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[82/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed before native upgrade when the configured data key is missing
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4530:29
+    4528|       });
+    4529|
+    4530|       expect(result.status).toBe(1);
+       |                             ^
+    4531|       expect(combinedOutput(result)).toContain('Manager data key is mi…
+    4532|       expect(readFileSync(legacy.runPath, 'utf8')).toBe(beforeRun);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[83/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects conflicting native run and systemd data paths before upgrade
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4566:29
+    4564|       });
+    4565|
+    4566|       expect(result.status).toBe(1);
+       |                             ^
+    4567|       expect(combinedOutput(result)).toContain('run.sh and systemd ser…
+    4568|       expect(readFileSync(legacy.runPath, 'utf8')).toBe(beforeRun);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[84/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > recognizes the active native runtime on a second upgrade after multiple runtime directories exist
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:4601:28
+    4599|         encoding: 'utf8',
+    4600|       });
+    4601|       expect(first.status).toBe(0);
+       |                            ^
+    4602|       expect(readFileSync(legacy.runPath, 'utf8')).toContain(
+    4603|         `# CPAMP_RUNTIME_PACKAGE=${release.packageName}`
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[85/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects native versions that could escape the runtime directory
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4648:29
+    4646|       });
+    4647|
+    4648|       expect(result.status).toBe(1);
+       |                             ^
+    4649|       expect(combinedOutput(result)).toContain('CPAMP version contains…
+    4650|       expect(existsSync(path.join(installDir, 'runtime'))).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[86/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects a native runtime marker that contains path separators
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4681:29
+    4679|       });
+    4680|
+    4681|       expect(result.status).toBe(1);
+       |                             ^
+    4682|       expect(combinedOutput(result)).toContain('Native runtime package…
+    4683|       expect(readFileSync(legacy.runPath, 'utf8')).toBe(beforeRun);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[87/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a legacy native install untouched when upgrade execution is skipped
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:4714:29
+    4712|       });
+    4713|
+    4714|       expect(result.status).toBe(0);
+       |                             ^
+    4715|       expect(readFileSync(legacy.runPath, 'utf8')).toBe(beforeRun);
+    4716|       expect(readFileSync(legacy.configPath, 'utf8')).toBe(beforeConfi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[88/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects unsupported legacy native path values before changing the install
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4756:29
+    4754|       });
+    4755|
+    4756|       expect(result.status).toBe(1);
+       |                             ^
+    4757|       expect(combinedOutput(result)).toContain('dataKeyPath as a suppo…
+    4758|       expect(readFileSync(legacy.runPath, 'utf8')).toBe(beforeRun);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[89/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > refuses to stop a live process from an unrelated native PID file
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4796:29
+    4794|       });
+    4795|
+    4796|       expect(result.status).toBe(1);
+       |                             ^
+    4797|       expect(combinedOutput(result)).toContain('does not belong to thi…
+    4798|       expect(() => process.kill(unrelatedPID, 0)).not.toThrow();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[90/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not start a duplicate legacy process when the old process refuses to stop
+Error: spawn EFTYPE
+ ❯ tests/installerScript.test.mjs:4822:24
+    4820|     const release = writeFakeNativeRelease();
+    4821|     const legacy = writeLegacyNativeInstall(installDir);
+    4822|     const oldProcess = spawn(legacy.runPath, {
+       |                        ^
+    4823|       cwd: installDir,
+    4824|       env: { ...process.env, FAKE_LEGACY_NATIVE_IGNORE_TERM: '1' },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[91/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when a native upgrade has no PID file but its port is listening
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4906:29
+    4904|       });
+    4905|
+    4906|       expect(result.status).toBe(1);
+       |                             ^
+    4907|       expect(combinedOutput(result)).toContain(
+    4908|         'without an owned PID file. Stop the service and retry'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[92/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores legacy native data and entry files when the offline CPA import fails
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:4952:29
+    4950|       });
+    4951|
+    4952|       expect(result.status).toBe(1);
+       |                             ^
+    4953|       expect(combinedOutput(result)).toContain('CPA connection import …
+    4954|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[93/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores the complete native data file-set after a partially mutating import failure
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:5007:29
+    5005|       });
+    5006|
+    5007|       expect(result.status).toBe(1);
+       |                             ^
+    5008|       expect(combinedOutput(result)).toContain('CPA connection import …
+    5009|       for (const [file, content] of beforeFiles) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[94/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > restores absent native sidecars and an absent data key after rollback
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:5056:29
+    5054|       });
+    5055|
+    5056|       expect(result.status).toBe(1);
+       |                             ^
+    5057|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+    5058|       expect(existsSync(legacy.dataKeyPath)).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[95/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not restart the previous native runtime when snapshot restore fails
+Error: spawn EFTYPE
+ ❯ tests/installerScript.test.mjs:5073:24
+    5071|     const legacy = writeLegacyNativeInstall(installDir);
+    5072|     const startMarker = path.join(installDir, 'legacy-starts.log');
+    5073|     const oldProcess = spawn(legacy.runPath, {
+       |                        ^
+    5074|       cwd: installDir,
+    5075|       env: { ...process.env, FAKE_LEGACY_NATIVE_START_MARKER: startMar…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[96/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > stops a new native process when PID publication fails before rollback
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:5163:29
+    5161|       });
+    5162|
+    5163|       expect(result.status).toBe(1);
+       |                             ^
+    5164|       spawnSync('sleep', ['0.2'], { encoding: 'utf8' });
+    5165|       const processTable = spawnSync('ps', ['-axo', 'pid=,command='], {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[97/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > retains a native snapshot when post-commit cleanup fails
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:5219:29
+    5217|       });
+    5218|
+    5219|       expect(result.status).toBe(0);
+       |                             ^
+    5220|       expect(combinedOutput(result)).toContain('cleaning the Manager d…
+    5221|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[98/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rolls back a native upgrade on an unhandled set -e exit after data mutation
+AssertionError: expected 127 to be 73 // Object.is equality
+
+- Expected
++ Received
+
+- 73
++ 127
+
+ ❯ tests/installerScript.test.mjs:5278:29
+    5276|       });
+    5277|
+    5278|       expect(result.status).toBe(73);
+       |                             ^
+    5279|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+    5280|       expect(readFileSync(legacy.dataKeyPath, 'utf8')).toBe('existing-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[99/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps a legacy CPA key outside the installer-managed secret path after import
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:5325:29
+    5323|       });
+    5324|
+    5325|       expect(result.status).toBe(0);
+       |                             ^
+    5326|       expect(readFileSync(externalKeyPath, 'utf8')).toBe('cpa_external…
+    5327|       expect(statSync(externalKeyPath).mode & 0o777).toBe(0o640);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[100/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rolls back a legacy native upgrade when 'health check' fails
+ FAIL  tests/installerScript.test.mjs > installer script > rolls back a legacy native upgrade when 'admin authentication' fails
+ FAIL  tests/installerScript.test.mjs > installer script > rolls back a legacy native upgrade when 'CPA connection validation' fails
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:5392:29
+    5390|       });
+    5391|
+    5392|       expect(result.status).toBe(1);
+       |                             ^
+    5393|       expect(combinedOutput(result)).toContain(expected);
+    5394|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[101/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not restore native data while the replacement process still owns the database
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:5447:29
+    5445|       });
+    5446|
+    5447|       expect(result.status).toBe(1);
+       |                             ^
+    5448|       expect(combinedOutput(result)).toContain('did not become healthy…
+    5449|       expect(combinedOutput(result)).toContain(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[102/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps native runtime config secret-free and prints the one-time import command
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:5492:29
+    5490|       });
+    5491|
+    5492|       expect(result.status).toBe(0);
+       |                             ^
+    5493|       const platform = process.platform === 'darwin' ? 'darwin' : 'lin…
+    5494|       const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[103/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > keeps the native temporary CPA key when admin verification fails
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:5612:29
+    5610|         nativePid = Number(readFileSync(pidPath, 'utf8').trim());
+    5611|       }
+    5612|       expect(result.status).toBe(1);
+       |                             ^
+    5613|       expect(combinedOutput(result)).toContain('admin key verification…
+    5614|       expect(existsSync(path.join(installDir, 'secrets/cpa-management-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[104/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails native installs when the started process exits before health is ready
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:5700:29
+    5698|       });
+    5699|
+    5700|       expect(result.status).toBe(1);
+       |                             ^
+    5701|       expect(combinedOutput(result)).toContain(
+    5702|         'Native CPAMP process exited before becoming healthy'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[105/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > generates a Linux systemd unit for native installs
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:5733:29
+    5731|       });
+    5732|
+    5733|       expect(result.status).toBe(0);
+       |                             ^
+    5734|
+    5735|       if (process.platform === 'linux') {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[106/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > quotes native systemd paths containing spaces and percent signs
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:5779:29
+    5777|       });
+    5778|
+    5779|       expect(result.status).toBe(0);
+       |                             ^
+    5780|       const service = readFileSync(path.join(installDir, 'cpa-manager-…
+    5781|       const binaryDir = path.join(installDir, 'runtime', 'cpa-manager-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[107/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > retries a failed first Docker CPA import from the retained pending state
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:5826:28
+    5824|       });
+    5825|
+    5826|       expect(first.status).toBe(1);
+       |                            ^
+    5827|       expect(existsSync(statePath)).toBe(true);
+    5828|       expect(statSync(statePath).mode & 0o777).toBe(0o600);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[108/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > retries a failed first native CPA import from the retained pending state
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:5890:28
+    5888|       });
+    5889|
+    5890|       expect(first.status).toBe(1);
+       |                            ^
+    5891|       expect(existsSync(statePath)).toBe(true);
+    5892|       expect(readFileSync(statePath, 'utf8')).not.toContain('cpa_nativ…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[109/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > migrates mixed-case native CPA fields and removes every semantic variant
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:5949:29
+    5947|       });
+    5948|
+    5949|       expect(result.status).toBe(0);
+       |                             ^
+    5950|       expect(readFileSync(commandLog, 'utf8')).toContain('store-cpa-co…
+    5951|       const upgraded = JSON.parse(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[110/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects duplicate case-insensitive native CPA fields before changing the install
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:5991:29
+    5989|       });
+    5990|
+    5991|       expect(result.status).toBe(1);
+       |                             ^
+    5992|       expect(combinedOutput(result)).toContain('exactly one case-insen…
+    5993|       expect(readFileSync(legacy.runPath, 'utf8')).toBe(beforeRun);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[111/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > recovers a pre-pending Docker failure only with an explicit CPA URL
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:6041:29
+    6039|       });
+    6040|
+    6041|       expect(result.status).toBe(0);
+       |                             ^
+    6042|       expect(readFileSync(dockerLog, 'utf8')).toContain('store-cpa-con…
+    6043|       expect(existsSync(path.join(installDir, 'secrets/cpa-connection-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[112/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects a symlinked CPA import pending state without touching its target
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6091:29
+    6089|       });
+    6090|
+    6091|       expect(result.status).toBe(1);
+       |                             ^
+    6092|       expect(combinedOutput(result)).toContain('not an installer-owned…
+    6093|       expect(readFileSync(externalState, 'utf8')).toBe('external-state…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[113/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > upgrades a legacy native layout with config ./data using canonical root data files (#782)
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:6132:29
+    6130|       });
+    6131|
+    6132|       expect(result.status).toBe(0);
+       |                             ^
+    6133|       expect(combinedOutput(result)).toContain('Detected a legacy nati…
+    6134|       const commands = readFileSync(commandLog, 'utf8');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[114/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > falls back to root data when native config dataDir is omitted
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:6184:29
+    6182|       });
+    6183|
+    6184|       expect(result.status).toBe(0);
+       |                             ^
+    6185|       expect(combinedOutput(result)).toContain('Detected a legacy nati…
+    6186|       const commands = readFileSync(commandLog, 'utf8');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[115/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > prefers existing runtime-local data over root data when runtime DB exists
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:6231:29
+    6229|       });
+    6230|
+    6231|       expect(result.status).toBe(0);
+       |                             ^
+    6232|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6233|       const commands = readFileSync(commandLog, 'utf8');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[116/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when config.json specifies custom dbPath that does not exist
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6270:29
+    6268|       });
+    6269|
+    6270|       expect(result.status).toBe(1);
+       |                             ^
+    6271|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6272|       expect(combinedOutput(result)).toContain('Manager database is mi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[117/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when run.sh specifies custom USAGE_DB_PATH that does not exist
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6303:29
+    6301|       });
+    6302|
+    6303|       expect(result.status).toBe(1);
+       |                             ^
+    6304|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6305|       expect(combinedOutput(result)).toContain('Manager database is mi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[118/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when systemd and run.sh specify matching custom USAGE_DB_PATH that does not exist
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6337:29
+    6335|       });
+    6336|
+    6337|       expect(result.status).toBe(1);
+       |                             ^
+    6338|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6339|       expect(combinedOutput(result)).toContain('Manager database is mi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[119/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > treats installation without run.sh as partial instead of native-managed even if service file exists
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6366:29
+    6364|       });
+    6365|
+    6366|       expect(result.status).toBe(1);
+       |                             ^
+    6367|       expect(combinedOutput(result)).not.toContain('Upgrading existing…
+    6368|       expect(combinedOutput(result)).toContain('Set CPAMP_OPERATION=re…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[120/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not fall back when canonical root data.key is missing
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6398:29
+    6396|       });
+    6397|
+    6398|       expect(result.status).toBe(1);
+       |                             ^
+    6399|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6400|       expect(combinedOutput(result)).toContain('Manager database is mi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[121/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > fails closed when config.json specifies custom non-canonical dataKeyPath
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6431:29
+    6429|       });
+    6430|
+    6431|       expect(result.status).toBe(1);
+       |                             ^
+    6432|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6433|       expect(combinedOutput(result)).toContain('Manager database is mi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[122/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not fall back when runtime DB is a directory
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6464:29
+    6462|       });
+    6463|
+    6464|       expect(result.status).toBe(1);
+       |                             ^
+    6465|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6466|       expect(combinedOutput(result)).toContain('Manager database is mi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[123/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not fall back when runtime DB is a dangling symlink
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6501:29
+    6499|       });
+    6500|
+    6501|       expect(result.status).toBe(1);
+       |                             ^
+    6502|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6503|       expect(combinedOutput(result)).toContain('Manager database is mi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[124/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not fall back when legacy runtime dataset has leftover WAL file
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6535:29
+    6533|       });
+    6534|
+    6535|       expect(result.status).toBe(1);
+       |                             ^
+    6536|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6537|       expect(combinedOutput(result)).toContain('Manager database is mi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[125/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > does not fall back when legacy runtime dataset has leftover data.key
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6569:29
+    6567|       });
+    6568|
+    6569|       expect(result.status).toBe(1);
+       |                             ^
+    6570|       expect(combinedOutput(result)).not.toContain('Detected a legacy …
+    6571|       expect(combinedOutput(result)).toContain('Manager database is mi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[126/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rolls back root data and sidecars when #782 legacy layout upgrade fails after mutation
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6615:29
+    6613|       });
+    6614|
+    6615|       expect(result.status).toBe(1);
+       |                             ^
+    6616|       expect(combinedOutput(result)).toContain('CPA connection validat…
+    6617|       expect(readFileSync(legacy.dbPath, 'utf8')).toBe('existing-usage…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[127/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > self-heals #782 legacy layout so subsequent upgrade uses explicit launcher authority without fallback
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:6657:34
+    6655|         encoding: 'utf8',
+    6656|       });
+    6657|       expect(firstResult.status).toBe(0);
+       |                                  ^
+    6658|       expect(combinedOutput(firstResult)).toContain('Detected a legacy…
+    6659|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[128/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > accepts positional "update" argument for non-interactive native upgrade
+AssertionError: expected 127 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 127
+
+ ❯ tests/installerScript.test.mjs:6720:29
+    6718|       });
+    6719|
+    6720|       expect(result.status).toBe(0);
+       |                             ^
+    6721|       expect(combinedOutput(result)).not.toContain('noninteractive_exi…
+    6722|       expect(readFileSync(commandLog, 'utf8')).toContain(`--db-path ${…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[129/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects conflicting CPAMP_OPERATION and positional argument
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6749:27
+    6747|       ['update']
+    6748|     );
+    6749|     expect(result.status).toBe(1);
+       |                           ^
+    6750|     expect(combinedOutput(result)).toContain(
+    6751|       'Conflicting CPAMP operations: CPAMP_OPERATION=repair and argume…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[130/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects unsupported positional operation argument
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6757:27
+    6755|   it('rejects unsupported positional operation argument', () => {
+    6756|     const result = runInstaller({}, ['foo']);
+    6757|     expect(result.status).toBe(1);
+       |                           ^
+    6758|     expect(combinedOutput(result)).toContain('Unsupported operation ar…
+    6759|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[131/137]⎯
+
+ FAIL  tests/installerScript.test.mjs > installer script > rejects multiple positional arguments
+AssertionError: expected 127 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 127
+
+ ❯ tests/installerScript.test.mjs:6763:27
+    6761|   it('rejects multiple positional arguments', () => {
+    6762|     const result = runInstaller({}, ['update', 'extra']);
+    6763|     expect(result.status).toBe(1);
+       |                           ^
+    6764|     expect(combinedOutput(result)).toContain('Unexpected arguments: up…
+    6765|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[132/137]⎯
+
+
+ Test Files  3 failed | 22 passed (25)
+      Tests  137 failed | 432 passed (569)
+   Start at  10:47:33
+   Duration  105.73s (transform 2.14s, setup 0ms, import 4.38s, tests 185.81s, environment 13ms)

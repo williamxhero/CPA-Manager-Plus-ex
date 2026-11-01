@@ -1,0 +1,26 @@
+{
+  "parentTerminal": true,
+  "scope": "Only exact helpers of own terminal synthetic full test run; no runtime services or other-agent processes",
+  "terminated": [
+    {
+      "ProcessId": 5048,
+      "ParentProcessId": 32304,
+      "ExecutablePath": "C:\\Users\\will\\AppData\\Local\\Temp\\go-build3245689174\\b001\\cpa-manager-plus.test.exe",
+      "CommandLine": "C:\\Users\\will\\AppData\\Local\\Temp\\go-build3245689174\\b001\\cpa-manager-plus.test.exe -test.run=^TestManagerServerHelperProcess$",
+      "CreationDate": "2026-11-01T10:42:13.137223+08:00"
+    },
+    {
+      "ProcessId": 15484,
+      "ParentProcessId": 32304,
+      "ExecutablePath": "C:\\Users\\will\\AppData\\Local\\Temp\\go-build3245689174\\b001\\cpa-manager-plus.test.exe",
+      "CommandLine": "C:\\Users\\will\\AppData\\Local\\Temp\\go-build3245689174\\b001\\cpa-manager-plus.test.exe -test.run=^TestManagerServerHelperProcess$",
+      "CreationDate": "2026-11-01T10:44:49.216856+08:00"
+    }
+  ],
+  "helperParentPid": 32304,
+  "fullRunPid": 38664,
+  "ownParentReceipt": "helper-own-go-parent.json",
+  "binaryOwnershipProof": "helper-binary-proof.json",
+  "fullRunTerminal": true,
+  "remainingExactHelpers": 0
+}

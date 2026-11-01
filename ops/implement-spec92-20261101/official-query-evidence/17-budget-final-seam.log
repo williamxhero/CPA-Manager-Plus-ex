@@ -1,0 +1,266 @@
+2026/11/01 10:45:33 http PUT /usage-service/official-balance status=200 duration=51.7753ms remote=192.0.2.1:1234
+2026/11/01 10:45:33 http PUT /usage-service/official-balance status=409 duration=1.0512ms remote=192.0.2.1:1234
+2026/11/01 10:45:39 http PUT /usage-service/official-balance status=200 duration=57.9756ms remote=192.0.2.1:1234
+2026/11/01 10:45:39 http POST /usage-service/official-balance status=202 duration=61.5481ms remote=192.0.2.1:1234
+2026/11/01 10:45:39 http GET /usage-service/official-balance status=200 duration=126.8333ms remote=192.0.2.1:1234
+2026/11/01 10:45:39 http GET /usage-service/official-balance status=200 duration=1.6423ms remote=192.0.2.1:1234
+2026/11/01 10:45:44 http PUT /usage-service/official-balance status=200 duration=16.3419ms remote=192.0.2.1:1234
+2026/11/01 10:45:44 http POST /usage-service/official-balance status=202 duration=41.5258ms remote=192.0.2.1:1234
+2026/11/01 10:45:44 http GET /usage-service/official-balance status=200 duration=59.2013ms remote=192.0.2.1:1234
+--- FAIL: TestOfficialBalanceTimeoutRetainsLastSuccess (4.89s)
+    official_balance_test.go:254: {"id":"e3002272-0d81-42e7-b744-ad3f54243cd3","deadlineMs":1793501144086,"state":"interrupted","binding":{"scope":{"instance_id":"11111111-1111-4111-8111-111111111111","instance_incarnation":"22222222-2222-4222-8222-222222222222","boot_epoch":"33333333-3333-4333-8333-333333333333","snapshot_revision":7},"targets":[{"resource_id":"44444444-4444-4444-8444-444444444444","incarnation":"55555555-5555-4555-8555-555555555555","identity_version":2,"credential_version":3,"config_version":4,"membership_version":0}]},"version":1}
+
+2026/11/01 10:45:48 http PUT /usage-service/official-balance status=200 duration=28.4468ms remote=192.0.2.1:1234
+2026/11/01 10:45:48 http POST /usage-service/official-balance status=202 duration=45.2288ms remote=192.0.2.1:1234
+2026/11/01 10:45:48 http GET /usage-service/official-balance status=200 duration=280.0804ms remote=192.0.2.1:1234
+2026/11/01 10:45:48 http POST /usage-service/official-balance status=202 duration=57.9713ms remote=192.0.2.1:1234
+2026/11/01 10:45:48 http GET /usage-service/official-balance status=200 duration=1.5827ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=117.8047ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http POST /usage-service/official-balance status=202 duration=64.7031ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=1.1404ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=55.1081ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http POST /usage-service/official-balance status=202 duration=28.571ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=1.5609ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=29.8412ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http POST /usage-service/official-balance status=202 duration=21.6341ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=3.3042ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=42.6769ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http POST /usage-service/official-balance status=202 duration=27.6503ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=2.9027ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=69.5269ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http POST /usage-service/official-balance status=202 duration=45.8942ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=1.5856ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=39.87ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http POST /usage-service/official-balance status=202 duration=61.7703ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=1.0478ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=89.6172ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http POST /usage-service/official-balance status=202 duration=57.8074ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=3.2262ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=72.0098ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http POST /usage-service/official-balance status=202 duration=44.48ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=1.0488ms remote=192.0.2.1:1234
+2026/11/01 10:45:49 http GET /usage-service/official-balance status=200 duration=87.8773ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http POST /usage-service/official-balance status=202 duration=43.1463ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http GET /usage-service/official-balance status=200 duration=2.8365ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http GET /usage-service/official-balance status=200 duration=3.5794ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http GET /usage-service/official-balance status=200 duration=4.4236ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http GET /usage-service/official-balance status=200 duration=1.6053ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http GET /usage-service/official-balance status=200 duration=214.1176ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http POST /usage-service/official-balance status=202 duration=43.2665ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http GET /usage-service/official-balance status=200 duration=1.0761ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http GET /usage-service/official-balance status=200 duration=104.7742ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http GET /usage-service/official-balance status=200 duration=1.0488ms remote=192.0.2.1:1234
+2026/11/01 10:45:50 http GET /usage-service/official-balance status=200 duration=1.0555ms remote=192.0.2.1:1234
+2026/11/01 10:45:55 http PUT /usage-service/official-balance status=200 duration=39.5283ms remote=192.0.2.1:1234
+2026/11/01 10:45:55 http GET /usage-service/official-balance status=401 duration=543.9µs remote=192.0.2.1:1234
+2026/11/01 10:45:55 http PUT /usage-service/official-balance status=401 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:45:55 http POST /usage-service/official-balance status=401 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:45:55 http PUT /usage-service/official-balance status=200 duration=78.4786ms remote=192.0.2.1:1234
+2026/11/01 10:45:55 http PUT /usage-service/official-balance status=409 duration=1.0349ms remote=192.0.2.1:1234
+2026/11/01 10:45:55 http PUT /usage-service/official-balance status=200 duration=45.9482ms remote=192.0.2.1:1234
+2026/11/01 10:46:01 http PUT /usage-service/official-balance status=200 duration=43.8273ms remote=192.0.2.1:1234
+2026/11/01 10:46:01 http POST /usage-service/official-balance status=202 duration=61.8803ms remote=192.0.2.1:1234
+2026/11/01 10:46:01 http POST /usage-service/official-balance status=202 duration=15.9877ms remote=192.0.2.1:1234
+2026/11/01 10:46:01 http PUT /usage-service/official-balance status=200 duration=17.2307ms remote=192.0.2.1:1234
+2026/11/01 10:46:01 http GET /usage-service/official-balance status=409 duration=2.338ms remote=192.0.2.1:1234
+2026/11/01 10:46:01 http GET /usage-service/official-balance status=200 duration=2.2692ms remote=192.0.2.1:1234
+2026/11/01 10:46:07 http PUT /usage-service/official-balance status=200 duration=57.5161ms remote=192.0.2.1:1234
+2026/11/01 10:46:07 http POST /usage-service/official-balance status=202 duration=78.8675ms remote=192.0.2.1:1234
+2026/11/01 10:46:07 http GET /usage-service/official-balance status=409 duration=64.2909ms remote=192.0.2.1:1234
+2026/11/01 10:46:07 http GET /usage-service/official-balance status=409 duration=1.6822ms remote=192.0.2.1:1234
+2026/11/01 10:46:12 http PUT /usage-service/official-balance status=400 duration=511.1µs remote=192.0.2.1:1234
+2026/11/01 10:46:17 http PUT /usage-service/official-balance status=200 duration=43.5486ms remote=192.0.2.1:1234
+2026/11/01 10:46:18 http POST /usage-service/official-balance status=202 duration=44.744ms remote=192.0.2.1:1234
+2026/11/01 10:46:18 http GET /usage-service/official-balance status=200 duration=58.7343ms remote=192.0.2.1:1234
+2026/11/01 10:46:22 http PUT /usage-service/official-balance status=200 duration=47.7575ms remote=192.0.2.1:1234
+2026/11/01 10:46:23 http POST /usage-service/official-balance status=202 duration=196.072ms remote=192.0.2.1:1234
+2026/11/01 10:46:23 http GET /usage-service/official-balance status=200 duration=60.4748ms remote=192.0.2.1:1234
+2026/11/01 10:46:28 http PUT /usage-service/official-balance status=200 duration=25.5496ms remote=192.0.2.1:1234
+2026/11/01 10:46:28 http POST /usage-service/official-balance status=202 duration=28.2073ms remote=192.0.2.1:1234
+2026/11/01 10:46:28 http GET /usage-service/official-balance status=200 duration=46.5325ms remote=192.0.2.1:1234
+panic: test timed out after 1m0s
+	running tests:
+		TestOfficialBalanceProductionTransport (17s)
+		TestOfficialBalanceProductionTransport/untrusted_certificate (1s)
+
+goroutine 2532 [running]:
+testing.(*M).startAlarm.func1()
+	C:/Program Files/Go/src/testing/testing.go:2959 +0x34a
+created by time.goFunc
+	C:/Program Files/Go/src/time/sleep.go:182 +0x2d
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0x385473554400, {0x7ff756c0d796?, 0x38547379faa8?}, 0x7ff7573e3d20)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+testing.runTests.func1(0x385473554400)
+	C:/Program Files/Go/src/testing/testing.go:2742 +0x37
+testing.tRunner(0x385473554400, 0x38547379fbc8)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+testing.runTests({0x7ff756c1d36e, 0x36}, {0x7ff756c271bc, 0x47}, 0x38547355c2a0, {0x7ff75745fbf0, 0x5f, 0x5f}, {0xc2b1c7e1839c28c4, 0xdf8c16425, ...})
+	C:/Program Files/Go/src/testing/testing.go:2740 +0x505
+testing.(*M).Run(0x385473708c80)
+	C:/Program Files/Go/src/testing/testing.go:2600 +0x6af
+main.main()
+	_testmain.go:234 +0x9b
+
+goroutine 2057 [chan receive]:
+testing.(*T).Run(0x385473554000, {0x7ff756bf8073?, 0x7ff75706cf10?}, 0x385473749170)
+	C:/Program Files/Go/src/testing/testing.go:2266 +0x4d2
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi.TestOfficialBalanceProductionTransport(0x385473554000)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/httpapi/official_balance_test.go:370 +0xfc
+testing.tRunner(0x385473554000, 0x7ff7573e3d20)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 1
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+
+goroutine 2497 [IO wait]:
+internal/poll.runtime_pollWait(0x2544a79f400, 0x72)
+	C:/Program Files/Go/src/runtime/netpoll.go:351 +0x85
+internal/poll.(*pollDesc).wait(0x385400000074?, 0x7ff756382549?, 0x0)
+	C:/Program Files/Go/src/internal/poll/fd_poll_runtime.go:84 +0x27
+internal/poll.(*FD).waitIO(0x38547374a0e0, 0x3854739ca300)
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:233 +0x3d
+internal/poll.(*FD).execIO(0x38547374a0e0, 0x72, 0x385473821bd0, {0x0, 0x0, 0x7ff700000000?})
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:310 +0x27e
+internal/poll.(*FD).acceptOne(0x38547374a0e0, 0x2d4, {0x385473a0c1e0?, 0xc8?, 0x7ff757365b18?})
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:1111 +0x85
+internal/poll.(*FD).Accept(0x38547374a0e0, 0x385473821db8)
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:1146 +0x18d
+net.(*netFD).accept(0x38547374a0e0)
+	C:/Program Files/Go/src/net/fd_windows.go:201 +0x4b
+net.(*TCPListener).accept(0x385473bcf380)
+	C:/Program Files/Go/src/net/tcpsock_posix.go:159 +0x1b
+net.(*TCPListener).Accept(0x385473bcf380)
+	C:/Program Files/Go/src/net/tcpsock.go:387 +0x30
+net/http.(*Server).Serve(0x385473b85040, {0x7ff7573e1b38, 0x385473bcf380})
+	C:/Program Files/Go/src/net/http/server.go:3551 +0x379
+net/http/httptest.(*Server).goServe.func1()
+	C:/Program Files/Go/src/net/http/httptest/server.go:586 +0x55
+created by net/http/httptest.(*Server).goServe in goroutine 2496
+	C:/Program Files/Go/src/net/http/httptest/server.go:584 +0x92
+
+goroutine 2500 [select]:
+database/sql.(*DB).connectionCleaner(0x3854738be8f0, 0x3854736ac4b0?)
+	C:/Program Files/Go/src/database/sql/sql.go:1109 +0x9e
+created by database/sql.(*DB).startCleanerLocked in goroutine 2496
+	C:/Program Files/Go/src/database/sql/sql.go:1096 +0x109
+
+goroutine 2496 [syscall]:
+syscall.syscalln(0x3854735c8008?, 0x3854737b9ff8?, {0x3854737b2fc0?, 0x3854737ba050?, 0x7ff7563798d2?})
+	C:/Program Files/Go/src/runtime/syscall_windows.go:427 +0x48
+syscall.SyscallN(0x3854737ba078?, {0x3854737b2fc0?, 0x0?, 0x385473c09680?})
+	C:/Program Files/Go/src/syscall/dll_windows.go:99 +0x1e
+golang.org/x/sys/windows.(*Proc).Call(0x2544a9f0ec0?, {0x3854737b2fc0?, 0x3854737b2fc0?, 0x385473b10008?})
+	C:/Users/will/go/pkg/mod/golang.org/x/sys@v0.44.0/windows/dll_windows.go:166 +0x1c
+golang.org/x/sys/windows.(*LazyProc).Call(0x7ff757456968, {0x3854737b2fc0, 0x6, 0x6})
+	C:/Users/will/go/pkg/mod/golang.org/x/sys@v0.44.0/windows/dll_windows.go:316 +0x4a
+modernc.org/libc.XWriteFile(0x3854738be9c0, 0x18c, 0x2544aa3c028, 0x1000, 0x2544a9bd518, 0x2544a9bd4f8)
+	C:/Users/will/go/pkg/mod/modernc.org/libc@v1.67.6/libc_windows.go:2548 +0x93
+modernc.org/sqlite/lib._winWrite(0x3854738be9c0, 0x2544a9ce8c8, 0x2544aa3c028, 0x1000, 0x38)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:96207 +0x15c
+modernc.org/sqlite/lib._sqlite3OsWrite(...)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:31090
+modernc.org/sqlite/lib._walWriteToLog(0x3854738be9c0?, 0x2544a9ce828?, 0x4a9bd4d0?, 0x4aa3c028?, 0x2544a9bd4d0?)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113194 +0xfe
+modernc.org/sqlite/lib._walWriteOneFrame(0x3854738be9c0, 0x2544a9bd480, 0x2544aa3d060, 0x0, 0x20)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113217 +0x10d
+modernc.org/sqlite/lib._walFrames(0x3854738be9c0, 0x2544a9ce828, 0x1000, 0x2544aa3d060, 0x11, 0x1, 0xa)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113404 +0x64d
+modernc.org/sqlite/lib._sqlite3WalFrames(...)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:113524
+modernc.org/sqlite/lib._pagerWalFrames(0x3854738be9c0, 0x2544aa20028, 0x2544aa3d060, 0x11, 0x1)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:105745 +0x117
+modernc.org/sqlite/lib._sqlite3PagerCommitPhaseOne(0x3854738be9c0, 0x2544aa20028, 0x0, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:108790 +0x172
+modernc.org/sqlite/lib._sqlite3BtreeCommitPhaseOne(0x3854738be9c0, 0x2544a984ba8, 0x0)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:118499 +0xc8
+modernc.org/sqlite/lib._vdbeCommit(0x3854738be9c0, 0x2544a95cc28, 0x2544a9cce28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:130709 +0xdb2
+modernc.org/sqlite/lib._sqlite3VdbeHalt(0x3854738be9c0, 0x2544a9cce28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:131128 +0x2b1
+modernc.org/sqlite/lib._sqlite3VdbeExec(0x3854738be9c0, 0x2544a9cce28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:137225 +0x4f28
+modernc.org/sqlite/lib._sqlite3Step(0x3854738be9c0, 0x2544a9cce28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133877 +0x6c
+modernc.org/sqlite/lib.Xsqlite3_step(0x3854738be9c0, 0x2544a9cce28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/lib/sqlite_windows.go:133940 +0xab
+modernc.org/sqlite.(*conn).step(0x385473c88410, 0x2544a9cce28)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:247 +0x31
+modernc.org/sqlite.(*stmt).exec.func2(0x385473b211e8, {0x7ff7574afa80?, 0x2544a99d290?, 0x2544a99a530?}, 0x3854737bae98)
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:149 +0xef
+modernc.org/sqlite.(*stmt).exec(0x385473b211e8, {0x7ff7573e1f00, 0x7ff7574afa80}, {0x7ff7574afa80, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/stmt.go:162 +0x1ae
+modernc.org/sqlite.(*conn).exec(0x0?, {0x7ff7573e1f00, 0x7ff7574afa80}, {0x7ff756c607f0?, 0x32?}, {0x7ff7574afa80, 0x0, 0x0})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:814 +0xf6
+modernc.org/sqlite.(*conn).ExecContext(0x7ff757355f80?, {0x7ff7573e1f00?, 0x7ff7574afa80?}, {0x7ff756c607f0?, 0x3854737bb088?}, {0x7ff7574afa80?, 0x3854737bb088?, 0x7ff756899122?})
+	C:/Users/will/go/pkg/mod/modernc.org/sqlite@v1.46.1/conn.go:1060 +0x27
+database/sql.ctxDriverExec({0x7ff7573e1f00?, 0x7ff7574afa80?}, {0x2544a7a4250?, 0x385473c88410?}, {0x0?, 0x0?}, {0x7ff756c607f0?, 0x0?}, {0x7ff7574afa80, 0x0, ...})
+	C:/Program Files/Go/src/database/sql/ctxutil.go:31 +0xbf
+database/sql.(*DB).execDC.func2()
+	C:/Program Files/Go/src/database/sql/sql.go:1718 +0x15c
+database/sql.withLock({0x7ff7573e0a00, 0x385473682880}, 0x3854737bb2e0)
+	C:/Program Files/Go/src/database/sql/sql.go:3615 +0x71
+database/sql.(*DB).execDC(0x7ff756c7eb01?, {0x7ff7573e1f00, 0x7ff7574afa80}, 0x385473682880, 0x400000?, {0x7ff756c607f0, 0x7bf}, {0x0, 0x0, 0x0})
+	C:/Program Files/Go/src/database/sql/sql.go:1713 +0x1f6
+database/sql.(*DB).exec(0x3854738be8f0, {0x7ff7573e1f00, 0x7ff7574afa80}, {0x7ff756c607f0, 0x7bf}, {0x0, 0x0, 0x0}, 0x29?)
+	C:/Program Files/Go/src/database/sql/sql.go:1698 +0xcf
+database/sql.(*DB).ExecContext.func1(0x40?)
+	C:/Program Files/Go/src/database/sql/sql.go:1677 +0x4f
+database/sql.(*DB).retry(0x3854737bb4d0?, 0x3854737bb4d0)
+	C:/Program Files/Go/src/database/sql/sql.go:1581 +0x42
+database/sql.(*DB).ExecContext(0x7ff756c3cc45?, {0x7ff7573e1f00?, 0x7ff7574afa80?}, {0x7ff756c607f0?, 0x1?}, {0x0?, 0x3854737bb5a0?, 0x3854737bb598?})
+	C:/Program Files/Go/src/database/sql/sql.go:1676 +0x9b
+database/sql.(*DB).Exec(...)
+	C:/Program Files/Go/src/database/sql/sql.go:1690
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Migrate(0x3854738be8f0)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/migrate.go:1053 +0x293
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.OpenWithOptions({{0x385473a38460, 0x77}, 0x0, 0x0, 0x0})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:35 +0xf8
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/sqlite.Open(...)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/repository/sqlite/db.go:17
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store.Open({0x385473a38460?, 0x20?}, {0x3854737bbdc8, 0x1, 0x1})
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/store/store.go:173 +0x2e
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi.newOfficialFixture(0x385473554200)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/httpapi/official_balance_test.go:202 +0x371
+github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi.TestOfficialBalanceProductionTransport.func1(0x385473554200)
+	D:/WILL/AGENT/CPA/ops/implement-spec92-20261101/worktrees/official-query/apps/manager-server/internal/httpapi/official_balance_test.go:371 +0x45
+testing.tRunner(0x385473554200, 0x385473749170)
+	C:/Program Files/Go/src/testing/testing.go:2193 +0xc3
+created by testing.(*T).Run in goroutine 2057
+	C:/Program Files/Go/src/testing/testing.go:2258 +0x4b4
+
+goroutine 2498 [IO wait]:
+internal/poll.runtime_pollWait(0x2544a79f000, 0x72)
+	C:/Program Files/Go/src/runtime/netpoll.go:351 +0x85
+internal/poll.(*pollDesc).wait(0x385400000074?, 0x7ff7572e9d78?, 0x0)
+	C:/Program Files/Go/src/internal/poll/fd_poll_runtime.go:84 +0x27
+internal/poll.(*FD).waitIO(0x38547374a1c0, 0x3854737710e0)
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:233 +0x3d
+internal/poll.(*FD).execIO(0x38547374a1c0, 0x72, 0x385473979b80, {0x0, 0x0, 0x7ff700000000?})
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:310 +0x27e
+internal/poll.(*FD).acceptOne(0x38547374a1c0, 0x404, {0x385473a0c2d0?, 0x385473979c80?, 0x7ff75636ee7d?})
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:1111 +0x85
+internal/poll.(*FD).Accept(0x38547374a1c0, 0x385473979d68)
+	C:/Program Files/Go/src/internal/poll/fd_windows.go:1146 +0x18d
+net.(*netFD).accept(0x38547374a1c0)
+	C:/Program Files/Go/src/net/fd_windows.go:201 +0x4b
+net.(*TCPListener).accept(0x385473bcf3c0)
+	C:/Program Files/Go/src/net/tcpsock_posix.go:159 +0x1b
+net.(*TCPListener).Accept(0x385473bcf3c0)
+	C:/Program Files/Go/src/net/tcpsock.go:387 +0x30
+crypto/tls.(*listener).Accept(0x3854737493e0)
+	C:/Program Files/Go/src/crypto/tls/tls.go:78 +0x24
+net/http.(*Server).Serve(0x385473b85180, {0x7ff7573e1a78, 0x3854737493e0})
+	C:/Program Files/Go/src/net/http/server.go:3551 +0x379
+net/http/httptest.(*Server).goServe.func1()
+	C:/Program Files/Go/src/net/http/httptest/server.go:586 +0x55
+created by net/http/httptest.(*Server).goServe in goroutine 2496
+	C:/Program Files/Go/src/net/http/httptest/server.go:584 +0x92
+
+goroutine 2499 [select]:
+database/sql.(*DB).connectionOpener(0x3854738be8f0, {0x7ff7573e1fa8, 0x385473c883c0})
+	C:/Program Files/Go/src/database/sql/sql.go:1266 +0x89
+created by database/sql.OpenDB in goroutine 2496
+	C:/Program Files/Go/src/database/sql/sql.go:846 +0x135
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	60.730s
+FAIL

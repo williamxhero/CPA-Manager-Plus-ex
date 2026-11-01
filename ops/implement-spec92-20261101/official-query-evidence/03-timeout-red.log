@@ -1,0 +1,19 @@
+=== RUN   TestOfficialBalanceTimeoutRetainsLastSuccess
+2026/11/01 10:26:32 http PUT /usage-service/official-balance status=200 duration=3.1078ms remote=192.0.2.1:1234
+2026/11/01 10:26:32 http POST /usage-service/official-balance status=202 duration=1.5087ms remote=192.0.2.1:1234
+2026/11/01 10:26:32 http GET /usage-service/official-balance status=200 duration=19.8921ms remote=192.0.2.1:1234
+2026/11/01 10:26:32 http POST /usage-service/official-balance status=202 duration=1.5714ms remote=192.0.2.1:1234
+2026/11/01 10:26:32 http GET /usage-service/official-balance status=200 duration=0s remote=192.0.2.1:1234
+2026/11/01 10:26:32 http GET /usage-service/official-balance status=200 duration=1.6969ms remote=192.0.2.1:1234
+2026/11/01 10:26:32 http GET /usage-service/official-balance status=200 duration=510.1µs remote=192.0.2.1:1234
+2026/11/01 10:26:32 http GET /usage-service/official-balance status=200 duration=523µs remote=192.0.2.1:1234
+2026/11/01 10:26:32 http GET /usage-service/official-balance status=200 duration=3.2984ms remote=192.0.2.1:1234
+2026/11/01 10:26:32 http GET /usage-service/official-balance status=200 duration=513.5µs remote=192.0.2.1:1234
+2026/11/01 10:26:32 http GET /usage-service/official-balance status=200 duration=626.5µs remote=192.0.2.1:1234
+2026/11/01 10:26:32 http GET /usage-service/official-balance status=200 duration=883.2µs remote=192.0.2.1:1234
+2026/11/01 10:26:32 http GET /usage-service/official-balance status=200 duration=511.3µs remote=192.0.2.1:1234
+    official_balance_test.go:158: failed attempt lost or replaced last success: {"id":"8febfb1a-bc1c-4a6f-9ad1-f8778e2f2f81","state":"discarded","binding":{"scope":{"instance_id":"11111111-1111-4111-8111-111111111111","instance_incarnation":"22222222-2222-4222-8222-222222222222","boot_epoch":"33333333-3333-4333-8333-333333333333","snapshot_revision":7},"targets":[{"resource_id":"44444444-4444-4444-8444-444444444444","incarnation":"55555555-5555-4555-8555-555555555555","identity_version":2,"credential_version":3,"config_version":4,"membership_version":0}]},"version":1}
+--- FAIL: TestOfficialBalanceTimeoutRetainsLastSuccess (0.36s)
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	1.080s
+FAIL

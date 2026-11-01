@@ -14,13 +14,15 @@ package balance
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
 // QueryTarget identifies what to query
 type QueryTarget struct {
 	// Opaque resource ID (never raw API key)
-	ResourceID string
+	ResourceID     string
+	PrivateTargets []string
 	// Resource identity version
 	IDVersion int64
 	// Protocol/platform selection
@@ -39,26 +41,37 @@ type QueryTarget struct {
 }
 
 // Observation is the standardized query result
+type CurrencyBalance struct {
+	Currency string `json:"currency"`
+	Total    string `json:"total"`
+	Granted  string `json:"granted"`
+	ToppedUp string `json:"toppedUp"`
+}
+
 type Observation struct {
+	DeadlineMS int64             `json:"deadlineMs,omitempty"`
+	Binding    json.RawMessage   `json:"binding,omitempty"`
+	Balances   []CurrencyBalance `json:"balances,omitempty"`
+	Available  *bool             `json:"available,omitempty"`
 	// Query identity
-	QueryID string
+	QueryID string `json:"queryId,omitempty"`
 	// Capability status
-	CapabilityStatus string // supported / unsupported / needs_configuration
+	CapabilityStatus string `json:"capabilityStatus,omitempty"` // supported / unsupported / needs_configuration
 	// Balance semantic
-	Semantic string // account_wallet / key_remaining / credit_balance
+	Semantic string `json:"semantic,omitempty"` // account_wallet / key_remaining / credit_balance
 	// Amount (decimal string, empty if window-based)
-	AmountDecimal string
-	Currency      string
+	AmountDecimal string `json:"amountDecimal,omitempty"`
+	Currency      string `json:"currency,omitempty"`
 	// Or quota windows (JSON, empty if amount-based)
-	WindowsJSON string
+	WindowsJSON string `json:"windowsJson,omitempty"`
 	// Query result
-	QueryStatus  string // success / auth_error / rate_limited / network_error / parse_error
-	ErrorCode    string
-	ErrorMessage string // safe, no credentials
+	QueryStatus  string `json:"queryStatus,omitempty"` // success / auth_error / rate_limited / network_error / parse_error
+	ErrorCode    string `json:"errorCode,omitempty"`
+	ErrorMessage string `json:"errorMessage,omitempty"` // safe, no credentials
 	// Observation time
-	ObservedAtMS int64
+	ObservedAtMS int64 `json:"observedAtMs,omitempty"`
 	// Evidence identity (for dedup, never stores raw response)
-	EvidenceHash string
+	EvidenceHash string `json:"evidenceHash,omitempty"`
 }
 
 // Adapter capability

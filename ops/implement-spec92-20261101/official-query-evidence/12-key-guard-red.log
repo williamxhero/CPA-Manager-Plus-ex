@@ -1,0 +1,7 @@
+=== RUN   TestOfficialBalanceEncryptedStorageNeedsOriginalDataKey
+2026/11/01 10:36:58 http PUT /usage-service/official-balance status=200 duration=4.7123ms remote=192.0.2.1:1234
+    official_balance_test.go:513: startup recreated an unrelated key over encrypted balance credentials
+--- FAIL: TestOfficialBalanceEncryptedStorageNeedsOriginalDataKey (0.38s)
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	1.008s
+FAIL

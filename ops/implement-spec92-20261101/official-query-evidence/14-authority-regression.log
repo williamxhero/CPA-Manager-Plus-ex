@@ -1,0 +1,54 @@
+=== RUN   TestOfficialBalanceRebindRejectsPreBootCompletion
+2026/11/01 10:38:52 http PUT /usage-service/official-balance status=200 duration=3.3605ms remote=192.0.2.1:1234
+2026/11/01 10:38:52 http POST /usage-service/official-balance status=202 duration=1.5427ms remote=192.0.2.1:1234
+2026/11/01 10:38:52 http POST /usage-service/official-balance status=202 duration=1.0404ms remote=192.0.2.1:1234
+2026/11/01 10:38:52 http GET /usage-service/official-balance status=200 duration=1.0283ms remote=192.0.2.1:1234
+2026/11/01 10:38:52 http GET /usage-service/official-balance status=200 duration=508.3µs remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=409 duration=1.0326ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=200 duration=2.4405ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceRebindRejectsPreBootCompletion (0.46s)
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"credential_version":3
+2026/11/01 10:38:53 http PUT /usage-service/official-balance status=200 duration=2.1643ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=200 duration=519.3µs remote=192.0.2.1:1234
+    official_balance_test.go:673: authority change inherited old credentials/evidence
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"config_version":4
+2026/11/01 10:38:53 http PUT /usage-service/official-balance status=200 duration=2.5898ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=200 duration=509.6µs remote=192.0.2.1:1234
+    official_balance_test.go:673: authority change inherited old credentials/evidence
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"identity_version":2
+2026/11/01 10:38:53 http PUT /usage-service/official-balance status=200 duration=1.6814ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=200 duration=553.6µs remote=192.0.2.1:1234
+    official_balance_test.go:673: authority change inherited old credentials/evidence
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"membership_version":0
+2026/11/01 10:38:53 http PUT /usage-service/official-balance status=200 duration=2.157ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=200 duration=529.3µs remote=192.0.2.1:1234
+    official_balance_test.go:673: authority change inherited old credentials/evidence
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/55555555-5555-4555-8555-555555555555
+2026/11/01 10:38:53 http PUT /usage-service/official-balance status=200 duration=2.6358ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=200 duration=1.0413ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=409 duration=519.9µs remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/22222222-2222-4222-8222-222222222222
+2026/11/01 10:38:53 http PUT /usage-service/official-balance status=200 duration=1.0064ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=200 duration=1.5376ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=409 duration=1.0574ms remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceAuthorityChangesNeverInheritSecrets/11111111-1111-4111-8111-111111111111
+2026/11/01 10:38:53 http PUT /usage-service/official-balance status=200 duration=3.7733ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=200 duration=1.0361ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=409 duration=1.0516ms remote=192.0.2.1:1234
+--- FAIL: TestOfficialBalanceAuthorityChangesNeverInheritSecrets (0.65s)
+    --- FAIL: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"credential_version":3 (0.08s)
+    --- FAIL: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"config_version":4 (0.09s)
+    --- FAIL: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"identity_version":2 (0.12s)
+    --- FAIL: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/"membership_version":0 (0.09s)
+    --- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/55555555-5555-4555-8555-555555555555 (0.07s)
+    --- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/22222222-2222-4222-8222-222222222222 (0.09s)
+    --- PASS: TestOfficialBalanceAuthorityChangesNeverInheritSecrets/11111111-1111-4111-8111-111111111111 (0.11s)
+=== RUN   TestOfficialBalanceDeepInfraRemainsUnsupported
+2026/11/01 10:38:53 http PUT /usage-service/official-balance status=200 duration=1.566ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http POST /usage-service/official-balance status=202 duration=1.5686ms remote=192.0.2.1:1234
+2026/11/01 10:38:53 http GET /usage-service/official-balance status=200 duration=16.6937ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceDeepInfraRemainsUnsupported (0.11s)
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	1.920s
+FAIL

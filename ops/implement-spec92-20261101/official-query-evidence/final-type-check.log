@@ -1,0 +1,7 @@
+
+> cpa-manager-plus@0.0.0 type-check
+> npm --workspace apps/web run type-check
+
+
+> cpa-manager-plus-web@0.0.0 type-check
+> tsc --noEmit

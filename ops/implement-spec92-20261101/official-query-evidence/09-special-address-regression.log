@@ -1,0 +1,63 @@
+=== RUN   TestOfficialBalanceSpecialAddressClassesNeverDial
+=== RUN   TestOfficialBalanceSpecialAddressClassesNeverDial/64:ff9b::a9fe:a9fe
+2026/11/01 10:31:51 http PUT /usage-service/official-balance status=200 duration=3.6584ms remote=192.0.2.1:1234
+2026/11/01 10:31:51 http POST /usage-service/official-balance status=202 duration=1.595ms remote=192.0.2.1:1234
+2026/11/01 10:31:51 http GET /usage-service/official-balance status=200 duration=13.9537ms remote=192.0.2.1:1234
+2026/11/01 10:31:51 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceSpecialAddressClassesNeverDial/64:ff9b::808:808
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=200 duration=1.5409ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http POST /usage-service/official-balance status=202 duration=1.5545ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http GET /usage-service/official-balance status=200 duration=18.9872ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceSpecialAddressClassesNeverDial/64:ff9b:1::a9fe:a9fe
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=200 duration=2.0661ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http POST /usage-service/official-balance status=202 duration=1.0605ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http GET /usage-service/official-balance status=200 duration=12.4152ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceSpecialAddressClassesNeverDial/fec0::1
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=200 duration=1.5147ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http POST /usage-service/official-balance status=202 duration=1.5175ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http GET /usage-service/official-balance status=200 duration=21.3142ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceSpecialAddressClassesNeverDial/2002:a9fe:a9fe::1
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=200 duration=3.0318ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http POST /usage-service/official-balance status=202 duration=1.8205ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http GET /usage-service/official-balance status=200 duration=14.4319ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceSpecialAddressClassesNeverDial/2001:0:4136:e378:8000:63bf:5651:5651
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=200 duration=1.5757ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http POST /usage-service/official-balance status=202 duration=1.036ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http GET /usage-service/official-balance status=200 duration=12.9402ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceSpecialAddressClassesNeverDial/::169.254.169.254
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=200 duration=2.6655ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http POST /usage-service/official-balance status=202 duration=1.5586ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http GET /usage-service/official-balance status=200 duration=22.2421ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceSpecialAddressClassesNeverDial/::ffff:169.254.169.254
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=200 duration=1.5518ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http POST /usage-service/official-balance status=202 duration=2.0613ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http GET /usage-service/official-balance status=200 duration=25.2655ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+=== RUN   TestOfficialBalanceSpecialAddressClassesNeverDial/2001:4860:1234:1234:0:5efe:a9fe:a9fe
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=200 duration=3.117ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http POST /usage-service/official-balance status=202 duration=2.0859ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http GET /usage-service/official-balance status=200 duration=16.7194ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=400 duration=0s remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceSpecialAddressClassesNeverDial (1.05s)
+    --- PASS: TestOfficialBalanceSpecialAddressClassesNeverDial/64:ff9b::a9fe:a9fe (0.21s)
+    --- PASS: TestOfficialBalanceSpecialAddressClassesNeverDial/64:ff9b::808:808 (0.10s)
+    --- PASS: TestOfficialBalanceSpecialAddressClassesNeverDial/64:ff9b:1::a9fe:a9fe (0.09s)
+    --- PASS: TestOfficialBalanceSpecialAddressClassesNeverDial/fec0::1 (0.09s)
+    --- PASS: TestOfficialBalanceSpecialAddressClassesNeverDial/2002:a9fe:a9fe::1 (0.11s)
+    --- PASS: TestOfficialBalanceSpecialAddressClassesNeverDial/2001:0:4136:e378:8000:63bf:5651:5651 (0.09s)
+    --- PASS: TestOfficialBalanceSpecialAddressClassesNeverDial/::169.254.169.254 (0.12s)
+    --- PASS: TestOfficialBalanceSpecialAddressClassesNeverDial/::ffff:169.254.169.254 (0.13s)
+    --- PASS: TestOfficialBalanceSpecialAddressClassesNeverDial/2001:4860:1234:1234:0:5efe:a9fe:a9fe (0.11s)
+=== RUN   TestOfficialBalanceMappedPrivatePermitStillExact
+2026/11/01 10:31:52 http PUT /usage-service/official-balance status=200 duration=1.7633ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http POST /usage-service/official-balance status=202 duration=2.1896ms remote=192.0.2.1:1234
+2026/11/01 10:31:52 http GET /usage-service/official-balance status=200 duration=16.2583ms remote=192.0.2.1:1234
+--- PASS: TestOfficialBalanceMappedPrivatePermitStillExact (0.14s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	1.700s

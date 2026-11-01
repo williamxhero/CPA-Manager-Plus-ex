@@ -225,6 +225,8 @@ func Migrate(db *sql.DB) error {
 	}
 
 	statements := []string{
+		`CREATE TABLE IF NOT EXISTS official_balance_jobs (id TEXT PRIMARY KEY, source_id TEXT NOT NULL, document TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS official_balance_sources (id TEXT PRIMARY KEY, version INTEGER NOT NULL, config TEXT NOT NULL, secret_ref TEXT NOT NULL, secret_cipher TEXT NOT NULL, attempt TEXT NOT NULL DEFAULT '', last_success TEXT NOT NULL DEFAULT '')`,
 		`pragma journal_mode = WAL`,
 		`pragma synchronous = FULL`,
 		`pragma busy_timeout = 5000`,
