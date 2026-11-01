@@ -19,6 +19,7 @@ import (
 	codexinspectionsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/codexinspection"
 	collectorsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/collector"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpaauthfiles"
+	credentialpolicysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy"
 	credentialquotasvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
 	dashboardsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/dashboard"
 	fullrefreshsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
@@ -50,15 +51,32 @@ type DatabaseMaintenanceStatusProvider interface {
 	Snapshot() sqliterepo.WALMaintenanceSnapshot
 }
 
+// FullRefreshCoordinator keeps host APIs replaceable by the same76 service in
+// owner tests while allowing additive policy runtime lifecycle wiring.
+type FullRefreshCoordinator interface {
+	Inventory(context.Context) (fullrefreshsvc.Inventory, error)
+	StartRound(context.Context, fullrefreshsvc.Purpose) (fullrefreshsvc.Progress, error)
+	StartSingleSource(context.Context, fullrefreshsvc.SourceRequest, fullrefreshsvc.Purpose) (fullrefreshsvc.Progress, error)
+	GetProgress(context.Context, string) (fullrefreshsvc.Progress, error)
+	Cancel(context.Context, string) (fullrefreshsvc.Progress, error)
+	StartOfficial(context.Context, officialbalancesvc.Query) (officialbalancesvc.Job, error)
+	StartCredential(context.Context, credentialquotasvc.Query) (credentialquotasvc.Job, error)
+	Subscribe(fullrefreshsvc.Observer)
+	SubscribeStarted(fullrefreshsvc.StartedObserver)
+	Run(context.Context) error
+	Shutdown(context.Context) error
+}
+
 type Context struct {
-	ManagementQueryBudget  *managementquery.Budget
-	FullRefreshService     *fullrefreshsvc.Service
-	OfficialBalanceService *officialbalancesvc.Service
-	CredentialQuotaService *credentialquotasvc.Service
-	UpdateCheckService     *updatechecksvc.Service
-	Config                 config.Config
-	Store                  *store.Store
-	Collector              *collector.Manager
+	CredentialPolicyService *credentialpolicysvc.Service
+	ManagementQueryBudget   *managementquery.Budget
+	FullRefreshService      FullRefreshCoordinator
+	OfficialBalanceService  *officialbalancesvc.Service
+	CredentialQuotaService  *credentialquotasvc.Service
+	UpdateCheckService      *updatechecksvc.Service
+	Config                  config.Config
+	Store                   *store.Store
+	Collector               *collector.Manager
 
 	StartedAt int64
 	ServiceID string
@@ -181,22 +199,23 @@ func fromExisting(
 	officialBalanceService := officialbalancesvc.New(st, identityService, officialbalancesvc.WithBudget(managementBudget))
 	credentialQuotaService := credentialquotasvc.New(st, identityService, credentialquotasvc.WithBudget(managementBudget))
 	out := &Context{
-		ManagementQueryBudget:  managementBudget,
-		FullRefreshService:     fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget)),
-		OfficialBalanceService: officialBalanceService,
-		CredentialQuotaService: credentialQuotaService,
-		UpdateCheckService:     updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
-		Config:                 cfg,
-		Store:                  st,
-		Collector:              collectorManager,
-		StartedAt:              startedAt,
-		ServiceID:              serviceID,
-		AdminAuthService:       adminauthsvc.New(cfg, st),
-		SetupService:           setupsvc.New(cfg, st, collectorService, managerConfigService, startedAt, serviceID),
-		ManagerConfigService:   managerConfigService,
-		CollectorService:       collectorService,
-		UsageService:           usageService,
-		DashboardService:       dashboardsvc.New(st, cfg.DashboardHourlyRollupEnabled),
+		CredentialPolicyService: credentialpolicysvc.New(st, credentialQuotaService, managerConfigService, cfg.QuotaCooldownEnvSet && !cfg.QuotaCooldownEnabled),
+		ManagementQueryBudget:   managementBudget,
+		FullRefreshService:      fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget)),
+		OfficialBalanceService:  officialBalanceService,
+		CredentialQuotaService:  credentialQuotaService,
+		UpdateCheckService:      updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
+		Config:                  cfg,
+		Store:                   st,
+		Collector:               collectorManager,
+		StartedAt:               startedAt,
+		ServiceID:               serviceID,
+		AdminAuthService:        adminauthsvc.New(cfg, st),
+		SetupService:            setupsvc.New(cfg, st, collectorService, managerConfigService, startedAt, serviceID),
+		ManagerConfigService:    managerConfigService,
+		CollectorService:        collectorService,
+		UsageService:            usageService,
+		DashboardService:        dashboardsvc.New(st, cfg.DashboardHourlyRollupEnabled),
 		CodexInspectionService: codexinspectionsvc.NewWithOptions(
 			st,
 			managerConfigService,
@@ -226,5 +245,9 @@ func fromExisting(
 	legacyGuard := &managementquery.LegacyGuard{Budget: managementBudget, Identity: identityService}
 	out.ProxyService.LegacyQuotaGuard = legacyGuard
 	out.CodexInspectionService.LegacyQuotaGuard = legacyGuard
+	// Fresh services bind once at startup; source admission remains in76.
+	coordinator := out.FullRefreshService.(*fullrefreshsvc.Service)
+	_ = out.CredentialPolicyService.BindCoordinator(coordinator)
+	out.FullRefreshService = &credentialpolicysvc.CoordinatedService{Service: coordinator, Policy: out.CredentialPolicyService}
 	return out
 }
