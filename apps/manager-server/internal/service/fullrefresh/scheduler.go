@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+// SourceScheduleKey returns the existing exact-source scheduling identifier.
+// It conveys neither query authority nor observation or policy-generation proof.
+func SourceScheduleKey(request SourceRequest) string {
+	return sourceScheduleKey(SourceStatus{Request: request})
+}
+
 func sourceScheduleKey(src SourceStatus) string {
 	request := src.Request
 	if request.Credential != nil {
