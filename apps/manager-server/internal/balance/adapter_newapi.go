@@ -67,7 +67,8 @@ func newAPIInt(raw json.RawMessage) (string, bool) {
 
 // QueryNewAPI uses the SAME pinned, whole-answer checked, certificate-validating
 // transport as the other balance adapters. It never owns a client or scheduler.
-// This initial seam deliberately emits native quota only, never guessed money.
+// Native quota remains independent; only an explicit validated profile enables
+// exact money conversion. There is never an inferred unit/currency/rate.
 func QueryNewAPI(ctx context.Context, t QueryTarget, c NewAPIConfig, resolver CredentialResolver, n NetworkOptions) Observation {
 	out := Observation{QueryID: uuid.NewString(), ObservedAtMS: time.Now().UnixMilli(), CapabilityStatus: "needs_configuration", QueryStatus: "needs_configuration", ErrorCode: "NEWAPI_CONTRACT_REQUIRED"}
 	fail := func(status, code string) Observation {
