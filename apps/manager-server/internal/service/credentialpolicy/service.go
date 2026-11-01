@@ -8,8 +8,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/google/uuid"
 	"reflect"
 	"sort"
+	"sync"
+	"time"
 
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
 	mc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
@@ -29,10 +32,13 @@ type Update struct {
 	SourceVersion      string `json:"sourceVersion"`
 	ExpectedGeneration *int64 `json:"expectedGeneration"`
 	Enabled            *bool  `json:"enabled"`
+	Owner              string `json:"owner,omitempty"`
 }
 
 type Status struct {
 	cq.Source
+	SubjectID         string        `json:"subjectId"`
+	BindingCurrent    bool          `json:"bindingCurrent"`
 	Enabled           bool          `json:"enabled"`
 	Generation        int64         `json:"generation"`
 	Owner             string        `json:"owner"`
@@ -42,17 +48,43 @@ type Status struct {
 	Reason            string        `json:"reason"`
 	Applied           bool          `json:"applied"`
 }
-type Service struct {
-	Store     *store.Store
-	Quota     *cq.Service
-	core      coreClient
-	lockedOff bool
+
+// SourceReader supplies the authoritative current inventory, not query results.
+type SourceReader interface {
+	Sources(context.Context) ([]cq.Source, error)
 }
 
-func New(st *store.Store, quota *cq.Service, connection *mc.Service, lockedOff bool) *Service {
-	return &Service{Store: st, Quota: quota, core: coreClient{connection: connection}, lockedOff: lockedOff}
+type Service struct {
+	Store       *store.Store
+	Quota       SourceReader
+	core        coreClient
+	lockedOff   bool
+	reconcileMu sync.Mutex
+	holder      string
+	clock       func() time.Time
+}
+
+type Option func(*Service)
+
+func WithClock(clock func() time.Time) Option {
+	return func(s *Service) {
+		if clock != nil {
+			s.clock = clock
+		}
+	}
+}
+func (s *Service) now() time.Time { return s.clock().UTC() }
+func New(st *store.Store, quota SourceReader, connection *mc.Service, lockedOff bool, options ...Option) *Service {
+	s := &Service{Store: st, Quota: quota, core: coreClient{connection: connection}, lockedOff: lockedOff, holder: uuid.NewString(), clock: time.Now}
+	for _, option := range options {
+		option(s)
+	}
+	return s
 }
 func (s *Service) source(ctx context.Context, index string) (cq.Source, error) {
+	if s.Quota == nil {
+		return cq.Source{}, ErrIdentity
+	}
 	sources, err := s.Quota.Sources(ctx)
 	if err != nil {
 		return cq.Source{}, ErrIdentity
@@ -83,6 +115,8 @@ func policyKey(src cq.Source) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
 }
+
+func SubjectID(src cq.Source) string { return policyKey(src) }
 func sameAuthority(a, b cq.Source) bool {
 	a.Scope.BootEpoch = ""
 	a.Scope.Revision = 0
@@ -104,12 +138,21 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 		return Status{}, err
 	}
 	out := Status{Source: src, Owner: OwnerNamespace + installation, State: "off", Reason: "gate_contract_unavailable", Availability: rc.Capability{State: "unavailable", Reason: "gate_contract_unavailable"}}
+	out.SubjectID = policyKey(src)
+	out.BindingCurrent = true
 	out.QueryAvailability = rc.Capability{State: src.State, Reason: src.Reason}
 	_, out.Reason = s.core.capabilities(ctx, src)
+	if out.Reason == "" && src.State != "ready" {
+		out.Reason = "query_not_ready"
+	}
 	if s.lockedOff {
 		out.Reason = "environment_locked_off"
 	}
 	out.Availability.Reason = out.Reason
+	if out.Reason == "" {
+		out.Availability.State = "available"
+		out.Availability.Reason = "current_source_gate_ready"
+	}
 	r, err := s.Store.CredentialPolicy(ctx, policyKey(src))
 	if err != nil {
 		return Status{}, err
@@ -122,6 +165,9 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 		}
 		if sameAuthority(saved.Source, src) {
 			out.Enabled = saved.Enabled
+			if out.Enabled {
+				out.State = "armed"
+			}
 		} else {
 			out.Reason = "source_changed"
 		}
@@ -138,6 +184,12 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	if q.Enabled == nil || q.ExpectedGeneration == nil || *q.ExpectedGeneration < 0 || *q.ExpectedGeneration >= 9007199254740991 {
 		return Status{}, ErrInput
 	}
+	if !*q.Enabled {
+		out, known, err := s.localOff(ctx, q)
+		if known || err != nil {
+			return out, err
+		}
+	}
 	src, err := s.source(ctx, q.AuthIndex)
 	if err != nil || !reflect.DeepEqual(src.Binding, q.Binding) || src.SourceVersion == "" || q.SourceVersion != src.SourceVersion {
 		return Status{}, ErrIdentity
@@ -149,10 +201,20 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	if out.Generation != *q.ExpectedGeneration {
 		return Status{}, store.ErrPolicyConflict
 	}
-	if *q.Enabled {
-		return Status{}, &UnavailableError{Reason: out.Availability.Reason}
+	if q.Owner != "" && q.Owner != out.Owner {
+		return Status{}, ErrIdentity
 	}
-	out.Enabled = false
+	if *q.Enabled {
+		if out.Availability.State != "available" {
+			return Status{}, &UnavailableError{Reason: out.Availability.Reason}
+		}
+		out.Enabled = true
+		out.State = "armed"
+		out.Reason = "policy_enabled"
+	} else {
+		out.Enabled = false
+		out.State = "off"
+	}
 	out.Generation++
 	document, err := json.Marshal(out)
 	if err != nil {
@@ -162,6 +224,76 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 		return Status{}, err
 	}
 	return out, nil
+}
+
+// StoredStatus is explicitly a local intent read, not current Core authority.
+// A previously issued subject handle is useful for emergency OFF while Core is
+// unavailable; it cannot enroll a new subject or authorize ON/resume.
+func (s *Service) StoredStatus(ctx context.Context, id string) (Status, error) {
+	decoded, err := hex.DecodeString(id)
+	if err != nil || len(decoded) != 32 {
+		return Status{}, ErrInput
+	}
+	r, err := s.Store.CredentialPolicy(ctx, id)
+	if err != nil {
+		return Status{}, err
+	}
+	if r.Document == "" {
+		return Status{}, ErrIdentity
+	}
+	var out Status
+	if json.Unmarshal([]byte(r.Document), &out) != nil || policyKey(out.Source) != id || out.Generation != r.Generation {
+		return Status{}, errors.New("credential policy storage unavailable")
+	}
+	installation, err := s.Store.CredentialPolicyInstallation(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+	if out.Owner != OwnerNamespace+installation {
+		return Status{}, ErrIdentity
+	}
+	out.SubjectID = id
+	out.BindingCurrent = false
+	out.Applied = false
+	out.Availability = rc.Capability{State: "unavailable", Reason: "current_binding_unverified"}
+	out.Reason = "current_binding_unverified"
+	if !out.Enabled {
+		out.State = "off"
+	} else {
+		out.State = "pending"
+	}
+	return out, nil
+}
+
+func (s *Service) localOff(ctx context.Context, q Update) (Status, bool, error) {
+	id := policyKey(cq.Source{Binding: q.Binding})
+	r, err := s.Store.CredentialPolicy(ctx, id)
+	if err != nil {
+		return Status{}, true, err
+	}
+	if r.Document == "" {
+		return Status{}, false, nil
+	}
+	out, err := s.StoredStatus(ctx, id)
+	if err != nil {
+		return Status{}, true, err
+	}
+	if out.Generation != *q.ExpectedGeneration {
+		return Status{}, true, store.ErrPolicyConflict
+	}
+	if !reflect.DeepEqual(out.Binding, q.Binding) || out.SourceVersion != q.SourceVersion || q.Owner != "" && q.Owner != out.Owner {
+		return Status{}, true, ErrIdentity
+	}
+	out.Enabled = false
+	out.State = "off"
+	out.Reason = "local_intent_off"
+	out.Generation++
+	document, err := json.Marshal(out)
+	if err != nil {
+		return Status{}, true, err
+	}
+	err = s.Store.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: out.Generation, Document: string(document)}, *q.ExpectedGeneration)
+	return out, true, err
 }
 
 type UnavailableError struct{ Reason string }

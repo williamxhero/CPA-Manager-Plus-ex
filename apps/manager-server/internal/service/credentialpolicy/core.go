@@ -57,7 +57,11 @@ func (c coreClient) request(ctx context.Context, method, path string, body, out 
 			return "gate_contract_invalid"
 		}
 	}
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(u.String(), "/")+"/v8/management/inference-gates/"+path, bytes.NewReader(data))
+	endpoint := strings.TrimRight(u.String(), "/") + "/v8/management/inference-gates"
+	if path != "" {
+		endpoint += "/" + path
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(data))
 	if err != nil {
 		return "gate_connection_unavailable"
 	}
@@ -73,7 +77,14 @@ func (c coreClient) request(ctx context.Context, method, path string, body, out 
 	case 401, 403:
 		return "gate_auth_error"
 	case 404:
+		if strings.HasPrefix(path, "operations/") {
+			return "gate_operation_not_found"
+		}
 		return "gate_contract_unavailable"
+	case 409:
+		return "gate_conflict"
+	case 422:
+		return "model_scope_unsupported"
 	case 200:
 	default:
 		return "gate_core_unavailable"
@@ -100,7 +111,9 @@ func (c coreClient) capabilities(ctx context.Context, src cq.Source) (gateCapabi
 	if caps.Mode != "standalone" {
 		return caps, "gate_mode_unsupported"
 	}
-	if !caps.Ready || !caps.Durable || !caps.Applied {
+	// ready/applied here are aggregate route diagnostics. Only the verified
+	// ledger's ready and THIS source's eligibility can prove scoped readiness.
+	if !caps.Durable {
 		return caps, "gate_not_ready"
 	}
 	query := struct {
@@ -136,6 +149,27 @@ func (c coreClient) capabilities(ctx context.Context, src cq.Source) (gateCapabi
 			return caps, "gate_source_unsupported"
 		}
 	}
-	// Positive ledger/admission verification awaits the actual producer artifact.
-	return caps, "gate_application_unverified"
+	ledger, reason := c.snapshot(ctx)
+	if reason != "" {
+		return caps, reason
+	}
+	if ledger.Scope != src.Scope {
+		return caps, "gate_ledger_scope_changed"
+	}
+	caps.GateRevision = ledger.GateRevision
+	return caps, ""
+}
+
+func (c coreClient) snapshot(ctx context.Context) (GateSnapshot, string) {
+	var ledger GateSnapshot
+	if reason := c.request(ctx, "GET", "", nil, &ledger); reason != "" {
+		return ledger, reason
+	}
+	if ledger.Version != 1 || ledger.Gates == nil || len(ledger.Gates) > 10000 || ledger.GateRevision > 9007199254740991 {
+		return ledger, "gate_ledger_invalid"
+	}
+	if !ledger.Ready {
+		return ledger, "gate_not_ready"
+	}
+	return ledger, ""
 }

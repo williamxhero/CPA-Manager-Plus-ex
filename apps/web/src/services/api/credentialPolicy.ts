@@ -50,6 +50,8 @@ async function policyError(response: Response): Promise<CredentialPolicyError> {
 // Durable intent and actual protection are distinct. Never render enabled as an
 // applied pause; unavailable and failed writes must use backend readback.
 export interface CredentialPolicyStatus extends Omit<CredentialQuotaSource, 'state' | 'reason'> {
+  subjectId: string;
+  bindingCurrent: boolean;
   enabled: boolean;
   generation: number;
   owner: string;
@@ -61,10 +63,31 @@ export interface CredentialPolicyStatus extends Omit<CredentialQuotaSource, 'sta
 }
 
 export interface CredentialPolicyUpdate extends QuotaBinding {
+  owner?: string;
   auth_index: string;
   sourceVersion: string;
   expectedGeneration: number;
   enabled: boolean;
+}
+
+export async function getStoredCredentialPolicy(
+  base: string,
+  managementKey: string,
+  subjectId: string,
+  signal?: AbortSignal
+): Promise<CredentialPolicyStatus> {
+  const response = await fetch(
+    `${base.replace(/\/$/, '')}/usage-service/credential-policy?subjectId=${encodeURIComponent(subjectId)}`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${managementKey}`, 'Content-Type': 'application/json' },
+      signal,
+      cache: 'no-store',
+      redirect: 'error',
+    }
+  );
+  if (!response.ok) throw await policyError(response);
+  return response.json() as Promise<CredentialPolicyStatus>;
 }
 
 export async function saveCredentialPolicy(

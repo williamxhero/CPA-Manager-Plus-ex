@@ -1,7 +1,30 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { getCredentialPolicy, saveCredentialPolicy } from './credentialPolicy';
+import {
+  getCredentialPolicy,
+  getStoredCredentialPolicy,
+  saveCredentialPolicy,
+} from './credentialPolicy';
 
 afterEach(() => vi.unstubAllGlobals());
+
+it('reads stored emergency intent by issued subject without treating cached binding as current', async () => {
+  const status = {
+    subjectId: 'issued-subject',
+    enabled: false,
+    generation: 2,
+    bindingCurrent: false,
+    applied: false,
+  };
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(status)));
+  vi.stubGlobal('fetch', fetcher);
+  await expect(
+    getStoredCredentialPolicy('http://manager.invalid/', 'panel-key', 'issued-subject')
+  ).resolves.toEqual(status);
+  expect(fetcher.mock.calls[0][0]).toBe(
+    'http://manager.invalid/usage-service/credential-policy?subjectId=issued-subject'
+  );
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
 
 it('reads the authenticated per-credential backend status without legacy fallback', async () => {
   const status = {

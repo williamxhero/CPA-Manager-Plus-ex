@@ -23,14 +23,97 @@ import (
 	"time"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
+	cp "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy"
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
+	mc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
+	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
 )
 
+// This proves actual issued-binding restart fencing, NOT positive gate ON/ACK.
+// The prior ON document is explicitly a local coordinator fixture.
+func TestCredentialPolicyActualCoreRestartRebindsWithoutUISave(t *testing.T) {
+	var stop, restart func()
+	base := policyOldCore(t, &stop, &restart)
+	cfg := testutil.NewConfig(t)
+	db := testutil.NewStore(t, cfg)
+	ctx := context.Background()
+	if err := db.SaveManagerConfig(ctx, store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: base, ManagementKey: "test-password"}}); err != nil {
+		t.Fatal(err)
+	}
+	connection := mc.New(cfg, db, nil)
+	quota := cq.New(db, rc.New(nil, connection))
+	coordinator := cp.New(db, quota, connection, false)
+	sources, err := quota.Sources(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var old cq.Source
+	for _, source := range sources {
+		if source.State == "ready" && source.AuthIndex != "" {
+			old = source
+			break
+		}
+	}
+	if old.AuthIndex == "" {
+		t.Fatal("no actual ready source")
+	}
+	installation, err := db.CredentialPolicyInstallation(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := cp.SubjectID(old)
+	state := cp.Status{Source: old, SubjectID: id, Generation: 1, Owner: cp.OwnerNamespace + installation, Enabled: true}
+	document, _ := json.Marshal(state)
+	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: 1, Document: string(document)}, 0); err != nil {
+		t.Fatal(err)
+	}
+	oldQuery := cq.Query{Binding: old.Binding, SourceVersion: old.SourceVersion, AuthIndex: old.AuthIndex, Version: 1}
+	oldAttempt := uuid.NewString()
+	if err := coordinator.CaptureCredentialQueryStart(ctx, oldQuery, oldAttempt); err != nil {
+		t.Fatal(err)
+	}
+	restart()
+	sources, err = quota.Sources(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var current cq.Source
+	for _, source := range sources {
+		if cp.SubjectID(source) == id {
+			current = source
+			break
+		}
+	}
+	if current.AuthIndex == "" || current.Scope.BootEpoch == old.Scope.BootEpoch {
+		t.Fatal("restart did not issue fresh boot for same authority")
+	}
+	query := cq.Query{Binding: current.Binding, SourceVersion: current.SourceVersion, AuthIndex: current.AuthIndex, Version: 2}
+	attempt := uuid.NewString()
+	if err := coordinator.CaptureCredentialQueryStart(ctx, query, attempt); err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(query)
+	if err := db.CheckCredentialPolicyQuery(ctx, store.CredentialPolicyQueryFence{AttemptID: attempt, SubjectID: id, Generation: 1, Owner: state.Owner, Source: string(body), Enabled: true}); err != nil {
+		t.Fatalf("new boot never captured active policy without UI resave: %v", err)
+	}
+	local, err := coordinator.StoredStatus(ctx, id)
+	if err != nil || !local.Enabled || local.Generation != 1 || local.Scope.BootEpoch != current.Scope.BootEpoch {
+		t.Fatal("current binding not durably rebound preserving intent")
+	}
+	if err := coordinator.CaptureCredentialQueryStart(ctx, oldQuery, uuid.NewString()); err == nil {
+		t.Fatal("old boot start accepted")
+	}
+	out, err := coordinator.CompleteCredentialQuery(ctx, oldQuery, cq.Status{Source: old}, oldAttempt)
+	if err != nil || out.Decision.Action != "none" || out.Decision.Reason != "source_authority_changed" {
+		t.Fatalf("old boot completion not independently fenced: %+v %v", out, err)
+	}
+}
+
 // Only actual compiled Core is used for positive identity. This initial fixture
 // deliberately has NO gate producer; it cannot prove positive gate admission.
-func policyOldCore(t *testing.T) string {
+func policyOldCore(t *testing.T, stopOut ...*func()) string {
 	t.Helper()
 	binary := os.Getenv("CORE_QUOTA_TEST_BINARY")
 	if binary == "" {
@@ -125,9 +208,13 @@ func policyOldCore(t *testing.T) string {
 		log.Close()
 		t.Fatal(err)
 	}
+	var stopOnce sync.Once
+	stop := func() { stopOnce.Do(func() { cmd.Process.Kill(); cmd.Wait() }) }
+	if len(stopOut) > 0 {
+		*stopOut[0] = stop
+	}
 	t.Cleanup(func() {
-		cmd.Process.Kill()
-		cmd.Wait()
+		stop()
 		log.Close()
 		if t.Failed() {
 			b, _ := os.ReadFile(log.Name())
@@ -136,23 +223,115 @@ func policyOldCore(t *testing.T) string {
 	})
 	base := "http://" + address
 	client := &http.Client{Timeout: time.Second}
-	deadline := time.Now().Add(20 * time.Second)
-	for {
-		req, _ := http.NewRequest("GET", base+"/v8/management/credential-quota/sources", nil)
-		req.Header.Set("Authorization", "Bearer test-password")
-		r, e := client.Do(req)
-		if e == nil {
-			r.Body.Close()
-			if r.StatusCode == 200 {
-				break
+	waitReady := func() {
+		deadline := time.Now().Add(20 * time.Second)
+		for {
+			req, _ := http.NewRequest("GET", base+"/v8/management/credential-quota/sources", nil)
+			req.Header.Set("Authorization", "Bearer test-password")
+			r, e := client.Do(req)
+			if e == nil {
+				r.Body.Close()
+				if r.StatusCode == 200 {
+					break
+				}
 			}
+			if time.Now().After(deadline) {
+				t.Fatal("actual Core source readiness failed")
+			}
+			time.Sleep(25 * time.Millisecond)
 		}
-		if time.Now().After(deadline) {
-			t.Fatal("actual Core source readiness failed")
-		}
-		time.Sleep(25 * time.Millisecond)
 	}
+	if len(stopOut) > 1 {
+		*stopOut[1] = func() {
+			stop()
+			next := exec.Command(binary, "-test.run=^TestCredentialQuotaProcessFixture$", "-test.timeout=120s")
+			next.Dir, next.Env, next.Stdout, next.Stderr = cmd.Dir, cmd.Env, log, log
+			cmd = next
+			stopOnce = sync.Once{}
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			waitReady()
+		}
+	}
+	waitReady()
 	return base
+}
+
+func TestCredentialPolicyKnownSubjectCanStopOffline(t *testing.T) {
+	var stop func()
+	base := policyOldCore(t, &stop)
+	u, _ := url.Parse(base)
+	proxy := httputil.NewSingleHostReverseProxy(u)
+	var requests atomic.Int64
+	edge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests.Add(1); proxy.ServeHTTP(w, r) }))
+	defer edge.Close()
+	cfg := testutil.NewConfig(t)
+	db := testutil.NewStore(t, cfg)
+	if err := db.SaveManagerConfig(context.Background(), store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: edge.URL, ManagementKey: "test-password"}}); err != nil {
+		t.Fatal(err)
+	}
+	h := New(cfg, db, collector.NewManager(cfg, db)).Handler()
+	rr := testutil.Request(t, h, "GET", "/usage-service/credential-quota", "", testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var sources struct {
+		Sources []cq.Source `json:"sources"`
+	}
+	testutil.DecodeJSON(t, rr, &sources)
+	var src cq.Source
+	for _, candidate := range sources.Sources {
+		if candidate.AuthIndex != "" {
+			src = candidate
+			break
+		}
+	}
+	if src.AuthIndex == "" {
+		t.Fatal("no actual source")
+	}
+	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, src, 0, false), testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var saved map[string]any
+	testutil.DecodeJSON(t, rr, &saved)
+	stop()
+	if r, err := http.Get(base + "/v8/management/resources"); err == nil {
+		r.Body.Close()
+		t.Fatal("actual Core did not stop")
+	}
+	before := requests.Load()
+	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, src, 1, false), testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var stopped map[string]any
+	testutil.DecodeJSON(t, rr, &stopped)
+	if stopped["enabled"] != false || stopped["generation"] != float64(2) || stopped["applied"] != false || stopped["bindingCurrent"] != false {
+		t.Fatalf("local OFF misreported: %s", rr.Body.String())
+	}
+	if requests.Load() != before {
+		t.Fatal("emergency local OFF contacted offline Core")
+	}
+	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, src, 1, false), testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 409)
+	var foreign map[string]any
+	json.Unmarshal([]byte(policyBody(t, src, 2, false)), &foreign)
+	foreign["owner"] = "cpa-manager.credential-policy.v1/00000000-0000-4000-8000-000000000099"
+	body, _ := json.Marshal(foreign)
+	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", string(body), testutil.AdminKey)
+	if rr.Code != 400 && rr.Code != 409 {
+		t.Fatalf("foreign owner accepted: %s", rr.Body.String())
+	}
+	subject, ok := stopped["subjectId"].(string)
+	if !ok || subject == "" {
+		t.Fatal("no persistent subject handle")
+	}
+	rr = testutil.Request(t, h, "GET", "/usage-service/credential-policy?subjectId="+subject, "", testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var readback map[string]any
+	testutil.DecodeJSON(t, rr, &readback)
+	if readback["generation"] != float64(2) || readback["enabled"] != false || readback["owner"] != saved["owner"] {
+		t.Fatal("local OFF not durably readable")
+	}
+	if requests.Load() != before {
+		t.Fatal("local read/CAS/owner rejection contacted offline Core")
+	}
 }
 
 func TestCredentialPolicyActualCoreDefaultOff(t *testing.T) {
@@ -452,10 +631,21 @@ func TestCredentialPolicyActualCoreIncompleteGateCannotEnable(t *testing.T) {
 		{"not-ready", `{"version":1,"ready":false,"mode":"standalone"}`, "gate_not_ready"},
 		{"home", `{"version":1,"ready":true,"durable":true,"applied":true,"mode":"home"}`, "gate_mode_unsupported"},
 		{"no-durable", `{"version":1,"ready":true,"durable":false,"applied":true,"mode":"standalone"}`, "gate_not_ready"},
-		{"no-applied", `{"version":1,"ready":true,"durable":true,"applied":false,"mode":"standalone"}`, "gate_not_ready"},
+		{"no-applied", `{"version":1,"ready":true,"durable":true,"applied":false,"mode":"standalone"}`, "gate_source_unsupported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			edge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Aggregate applied=false is not a scoped veto under the refined
+				// contract. This case still has NO selected-source application proof.
+				if tc.name == "no-applied" && r.URL.Path == "/v8/management/inference-gates/eligibility" && r.Method == "POST" {
+					var q map[string]any
+					json.NewDecoder(r.Body).Decode(&q)
+					q["ready"] = false
+					q["supported"] = false
+					q["routes"] = []map[string]any{{"route": "all-current-source", "supported": false}}
+					json.NewEncoder(w).Encode(q)
+					return
+				}
 				if strings.HasPrefix(r.URL.Path, "/v8/management/inference-gates") {
 					if r.Method != "GET" || r.URL.Path != "/v8/management/inference-gates/capabilities" {
 						t.Error("incomplete gate caused a write/read fallback")
@@ -677,7 +867,7 @@ func TestCredentialPolicyActualCoreUnsupportedSelectedRouteCannotEnable(t *testi
 	edge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v8/management/inference-gates/capabilities":
-			w.Write([]byte(`{"version":1,"mode":"standalone","ready":true,"durable":true,"applied":true,"subjects":["credential"],"routes":[{"route":"native","supported":true}]}`))
+			w.Write([]byte(`{"version":1,"mode":"standalone","ready":false,"durable":true,"applied":false,"subjects":["credential"],"routes":[{"route":"native","supported":true}]}`))
 		case "/v8/management/inference-gates/eligibility":
 			eligibilityReads.Add(1)
 			var q map[string]any
@@ -725,4 +915,79 @@ func TestCredentialPolicyActualCoreUnsupportedSelectedRouteCannotEnable(t *testi
 		}
 	}
 	t.Fatal("no actual ready source")
+}
+
+// Negative external gate envelopes only; actual identity still comes from Core.
+// No successful operation/ACK or inference route is simulated here.
+func TestCredentialPolicyCorruptLedgerCannotEnableDespiteEligibilityEnvelope(t *testing.T) {
+	base := policyOldCore(t)
+	u, _ := url.Parse(base)
+	proxy := httputil.NewSingleHostReverseProxy(u)
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"unavailable", 503, `{"error":"gate_unavailable"}`},
+		{"not-published", 200, `{"version":1,"ready":false,"gateRevision":0,"gates":[]}`},
+		{"missing-ledger", 200, `{"version":1,"ready":true,"gateRevision":0}`},
+		{"wrong-current-scope", 200, `{"version":1,"ready":true,"gateRevision":0,"gates":[]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			edge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v8/management/inference-gates/capabilities":
+					w.Write([]byte(`{"version":1,"mode":"standalone","ready":false,"durable":true,"applied":false}`))
+				case "/v8/management/inference-gates/eligibility":
+					var q map[string]any
+					json.NewDecoder(r.Body).Decode(&q)
+					q["ready"] = true
+					q["supported"] = true
+					q["routes"] = []map[string]any{{"route": "all-current-source", "supported": true}}
+					json.NewEncoder(w).Encode(q)
+				case "/v8/management/inference-gates":
+					w.WriteHeader(tc.status)
+					w.Write([]byte(tc.body))
+				default:
+					if strings.HasPrefix(r.URL.Path, "/v8/management/inference-gates") {
+						t.Error("invalid ledger caused an operation/fallback")
+						w.WriteHeader(500)
+						return
+					}
+					proxy.ServeHTTP(w, r)
+				}
+			}))
+			defer edge.Close()
+			cfg := testutil.NewConfig(t)
+			db := testutil.NewStore(t, cfg)
+			if err := db.SaveManagerConfig(context.Background(), store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: edge.URL, ManagementKey: "test-password"}}); err != nil {
+				t.Fatal(err)
+			}
+			h := New(cfg, db, collector.NewManager(cfg, db)).Handler()
+			rr := testutil.Request(t, h, "GET", "/usage-service/credential-quota", "", testutil.AdminKey)
+			testutil.RequireStatus(t, rr, 200)
+			var sources struct {
+				Sources []cq.Source `json:"sources"`
+			}
+			testutil.DecodeJSON(t, rr, &sources)
+			for _, src := range sources.Sources {
+				if src.AuthIndex != "" && src.State == "ready" {
+					rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, src, 0, true), testutil.AdminKey)
+					testutil.RequireStatus(t, rr, 503)
+					rr = testutil.Request(t, h, "GET", "/usage-service/credential-policy?authIndex="+src.AuthIndex, "", testutil.AdminKey)
+					testutil.RequireStatus(t, rr, 200)
+					var status struct {
+						Enabled, Applied bool
+						Generation       int64
+					}
+					testutil.DecodeJSON(t, rr, &status)
+					if status.Enabled || status.Applied || status.Generation != 0 {
+						t.Fatal("invalid/unpublished ledger claimed ON")
+					}
+					return
+				}
+			}
+			t.Fatal("no actual source")
+		})
+	}
 }

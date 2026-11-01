@@ -32,7 +32,11 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch {
 	case r.Method == "GET" && r.URL.Path == "/usage-service/credential-policy":
-		out, err = h.App.CredentialPolicyService.Status(ctx, r.URL.Query().Get("authIndex"))
+		if id := r.URL.Query().Get("subjectId"); id != "" {
+			out, err = h.App.CredentialPolicyService.StoredStatus(ctx, id)
+		} else {
+			out, err = h.App.CredentialPolicyService.Status(ctx, r.URL.Query().Get("authIndex"))
+		}
 	case r.Method == "PUT" && r.URL.Path == "/usage-service/credential-policy":
 		r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
 		var q svc.Update
