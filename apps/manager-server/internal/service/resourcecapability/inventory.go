@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -44,9 +45,10 @@ func (n *Negotiated) CredentialQuotaSourceProjection() json.RawMessage {
 
 type coreCapabilities struct {
 	CredentialQuery *struct {
-		Version     int  `json:"version"`
-		Sources     bool `json:"sources"`
-		ScopedQuery bool `json:"scoped_query"`
+		Version        int  `json:"version"`
+		Sources        bool `json:"sources"`
+		ScopedQuery    bool `json:"scoped_query"`
+		SourceBindings bool `json:"source_bindings"`
 	} `json:"credential_query"`
 	Scope        *Scope `json:"scope"`
 	Version      int    `json:"version"`
@@ -56,6 +58,50 @@ type coreCapabilities struct {
 	Query        bool   `json:"query"`
 	PolicyLocked bool   `json:"policy_locked"`
 	Reason       string `json:"reason"`
+}
+
+// This is one request-local read projection, not an authority cache. Validate
+// both existing projections and their exact join before advertising this view;
+// credentialquota.Sources still validates its complete consumer contract too.
+type quotaSourceBindingView struct {
+	Version  int               `json:"version"`
+	Sources  []json.RawMessage `json:"sources"`
+	Bindings []RuntimeBinding  `json:"bindings"`
+}
+
+func (v quotaSourceBindingView) valid(snapshot Snapshot) bool {
+	if v.Version != 1 || !validBindings(snapshot, v.Bindings) || !validQuotaSourceHeaders(snapshot, v.Sources) {
+		return false
+	}
+	byIndex := make(map[string]RuntimeBinding, len(v.Bindings))
+	for _, binding := range v.Bindings {
+		byIndex[binding.AuthIndex] = binding
+	}
+	seen := make(map[string]bool, len(v.Bindings))
+	for _, raw := range v.Sources {
+		var source struct {
+			Scope     Scope    `json:"scope"`
+			Targets   []Target `json:"targets"`
+			AuthIndex string   `json:"auth_index"`
+			State     string   `json:"state"`
+			Reason    string   `json:"reason"`
+		}
+		if json.Unmarshal(raw, &source) != nil {
+			return false
+		}
+		if source.AuthIndex == "" {
+			if source.State != "unsupported" || source.Reason != "runtime_binding_unavailable" {
+				return false
+			}
+			continue
+		}
+		binding, ok := byIndex[source.AuthIndex]
+		if !ok || seen[source.AuthIndex] || binding.Scope != source.Scope || !reflect.DeepEqual(binding.Targets, source.Targets) {
+			return false
+		}
+		seen[source.AuthIndex] = true
+	}
+	return len(seen) == len(v.Bindings)
 }
 
 func unavailable(reason string) *Negotiated {
@@ -115,6 +161,38 @@ func (s *Service) Inventory(ctx context.Context, bindings ...bool) (out *Negotia
 		}
 		if !snapshot.valid() {
 			return unavailable("invalid_contract")
+		}
+		if caps.CredentialQuery != nil && caps.CredentialQuery.SourceBindings {
+			if caps.CredentialQuery.Version != 1 || !caps.CredentialQuery.Sources || !caps.CredentialQuery.ScopedQuery {
+				return unavailable("unsupported_source_binding_contract")
+			}
+			var view quotaSourceBindingView
+			var projection json.RawMessage
+			if reason := readCore(ctx, conn.CPABaseURL, conn.ManagementKey, "credential-quota/sources", &projection); reason != "" {
+				return unavailable(reason)
+			}
+			if json.Unmarshal(projection, &view) != nil || !view.valid(snapshot) {
+				return unavailable("invalid_source_binding_view")
+			}
+			// Close AFTER the complete combined view. A capability/scope change
+			// cannot repair a bad advertised view with a second legacy read.
+			var current coreCapabilities
+			if reason := readCore(ctx, conn.CPABaseURL, conn.ManagementKey, "resource-capabilities", &current); reason != "" {
+				return unavailable(reason)
+			}
+			if current.Scope == nil || *current.Scope != snapshot.Scope || !current.Inventory || !current.Durable || current.Version != 1 || current.CredentialQuery == nil || *current.CredentialQuery != *caps.CredentialQuery {
+				return unavailable("stale_source_binding_view")
+			}
+			result.Identity = Capability{"available", "durable_inventory"}
+			result.CredentialQuery = Capability{"available", "scoped_credential_query_v1"}
+			result.credentialQuotaSources = append(json.RawMessage(nil), projection...)
+			if len(bindings) > 0 && bindings[0] {
+				result.BindingCapability = &Capability{"available", "host_issued_bindings"}
+				result.Bindings = view.Bindings
+			}
+			result.Snapshot = &snapshot
+			result.Query = Capability{"unavailable", "query_consumer_unconfigured"}
+			return result
 		}
 		if len(bindings) > 0 && bindings[0] {
 			var observed struct {
