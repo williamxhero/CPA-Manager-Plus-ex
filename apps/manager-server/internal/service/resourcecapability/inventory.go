@@ -1,0 +1,156 @@
+package resourcecapability
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpa"
+)
+
+// Negotiated is read evidence only. Neither capability flags nor catalog identity
+// are an applied gate ACK. Legacy support fields remain unchanged.
+type Negotiated struct {
+	BindingCapability *Capability      `json:"bindingCapability,omitempty"`
+	Bindings          []RuntimeBinding `json:"bindings,omitempty"`
+	Snapshot          *Snapshot        `json:"snapshot,omitempty"`
+	ContractVersion   int              `json:"contractVersion"`
+	Identity          Capability       `json:"identity"`
+	Query             Capability       `json:"query"`
+	IndependentGate   Capability       `json:"independentGate"`
+	PolicyLocked      bool             `json:"policyLocked"`
+}
+
+type coreCapabilities struct {
+	Scope        *Scope `json:"scope"`
+	Version      int    `json:"version"`
+	Inventory    bool   `json:"inventory"`
+	Durable      bool   `json:"durable"`
+	Gate         bool   `json:"gate"`
+	Query        bool   `json:"query"`
+	PolicyLocked bool   `json:"policy_locked"`
+	Reason       string `json:"reason"`
+}
+
+func unavailable(reason string) *Negotiated {
+	return &Negotiated{Identity: Capability{"unknown", reason}, Query: Capability{"unknown", "query_contract_unverified"}, IndependentGate: Capability{"unavailable", "consumer_contract_unconfigured"}, PolicyLocked: true}
+}
+
+// Inventory contacts only the saved/env-resolved Core management connection.
+// It never reads configuration/provider credentials or falls back to v0 APIs.
+func (s *Service) Inventory(ctx context.Context, bindings ...bool) (out *Negotiated) {
+	result := unavailable("connection_unconfigured")
+	if s.connection == nil {
+		return result
+	}
+	cfg, _, _, err := s.connection.ResolveManagerConfigWithSource(ctx)
+	if err != nil {
+		return unavailable("connection_unavailable")
+	}
+	conn := cfg.CPAConnection
+	if conn.CPABaseURL == "" || conn.ManagementKey == "" {
+		return result
+	}
+	// Re-resolve after I/O, including negative responses. A late result from a
+	// replaced connection cannot be presented as the current instance's state.
+	defer func() {
+		current, _, _, err := s.connection.ResolveManagerConfigWithSource(ctx)
+		if err != nil {
+			out = unavailable("connection_unavailable")
+			return
+		}
+		if current.CPAConnection != conn || current.UpdatedAtMS != cfg.UpdatedAtMS {
+			out = unavailable("connection_changed")
+		}
+	}()
+	var caps coreCapabilities
+	if reason := readCore(ctx, conn.CPABaseURL, conn.ManagementKey, "resource-capabilities", &caps); reason != "" {
+		return unavailable(reason)
+	}
+	if caps.Version != 1 {
+		return unavailable("unsupported_contract")
+	}
+	result.ContractVersion = 1
+	if !caps.Inventory || !caps.Durable {
+		switch caps.Reason {
+		case "not_enabled", "unsupported_mode", "unsupported_storage", "unsupported_filesystem", "not_ready":
+			result.Identity = Capability{"unavailable", caps.Reason}
+		default:
+			result.Identity = Capability{"unknown", "inventory_unavailable"}
+		}
+	}
+	if caps.Inventory && caps.Durable {
+		var snapshot Snapshot
+		if reason := readCore(ctx, conn.CPABaseURL, conn.ManagementKey, "resources", &snapshot); reason != "" {
+			return unavailable(reason)
+		}
+		if snapshot.ContractVersion != 1 || !snapshot.Complete || caps.Scope == nil || snapshot.Scope != *caps.Scope {
+			return unavailable("stale_inventory")
+		}
+		if !snapshot.valid() {
+			return unavailable("invalid_contract")
+		}
+		if len(bindings) > 0 && bindings[0] {
+			var observed struct {
+				Bindings []RuntimeBinding `json:"bindings"`
+			}
+			reason := readCore(ctx, conn.CPABaseURL, conn.ManagementKey, "resource-bindings", &observed)
+			if reason != "" {
+				result.BindingCapability = &Capability{"unavailable", reason}
+			} else if !validBindings(snapshot, observed.Bindings) {
+				result.BindingCapability = &Capability{"unavailable", "invalid_binding_contract"}
+			} else {
+				result.BindingCapability = &Capability{"available", "host_issued_bindings"}
+				result.Bindings = observed.Bindings
+			}
+		}
+		var current coreCapabilities
+		if reason := readCore(ctx, conn.CPABaseURL, conn.ManagementKey, "resource-capabilities", &current); reason != "" {
+			return unavailable(reason)
+		}
+		if current.Scope == nil || *current.Scope != snapshot.Scope || !current.Inventory || !current.Durable || current.Version != 1 {
+			return unavailable("stale_inventory")
+		}
+		result.Identity = Capability{"available", "durable_inventory"}
+		result.Snapshot = &snapshot
+		result.Query = Capability{"unavailable", "query_consumer_unconfigured"}
+	}
+	return result
+}
+
+func readCore(ctx context.Context, base, key, path string, out any) string {
+	u, err := url.Parse(cpa.NormalizeBaseURL(base))
+	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return "connection_unavailable"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(u.String(), "/")+"/v8/management/"+path, nil)
+	if err != nil {
+		return "connection_unavailable"
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	client := &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect refused") }}
+	res, err := client.Do(req)
+	if err != nil {
+		return "core_unavailable"
+	}
+	defer res.Body.Close()
+	if res.StatusCode == 401 || res.StatusCode == 403 {
+		return "core_auth_error"
+	}
+	if res.StatusCode == 404 {
+		return "unsupported_contract"
+	}
+	if res.StatusCode != 200 {
+		return "core_unavailable"
+	}
+	data, err := io.ReadAll(io.LimitReader(res.Body, (2<<20)+1))
+	if err != nil || len(data) > 2<<20 || json.Unmarshal(data, out) != nil {
+		return "invalid_contract"
+	}
+	return ""
+}

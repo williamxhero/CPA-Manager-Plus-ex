@@ -33,6 +33,14 @@ describe('resource capability support transport', () => {
     expect(config.signal).toBe(signal);
   });
 
+  it('opts in to the secret-free v8 inventory consumer, with no client supplied Core target', async () => {
+    const adapter = vi.fn<AxiosAdapter>(async (config) => ({ data: {}, status: 200, statusText: 'OK', headers: {}, config }));
+    axios.defaults.adapter = adapter;
+    await usageServiceApi.getResourceCapabilities('http://manager.invalid', 'test-key', undefined, true);
+    expect(adapter.mock.calls[0][0].url).toBe('http://manager.invalid/usage-service/resource-capabilities?inventory=1');
+    expect(adapter.mock.calls[0][0].data).toBeUndefined();
+  });
+
   it('uses honest local demo fixtures without ever invoking the HTTP adapter', async () => {
     setDemoMode(true);
     const adapter = vi.fn<AxiosAdapter>(async () => {

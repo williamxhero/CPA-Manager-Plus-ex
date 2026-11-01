@@ -147,7 +147,7 @@ describe('ProviderTable', () => {
     options: {
       actionsDisabled?: boolean;
       toggleDisabled?: boolean;
-      resourceProtection?: 'unknown' | 'unavailable';
+      resourceProtection?: 'unknown' | 'unavailable' | 'identity_only' | 'unsupported_mode';
     } = {}
   ) => {
     let renderer!: ReactTestRenderer;
@@ -188,7 +188,7 @@ describe('ProviderTable', () => {
     act(() => renderer.unmount());
   });
 
-  it.each(['unknown', 'unavailable'] as const)(
+  it.each(['unknown', 'unavailable', 'identity_only', 'unsupported_mode'] as const)(
     'keeps %s capability informational while preserving row keyboard, actions and disabled-row manual toggle',
     (resourceProtection) => {
       const rows = buildProviderRows({ ...emptyInput, codex: [codexConfigs[1]] });

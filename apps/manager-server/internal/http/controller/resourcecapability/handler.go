@@ -33,5 +33,8 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusInternalServerError, err)
 		return
 	}
+	if r.URL.Query().Get("inventory") == "1" {
+		status.Negotiated = h.App.ResourceCapabilityService.Inventory(r.Context(), r.URL.Query().Get("bindings") == "1")
+	}
 	response.JSON(w, http.StatusOK, status)
 }

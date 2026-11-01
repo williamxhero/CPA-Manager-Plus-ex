@@ -1,147 +1,163 @@
-# Resource capability support summary
+# Resource capability and durable inventory consumer
 
-This is a **support-only, negative/unknown first vertical pass** for
-[T01](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/70), under
-[SPEC 66-A](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/79) /
-[parent SPEC](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/66).
-It does not complete those requirements or enable independent automatic protection.
+Ticket #70 reused by SPEC #92. This Manager consumer reads the supported Core v8
+catalog; it does **not** implement queries, policy writes, independent gates or
+an applied routing ACK. Credential switch redesign belongs to #93, gates to #77.
 
-## Manager-owned API
+## Public API and compatibility
 
-`GET /usage-service/resource-capabilities`
+`GET /usage-service/resource-capabilities` retains the existing schemaVersion=1
+support summary and unchanged automation `policy` shape. Without a query it still
+makes zero Core/provider requests and zero persistence writes. Existing policy
+flags and environment locks are configuration, never protection evidence.
 
-The manager handles this route directly; it is never proxied to CPA core.
-GET requires the existing manager panel authentication (`Authorization: Bearer
-<manager-admin-key>`, verified by `middleware.AuthorizePanel`). There is **no
-setup or unconfigured-manager authorization exception**. Authorization completes
-before policy settings are read. Authentication itself reads the existing admin
-credential; it does not contact core.
+`GET /usage-service/resource-capabilities?inventory=1` adds `negotiated` to that
+same summary. Existing fields retain their legacy meanings for old consumers;
+new consumers must use `negotiated` for catalog observations, not reinterpret the
+legacy `identity: unknown/core_contract_unverified` field as a negotiated result.
+Older Managers may ignore the query and return only the legacy summary.
 
-The exact successful response contract is:
+`?inventory=1&bindings=1` additionally consumes the actual producer's authenticated
+`/v8/management/resource-bindings`. This is what the shared credential UI requests.
+No successful catalog read alone is treated as a runtime-row binding.
 
-```json
-{
-  "schemaVersion": 1,
-  "identity": {"state": "unknown", "reason": "core_contract_unverified"},
-  "query": {"state": "unknown", "reason": "query_contract_unverified"},
-  "independentGate": {"state": "unavailable", "reason": "consumer_contract_unconfigured"},
-  "policy": {
-    "source": "startup",
-    "codexQuotaCooldown": {
-      "enabled": false,
-      "configured": false,
-      "source": "startup",
-      "locked": false,
-      "envKey": "USAGE_QUOTA_COOLDOWN_ENABLED",
-      "configFileKey": "quotaCooldownEnabled"
-    },
-    "authIssueQueue": {
-      "enabled": false,
-      "configured": false,
-      "source": "startup",
-      "locked": false,
-      "envKey": "USAGE_ACCOUNT_ACTIONS_ENABLED",
-      "configFileKey": "accountActionsEnabled"
-    },
-    "authIssueAutoDisable": {
-      "enabled": false,
-      "configured": false,
-      "source": "startup",
-      "locked": false,
-      "envKey": "USAGE_ACCOUNT_ACTIONS_AUTO_DISABLE",
-      "configFileKey": "accountActionsAutoDisable",
-      "dependsOn": "authIssueQueue"
-    }
-  }
-}
-```
+Both variants require the existing Manager panel admin authentication, before
+settings or Core reads; no setup bypass exists. GET/OPTIONS only, all responses
+`Cache-Control: no-store`; OPTIONS has no auth/storage/Core work and other methods
+return 405 (`Allow: GET, OPTIONS`). Core's management key is resolved server-side
+using the existing saved Manager-config / legacy-setup / environment authority
+rules. No request parameter supplies a Core URL, key or resource selector.
 
-The `policy` above illustrates startup settings with all flags false. In actual
-responses it is the **existing `automation.Status` JSON shape, unchanged**:
-current effective/configured flags, `source`, environment locks and field keys,
-plus `updatedAtMs` when present. Sources remain `startup`, `database`, or `env`,
-with existing precedence and dependency behavior. These are policy settings only,
-not capability negotiation or an application acknowledgement (ACK). A true
-policy flag never changes `independentGate` to `available`.
+## Negotiated shape
 
-`schemaVersion: 1` versions this manager response shape only. It is not a core
-version, resource version, inventory version, or enforcement version.
+- `contractVersion`: Core catalog contract version (1 when recognized; 0 if not
+  negotiated), distinct from Manager schemaVersion, build version and revisions.
+- `identity`: `available/durable_inventory` only after a complete validated
+  snapshot bracketed by matching Core scope capabilities. This means the catalog
+  mechanism is available, **not that every row is unambiguous or routable**.
+- `snapshot` (only on success): the complete secret-free Core v1 projection:
+  instance_id, instance_incarnation, boot_epoch, snapshot_revision, version,
+  complete, resources. Each row retains resource_id, incarnation, identity_version,
+  credential_version, config_version, membership_version, kind/family, parent_id,
+  members, manual disabled/excluded/zero_weight, identity/catalog/runtime readiness,
+  and advertised inventory/query/gate flags. Disabled rows are not filtered.
+- Optional `source_bindings` carries full counterpart Target tuples and
+  `binding_state` retains known Core plugin projection states. Qwen/OpenCode Go
+  families are retained, not silently discarded or merged by names/keys.
+- `bindingCapability` (when requested): available/host_issued_bindings only after
+  validating all binding scopes and exact target tuples against the complete
+  snapshot. `bindings` retains auth_index, runtime_alias, scope and targets.
+  The current host's 16-hex-digit index is a scoped lookup selector, not durable
+  identity. Empty/absent bindings never certify runtime coverage; missing/old/
+  failed binding APIs produce unavailable and no associations, without falling
+  back to filenames or secret hashes.
+- `query`: unknown until a valid complete inventory, then
+  unavailable/query_consumer_unconfigured. This consumer does not implement an
+  official query adapter, even if a future Core advertises query capability.
+- `independentGate`: always unavailable/consumer_contract_unconfigured.
+- `policyLocked`: true: this consumer cannot enable/apply independent protection.
+  Existing automation environment locks remain separately available in `policy`.
 
-## State meanings and UI boundaries
+All Scope and Target fields form observation preconditions; IDs alone are
+insufficient. Keep integer counters unchanged. Values outside JavaScript's safe
+integer range are rejected, never rounded. No local IDs are minted, no identity
+cache or policy/observation table is added, and no balance is associated here.
 
-| Field | State / reason in this pass | Meaning |
-| --- | --- | --- |
-| `identity` | `unknown` / `core_contract_unverified` | A persistent core instance/resource identity contract is not verified by this consumer. |
-| `query` | `unknown` / `query_contract_unverified` | The new query capability contract is unverified; existing legacy quota functionality is not being declared unsupported. |
-| `independentGate` | `unavailable` / `consumer_contract_unconfigured` | This manager has no implemented independent-gate consumer contract. This is a consumer limitation, **not proof that deployed core is unsupported**. |
+Unproven rows can retain empty target tuples with ambiguous/not_ready; those rows
+are not action targets. Duplicate IDs, malformed parent/member graphs, mismatched
+source-binding targets, unknown enum strings, missing/null manual-state fields,
+invalid IDs/counters or unsafe sizes fail closed for the whole read. A partial
+inventory is never relabeled complete or substituted with legacy credential lists.
 
-This is a **manager-wide support summary**, not a bound per-resource inventory,
-resource routing state, or evidence that a particular resource is protected. It
-contains no resource/scope IDs, persistent UUIDs, protected/routable booleans, or
-fabricated core versions. Even an unexpected future global `available` value
-must never be interpreted as a per-resource positive ACK.
+## Read flow and fencing
 
-The `query: unknown` value must not hide or disable currently supported legacy
-quota UI. Manual disabled state, excluded models, cooldown success, and policy
-flags are not independent gate application ACKs. This pass neither reads core
-inventory nor changes those manual/policy semantics.
+Only these authenticated read-only Core endpoints are used:
 
-## Methods, errors, and side effects
+1. `/v8/management/resource-capabilities`
+2. `/v8/management/resources` if inventory AND durable are advertised
+3. `/v8/management/resource-bindings` when requested (no v0 fallback)
+4. capabilities again, matching instance, incarnation, boot and revision
 
-- GET is the only data operation. OPTIONS follows existing CORS conventions:
-  `204`, empty body, no authentication or policy-storage read.
-- Every other method (including HEAD, POST, PUT, PATCH and DELETE) returns `405`
-  with `Allow: GET, OPTIONS`; request bodies are not applied.
-- **All handler paths**, including preflight, authentication failure, storage
-  failure and method rejection, return `Cache-Control: no-store`.
-- Invalid/missing credentials return the existing `401` error shape, normally
-  `{"error":"invalid admin key","code":"invalid_admin_key"}`. An uninitialized
-  admin credential or auth-storage error follows existing middleware semantics:
-  `500`, `{"error":"authorization failed","code":"request_failed"}`; it never
-  permits a setup bypass.
-- A policy-storage failure returns `500`,
-  `{"error":"resource capabilities unavailable","code":"request_failed"}`.
-  No stale/default/partial successful summary is returned. Raw storage/auth
-  errors, URLs, keys and private details are not returned or logged by this path;
-  the shared auth-failure logger now records only generic authorization failures.
-- The endpoint makes **zero upstream/provider/core HTTP requests and zero
-  persistence writes**, even with a saved CPA connection. It only uses existing
-  authentication and policy reads. It does not configure gates, migrate data,
-  schedule jobs, or apply pause/resume operations.
-- The existing `/usage-service/account-processing-policy` API and legacy quota
-  APIs retain their existing behavior and environment locks.
+Core v1 supplies one complete atomic inventory, not a paginated list. The consumer
+requires `complete=true`; it does not assume a legacy auth-files response or a UI
+page is complete. Re-resolving the connection after I/O fences changed connection
+configuration/updatedAt, including negative results. No response is cached or
+persisted; frontend request-generation/context/unmount fencing rejects older
+completions. A read can naturally become stale after its last check: future
+mutation consumers must revalidate the entire tuple atomically at Core. This read
+is not such a mutation/admission primitive.
 
-## Outstanding T01 and parent requirements
+Unsupported/off modes are unavailable with the Core allowlisted reason:
+not_enabled, unsupported_mode, unsupported_storage, unsupported_filesystem,
+not_ready. Transport/auth/version/malformed/stale cases are unknown with safe
+reason codes (core_unavailable, core_auth_error, unsupported_contract,
+invalid_contract, stale_inventory, connection_changed, connection_unavailable,
+connection_unconfigured, inventory_unavailable). Failure has no successful stale
+snapshot. Core disabled mode stays disabled: probing never enables enrollment or
+changes plugins. A newer Core may support known plugins under v1; mode support is
+negotiated, not inferred from historic configuration or hardcoded plugin exclusion.
 
-This pass leaves the following work outstanding; its tests do not replace any
-of these acceptance requirements:
+## Security and side effects
 
-1. Verify an actual, owned core contract for persistent instance/resource
-   identity and independent automatic-policy application acknowledgements.
-2. Implement a complete resource inventory, **including manually disabled
-   resources**, with versioning and lifecycle isolation across instance changes,
-   reorder, key/account changes, delete/recreate, and provider member changes.
-   Names, positions and display keys cannot become durable identities.
-3. Bind capability and actual gate state to verified resources/versions. Keep
-   manual intent, policy configuration, persisted intent and actual application
-   ACK separate, including conflicts, unknown outcomes and recovery behavior.
-4. Deliver and verify the real core integration and real routing acceptance,
-   including isolation of resources, new attempts/retries/failover, manual and
-   independent gate interaction, quota queries, failure injection and restart
-   behavior. No enforcement adapter or transport is asserted by this pass.
-5. Complete the remaining safety/migration/rollback requirements in the broader
-   tickets and obtain real routing evidence and independent Hermes acceptance
-   for the fixed manager/core versions before declaring completion.
+Core transport preserves TLS verification, refuses every redirect, bounds each
+read to 15 seconds and 2 MiB, and returns no raw response/error text or URL. Unknown
+JSON fields are discarded; string fields are allowlisted opaque IDs/enums. Only
+the trusted admin-configured connection is used (including intentional loopback
+connections); this is not an arbitrary-provider billing transport or an SSRF/DNS
+policy implementation for later balance adapters. No Core config/auth-file download,
+provider enumeration containing keys, management api-call, legacy disabled PATCH,
+model exclusion, routing mutation, platform quota call or live enrollment occurs.
 
-## Data compatibility and rollback
+## Representative UI
 
-This is an additive read-only API over existing policy storage. **No new DB
-schema or data migration is needed.** Rolling back this support-only pass removes
-its route and UI display/integration; existing persisted policy, manual state and
-connection data remain unchanged. This does not prescribe a rollback procedure
-for any future implementation that actually persists or enforces new gate state.
+The shared page-level capability loader opts in once, not per row. Existing
+credential table/card and provider indicators explain:
 
-See [backend verification notes](verification/issue70-resource-capability-support-pass.md)
-for the bounded HTTP-seam checks and known test-scope limits, and the
-[frontend verification and independent review record](../apps/web/src/features/resourceProtection/README.md)
-for standard frontend tests, builds and remaining browser/acceptance limits.
+- unknown: unverified/failed negotiation;
+- unavailable: missing integration/catalog support;
+- unsupported_mode: the actual Core mode blocker, not a healthy/protected label;
+- identity_only: verified runtime binding, but query/gate consumers unavailable;
+- unbound: source inventory is available but this row has no verified runtime
+  association (this includes native provider rows without a proven source marker
+  UI mapping).
+
+All four locales have accessible tooltip text. A credential's current auth_index
+is looked up only in the current negotiated scope. Its displayed identity comes
+from producer-issued runtime_alias + full Target tuples, never from that index,
+name, position or key. The tooltip exposes only the sanitized Scope/Targets.
+Source list changes/loading, connection/revision changes, refresh and unmount
+invalidate old completions. Native provider rows are explicitly unbound rather
+than assigned an OAuth/file target by matching names, keys or auth indices.
+Manual switches, copying, row keyboard actions, legacy quota and settings remain
+unchanged. No automatic switch is enabled by catalog availability.
+
+## Migration and rollback
+
+No Manager DB schema/data migration: the only SQLite use is existing auth, policy
+and saved connection resolution. Core remains the identity authority. Durable
+catalog enrollment is a separate explicit Core operation with its own source
+marker/backups/rollback requirements; this Manager read never performs it.
+Reverting this additive consumer/UI returns to the legacy summary without touching
+saved connection, manual intent, policies or balances. Do not delete Core identity
+state or reassign IDs as a rollback shortcut.
+
+## Acceptance limits
+
+HTTP/temporary-SQLite tests cover supported/unsupported modes, disabled rows,
+version projection, rename/key/recreate/instance read isolation, late Core revision
+and connection completions, authorization, secret canaries and transport failures.
+An opt-in real Core process test independently exercises restart, rename and key
+replacement using synthetic source files, temporary SQLite, a controlled denial
+proxy and no live services. The Core worker separately owns known-plugin identity
+and source lifecycle proofs; its evidence is not implied by Manager test success.
+
+Remaining #70 acceptance: run the opt-in actual-runtime association exercise
+against the **delivered producer commit**, not just the original Core binary;
+rendered-browser layout/keyboard verification; and native provider UI association
+where no verified public source marker has been carried through its existing
+source normalizer. This pass intentionally does not guess such a mapping. The
+producer pointer is ops/implement-spec92-20261101/CORE-IDENTITY-CONTRACT.md at the
+project root; its in-progress status is not acceptance evidence.
+No full-ticket closure or SPEC #92 completion is claimed. Real query/gate ACK,
+automatic intent/switch behavior, routing and deployment are later tickets, not
+capabilities conferred by this read. See verification/issue70-spec92-identity.md.
