@@ -225,6 +225,10 @@ func Migrate(db *sql.DB) error {
 	}
 
 	statements := []string{
+		`CREATE TABLE IF NOT EXISTS credential_policy_decisions (decision_key TEXT PRIMARY KEY,op_id TEXT NOT NULL UNIQUE)`,
+		`CREATE TABLE IF NOT EXISTS credential_policy_discovery (id TEXT PRIMARY KEY,document TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS credential_association_captures (id TEXT PRIMARY KEY,job_id TEXT NOT NULL,document TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS credential_association_evidence (capture_id TEXT PRIMARY KEY,document TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS credential_policy_events (id TEXT PRIMARY KEY,document TEXT NOT NULL,state TEXT NOT NULL,reason TEXT NOT NULL DEFAULT '')`,
 		`CREATE TABLE IF NOT EXISTS credential_policy_query_fences (attempt_id TEXT PRIMARY KEY,subject_id TEXT NOT NULL,generation INTEGER NOT NULL,owner TEXT NOT NULL,source TEXT NOT NULL,enabled INTEGER NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS credential_policy_operations (id TEXT PRIMARY KEY,subject_id TEXT NOT NULL,generation INTEGER NOT NULL,owner TEXT NOT NULL,automatic INTEGER NOT NULL,state TEXT NOT NULL,body TEXT NOT NULL,result TEXT NOT NULL DEFAULT '',last_error TEXT NOT NULL DEFAULT '',revision INTEGER NOT NULL,attempted INTEGER NOT NULL DEFAULT 0)`,

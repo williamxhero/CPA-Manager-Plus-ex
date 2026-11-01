@@ -27,7 +27,7 @@ type ResumeRequest struct {
 // side effect. The controller authenticates before this method is called.
 func (s *Service) Resume(ctx context.Context, q ResumeRequest) (Status, error) {
 	id, err := uuid.Parse(q.OpID)
-	if err != nil || id.String() != q.OpID || q.ExpectedGeneration == nil || *q.ExpectedGeneration <= 0 {
+	if err != nil || id.String() != q.OpID || id.Version() != 4 || q.ExpectedGeneration == nil || *q.ExpectedGeneration <= 0 {
 		return Status{}, ErrInput
 	}
 	source, err := s.source(ctx, q.AuthIndex)

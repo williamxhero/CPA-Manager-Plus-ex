@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/google/uuid"
 	"reflect"
 	"time"
 
@@ -73,15 +74,35 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 		// Keep failure persistence inside this attempt's original budget.
 		return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "pending", "", reason, lease, s.now().UnixMilli())
 	}
+	staleAssociation := func(err error) error {
+		if !errors.Is(err, store.ErrPolicyConflict) {
+			return err
+		}
+		state, reason := "conflict", "association_evidence_changed"
+		if record.Attempted {
+			state, reason = "pending", "association_evidence_changed_outcome_unverified"
+		}
+		if err := s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, state, "", reason, lease, s.now().UnixMilli()); errors.Is(err, store.ErrPolicyConflict) {
+			return nil
+		} else {
+			return err
+		}
+	}
 	var desired PendingIntent
 	if json.Unmarshal([]byte(record.Body), &desired) != nil || desired.Operation.OpID != record.ID || desired.Operation.Owner != record.Owner || SubjectID(desired.Source) != record.SubjectID || desired.Operation.Model != "" {
 		return save("invalid_pending_intent")
+	}
+	if parsed, err := uuid.Parse(record.ID); err != nil || parsed.Version() != 4 {
+		return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "conflict", "", "gate_operation_id_unsupported", lease, s.now().UnixMilli())
 	}
 	// First resolve an existing operation. A timeout is not permission to assume
 	// either application or non-application and send a replacement action.
 	var result GateResult
 	reason := s.core.request(ctx, "GET", "operations/"+record.ID, nil, &result)
 	if reason != "" && reason != "gate_operation_not_found" {
+		if reason == "gate_operation_invalid" || reason == "gate_request_invalid" {
+			return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "conflict", "", reason, lease, s.now().UnixMilli())
+		}
 		return save(reason)
 	}
 	if reason == "" && (!desired.Planned || !result.Confirms(desired.Operation)) {
@@ -131,6 +152,9 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 		body, _ := json.Marshal(desired)
 		record, err = s.Store.PlanCredentialPolicyOperation(ctx, record.ID, record.Revision, string(body), lease, s.now().UnixMilli())
 		if err != nil {
+			if desired.Evidence.AssociationCaptureID != "" {
+				return staleAssociation(err)
+			}
 			return err
 		}
 	}
@@ -138,10 +162,16 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 	// waits on this network request; subsequent claims are generation-fenced.
 	record, err = s.Store.ClaimCredentialPolicyOperation(ctx, record.ID, record.Revision, lease, s.now().UnixMilli())
 	if err != nil {
+		if desired.Evidence.AssociationCaptureID != "" {
+			return staleAssociation(err)
+		}
 		return err
 	}
 	reason = s.core.request(ctx, "POST", "operations", desired.Operation, &result)
 	if reason != "" {
+		if reason == "gate_operation_invalid" || reason == "gate_request_invalid" {
+			return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "conflict", "", reason, lease, s.now().UnixMilli())
+		}
 		if reason == "gate_revision_conflict" && record.Automatic {
 			return s.replanRevisionConflict(ctx, record, desired, lease)
 		}

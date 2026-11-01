@@ -134,7 +134,7 @@ func policyProductionGateCore(t *testing.T, manualDisabled ...bool) string {
 	return base
 }
 
-func TestCredentialGateActualNativeONAndPersistentIntent(t *testing.T) {
+func TestCredentialGateActualNativeEligibilityCannotReplaceFreshONPrerequisite(t *testing.T) {
 	base := policyProductionGateCore(t)
 	cfg := testutil.NewConfig(t)
 	db := testutil.NewStore(t, cfg)
@@ -159,12 +159,15 @@ func TestCredentialGateActualNativeONAndPersistentIntent(t *testing.T) {
 		t.Fatal("no actual native query-capable source")
 	}
 	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, source, 0, true), testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 200)
-	var status cp.Status
-	testutil.DecodeJSON(t, rr, &status)
-	if !status.Enabled || status.Generation != 1 || status.Availability.State != "available" || status.Applied || status.Operation != nil {
-		t.Fatalf("healthy intent status not truthful: %s", rr.Body.String())
+	testutil.RequireStatus(t, rr, 503)
+	var rejected struct {
+		Error string `json:"error"`
 	}
+	testutil.DecodeJSON(t, rr, &rejected)
+	if rejected.Error != "fresh_authoritative_evidence_required" {
+		t.Fatalf("wrong ON prerequisite rejection: %s", rr.Body.String())
+	}
+	var status cp.Status
 	// Reopen actual SQLite and recreate Manager facade, not Core.
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
@@ -174,10 +177,10 @@ func TestCredentialGateActualNativeONAndPersistentIntent(t *testing.T) {
 	rr = testutil.Request(t, h, "GET", "/usage-service/credential-policy?authIndex="+source.AuthIndex, "", testutil.AdminKey)
 	testutil.RequireStatus(t, rr, 200)
 	testutil.DecodeJSON(t, rr, &status)
-	if !status.Enabled || status.Generation != 1 || status.Applied {
-		t.Fatal("intent not preserved independently of gate state")
+	if status.Enabled || status.Generation != 0 || status.Applied || status.Operation != nil {
+		t.Fatal("failed ON created intent or gate authority")
 	}
-	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, source, 1, false), testutil.AdminKey)
+	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, source, 0, false), testutil.AdminKey)
 	testutil.RequireStatus(t, rr, 200)
 	var gates cp.GateSnapshot
 	req, _ := http.NewRequest("GET", base+"/v8/management/inference-gates", nil)

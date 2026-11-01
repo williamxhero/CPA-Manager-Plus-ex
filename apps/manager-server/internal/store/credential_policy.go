@@ -68,11 +68,20 @@ func (s *Store) RebindCredentialPolicy(ctx context.Context, previous CredentialP
 // SaveCredentialPolicy is a database CAS, not a process-local check. Pending
 // intent must use this commit before any corresponding external gate write.
 func (s *Store) SaveCredentialPolicy(ctx context.Context, r CredentialPolicyRecord, expected int64) error {
+	return s.saveCredentialPolicy(ctx, r, expected, nil)
+}
+
+func (s *Store) saveCredentialPolicy(ctx context.Context, r CredentialPolicyRecord, expected int64, guard func(*sql.Tx) error) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	if guard != nil {
+		if err := guard(tx); err != nil {
+			return err
+		}
+	}
 	var result sql.Result
 	if expected == 0 {
 		result, err = tx.ExecContext(ctx, `INSERT INTO credential_policies(id,generation,document) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING`, r.ID, r.Generation, r.Document)

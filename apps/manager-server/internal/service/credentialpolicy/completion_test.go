@@ -167,6 +167,9 @@ func TestCredentialPolicyFreshFencedEvidenceQueuesDurablyWithoutClaimingApplied(
 	if first.OperationID == "" || first.Decision.Action != "pause" {
 		t.Fatalf("candidate not durably queued: %+v", first)
 	}
+	if parsed, err := uuid.Parse(first.OperationID); err != nil || parsed.Version() != 4 {
+		t.Fatal("automatic Core operation requires genuine UUIDv4, not deterministic v5")
+	}
 	second, err := coordinator.CompleteCredentialQuery(ctx, q, source, source.Attempt.QueryID)
 	if err != nil {
 		t.Fatal(err)
