@@ -1292,8 +1292,6 @@ export function AccountsPage() {
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
   const featureAvailability = usePanelFeatureAvailability();
-  const { status: resourceProtection, refresh: refreshResourceProtection } =
-    useResourceProtection(featureAvailability);
   const initialWorkspaceUiState = useRef(readAccountsWorkspaceUiState());
   const initialWorkspaceUrlState = useRef(
     readAccountsWorkspaceUrlState(location.search, initialWorkspaceUiState.current)
@@ -1364,6 +1362,8 @@ export function AccountsPage() {
     requestScope: authFilesRequestScope,
     onCredentialMutation: handleCredentialMutation,
   });
+  const { forCredential: credentialProtection, refresh: refreshResourceProtection } =
+    useResourceProtection({ ...featureAvailability, checking: featureAvailability.checking || loading }, files);
 
   const [oauthViewMode, setOauthViewMode] = useState<'diagram' | 'list'>('list');
   const oauthState = useAuthFilesOauth({
@@ -9309,7 +9309,7 @@ export function AccountsPage() {
                       </div>
                       <div className={styles.accountIdentityText}>
                         <div className={styles.accountIdentityCopyLine}>
-                          <ResourceProtectionIndicator status={resourceProtection} />
+                          <ResourceProtectionIndicator {...credentialProtection(row.authIndex)} />
                           <button
                             type="button"
                             className={styles.accountIdentityCopyTarget}
@@ -9808,7 +9808,7 @@ export function AccountsPage() {
                     </div>
                     <div className={styles.accountIdentityText}>
                       <div className={styles.accountIdentityCopyLine}>
-                        <ResourceProtectionIndicator status={resourceProtection} />
+                        <ResourceProtectionIndicator {...credentialProtection(row.authIndex)} />
                         <button
                           type="button"
                           className={styles.accountIdentityCopyTarget}

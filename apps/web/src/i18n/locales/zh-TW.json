@@ -1,5 +1,11 @@
 {
   "resource_protection": {
+    "unbound": "未驗證執行階段身分關聯",
+    "unbound_description": "目前列沒有綁定到目錄實例與目標版本的宿主證明。名稱、金鑰、位置或 auth index 單獨不能成為持久身分。自動保護不可用，手動操作不變。",
+    "unsupported_mode": "目前模式不支援 Core 目錄",
+    "unsupported_mode_description": "Core 回傳 unsupported_mode。尚未建立完整持久目錄或自動保護。不能透過遺漏外掛資源或修改線上設定隱藏此限制。手動開關不變。",
+    "identity_only": "目錄身分可用；自動閘門不可用",
+    "identity_only_description": "Core 已為目前列簽發執行階段與目錄關聯。下方展示完整實例範圍及目標版本。這僅是身分證據：查詢與獨立閘門消費者不可用，不代表保護確認。手動操作不變。",
     "title": "自動保護能力",
     "unknown": "未知",
     "unknown_description": "尚未核實管理器整合支援。這是管理器級支援摘要，不是資源身分、保護、路由、健康或配額的證據。手動開關保持不變。",

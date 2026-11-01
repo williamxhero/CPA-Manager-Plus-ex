@@ -195,8 +195,54 @@ export interface AccountProcessingPolicy {
   authIssueAutoDisable: AccountPolicyCapability;
 }
 
+// Core catalog v1 read preconditions, never an applied routing-gate ACK.
+export interface ResourceScope {
+  instance_id: string;
+  instance_incarnation: string;
+  boot_epoch: string;
+  snapshot_revision: number;
+}
+export interface ResourceTarget {
+  resource_id: string;
+  incarnation: string;
+  identity_version: number;
+  credential_version: number;
+  config_version: number;
+  membership_version: number;
+}
+export interface ResourceInventoryRow extends ResourceTarget {
+  kind: 'provider' | 'credential';
+  family: string;
+  source_bindings?: ResourceTarget[];
+  binding_state?: 'missing_credential' | 'standalone' | 'unmaterialized' | 'verified_projection' | 'ambiguous_projection';
+  parent_id?: string;
+  members?: string[];
+  manual: { disabled: boolean; excluded: boolean; zero_weight: boolean };
+  identity: 'valid' | 'ambiguous';
+  catalog_readiness: 'ready' | 'not_ready' | 'unsupported';
+  runtime_readiness: 'unknown';
+  capabilities: { inventory: boolean; query: boolean; gate: boolean };
+}
+export interface RuntimeResourceBinding {
+  auth_index: string;
+  runtime_alias: string;
+  scope: ResourceScope;
+  targets: ResourceTarget[];
+}
+export interface NegotiatedResourceInventory {
+  bindingCapability?: {state: 'available' | 'unavailable'; reason: string};
+  bindings?: RuntimeResourceBinding[];
+  contractVersion: number;
+  identity: { state: 'available' | 'unavailable' | 'unknown'; reason: string };
+  query: { state: 'unavailable' | 'unknown'; reason: string };
+  independentGate: { state: 'unavailable'; reason: 'consumer_contract_unconfigured' };
+  policyLocked: boolean;
+  snapshot?: ResourceScope & { version: 1; complete: true; resources: ResourceInventoryRow[] };
+}
+
 // Manager-wide support only: not resource identity, routing status or an enforcement ACK.
 export interface ResourceCapabilities {
+  negotiated?: NegotiatedResourceInventory;
   schemaVersion: 1;
   identity: { state: 'unknown'; reason: 'core_contract_unverified' };
   query: { state: 'unknown'; reason: 'query_contract_unverified' };
@@ -3152,7 +3198,9 @@ export const usageServiceApi = {
   getResourceCapabilities: async (
     base: string,
     managementKey?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    inventory = false,
+    bindings = false
   ): Promise<ResourceCapabilities> => {
     if (__DEMO_SITE__ && isDemoMode()) {
       return getDemoResourceCapabilities();
@@ -3160,7 +3208,7 @@ export const usageServiceApi = {
 
     return withUsageServiceError(async () => {
       const response = await axios.get<ResourceCapabilities>(
-        buildUrl(base, '/usage-service/resource-capabilities'),
+        buildUrl(base, '/usage-service/resource-capabilities' + (inventory ? '?inventory=1' + (bindings ? '&bindings=1' : '') : '')),
         {
           timeout: USAGE_SERVICE_TIMEOUT_MS,
           headers: authHeaders(managementKey),

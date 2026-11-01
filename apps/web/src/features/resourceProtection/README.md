@@ -152,3 +152,20 @@ Both reviews were static; they did not independently reproduce tests or establis
 runtime acceptance. The coordinator results above are the actual independent
 execution evidence, not a claim that the reviewers ran those commands. Complete
 T01, the child SPEC and the parent SPEC remain open.
+
+
+## SPEC #92 / reused #70 consumer increment (2026-11-01)
+
+The loader now requests `?inventory=1&bindings=1`; old summary-only Managers remain compatible.
+The opt-in response supplies Core scope/target versions but never a gate ACK.
+`identity_only` is shown only for a current host-issued runtime binding matching
+the exact catalog scope and targets; auth_index is a scoped lookup, never identity.
+The tooltip displays these opaque identity/version preconditions. Other rows are
+unbound, not mapped by name/key/array position. Native provider rows remain unbound
+pending proven source-marker normalization. `unsupported_mode` explains an actual negotiation blocker;
+unknown transport/auth results never expose response text. New source-binding
+metadata is available through the typed public API. Existing context/request/
+unmount fencing and all manual controls remain in place. Credential switch
+redesign is deliberately not included. See docs/resource-capabilities.md and
+verification/issue70-spec92-identity.md for current evidence and explicit gaps;
+prior verification sections above describe only their historical checkpoint.

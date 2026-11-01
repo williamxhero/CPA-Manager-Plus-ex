@@ -197,7 +197,7 @@ func fromExisting(
 			authFileMutationCoordinator,
 		),
 		AccountProcessingPolicyService: accountProcessingPolicyService,
-		ResourceCapabilityService:      resourcecapabilitysvc.New(accountProcessingPolicyService),
+		ResourceCapabilityService:      resourcecapabilitysvc.New(accountProcessingPolicyService, managerConfigService),
 		AuthFileMutationCoordinator:    authFileMutationCoordinator,
 		ProxyService: proxysvc.NewWithMutationCoordinator(
 			managerConfigService,

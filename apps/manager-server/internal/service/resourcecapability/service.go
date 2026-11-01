@@ -1,5 +1,5 @@
-// Package resourcecapability reports manager-wide support, not resource bindings
-// or evidence that an automatic policy has been applied by core.
+// Package resourcecapability reports support and secret-free catalog observations,
+// never evidence that an automatic policy has been applied by Core.
 package resourcecapability
 
 import (
@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	automationsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/automation"
+	managerconfigsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
 )
 
 type Capability struct {
@@ -15,6 +16,7 @@ type Capability struct {
 }
 
 type Status struct {
+	Negotiated      *Negotiated          `json:"negotiated,omitempty"`
 	SchemaVersion   int                  `json:"schemaVersion"`
 	Identity        Capability           `json:"identity"`
 	Query           Capability           `json:"query"`
@@ -23,11 +25,16 @@ type Status struct {
 }
 
 type Service struct {
-	policy *automationsvc.Service
+	policy     *automationsvc.Service
+	connection *managerconfigsvc.Service
 }
 
-func New(policy *automationsvc.Service) *Service {
-	return &Service{policy: policy}
+func New(policy *automationsvc.Service, connection ...*managerconfigsvc.Service) *Service {
+	s := &Service{policy: policy}
+	if len(connection) > 0 {
+		s.connection = connection[0]
+	}
+	return s
 }
 
 // Status reads only existing policy settings. It does not inspect a connection,

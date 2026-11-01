@@ -1633,7 +1633,7 @@ export function AiProvidersPage() {
 
           <Card>
             <ProviderTable
-              resourceProtection={resourceProtection}
+              resourceProtection={resourceProtection === 'identity_only' ? 'unbound' : resourceProtection}
               rows={pagedRows}
               loading={loading}
               actionsDisabled={actionsDisabled}

@@ -1346,7 +1346,7 @@ const capabilityButtons = (renderer: ReactTestRenderer) => renderer.root.findAll
 );
 const installCapabilitiesAdapter = (read: () => Promise<unknown>, uncancellable = false) => {
   const adapter = vi.fn<AxiosAdapter>(async (config) => {
-    if (!config.url?.endsWith('/usage-service/resource-capabilities')) {
+    if (!config.url || !new URL(config.url).pathname.endsWith('/usage-service/resource-capabilities')) {
       throw new Error('Unexpected HTTP request in capability test');
     }
     // Exercise generation fencing even if an adapter/cached completion ignores cancellation.
@@ -1565,6 +1565,55 @@ describe('AccountsPage replacement flows', () => {
     await act(async () => {
       renderer.unmount();
     });
+  });
+
+  it.each([
+    ['available', 'durable_inventory', 'unbound'],
+    ['unavailable', 'unsupported_mode', 'unsupported_mode'],
+    ['unknown', 'core_auth_error', 'unknown'],
+  ])('shows negotiated %s identity without implying a gate ACK', async (state, reason, expected) => {
+    const adapter = installCapabilitiesAdapter(async () => ({
+      ...capabilitySummary(),
+      negotiated: {
+        contractVersion: 1, identity: { state, reason }, policyLocked: true,
+        query: { state: 'unavailable', reason: 'query_consumer_unconfigured' },
+        independentGate: { state: 'unavailable', reason: 'consumer_contract_unconfigured' },
+        ...(state === 'available' ? { snapshot: { version: 1, complete: true, resources: [],
+          instance_id: '11111111-1111-4111-8111-111111111111',
+          instance_incarnation: '22222222-2222-4222-8222-222222222222',
+          boot_epoch: '33333333-3333-4333-8333-333333333333', snapshot_revision: 1 } } : {}),
+      },
+    }));
+    const renderer = await renderAccountsPage();
+    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(`resource_protection.${expected}`);
+    expect(adapter.mock.calls[0][0].url).toContain('?inventory=1');
+    expect(capabilityButtons(renderer)[0].props['aria-label']).not.toMatch(/CANARY|protected|healthy/);
+  });
+
+  it.each(['table', 'grid'] as const)('associates only host-bound credential rows with durable versions in %s', async (layout) => {
+    mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+    mocks.files = [makeCodexFile('bound.json', '0123456789abcdef', 'bound@example.com'), makeCodexFile('unbound.json', 'fedcba9876543210', 'unbound@example.com')];
+    const scope = { instance_id: '11111111-1111-4111-8111-111111111111', instance_incarnation: '22222222-2222-4222-8222-222222222222', boot_epoch: '33333333-3333-4333-8333-333333333333', snapshot_revision: 7 };
+    const target = { resource_id: '44444444-4444-4444-8444-444444444444', incarnation: '55555555-5555-4555-8555-555555555555', identity_version: 2, credential_version: 3, config_version: 4, membership_version: 0 };
+    installCapabilitiesAdapter(async () => ({ ...capabilitySummary(), negotiated: {
+      contractVersion: 1, identity: { state: 'available', reason: 'durable_inventory' }, policyLocked: true,
+      query: { state: 'unavailable', reason: 'query_consumer_unconfigured' }, independentGate: { state: 'unavailable', reason: 'consumer_contract_unconfigured' },
+      bindingCapability: { state: 'available', reason: 'host_issued_bindings' },
+      snapshot: { version: 1, complete: true, ...scope, resources: [{...target, kind: 'credential', family: 'codex', identity: 'valid', catalog_readiness: 'ready'}] },
+      bindings: [{ scope, targets: [target], auth_index: '0123456789abcdef', runtime_alias: target.resource_id }],
+    }}));
+    const renderer = await renderAccountsPage();
+    const buttons = capabilityButtons(renderer);
+    expect(buttons).toHaveLength(2);
+    const bound = buttons.find((button) => String(button.props['aria-label']).includes('resource_protection.identity_only'));
+    expect(bound).toBeDefined();
+    expect(buttons.filter((button) => String(button.props['aria-label']).includes('resource_protection.unbound'))).toHaveLength(1);
+    await act(async () => bound!.props.onClick());
+    const text = readText(renderer.root.findByProps({ role: 'tooltip', id: bound!.props['aria-describedby'] }));
+    expect(text).toContain(target.resource_id);
+    expect(text).toContain(scope.instance_id);
+    expect(text).toContain('credential_version');
+    expect(text).not.toContain('CANARY');
   });
 
   it.each([

@@ -12,7 +12,7 @@ const locales = { en, ru, 'zh-CN': zhCN, 'zh-TW': zhTW };
 
 describe('localized automatic protection capability explanation', () => {
   for (const [language, locale] of Object.entries(locales)) {
-    it.each(['unknown', 'unavailable'] as const)(
+    it.each(['unknown', 'unavailable', 'identity_only', 'unsupported_mode', 'unbound'] as const)(
       `${language} describes %s as manager support, not health`,
       async (status) => {
         const i18n = createInstance();
