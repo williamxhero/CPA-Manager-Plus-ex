@@ -1,5 +1,7 @@
 ## What's Changed
 
+- SPEC92 #75: forward quota host callback IDs through invocation-local context; advertise scoped HTTP and the native quota default using additive JSON compatible with the declared published SDK. Canonical patch provenance: `QUOTA-MIRROR.json`.
+
 - Resolve execution and quota credentials from current `StorageJSON` before stale auth attributes, with independent field fallback and value-free debug conflict flags.
 
 - Support CLIProxyAPI v8 and its generic plugin quota API.

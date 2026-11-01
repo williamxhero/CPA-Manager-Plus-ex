@@ -9,6 +9,7 @@ import (
 	apikeyaliascontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/apikeyalias"
 	automationcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/automation"
 	codexinspectioncontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/codexinspection"
+	credentialquotacontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/credentialquota"
 	dashboardcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/dashboard"
 	healthcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/health"
 	managerconfigcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/managerconfig"
@@ -50,6 +51,9 @@ func New(appCtx *app.Context) http.Handler {
 	panelHandler := &panelcontroller.Handler{App: appCtx}
 
 	mux := http.NewServeMux()
+	credentialQuotaHandler := &credentialquotacontroller.Handler{App: appCtx}
+	mux.HandleFunc("/usage-service/credential-quota", credentialQuotaHandler.Handle)
+	mux.HandleFunc("/usage-service/credential-quota/jobs/", credentialQuotaHandler.Handle)
 	officialBalanceHandler := &officialbalancecontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/official-balance", officialBalanceHandler.Handle)
 	updates := &updatecheckcontroller.Handler{App: appCtx}

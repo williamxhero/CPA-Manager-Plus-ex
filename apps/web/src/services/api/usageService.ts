@@ -230,6 +230,7 @@ export interface RuntimeResourceBinding {
   targets: ResourceTarget[];
 }
 export interface NegotiatedResourceInventory {
+	credentialQuery?: { state: 'available' | 'unknown'; reason: string };
   bindingCapability?: {state: 'available' | 'unavailable'; reason: string};
   bindings?: RuntimeResourceBinding[];
   contractVersion: number;
