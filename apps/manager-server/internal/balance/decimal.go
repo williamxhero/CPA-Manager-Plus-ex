@@ -56,11 +56,17 @@ func signedPrepaid(stripe, recent json.RawMessage) (string, bool) {
 	b.Mul(b, power(scale-bs))
 	a.Add(a, b)
 	a.Neg(a)
-	if a.Sign() == 0 {
-		return "0", true
+	return formatExactDecimal(a, scale), true
+}
+
+// Shared exact decimal formatting. Callers enforce their own resource/semantic
+// bounds; no float, rounding, or mutation of the coefficient occurs here.
+func formatExactDecimal(coefficient *big.Int, scale int) string {
+	if coefficient.Sign() == 0 {
+		return "0"
 	}
-	negative := a.Sign() < 0
-	digits := new(big.Int).Abs(a).String()
+	negative := coefficient.Sign() < 0
+	digits := new(big.Int).Abs(coefficient).String()
 	if len(digits) <= scale {
 		digits = strings.Repeat("0", scale-len(digits)+1) + digits
 	}
@@ -72,5 +78,5 @@ func signedPrepaid(stripe, recent json.RawMessage) (string, bool) {
 	if negative {
 		digits = "-" + digits
 	}
-	return digits, true
+	return digits
 }

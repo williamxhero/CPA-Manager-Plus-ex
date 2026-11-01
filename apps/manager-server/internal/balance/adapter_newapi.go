@@ -27,12 +27,13 @@ const (
 // hostname heuristic. InstanceVersion records operator confirmation, not remote
 // version discovery. No session authentication or unit conversion is implied.
 type NewAPIConfig struct {
-	AccountScope      string `json:"accountScope,omitempty"`
-	NativeUnit        string `json:"nativeUnit"`
-	ProtocolConfirmed bool   `json:"protocolConfirmed"`
-	InstanceVersion   string `json:"instanceVersion"`
-	Auth              string `json:"auth"`
-	UserID            string `json:"userID,omitempty"`
+	Conversion        *NewAPIConversionProfile `json:"conversion,omitempty"`
+	AccountScope      string                   `json:"accountScope,omitempty"`
+	NativeUnit        string                   `json:"nativeUnit"`
+	ProtocolConfirmed bool                     `json:"protocolConfirmed"`
+	InstanceVersion   string                   `json:"instanceVersion"`
+	Auth              string                   `json:"auth"`
+	UserID            string                   `json:"userID,omitempty"`
 }
 
 // NewAPINativeQuota preserves native integer units independently of money.
@@ -82,6 +83,9 @@ func QueryNewAPI(ctx context.Context, t QueryTarget, c NewAPIConfig, resolver Cr
 			return fail("needs_configuration", "NEWAPI_ACCOUNT_SCOPE_MISMATCH")
 		}
 		t.AccountScope = c.AccountScope
+	}
+	if !validNewAPIConversion(c.Conversion, c.NativeUnit) {
+		return fail("needs_configuration", "INVALID_CONVERSION_PROFILE")
 	}
 	// Do not silently accept requested money units in the native-only contract.
 	if t.Currency != "" || t.UnitMultiplier != "" {
@@ -196,7 +200,7 @@ func QueryNewAPI(ctx context.Context, t QueryTarget, c NewAPIConfig, resolver Cr
 		out.Semantic = "key_remaining"
 		out.QueryStatus = "success"
 		out.ErrorCode = ""
-		return out
+		return applyNewAPIConversion(out, c.Conversion)
 	}
 	var data struct {
 		Success *bool `json:"success"`
@@ -220,7 +224,7 @@ func QueryNewAPI(ctx context.Context, t QueryTarget, c NewAPIConfig, resolver Cr
 	out.Semantic = "account_wallet"
 	out.QueryStatus = "success"
 	out.ErrorCode = ""
-	return out
+	return applyNewAPIConversion(out, c.Conversion)
 }
 
 // Duplicate keys, including case-fold aliases accepted by encoding/json's
@@ -313,6 +317,9 @@ func ValidateNewAPIContract(adapter string, c *NewAPIConfig) error {
 			return bad
 		}
 	default:
+		return bad
+	}
+	if !validNewAPIConversion(c.Conversion, c.NativeUnit) {
 		return bad
 	}
 	return nil

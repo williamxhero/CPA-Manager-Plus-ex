@@ -32,8 +32,8 @@ func (q *defaultQuerier) ListCapabilities(context.Context) ([]AdapterCapability,
 	return []AdapterCapability{
 		{Adapter: "deepseek", Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential"}, SupportedScopes: []string{"account_wallet"}, SupportedFormats: []string{"exact_currency_balances"}},
 		{Adapter: "deepinfra", Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential"}, SupportedScopes: []string{"signed_prepaid_net"}, SupportedFormats: []string{"exact_decimal_amount"}},
-		{Adapter: NewAPIUserSelfV1, Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential", "protocolConfirmed", "instanceVersion", "auth", "userID", "accountScope", "nativeUnit"}, SupportedScopes: []string{"account_wallet"}, SupportedFormats: []string{"native_quota"}},
-		{Adapter: NewAPITokenUsageV1, Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential", "protocolConfirmed", "instanceVersion", "auth", "nativeUnit"}, SupportedScopes: []string{"key_remaining"}, SupportedFormats: []string{"native_quota"}},
+		{Adapter: NewAPIUserSelfV1, Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential", "protocolConfirmed", "instanceVersion", "auth", "userID", "accountScope", "nativeUnit"}, SupportedScopes: []string{"account_wallet"}, SupportedFormats: []string{"native_quota", "explicit_exact_money"}},
+		{Adapter: NewAPITokenUsageV1, Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential", "protocolConfirmed", "instanceVersion", "auth", "nativeUnit"}, SupportedScopes: []string{"key_remaining"}, SupportedFormats: []string{"native_quota", "explicit_exact_money"}},
 	}, nil
 }
 func (q *defaultQuerier) Query(ctx context.Context, target QueryTarget, resolver CredentialResolver) (Observation, error) {
