@@ -33,6 +33,10 @@ func TestCredentialPolicyActualOfficialSelectedKeySSE(t *testing.T) {
 
 func runSelectedKeyPolicyHTTP(t *testing.T, unknownThenUnlimited, downstreamWS, sse bool, setup ...func(*selectedKeyPolicyFixture)) {
 	f, group, endpoint := newSelectedKeyPolicyFixture(t)
+	runSelectedKeyPolicyFixture(t, f, group, endpoint, unknownThenUnlimited, downstreamWS, sse, setup...)
+}
+
+func runSelectedKeyPolicyFixture(t *testing.T, f *selectedKeyPolicyFixture, group ob.Binding, endpoint string, unknownThenUnlimited, downstreamWS, sse bool, setup ...func(*selectedKeyPolicyFixture)) {
 	for _, configure := range setup {
 		configure(f)
 	}

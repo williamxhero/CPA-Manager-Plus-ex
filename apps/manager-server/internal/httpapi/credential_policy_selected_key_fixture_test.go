@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/security"
@@ -45,6 +46,7 @@ type selectedKeyPolicyFixture struct {
 	onEnd            func()
 	onPrerequisite   func(ob.Status, cq.Source, cq.Source)
 	billingOnlyKey   atomic.Bool
+	orphanNative     cp.GateOperation
 }
 
 func newSelectedKeyPolicyFixture(t *testing.T, nativeGrant ...bool) (*selectedKeyPolicyFixture, ob.Binding, string) {
@@ -253,6 +255,40 @@ func newSelectedKeyPolicyFixture(t *testing.T, nativeGrant ...bool) (*selectedKe
 				t.Fatal("actual Core restart current boot not issued")
 			}
 			time.Sleep(25 * time.Millisecond)
+		}
+	}
+	if len(nativeGrant) > 1 && nativeGrant[1] {
+		// REAL authenticated pause followed by ordinary account replacement,
+		// before Manager enrollment. The watcher-free process publishes the
+		// replacement on real restart; no gate/source row is fabricated.
+		var catalog struct{ Sources []cq.Source }
+		f.coreAPI("GET", "credential-quota/sources", nil, &catalog)
+		var native cq.Source
+		for _, source := range catalog.Sources {
+			if source.Protocol == "codex-oauth-wham" {
+				native = source
+			}
+		}
+		if native.AuthIndex == "" {
+			t.Fatal("actual orphan precondition source missing")
+		}
+		var before cp.GateSnapshot
+		f.coreAPI("GET", "inference-gates", nil, &before)
+		f.orphanNative = cp.GateOperation{Version: 1, OpID: uuid.NewString(), ExpectedGateRevision: before.GateRevision, Binding: native.Binding, AuthIndex: native.AuthIndex, SourceVersion: native.SourceVersion, Subject: "credential", Owner: "independent-orphan-native/" + uuid.NewString(), Action: "pause", Reason: "independent_restriction", EvidenceID: uuid.NewString()}
+		var receipt cp.GateResult
+		f.coreAPI("POST", "inference-gates/operations", f.orphanNative, &receipt)
+		var confirmed cp.GateSnapshot
+		f.coreAPI("GET", "inference-gates", nil, &confirmed)
+		if !confirmed.Confirms(f.orphanNative, receipt) {
+			t.Fatal("actual native pause not confirmed before replacement")
+		}
+		var uploaded any
+		f.coreAPI("POST", "credentials?name=codex.json", map[string]any{"type": "codex", "access_token": "ORPHAN-REPLACEMENT-SYNTHETIC", "account_id": "different-orphan-controlled-account", "disabled": true}, &uploaded)
+		f.restart()
+		var orphan cp.GateSnapshot
+		f.coreAPI("GET", "inference-gates", nil, &orphan)
+		if !orphan.Ready || orphan.AllSourcesReady || len(orphan.Gates) != 1 || orphan.Gates[0].Applicability != "reconciliation_required" || orphan.Gates[0].Owner != f.orphanNative.Owner {
+			t.Fatal("actual replaced lifecycle did not retain safe orphan diagnostics")
 		}
 	}
 	cfg := testutil.NewConfig(t)
