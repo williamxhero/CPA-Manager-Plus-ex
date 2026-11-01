@@ -85,7 +85,10 @@ func checkAssociationTx(ctx context.Context, tx *sql.Tx, c CredentialAssociation
 	}
 	return nil
 }
-func (s *Store) PutCredentialAssociationCapture(ctx context.Context, c CredentialAssociationCapture) error {
+func (s *Store) PutCredentialAssociationCapture(ctx context.Context, c CredentialAssociationCapture, scheduleKey ...string) error {
+	if len(scheduleKey) > 1 {
+		return ErrPolicyConflict
+	}
 	parsed, err := uuid.Parse(c.ID)
 	if err != nil || parsed.String() != c.ID || !json.Valid([]byte(c.Document)) || len(c.Document) > 32<<10 {
 		return ErrPolicyOperationConflict
@@ -111,6 +114,11 @@ func (s *Store) PutCredentialAssociationCapture(ctx context.Context, c Credentia
 	}
 	if previous != string(encoded) {
 		return ErrPolicyOperationConflict
+	}
+	if len(scheduleKey) == 1 {
+		if err := dischargeCredentialPolicyScheduleHint(ctx, tx, c.PolicyID, c.PolicyGeneration, scheduleKey[0]); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }

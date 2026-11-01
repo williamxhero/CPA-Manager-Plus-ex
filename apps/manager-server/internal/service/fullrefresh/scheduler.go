@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+// SourceScheduleKey returns the existing exact-source scheduling identifier.
+// It conveys neither query authority nor observation or policy-generation proof.
+func SourceScheduleKey(request SourceRequest) string {
+	return sourceScheduleKey(SourceStatus{Request: request})
+}
+
 func sourceScheduleKey(src SourceStatus) string {
 	request := src.Request
 	if request.Credential != nil {
@@ -22,6 +28,20 @@ func sourceScheduleKey(src SourceStatus) string {
 }
 func roundScheduleKey(inv Inventory) string {
 	return "round:" + inv.Scope.InstanceID + ":" + inv.Scope.InstanceIncarnation
+}
+
+// SubscribeScheduleCycle registers bounded local scheduling work before each
+// scheduler inventory snapshot. Callbacks run serially outside the coordinator
+// lock, with the existing cycle context. Errors skip that cycle. This is not an
+// acquisition event or authority/proof; manual/source/round starts never call it.
+// Register subscribers during startup before Run.
+func (s *Service) SubscribeScheduleCycle(observer func(context.Context) error) {
+	if observer == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.scheduleCycleObservers = append(s.scheduleCycleObservers, observer)
 }
 
 // Run is independent of collector/browser and every policy ON/OFF setting.
@@ -70,6 +90,24 @@ func (s *Service) Run(ctx context.Context) error {
 func (s *Service) schedule(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
+	s.mu.Lock()
+	observers := append([]func(context.Context) error(nil), s.scheduleCycleObservers...)
+	closed := s.closed
+	s.mu.Unlock()
+	if closed {
+		return
+	}
+	for _, observer := range observers {
+		if ctx.Err() != nil {
+			return
+		}
+		if err := observer(ctx); err != nil {
+			return
+		}
+	}
+	if ctx.Err() != nil {
+		return
+	}
 	inv, err := s.Inventory(ctx)
 	if err != nil {
 		return

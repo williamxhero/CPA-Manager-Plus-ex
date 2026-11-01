@@ -19,6 +19,9 @@ func (s *Service) BindCoordinator(coordinator *fr.Service) error {
 	}
 	s.coordinator = coordinator
 	s.reconcileMu.Unlock()
+	// Local transactional cutoff only. The existing76 scheduler invokes this
+	// before each cycle inventory; ON arriving later waits for its next cycle.
+	coordinator.SubscribeScheduleCycle(s.Store.ActivateCredentialPolicyScheduleHints)
 	coordinator.SubscribeStarted(func(ctx context.Context, event fr.StartedObservation) error {
 		if event.Source.Kind == fr.Credential && event.Source.Credential != nil {
 			return s.CaptureAdmittedCredentialQueryStart(ctx, *event.Source.Credential, event.AttemptID)

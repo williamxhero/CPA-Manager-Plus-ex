@@ -26,13 +26,20 @@ func (s *Store) CredentialPolicyQuery(ctx context.Context, attempt string) (Cred
 // Capture runs synchronously after the query job commit and before upstream I/O.
 // A reused job may never refresh the captured policy generation.
 func (s *Store) CaptureCredentialPolicyQuery(ctx context.Context, f CredentialPolicyQueryFence) error {
-	return s.captureCredentialPolicyQuery(ctx, f, false)
+	return s.captureCredentialPolicyQuery(ctx, f, false, "")
 }
 
 // The trusted76 path requires the literal durable running Job and current
 // source attempt in the SAME transaction as the original-generation fence.
-func (s *Store) CaptureCredentialPolicyAdmittedQuery(ctx context.Context, f CredentialPolicyQueryFence) error {
-	return s.captureCredentialPolicyQuery(ctx, f, true)
+func (s *Store) CaptureCredentialPolicyAdmittedQuery(ctx context.Context, f CredentialPolicyQueryFence, scheduleKey ...string) error {
+	if len(scheduleKey) > 1 {
+		return ErrPolicyConflict
+	}
+	key := ""
+	if len(scheduleKey) == 1 {
+		key = scheduleKey[0]
+	}
+	return s.captureCredentialPolicyQuery(ctx, f, true, key)
 }
 
 const admittedCredentialQuery = `SELECT EXISTS(SELECT 1 FROM credential_quota_jobs j JOIN credential_quota_sources q ON q.id=j.source_id WHERE j.id=? AND j.source_id=? AND json_extract(j.document,'$.state')='running' AND json(json_extract(j.document,'$.query'))=json(?) AND q.version=json_extract(j.document,'$.query.version') AND json_extract(q.attempt,'$.queryId')=j.id AND json_extract(q.attempt,'$.queryStatus')='running')`
@@ -48,7 +55,7 @@ func (s *Store) CheckCredentialPolicyAdmittedQuery(ctx context.Context, attempt,
 	return nil
 }
 
-func (s *Store) captureCredentialPolicyQuery(ctx context.Context, f CredentialPolicyQueryFence, admitted bool) error {
+func (s *Store) captureCredentialPolicyQuery(ctx context.Context, f CredentialPolicyQueryFence, admitted bool, scheduleKey string) error {
 	if id, err := uuid.Parse(f.AttemptID); err != nil || id.String() != f.AttemptID || len(f.Source) > 32<<10 {
 		return ErrPolicyConflict
 	}
@@ -90,6 +97,11 @@ func (s *Store) captureCredentialPolicyQuery(ctx context.Context, f CredentialPo
 	}
 	if old != f {
 		return ErrPolicyConflict
+	}
+	if f.Enabled {
+		if err := dischargeCredentialPolicyScheduleHint(ctx, tx, f.SubjectID, f.Generation, scheduleKey); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }

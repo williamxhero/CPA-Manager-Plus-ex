@@ -13,6 +13,7 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	a "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy/association"
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
+	fr "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
 	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
@@ -128,7 +129,7 @@ func (s *Service) CaptureOfficialQueryStart(ctx context.Context, q ob.Query, job
 			return err
 		}
 		capture := store.CredentialAssociationCapture{ID: id, JobID: jobID, SourceID: sourceID, ConfigVersion: stored.Version, Config: stored.Config, SecretRef: stored.SecretRef, PolicyID: subject, PolicyGeneration: previous.Generation, PolicyDocument: previous.Document, Job: job, Document: string(body)}
-		if err := s.Store.PutCredentialAssociationCapture(ctx, capture); err != nil {
+		if err := s.Store.PutCredentialAssociationCapture(ctx, capture, fr.SourceScheduleKey(fr.SourceRequest{Kind: fr.Official, Official: &q})); err != nil {
 			return err
 		}
 	}

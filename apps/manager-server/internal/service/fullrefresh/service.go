@@ -40,6 +40,8 @@ type Service struct {
 	schedulerAnchor  time.Time
 	schedulerRunning bool
 	startedObservers []StartedObserver
+
+	scheduleCycleObservers []func(context.Context) error
 }
 
 type Option func(*Service)

@@ -81,8 +81,20 @@ func TestCredentialPolicyEnableCommitFencesOriginalCompletedJobAndLatestAttempt(
 			}
 			doc, _ := json.Marshal(map[string]any{"enabled": true, "owner": f.Owner, "generation": 1})
 			record := store.CredentialPolicyRecord{ID: id, Generation: 1, Document: string(doc)}
+			// Scheduling credit is a hint, not evidence. ON must invalidate only
+			// its exact source, in the same transaction as the original-job CAS.
+			key := "source:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+			record.RefreshScheduleKey = key
+			for _, k := range []string{key, "source:unrelated", "round:instance:incarnation"} {
+				if err := db.SaveFullRefreshDue(ctx, k, 987654321); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if err := db.SaveCredentialPolicyWithPrerequisite(ctx, record, 0, f, running); !errors.Is(err, store.ErrPolicyConflict) {
 				t.Fatal("different job document accepted", err)
+			}
+			if due, _ := db.FullRefreshDue(ctx, key); due != 987654321 {
+				t.Fatal("failed CAS changed schedule credit", due)
 			}
 			if newer {
 				next := uuid.NewString()
@@ -95,10 +107,41 @@ func TestCredentialPolicyEnableCommitFencesOriginalCompletedJobAndLatestAttempt(
 				if !errors.Is(err, store.ErrPolicyConflict) {
 					t.Fatal("new attempt did not fence ON", err)
 				}
+				if due, _ := db.FullRefreshDue(ctx, key); due != 987654321 {
+					t.Fatal("failed ON changed schedule credit", due)
+				}
+				if err := db.ActivateCredentialPolicyScheduleHints(ctx); err != nil {
+					t.Fatal(err)
+				}
+				if due, _ := db.FullRefreshDue(ctx, key); due != 987654321 {
+					t.Fatal("failed ON left a durable work hint", due)
+				}
 				return
 			}
 			if err != nil {
 				t.Fatal(err)
+			}
+			if due, _ := db.FullRefreshDue(ctx, key); due != 987654321 {
+				t.Fatal("ON invalidated already-running cycle credit", due)
+			}
+			failed, cancel := context.WithCancel(ctx)
+			cancel()
+			if err := db.ActivateCredentialPolicyScheduleHints(failed); err == nil {
+				t.Fatal("cancelled cycle activated hint")
+			}
+			if due, _ := db.FullRefreshDue(ctx, key); due != 987654321 {
+				t.Fatal("failed cycle changed credit", due)
+			}
+			if err := db.ActivateCredentialPolicyScheduleHints(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if due, _ := db.FullRefreshDue(ctx, key); due != 0 {
+				t.Fatal("next cycle retained OFF-generation scheduling credit", due)
+			}
+			for _, k := range []string{"source:unrelated", "round:instance:incarnation"} {
+				if due, _ := db.FullRefreshDue(ctx, k); due != 987654321 {
+					t.Fatal("ON changed unrelated source or hourly anchor", k, due)
+				}
 			}
 			if err := db.CheckCredentialPolicyQuery(ctx, f); !errors.Is(err, store.ErrPolicyConflict) {
 				t.Fatal("pre-ON OFF fence became automatic authority", err)
