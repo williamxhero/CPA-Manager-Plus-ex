@@ -10,14 +10,16 @@ export function CredentialQuotaPanel({
   base,
   managementKey,
   authIndex,
+  revision,
 }: {
   base: string;
   managementKey: string;
   authIndex?: string;
+  revision?: string | number;
 }) {
   const context = useMemo(
-    () => ({ base, managementKey, authIndex }),
-    [base, managementKey, authIndex]
+    () => ({ base, managementKey, authIndex, revision }),
+    [base, managementKey, authIndex, revision]
   );
   const current = useRef(context);
   const pending = useRef<AbortController | null>(null);
@@ -79,6 +81,7 @@ export function CredentialQuotaPanel({
           targets: data.targets,
           auth_index: authIndex,
           version: data.version,
+          sourceVersion: data.sourceVersion,
         },
         abort.signal
       );

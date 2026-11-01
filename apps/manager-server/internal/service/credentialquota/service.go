@@ -11,6 +11,7 @@ import (
 	"math"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,7 @@ type Binding struct {
 }
 type Source struct {
 	Binding
+	SourceVersion     string `json:"sourceVersion"`
 	AuthIndex         string `json:"auth_index,omitempty"`
 	Protocol          string `json:"protocol"`
 	State             string `json:"state"`
@@ -39,9 +41,10 @@ type Source struct {
 }
 type Query struct {
 	Binding
-	AuthIndex string `json:"auth_index"`
-	Version   int64  `json:"version"`
-	TimeoutMS int64  `json:"timeoutMs,omitempty"`
+	SourceVersion string `json:"sourceVersion"`
+	AuthIndex     string `json:"auth_index"`
+	Version       int64  `json:"version"`
+	TimeoutMS     int64  `json:"timeoutMs,omitempty"`
 }
 type Window struct {
 	Name              string  `json:"name"`
@@ -53,6 +56,7 @@ type Window struct {
 }
 type CoreObservation struct {
 	Binding
+	SourceVersion       string   `json:"sourceVersion"`
 	ProtocolVersion     int      `json:"protocolVersion"`
 	TimestampProvenance string   `json:"timestampProvenance"`
 	ReceivedAtMS        int64    `json:"receivedAtMs"`
@@ -230,7 +234,7 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 	source, err := s.source(ctx, q.AuthIndex)
-	if err != nil || !same(source.Binding, q.Binding) {
+	if err != nil || !same(source.Binding, q.Binding) || q.SourceVersion == "" || q.SourceVersion != source.SourceVersion {
 		return Job{}, ErrIdentity
 	}
 	s.mu.Lock()
@@ -294,9 +298,10 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 	network, ncancel := context.WithTimeout(ctx, budget-reserve)
 	query := struct {
 		Binding
-		AuthIndex string `json:"auth_index"`
-		TimeoutMS int64  `json:"timeoutMs"`
-	}{job.Query.Binding, job.Query.AuthIndex, (budget - reserve).Milliseconds()}
+		SourceVersion string `json:"sourceVersion"`
+		AuthIndex     string `json:"auth_index"`
+		TimeoutMS     int64  `json:"timeoutMs"`
+	}{job.Query.Binding, job.Query.SourceVersion, job.Query.AuthIndex, (budget - reserve).Milliseconds()}
 	var result CoreObservation
 	err := s.Identity.CredentialQuotaRequest(network, query, &result)
 	ncancel()
@@ -310,7 +315,7 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 		job.State = "discarded"
 	} else if err == nil && valid(result, source) {
 		obs.QueryStatus = result.QueryStatus
-		obs.ErrorCode = result.ErrorCode
+		obs.ErrorCode = "QUOTA_" + strings.ToUpper(result.QueryStatus)
 		obs.ObservedAtMS = result.ObservedAtMS
 		windows, _ := json.Marshal(result)
 		obs.WindowsJSON = string(windows)
@@ -318,6 +323,9 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 		if result.QueryStatus == "success" {
 			obs.ErrorCode = ""
 		}
+	} else if err == nil {
+		obs.QueryStatus = "parse_error"
+		obs.ErrorCode = "INVALID_CORE_QUOTA_RESPONSE"
 	}
 	a, _ := json.Marshal(obs)
 	doc, _ := json.Marshal(job)
@@ -329,7 +337,7 @@ func valid(r CoreObservation, s Source) bool {
 	if r.ProtocolVersion != 1 {
 		return false
 	}
-	if !same(r.Binding, s.Binding) || r.Protocol != s.Protocol || r.AccountProvenance != s.AccountProvenance || len(r.Windows) > 128 {
+	if !same(r.Binding, s.Binding) || r.SourceVersion != s.SourceVersion || r.Protocol != s.Protocol || r.AccountProvenance != s.AccountProvenance || len(r.Windows) > 128 {
 		return false
 	}
 	switch r.QueryStatus {
@@ -346,10 +354,48 @@ func valid(r CoreObservation, s Source) bool {
 	if r.ObservedAtMS <= 0 || time.Since(time.UnixMilli(r.ObservedAtMS)) > 5*time.Minute || time.Until(time.UnixMilli(r.ObservedAtMS)) > time.Minute || len(r.Windows) == 0 {
 		return false
 	}
+	eligible := r.Complete && r.AccountProvenance != "unverified"
+	groups := map[string]map[string]bool{}
 	for _, w := range r.Windows {
-		if len(w.Name) > 128 || len(w.Model) > 128 || math.IsNaN(w.UsedPercent) || math.IsInf(w.UsedPercent, 0) || w.UsedPercent < 0 || w.UsedPercent > 100 || w.RemainingFraction < 0 || w.RemainingFraction > 1 {
+		if w.Name == "" || len(w.Name) > 128 || len(w.Model) > 128 || math.IsNaN(w.UsedPercent) || math.IsInf(w.UsedPercent, 0) || w.UsedPercent < 0 || w.UsedPercent > 100 || math.IsNaN(w.RemainingFraction) || math.IsInf(w.RemainingFraction, 0) || w.RemainingFraction < 0 || w.RemainingFraction > 1 {
 			return false
 		}
+		reset, err := time.Parse(time.RFC3339Nano, w.ResetAt)
+		if err != nil {
+			return false
+		}
+		if !reset.After(time.Now()) || w.RemainingFraction <= 0 || w.SourceStatus == "rate-limited" {
+			eligible = false
+		}
+		if w.SourceStatus != "allowed" && w.SourceStatus != "ok" && w.SourceStatus != "rate-limited" {
+			return false
+		}
+		if w.SourceStatus == "rate-limited" && w.RemainingFraction != 0 {
+			return false
+		}
+		if groups[w.Model] == nil {
+			groups[w.Model] = map[string]bool{}
+		}
+		if groups[w.Model][w.Name] {
+			return false
+		}
+		groups[w.Model][w.Name] = true
+	}
+	if r.Complete {
+		for _, names := range groups {
+			if r.Protocol == "codex-oauth-wham" {
+				if len(names) != 2 || !names["primary"] || !names["secondary"] {
+					return false
+				}
+			} else {
+				if len(names) != 3 || !names["rolling"] || !names["weekly"] || !names["monthly"] {
+					return false
+				}
+			}
+		}
+	}
+	if r.RecoveryEligible != eligible {
+		return false
 	}
 	return true
 }

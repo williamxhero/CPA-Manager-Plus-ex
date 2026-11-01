@@ -5,6 +5,7 @@ export interface QuotaBinding {
   targets: ResourceTarget[];
 }
 export interface CredentialQuotaSource extends QuotaBinding {
+  sourceVersion: string;
   auth_index?: string;
   protocol: string;
   state: string;

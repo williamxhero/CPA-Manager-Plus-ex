@@ -3,6 +3,7 @@ package resourcecapability
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -18,24 +19,30 @@ func validQuotaSourceHeaders(snapshot Snapshot, raw []json.RawMessage) bool {
 		return false
 	}
 	seen := map[string]bool{}
+	covered := map[string]bool{}
 	for _, data := range raw {
 		var source struct {
-			Scope     Scope    `json:"scope"`
-			Targets   []Target `json:"targets"`
-			AuthIndex string   `json:"auth_index"`
-			Protocol  string   `json:"protocol"`
-			State     string   `json:"state"`
+			SourceVersion string   `json:"sourceVersion"`
+			Scope         Scope    `json:"scope"`
+			Targets       []Target `json:"targets"`
+			AuthIndex     string   `json:"auth_index"`
+			Protocol      string   `json:"protocol"`
+			State         string   `json:"state"`
 		}
 		if json.Unmarshal(data, &source) != nil || source.Scope != snapshot.Scope || len(source.Targets) == 0 || len(source.Targets) > 64 || !oneOf(source.State, "ready", "unsupported", "needs_configuration") {
 			return false
 		}
 		if source.AuthIndex != "" {
+			if decoded, err := hex.DecodeString(source.SourceVersion); err != nil || len(decoded) != 32 {
+				return false
+			}
 			if !runtimeIndex.MatchString(source.AuthIndex) || seen[source.AuthIndex] {
 				return false
 			}
 			seen[source.AuthIndex] = true
 		}
 		for _, target := range source.Targets {
+			covered[target.ResourceID] = true
 			found := false
 			for _, row := range snapshot.Resources {
 				if target == row.Target {
@@ -50,6 +57,11 @@ func validQuotaSourceHeaders(snapshot Snapshot, raw []json.RawMessage) bool {
 			}
 		}
 		if source.State == "ready" && (source.AuthIndex == "" || !oneOf(source.Protocol, "codex-oauth-wham", "opencode-go-usage")) {
+			return false
+		}
+	}
+	for _, row := range snapshot.Resources {
+		if (row.Kind == "credential" || row.Kind == "provider" && len(row.Members) == 0) && !covered[row.ResourceID] {
 			return false
 		}
 	}

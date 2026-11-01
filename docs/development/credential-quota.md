@@ -26,7 +26,7 @@ own support state; it does not interpret generic query=false as a veto.
 - `GET ...?authIndex=<current-selector>`: current verified full binding, protocol,
   source support/reason, distinct account provenance, manual-disabled fact,
   persisted source version, latest attempt and last success with timestamp/stale.
-- `POST /usage-service/credential-quota`: `{scope,targets,auth_index,version,
+- `POST /usage-service/credential-quota`: `{scope,targets,auth_index,sourceVersion,version,
   timeoutMs?}`. Carries exactly all current producer targets, not a subset.
   Returns 202 and `{id,state,deadlineMs,query,requestedVersion}`. This is the shared
   manual/recovery/scheduler entry, with bounded single-flight and four slots.
@@ -101,3 +101,25 @@ Compatibility endpoints and legacy UI remain separate historical surfaces; this
 change does not migrate their global policy or claim a completed #93 redesign.
 Rendered UI, scheduler/gate, full release/security regression, main promotion,
 deployment and tracker closure remain parent-owned gates.
+
+## Selected plugin wire and source revision
+
+Every bound source and query carries `sourceVersion`, a secret-free query-semantics
+revision distinct from credential identity and SQLite CAS `version`. It participates
+in before/after checks, persistence and async fences. #76/#77/#93 must retain it.
+The plugin adds `scoped_http` and `default_quota_base_url` on the JSON describe
+wire using an anonymous struct embedding the published SDK response. No ABI or
+module-version change is required. Canonical source/hash provenance for the small
+packaging mirror is in `providers/opencode-go/QUOTA-MIRROR.json`.
+
+Core resolves explicit selected-auth endpoint, then config, then the actual
+selected plugin's described default; it never substitutes a guessed origin.
+Canonical and older vendored native defaults differ and are not silently unified.
+If the existing identity catalog cannot bind explicit file/default configuration,
+its descriptors remain `runtime_binding_unavailable` and no query is made. A
+bound group whose effective endpoints disagree is also refused, not repaired by
+guessing identity. Qwen ownership remains an external unresolved source gap.
+
+The representative panel invalidates persisted display on credential mutation,
+even when a runtime selector is reused, and fences late async results. Ordinary
+refresh failures retain last success and its original timestamp/staleness.

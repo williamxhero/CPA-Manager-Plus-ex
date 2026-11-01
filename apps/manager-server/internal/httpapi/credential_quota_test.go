@@ -27,6 +27,7 @@ func TestCredentialQuotaOldAndMalformedContractsRemainUnknown(t *testing.T) {
 		{name: "new-capability-sources-404", capability: `{"version":1,"sources":true,"scoped_query":true}`},
 		{name: "unversioned-sources", capability: `{"version":1,"sources":true,"scoped_query":true}`, source: `{"sources":[]}`},
 		{name: "malformed-sources", capability: `{"version":1,"sources":true,"scoped_query":true}`, source: `{"version":1,"sources":[{}]}`},
+		{name: "empty-sources-drop-current-credentials", capability: `{"version":1,"sources":true,"scoped_query":true}`, source: `{"version":1,"sources":[]}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
