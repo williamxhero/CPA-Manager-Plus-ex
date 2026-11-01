@@ -169,7 +169,10 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	if u.Endpoint == "" && u.Adapter == "deepseek" {
 		u.Endpoint = "https://api.deepseek.com/user/balance"
 	}
-	if err := balance.ValidateSource(u.Endpoint, u.PrivateTargets); err != nil {
+	if u.Endpoint == "" && u.Adapter == "deepinfra" {
+		u.Endpoint = "https://api.deepinfra.com/payment/checklist"
+	}
+	if err := balance.ValidateAdapterSource(u.Adapter, u.Endpoint, u.PrivateTargets); err != nil {
 		return Status{}, ErrInput
 	}
 	if !s.verify(ctx, u.Binding) {
@@ -226,7 +229,7 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 	}
 	out.Binding = b
 	out.Configured = r.Configured
-	out.DirectQuery = out.Adapter == "deepseek"
+	out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra"
 	if !out.DirectQuery {
 		out.State = "unsupported"
 	} else if r.Configured {
