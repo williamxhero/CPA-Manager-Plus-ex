@@ -143,7 +143,15 @@ func testOfficialBalanceActualCoreChain(t *testing.T, adapter string) {
 			if adapter == balance.NewAPITokenUsageV1 {
 				semantic = "key_remaining"
 			}
-			return obs.NativeQuota != nil && obs.NativeQuota.State == "finite" && obs.NativeQuota.Remaining != nil && *obs.NativeQuota.Remaining == want && obs.Semantic == semantic && obs.Currency == "" && obs.AmountDecimal == "" && len(obs.Balances) == 0 && obs.Available == nil
+			moneyOK := obs.Currency == "" && obs.AmountDecimal == ""
+			if adapter == balance.NewAPIUserSelfV1 {
+				amount := "-18014398509.481986"
+				if fresh {
+					amount = "18014398509481986246.913578"
+				}
+				moneyOK = obs.Currency == "CNY" && obs.AmountDecimal == amount && obs.Conversion != nil && obs.Conversion.Qualification == "operator_asserted_contract_not_live_verified" && obs.Conversion.ProofReference == "synthetic-actual-core-conversion-proof"
+			}
+			return obs.NativeQuota != nil && obs.NativeQuota.State == "finite" && obs.NativeQuota.Remaining != nil && *obs.NativeQuota.Remaining == want && obs.Semantic == semantic && moneyOK && len(obs.Balances) == 0 && obs.Available == nil
 		}
 		if len(obs.Balances) != 2 {
 			return false
@@ -427,6 +435,7 @@ func testOfficialBalanceActualCoreChain(t *testing.T, adapter string) {
 	update := ob.Update{Config: ob.Config{Binding: before, Adapter: adapter, Endpoint: upstream.URL + route, PrivateTargets: []string{"127.0.0.1"}}, Secret: "synthetic-query-canary"}
 	if adapter == balance.NewAPIUserSelfV1 {
 		update.NewAPI = &balance.NewAPIConfig{ProtocolConfirmed: true, InstanceVersion: "synthetic-operator-confirmed-instance-v1", NativeUnit: "newapi_quota", AccountScope: "synthetic-confirmed-account-A", Auth: balance.NewAPIUserPATWithIDV1, UserID: "42"}
+		update.NewAPI.Conversion = &balance.NewAPIConversionProfile{Confirmed: true, NativeUnit: "newapi_quota", Currency: "CNY", MoneyPerNativeQuota: "0.000002", ProofReference: "synthetic-actual-core-conversion-proof", ContractVersion: "synthetic-operator-contract-v1"}
 	}
 	if adapter == balance.NewAPITokenUsageV1 {
 		update.NewAPI = &balance.NewAPIConfig{ProtocolConfirmed: true, InstanceVersion: "synthetic-operator-confirmed-instance-v1", NativeUnit: "newapi_quota", Auth: balance.NewAPIInferenceKeyReadOnlyV1}

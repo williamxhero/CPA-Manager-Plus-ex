@@ -6,6 +6,7 @@ import {
   type OfficialBalanceStatus,
   type OfficialBalanceAdapter,
   type NewAPIConfig,
+  type NewAPIConversionProfile,
 } from '@/services/api/officialBalance';
 
 const endpoints: Record<OfficialBalanceAdapter, string> = {
@@ -25,6 +26,14 @@ const nativeContract = (adapter: string): NewAPIConfig => ({
   nativeUnit: 'newapi_quota',
   auth:
     adapter === 'newapi-token-usage-v1' ? 'inference-key-readonly-v1' : 'user-pat-with-user-id-v1',
+});
+const emptyConversion = (): NewAPIConversionProfile => ({
+  confirmed: false,
+  nativeUnit: 'newapi_quota',
+  currency: '',
+  moneyPerNativeQuota: '',
+  proofReference: '',
+  contractVersion: '',
 });
 
 export interface OfficialBalancePanelProps {
@@ -90,6 +99,7 @@ export function OfficialBalancePanel({
     edit.newAPI ??
     (data?.adapter === selectedAdapter ? data.newAPI : undefined) ??
     nativeContract(selectedAdapter);
+  const conversion = contract.conversion;
   const endpoint =
     edit.endpoint ||
     (data?.adapter === selectedAdapter ? data.endpoint : '') ||
@@ -348,10 +358,121 @@ export function OfficialBalancePanel({
                     <input aria-label="原生额度单位" readOnly value={contract.nativeUnit} />
                   </label>
                   <p>
-                    原生 quota
-                    不是货币。货币/倍率/换算证据尚未配置，确认后的精确货币换算仍未实现；不得默认 USD
-                    或 500000。当前真实站点版本、授权、单位仍待外部证据。
+                    原生 quota 不是货币。不配置换算合同就只保留原生额度；不得默认 USD 或 500000。
+                    当前真实站点版本、授权、单位仍待外部证据，管理员勾选不是独立现场核验。
                   </p>
+                  <label>
+                    <input
+                      type="checkbox"
+                      aria-label="启用明确额度换算"
+                      checked={!!conversion}
+                      onChange={(e) =>
+                        setEditor({
+                          ...edit,
+                          newAPI: {
+                            ...contract,
+                            conversion: e.target.checked ? emptyConversion() : undefined,
+                          },
+                        })
+                      }
+                    />
+                    启用明确额度换算（可选，无默认币种或倍率）
+                  </label>
+                  {conversion && (
+                    <fieldset>
+                      <legend>明确换算合同：金额主单位 / ONE 原生额度</legend>
+                      <label>
+                        <input
+                          type="checkbox"
+                          aria-label="已确认换算合同"
+                          checked={conversion.confirmed}
+                          onChange={(e) =>
+                            setEditor({
+                              ...edit,
+                              newAPI: {
+                                ...contract,
+                                conversion: { ...conversion, confirmed: e.target.checked },
+                              },
+                            })
+                          }
+                        />
+                        管理员声明已取得该单位、币种、方向与倍率的证据
+                      </label>
+                      <label>
+                        换算原生单位
+                        <input aria-label="换算原生单位" readOnly value={conversion.nativeUnit} />
+                      </label>
+                      <label>
+                        换算币种
+                        <input
+                          aria-label="换算币种"
+                          value={conversion.currency}
+                          onChange={(e) =>
+                            setEditor({
+                              ...edit,
+                              newAPI: {
+                                ...contract,
+                                conversion: { ...conversion, currency: e.target.value },
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        每单位原生额度对应金额
+                        <input
+                          aria-label="每单位原生额度对应金额"
+                          value={conversion.moneyPerNativeQuota}
+                          onChange={(e) =>
+                            setEditor({
+                              ...edit,
+                              newAPI: {
+                                ...contract,
+                                conversion: { ...conversion, moneyPerNativeQuota: e.target.value },
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        换算证据引用
+                        <input
+                          aria-label="换算证据引用"
+                          value={conversion.proofReference}
+                          onChange={(e) =>
+                            setEditor({
+                              ...edit,
+                              newAPI: {
+                                ...contract,
+                                conversion: { ...conversion, proofReference: e.target.value },
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        换算合同版本
+                        <input
+                          aria-label="换算合同版本"
+                          value={conversion.contractVersion}
+                          onChange={(e) =>
+                            setEditor({
+                              ...edit,
+                              newAPI: {
+                                ...contract,
+                                conversion: { ...conversion, contractVersion: e.target.value },
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                      <p>
+                        倍率方向：每 ONE 原生 quota
+                        对应多少币种主单位，严格正十进制字符串；不填倒数，不换算
+                        cents。证据引用仅填编号，不填密钥、URL或脚本。此合同是管理员声明，不证明当前现场账户或额度单位已独立核验。
+                      </p>
+                    </fieldset>
+                  )}
                   <p>
                     账户、认证、版本、单位或来源合同变化会清除旧查询密钥；空白不能跨合同复用旧 PAT。
                   </p>
@@ -363,6 +484,16 @@ export function OfficialBalancePanel({
                   {data.newAPI.userID ?? 'key-only'} · 账户{' '}
                   {data.newAPI.accountScope ?? 'independent-key'} · {data.newAPI.nativeUnit} ·
                   confirmed={String(data.newAPI.protocolConfirmed)}
+                </p>
+              )}
+              {data.newAPI?.conversion && (
+                <p aria-label="已保存换算合同">
+                  已保存换算：{data.newAPI.conversion.nativeUnit} ×{' '}
+                  {data.newAPI.conversion.moneyPerNativeQuota} {data.newAPI.conversion.currency} ·
+                  证据 {data.newAPI.conversion.proofReference} · 版本{' '}
+                  {data.newAPI.conversion.contractVersion} · confirmed=
+                  {String(data.newAPI.conversion.confirmed)} ·
+                  operator_asserted_contract_not_live_verified
                 </p>
               )}
               <label>
@@ -411,6 +542,7 @@ export function OfficialBalancePanel({
                   busy ||
                   !selectedAdapter ||
                   (isNewAPI && !contract.protocolConfirmed) ||
+                  (isNewAPI && !!conversion && !conversion.confirmed) ||
                   (edit.clear && !!edit.secret)
                 }
                 onClick={() => void run('save')}
@@ -448,6 +580,23 @@ export function OfficialBalancePanel({
                         额度状态：{data.lastSuccess.nativeQuota.state}；unlimited/unknown
                         不代表零，也不是耗尽或恢复证据。Key 剩余量不是账户钱包。
                       </p>
+                      {data.lastSuccess.nativeQuota.state === 'finite' &&
+                        data.lastSuccess.amountDecimal !== undefined &&
+                        data.lastSuccess.conversion && (
+                          <>
+                            <p>
+                              明确合同换算金额：{data.lastSuccess.currency}{' '}
+                              {data.lastSuccess.amountDecimal}
+                              ；与原生额度是同一余额的两种表示，不能相加。
+                            </p>
+                            <p>
+                              换算证据：{data.lastSuccess.conversion.proofReference} ·{' '}
+                              {data.lastSuccess.conversion.contractVersion} ·{' '}
+                              {data.lastSuccess.conversion.qualification}
+                              ；不是独立现场账户或单位验证。
+                            </p>
+                          </>
+                        )}
                     </>
                   ) : data.lastSuccess.semantic === 'signed_prepaid_net' ? (
                     <>

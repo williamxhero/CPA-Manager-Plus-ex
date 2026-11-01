@@ -50,11 +50,12 @@ type CurrencyBalance struct {
 }
 
 type Observation struct {
-	NativeQuota *NewAPINativeQuota `json:"nativeQuota,omitempty"`
-	DeadlineMS  int64              `json:"deadlineMs,omitempty"`
-	Binding     json.RawMessage    `json:"binding,omitempty"`
-	Balances    []CurrencyBalance  `json:"balances,omitempty"`
-	Available   *bool              `json:"available,omitempty"`
+	Conversion  *NewAPIConversionEvidence `json:"conversion,omitempty"`
+	NativeQuota *NewAPINativeQuota        `json:"nativeQuota,omitempty"`
+	DeadlineMS  int64                     `json:"deadlineMs,omitempty"`
+	Binding     json.RawMessage           `json:"binding,omitempty"`
+	Balances    []CurrencyBalance         `json:"balances,omitempty"`
+	Available   *bool                     `json:"available,omitempty"`
 	// Query identity
 	QueryID string `json:"queryId,omitempty"`
 	// Capability status
