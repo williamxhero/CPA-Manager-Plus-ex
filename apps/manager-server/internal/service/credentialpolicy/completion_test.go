@@ -167,6 +167,9 @@ func TestCredentialPolicyFreshFencedEvidenceQueuesDurablyWithoutClaimingApplied(
 	if first.OperationID == "" || first.Decision.Action != "pause" {
 		t.Fatalf("candidate not durably queued: %+v", first)
 	}
+	if parsed, err := uuid.Parse(first.OperationID); err != nil || parsed.Version() != 4 {
+		t.Fatal("automatic Core operation requires genuine UUIDv4, not deterministic v5")
+	}
 	second, err := coordinator.CompleteCredentialQuery(ctx, q, source, source.Attempt.QueryID)
 	if err != nil {
 		t.Fatal(err)
@@ -221,6 +224,19 @@ func TestCredentialPolicyFreshFencedEvidenceQueuesDurablyWithoutClaimingApplied(
 	local, err = coordinator.StoredStatus(ctx, id)
 	if err != nil || local.Operation == nil || !local.Operation.Planned || !local.Operation.Attempted || local.Operation.ExpectedGateRevision != 7 || local.Operation.CurrentApplied || local.Operation.ReceiptConfirmed {
 		t.Fatal("planned pending metadata implied applied state")
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db = testutil.NewStore(t, cfg)
+	coordinator = policy.New(db, fixedPolicySources{source.Source}, nil, false, policy.WithClock(func() time.Time { return now }))
+	restarted, err := coordinator.CompleteCredentialQuery(ctx, q, source, source.Attempt.QueryID)
+	if err != nil || restarted.OperationID != first.OperationID {
+		t.Fatal("restart allocated another random operation UUID", err)
+	}
+	again, err := db.CredentialPolicyOperation(ctx, first.OperationID)
+	if err != nil || again.Body != after.Body || again.Revision != after.Revision {
+		t.Fatal("restart rewrote the claimed operation body")
 	}
 	lease, err = db.AcquireCredentialPolicyLease(ctx, uuid.NewString(), now.UnixMilli(), 30000)
 	if err != nil {

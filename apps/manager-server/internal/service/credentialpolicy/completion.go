@@ -2,7 +2,6 @@ package credentialpolicy
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
@@ -124,25 +123,27 @@ func (s *Service) enqueueDecision(ctx context.Context, state Status, source cq.S
 		defer cancel()
 		_ = s.Store.ReleaseCredentialPolicyLease(release, lease)
 	}()
-	id := uuid.NewSHA1(uuid.NameSpaceOID, []byte(state.Owner+":"+state.SubjectID+":"+strconv.FormatInt(state.Generation, 10)+":"+decision.Action+":"+decision.EvidenceVersion)).String()
+	// Stable decision key is NOT the protocol operation ID. The store allocates
+	// one cryptographic v4 in the same CAS transaction as its immutable body.
+	key := uuid.NewSHA1(uuid.NameSpaceOID, []byte(state.Owner+":"+state.SubjectID+":"+strconv.FormatInt(state.Generation, 10)+":"+decision.Action+":"+decision.EvidenceVersion)).String()
 	action, reason := "pause", "quota_windows_exhausted"
 	if decision.Action == "recover" {
 		action = "clear"
 	}
-	op := GateOperation{Version: 1, OpID: id, Binding: source.Binding, AuthIndex: source.AuthIndex, SourceVersion: source.SourceVersion, Subject: "credential", Owner: state.Owner, Action: action, Reason: reason, EvidenceID: uuid.NewSHA1(uuid.NameSpaceOID, []byte("quota-evidence:"+decision.EvidenceVersion)).String()}
+	op := GateOperation{Version: 1, Binding: source.Binding, AuthIndex: source.AuthIndex, SourceVersion: source.SourceVersion, Subject: "credential", Owner: state.Owner, Action: action, Reason: reason, EvidenceID: uuid.NewSHA1(uuid.NameSpaceOID, []byte("quota-evidence:"+decision.EvidenceVersion)).String()}
 	desired := PendingIntent{Operation: op, Source: source, Evidence: decision, ExpiresAtMS: decision.ObservedAtMS + int64(5*time.Minute/time.Millisecond)}
 	if decision.ValidUntilMS > 0 && decision.ValidUntilMS < desired.ExpiresAtMS {
 		desired.ExpiresAtMS = decision.ValidUntilMS
 	}
-	document, err := json.Marshal(desired)
-	if err != nil {
-		return out, err
-	}
-	existing, lookupErr := s.Store.CredentialPolicyOperation(ctx, id)
-	if lookupErr == nil {
+	build := func(id, existing string) (string, error) {
+		desired.Operation.OpID = id
+		if existing == "" {
+			document, err := json.Marshal(desired)
+			return string(document), err
+		}
 		var prior PendingIntent
-		if json.Unmarshal([]byte(existing.Body), &prior) != nil {
-			return out, store.ErrPolicyOperationConflict
+		if json.Unmarshal([]byte(existing), &prior) != nil {
+			return "", store.ErrPolicyOperationConflict
 		}
 		// Planning alone changes the frozen revision envelope. A replayed
 		// completion must match every original intent/evidence/source field.
@@ -150,15 +151,13 @@ func (s *Service) enqueueDecision(ctx context.Context, state Status, source cq.S
 		prior.Operation.ExpectedGateRevision = 0
 		prior.OwnedAtPlan = nil
 		if !reflect.DeepEqual(prior, desired) {
-			return out, store.ErrPolicyOperationConflict
+			return "", store.ErrPolicyOperationConflict
 		}
-		document = []byte(existing.Body)
-	} else if !errors.Is(lookupErr, sql.ErrNoRows) {
-		return out, lookupErr
+		return existing, nil
 	}
-	_, err = s.Store.BeginCredentialPolicyOperation(ctx, store.CredentialPolicyOperation{ID: id, SubjectID: state.SubjectID, Generation: state.Generation, Owner: state.Owner, Automatic: true, Body: string(document)}, lease, s.now().UnixMilli())
+	record, err := s.Store.BeginCredentialPolicyDecision(ctx, key, key, store.CredentialPolicyOperation{SubjectID: state.SubjectID, Generation: state.Generation, Owner: state.Owner, Automatic: true}, lease, s.now().UnixMilli(), build)
 	if err == nil {
-		out.OperationID = id
+		out.OperationID = record.ID
 	}
 	return out, err
 }
