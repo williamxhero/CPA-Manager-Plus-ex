@@ -22,11 +22,15 @@ func ValidateAdapterSource(adapter, endpoint string, permits []string) error {
 		path = "/user/balance"
 	case "deepinfra":
 		path = "/payment/checklist"
+	case NewAPIUserSelfV1:
+		path = "/api/user/self"
+	case NewAPITokenUsageV1:
+		path = "/api/usage/token/"
 	default:
 		return errors.New("invalid adapter")
 	}
 	u, e := url.Parse(endpoint)
-	if e != nil || len(endpoint) > 2048 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != path || (adapter == "deepinfra" && (u.RawPath != "" || u.ForceQuery || strings.Contains(endpoint, "#"))) || strings.Contains(u.Hostname(), "%") {
+	if e != nil || len(endpoint) > 2048 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != path || (adapter != "deepseek" && (u.Opaque != "" || u.RawPath != "" || u.ForceQuery || strings.Contains(endpoint, "#"))) || strings.Contains(u.Hostname(), "%") {
 		return errors.New("invalid source")
 	}
 	for _, p := range permits {

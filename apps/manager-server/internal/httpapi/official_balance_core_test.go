@@ -41,6 +41,12 @@ func TestOfficialBalanceActualCoreChain(t *testing.T) {
 func TestOfficialBalanceDeepInfraActualCoreChain(t *testing.T) {
 	testOfficialBalanceActualCoreChain(t, "deepinfra")
 }
+func TestOfficialBalanceNewAPIActualCoreChain(t *testing.T) {
+	testOfficialBalanceActualCoreChain(t, balance.NewAPIUserSelfV1)
+}
+func TestOfficialBalanceNewAPITokenActualCoreChain(t *testing.T) {
+	testOfficialBalanceActualCoreChain(t, balance.NewAPITokenUsageV1)
+}
 func testOfficialBalanceActualCoreChain(t *testing.T, adapter string) {
 	binary := os.Getenv("CORE_OFFICIAL_QUERY_TEST_BINARY")
 	if binary == "" {
@@ -107,6 +113,16 @@ func testOfficialBalanceActualCoreChain(t *testing.T, adapter string) {
 		firstWallet = `{"stripe_balance":-1,"recent":2.5}`
 		freshWallet = `{"stripe_balance":-12345678901234567890.000000001,"recent":0.0000000001}`
 	}
+	if adapter == balance.NewAPIUserSelfV1 {
+		route = "/api/user/self"
+		firstWallet = `{"success":true,"data":{"id":42,"quota":-9007199254740993}}`
+		freshWallet = `{"success":true,"data":{"id":42,"quota":"9007199254740993123456789"}}`
+	}
+	if adapter == balance.NewAPITokenUsageV1 {
+		route = "/api/usage/token/"
+		firstWallet = `{"code":true,"data":{"object":"token_usage","total_available":-9007199254740993,"unlimited_quota":false}}`
+		freshWallet = `{"code":true,"data":{"object":"token_usage","total_available":"9007199254740993123456789","unlimited_quota":false,"user_quota":{"total_available":999}}}`
+	}
 	assertMoney := func(obs *balance.Observation, fresh bool) bool {
 		if obs == nil || obs.QueryStatus != "success" {
 			return false
@@ -117,6 +133,17 @@ func testOfficialBalanceActualCoreChain(t *testing.T, adapter string) {
 				want = "12345678901234567890.0000000009"
 			}
 			return obs.Semantic == "signed_prepaid_net" && obs.AmountDecimal == want && obs.Currency == "USD" && len(obs.Balances) == 0 && obs.Available == nil
+		}
+		if adapter == balance.NewAPIUserSelfV1 || adapter == balance.NewAPITokenUsageV1 {
+			want := "-9007199254740993"
+			semantic := "account_wallet"
+			if fresh {
+				want = "9007199254740993123456789"
+			}
+			if adapter == balance.NewAPITokenUsageV1 {
+				semantic = "key_remaining"
+			}
+			return obs.NativeQuota != nil && obs.NativeQuota.State == "finite" && obs.NativeQuota.Remaining != nil && *obs.NativeQuota.Remaining == want && obs.Semantic == semantic && obs.Currency == "" && obs.AmountDecimal == "" && len(obs.Balances) == 0 && obs.Available == nil
 		}
 		if len(obs.Balances) != 2 {
 			return false
@@ -131,6 +158,11 @@ func testOfficialBalanceActualCoreChain(t *testing.T, adapter string) {
 		upstreamCalls.Add(1)
 		if r.Method != "GET" || r.URL.Path != route || r.Header.Get("Authorization") != "Bearer synthetic-query-canary" {
 			t.Error("unexpected billing protocol")
+			w.WriteHeader(400)
+			return
+		}
+		if adapter == balance.NewAPIUserSelfV1 && r.Header.Get("New-Api-User") != "42" || adapter == balance.NewAPITokenUsageV1 && r.Header.Get("New-Api-User") != "" {
+			t.Error("NewAPI auth profile mismatch")
 			w.WriteHeader(400)
 			return
 		}
@@ -393,6 +425,12 @@ func testOfficialBalanceActualCoreChain(t *testing.T, adapter string) {
 		return ob.Job{}
 	}
 	update := ob.Update{Config: ob.Config{Binding: before, Adapter: adapter, Endpoint: upstream.URL + route, PrivateTargets: []string{"127.0.0.1"}}, Secret: "synthetic-query-canary"}
+	if adapter == balance.NewAPIUserSelfV1 {
+		update.NewAPI = &balance.NewAPIConfig{ProtocolConfirmed: true, InstanceVersion: "synthetic-operator-confirmed-instance-v1", NativeUnit: "newapi_quota", AccountScope: "synthetic-confirmed-account-A", Auth: balance.NewAPIUserPATWithIDV1, UserID: "42"}
+	}
+	if adapter == balance.NewAPITokenUsageV1 {
+		update.NewAPI = &balance.NewAPIConfig{ProtocolConfirmed: true, InstanceVersion: "synthetic-operator-confirmed-instance-v1", NativeUnit: "newapi_quota", Auth: balance.NewAPIInferenceKeyReadOnlyV1}
+	}
 	code, data := api("PUT", balancePath, update)
 	if code != 200 {
 		t.Fatalf("configure HTTP %d: %s", code, data)
@@ -465,7 +503,7 @@ func testOfficialBalanceActualCoreChain(t *testing.T, adapter string) {
 		t.Fatal("billing refresh/rebind changed Core capabilities or source/manual state")
 	}
 	stop()
-	t.Logf("ACTUAL_CHAIN_PASS: adapter=%s full native provider/member targets; exact monetary observation; auth failure retains success; GET billing calls=0; restart rebind secret resubmissions=0; old in-flight result fenced; Core capabilities/source/manual state unchanged; no protection ACK; denied startup=%d inference calls=%d billing calls=%d", adapter, denied.Load(), inferenceCalls.Load(), upstreamCalls.Load())
+	t.Logf("ACTUAL_CHAIN_PASS: adapter=%s full native provider/member targets; exact semantic observation (native quota is NOT money); auth failure retains success; GET billing calls=0; restart rebind secret resubmissions=0; old in-flight result fenced; Core capabilities/source/manual state unchanged; no protection ACK; denied startup=%d inference calls=%d billing calls=%d", adapter, denied.Load(), inferenceCalls.Load(), upstreamCalls.Load())
 	if inferenceCalls.Load() != 0 {
 		t.Fatal("fixture performed inference")
 	}

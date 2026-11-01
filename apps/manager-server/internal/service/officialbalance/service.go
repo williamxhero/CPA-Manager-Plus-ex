@@ -27,11 +27,12 @@ type Binding struct {
 }
 type Config struct {
 	Binding
-	Version        int64    `json:"version"`
-	Adapter        string   `json:"adapter"`
-	Endpoint       string   `json:"endpoint"`
-	PrivateTargets []string `json:"privateTargets,omitempty"`
-	TimeoutMS      int64    `json:"timeoutMs,omitempty"`
+	Version        int64                 `json:"version"`
+	Adapter        string                `json:"adapter"`
+	Endpoint       string                `json:"endpoint"`
+	PrivateTargets []string              `json:"privateTargets,omitempty"`
+	TimeoutMS      int64                 `json:"timeoutMs,omitempty"`
+	NewAPI         *balance.NewAPIConfig `json:"newAPI,omitempty"`
 }
 type Update struct {
 	Config
@@ -76,6 +77,22 @@ func sameAuthority(a, b Binding) bool {
 	a.Scope.Revision = 0
 	b.Scope.Revision = 0
 	return same(a, b)
+}
+
+// Every persisted source-contract field is authority, not only URL/adapter.
+// Empty secret preserves ONLY an unchanged contract; an explicit new secret
+// can establish a changed account/auth/version/unit authority via the same CAS.
+func sameSourceAuthority(a, b Config) bool {
+	if !sameAuthority(a.Binding, b.Binding) {
+		return false
+	}
+	a.Binding = Binding{}
+	b.Binding = Binding{}
+	a.Version = 0
+	b.Version = 0
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return string(x) == string(y)
 }
 func operationKey(b Binding) string {
 	raw, _ := json.Marshal(canonical(b))
@@ -163,7 +180,14 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	if u.Version < 0 || u.Version >= 9007199254740991 || len(u.Secret) > 8192 || u.ClearSecret && strings.TrimSpace(u.Secret) != "" || u.TimeoutMS < 0 || u.TimeoutMS > 60000 || len(u.PrivateTargets) > 16 {
 		return Status{}, ErrInput
 	}
-	if u.Adapter != "deepseek" && u.Adapter != "deepinfra" {
+	if u.Adapter != "deepseek" && u.Adapter != "deepinfra" && u.Adapter != balance.NewAPIUserSelfV1 && u.Adapter != balance.NewAPITokenUsageV1 {
+		return Status{}, ErrInput
+	}
+	if u.Adapter == balance.NewAPIUserSelfV1 || u.Adapter == balance.NewAPITokenUsageV1 {
+		if balance.ValidateNewAPIContract(u.Adapter, u.NewAPI) != nil {
+			return Status{}, ErrInput
+		}
+	} else if u.NewAPI != nil {
 		return Status{}, ErrInput
 	}
 	if u.Endpoint == "" && u.Adapter == "deepseek" {
@@ -193,7 +217,7 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 		return Status{}, ErrInput
 	}
 	// A changed authority never silently carries a credential to a different target.
-	if old.Config != "" && (!sameAuthority(previous.Binding, u.Binding) || previous.Endpoint != u.Endpoint || previous.Adapter != u.Adapter) {
+	if old.Config != "" && !sameSourceAuthority(previous, u.Config) {
 		u.ClearSecret = true
 	}
 	if strings.TrimSpace(u.Secret) != "" {
@@ -229,7 +253,7 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 	}
 	out.Binding = b
 	out.Configured = r.Configured
-	out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra"
+	out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra" || ((out.Adapter == balance.NewAPIUserSelfV1 || out.Adapter == balance.NewAPITokenUsageV1) && balance.ValidateNewAPIContract(out.Adapter, out.NewAPI) == nil)
 	if !out.DirectQuery {
 		out.State = "unsupported"
 	} else if r.Configured {

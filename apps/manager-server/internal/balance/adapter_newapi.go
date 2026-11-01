@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
-	"net/netip"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -28,6 +27,8 @@ const (
 // hostname heuristic. InstanceVersion records operator confirmation, not remote
 // version discovery. No session authentication or unit conversion is implied.
 type NewAPIConfig struct {
+	AccountScope      string `json:"accountScope,omitempty"`
+	NativeUnit        string `json:"nativeUnit"`
 	ProtocolConfirmed bool   `json:"protocolConfirmed"`
 	InstanceVersion   string `json:"instanceVersion"`
 	Auth              string `json:"auth"`
@@ -43,15 +44,9 @@ type NewAPINativeQuota struct {
 	Unlimited *bool   `json:"unlimited,omitempty"`
 }
 
-// NewAPIResult is the disjoint adapter seam pending shared host integration.
-// Observation identity/persistence/scheduling remain the host's responsibility.
-type NewAPIResult struct {
-	Observation
-	NativeQuota *NewAPINativeQuota `json:"nativeQuota,omitempty"`
-}
-
 var newAPIInteger = regexp.MustCompile(`^-?(0|[1-9][0-9]{0,119})$`)
 var newAPIUserID = regexp.MustCompile(`^[1-9][0-9]{0,18}$`)
+var newAPIVersion = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/+@ -]{0,127}$`)
 
 func newAPIInt(raw json.RawMessage) (string, bool) {
 	value := string(raw)
@@ -72,15 +67,21 @@ func newAPIInt(raw json.RawMessage) (string, bool) {
 // QueryNewAPI uses the SAME pinned, whole-answer checked, certificate-validating
 // transport as the other balance adapters. It never owns a client or scheduler.
 // This initial seam deliberately emits native quota only, never guessed money.
-func QueryNewAPI(ctx context.Context, t QueryTarget, c NewAPIConfig, resolver CredentialResolver, n NetworkOptions) NewAPIResult {
-	out := NewAPIResult{Observation: Observation{QueryID: uuid.NewString(), ObservedAtMS: time.Now().UnixMilli(), CapabilityStatus: "needs_configuration", QueryStatus: "needs_configuration", ErrorCode: "NEWAPI_CONTRACT_REQUIRED"}}
-	fail := func(status, code string) NewAPIResult {
+func QueryNewAPI(ctx context.Context, t QueryTarget, c NewAPIConfig, resolver CredentialResolver, n NetworkOptions) Observation {
+	out := Observation{QueryID: uuid.NewString(), ObservedAtMS: time.Now().UnixMilli(), CapabilityStatus: "needs_configuration", QueryStatus: "needs_configuration", ErrorCode: "NEWAPI_CONTRACT_REQUIRED"}
+	fail := func(status, code string) Observation {
 		out.QueryStatus = status
 		out.ErrorCode = code
 		if status == "unsupported" || status == "needs_configuration" {
 			out.CapabilityStatus = status
 		}
 		return out
+	}
+	if c.AccountScope != "" {
+		if t.AccountScope != "" && t.AccountScope != c.AccountScope {
+			return fail("needs_configuration", "NEWAPI_ACCOUNT_SCOPE_MISMATCH")
+		}
+		t.AccountScope = c.AccountScope
 	}
 	// Do not silently accept requested money units in the native-only contract.
 	if t.Currency != "" || t.UnitMultiplier != "" {
@@ -89,21 +90,19 @@ func QueryNewAPI(ctx context.Context, t QueryTarget, c NewAPIConfig, resolver Cr
 	if !c.ProtocolConfirmed || strings.TrimSpace(c.InstanceVersion) == "" || len(c.InstanceVersion) > 128 {
 		return out
 	}
-	path := "/api/user/self"
 	switch t.Adapter {
 	case NewAPIUserSelfV1:
 		if (c.Auth != NewAPIUserPATWithIDV1 && c.Auth != NewAPIUserPATV1) || !newAPIUserID.MatchString(c.UserID) || strings.TrimSpace(t.AccountScope) == "" {
 			return out
 		}
 	case NewAPITokenUsageV1:
-		path = "/api/usage/token/"
 		if c.Auth != NewAPIInferenceKeyReadOnlyV1 || c.UserID != "" {
 			return out
 		}
 	default:
 		return fail("unsupported", "ADAPTER_NOT_FOUND")
 	}
-	if !validNewAPISource(t, path) {
+	if len(t.PrivateTargets) > 16 || ValidateAdapterSource(t.Adapter, t.EndpointURL, t.PrivateTargets) != nil {
 		return fail("needs_configuration", "INVALID_ENDPOINT")
 	}
 	if resolver == nil {
@@ -297,18 +296,24 @@ func newAPIKeyFold(name string) string {
 	}, name)
 }
 
-// Exact protocol-path validation is separate from transport/address policy.
-// The eventual shared allowlist will delegate here after #73 integration.
-func validNewAPISource(t QueryTarget, path string) bool {
-	u, err := url.Parse(t.EndpointURL)
-	if err != nil || len(t.EndpointURL) > 2048 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Opaque != "" || u.RawPath != "" || u.Path != path || u.RawQuery != "" || u.ForceQuery || strings.Contains(t.EndpointURL, "#") || strings.Contains(u.Hostname(), "%") || len(t.PrivateTargets) > 16 {
-		return false
+// ValidateNewAPIContract is the shared persisted-config authority contract.
+// Native quota is a protocol unit, never an implied monetary denomination.
+func ValidateNewAPIContract(adapter string, c *NewAPIConfig) error {
+	bad := errors.New("invalid NewAPI contract")
+	if c == nil || !c.ProtocolConfirmed || !newAPIVersion.MatchString(c.InstanceVersion) || c.NativeUnit != "newapi_quota" || len(c.AccountScope) > 256 || strings.ContainsAny(c.AccountScope, "\r\n\t") {
+		return bad
 	}
-	for _, permit := range t.PrivateTargets {
-		ip, err := netip.ParseAddr(permit)
-		if err != nil || forbiddenIP(ip) {
-			return false
+	switch adapter {
+	case NewAPIUserSelfV1:
+		if strings.TrimSpace(c.AccountScope) == "" || !newAPIUserID.MatchString(c.UserID) || c.Auth != NewAPIUserPATWithIDV1 && c.Auth != NewAPIUserPATV1 {
+			return bad
 		}
+	case NewAPITokenUsageV1:
+		if c.UserID != "" || c.Auth != NewAPIInferenceKeyReadOnlyV1 {
+			return bad
+		}
+	default:
+		return bad
 	}
-	return true
+	return nil
 }

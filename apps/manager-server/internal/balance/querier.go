@@ -32,9 +32,17 @@ func (q *defaultQuerier) ListCapabilities(context.Context) ([]AdapterCapability,
 	return []AdapterCapability{
 		{Adapter: "deepseek", Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential"}, SupportedScopes: []string{"account_wallet"}, SupportedFormats: []string{"exact_currency_balances"}},
 		{Adapter: "deepinfra", Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential"}, SupportedScopes: []string{"signed_prepaid_net"}, SupportedFormats: []string{"exact_decimal_amount"}},
+		{Adapter: NewAPIUserSelfV1, Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential", "protocolConfirmed", "instanceVersion", "auth", "userID", "accountScope", "nativeUnit"}, SupportedScopes: []string{"account_wallet"}, SupportedFormats: []string{"native_quota"}},
+		{Adapter: NewAPITokenUsageV1, Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential", "protocolConfirmed", "instanceVersion", "auth", "nativeUnit"}, SupportedScopes: []string{"key_remaining"}, SupportedFormats: []string{"native_quota"}},
 	}, nil
 }
 func (q *defaultQuerier) Query(ctx context.Context, target QueryTarget, resolver CredentialResolver) (Observation, error) {
+	if target.Adapter == NewAPIUserSelfV1 || target.Adapter == NewAPITokenUsageV1 {
+		if ValidateNewAPIContract(target.Adapter, target.NewAPI) != nil {
+			return Observation{QueryID: uuid.NewString(), CapabilityStatus: "needs_configuration", QueryStatus: "needs_configuration", ErrorCode: "NEWAPI_CONTRACT_REQUIRED", ObservedAtMS: time.Now().UnixMilli()}, nil
+		}
+		return QueryNewAPI(ctx, target, *target.NewAPI, resolver, q.network), nil
+	}
 	out := Observation{QueryID: uuid.NewString(), ObservedAtMS: time.Now().UnixMilli(), CapabilityStatus: "unsupported", QueryStatus: "unsupported", ErrorCode: "ADAPTER_NOT_FOUND"}
 	adapter := strings.ToLower(strings.TrimSpace(target.Adapter))
 	if adapter != "deepseek" && adapter != "deepinfra" {

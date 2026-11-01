@@ -43,6 +43,20 @@ func TestNewAPIUnknownProtocolIsUnsupported(t *testing.T) {
 	}
 }
 
+func TestNewAPISharedQuerierRejectsContradictoryAccountScope(t *testing.T) {
+	var calls atomic.Int32
+	target, network := newAPIUpstream(t, "/api/user/self", func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		_, _ = w.Write([]byte(`{"success":true,"data":{"id":42,"quota":7}}`))
+	})
+	target.Adapter = balance.NewAPIUserSelfV1
+	target.NewAPI = &balance.NewAPIConfig{ProtocolConfirmed: true, InstanceVersion: "fixture", NativeUnit: "newapi_quota", Auth: balance.NewAPIUserPATWithIDV1, UserID: "42", AccountScope: "different-explicit-account"}
+	got, err := balance.NewWithNetwork(network).Query(context.Background(), target, newAPISecret("SYNTHETIC-PAT"))
+	if err != nil || got.QueryStatus != "needs_configuration" || calls.Load() != 0 || got.NativeQuota != nil {
+		t.Fatalf("contradictory account scope silently replaced: %+v calls=%d err=%v", got, calls.Load(), err)
+	}
+}
+
 func TestNewAPIUnicodeSuccessAliasCannotOverrideFailure(t *testing.T) {
 	for _, adapter := range []string{balance.NewAPIUserSelfV1, balance.NewAPITokenUsageV1} {
 		t.Run(adapter, func(t *testing.T) {
