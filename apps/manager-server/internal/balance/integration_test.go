@@ -25,7 +25,7 @@ func (r *integrationCredentialResolver) ResolveCredential(context.Context, strin
 func TestBalanceIntegrationCapabilityAndFailureContract(t *testing.T) {
 	q := balance.New()
 	caps, err := q.ListCapabilities(context.Background())
-	if err != nil || len(caps) != 2 || caps[0].Adapter != "deepseek" || !caps[0].Supported || caps[1].Adapter != "deepinfra" || caps[1].Supported {
+	if err != nil || len(caps) != 2 || caps[0].Adapter != "deepseek" || !caps[0].Supported || caps[1].Adapter != "deepinfra" || !caps[1].Supported {
 		t.Fatalf("capabilities: %+v %v", caps, err)
 	}
 	for _, tc := range []struct {

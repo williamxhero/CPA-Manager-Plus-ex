@@ -36,6 +36,12 @@ import (
 // temporary SQLite, and production balance transport against controlled TLS.
 // No real configuration, credentials, account or service is accessed.
 func TestOfficialBalanceActualCoreChain(t *testing.T) {
+	testOfficialBalanceActualCoreChain(t, "deepseek")
+}
+func TestOfficialBalanceDeepInfraActualCoreChain(t *testing.T) {
+	testOfficialBalanceActualCoreChain(t, "deepinfra")
+}
+func testOfficialBalanceActualCoreChain(t *testing.T, adapter string) {
 	binary := os.Getenv("CORE_OFFICIAL_QUERY_TEST_BINARY")
 	if binary == "" {
 		t.Skip("explicitly enable with immutable Core identity binary")
@@ -95,9 +101,35 @@ func TestOfficialBalanceActualCoreChain(t *testing.T) {
 	}()
 	firstWallet := `{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"-12345678901234567890.000000001","granted_balance":"0.000000001","topped_up_balance":"-12345678901234567890.000000002"},{"currency":"USD","total_balance":"1.00","granted_balance":"0.00","topped_up_balance":"1.00"}]}`
 	freshWallet := strings.Replace(firstWallet, "-12345678901234567890.000000001", "9.123456789012345678901234567890", 1)
+	route := "/user/balance"
+	if adapter == "deepinfra" {
+		route = "/payment/checklist"
+		firstWallet = `{"stripe_balance":-1,"recent":2.5}`
+		freshWallet = `{"stripe_balance":-12345678901234567890.000000001,"recent":0.0000000001}`
+	}
+	assertMoney := func(obs *balance.Observation, fresh bool) bool {
+		if obs == nil || obs.QueryStatus != "success" {
+			return false
+		}
+		if adapter == "deepinfra" {
+			want := "-1.5"
+			if fresh {
+				want = "12345678901234567890.0000000009"
+			}
+			return obs.Semantic == "signed_prepaid_net" && obs.AmountDecimal == want && obs.Currency == "USD" && len(obs.Balances) == 0 && obs.Available == nil
+		}
+		if len(obs.Balances) != 2 {
+			return false
+		}
+		want := "-12345678901234567890.000000001"
+		if fresh {
+			want = "9.123456789012345678901234567890"
+		}
+		return obs.Balances[0].Total == want && obs.Balances[1].Currency == "USD"
+	}
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstreamCalls.Add(1)
-		if r.Method != "GET" || r.URL.Path != "/user/balance" || r.Header.Get("Authorization") != "Bearer synthetic-query-canary" {
+		if r.Method != "GET" || r.URL.Path != route || r.Header.Get("Authorization") != "Bearer synthetic-query-canary" {
 			t.Error("unexpected billing protocol")
 			w.WriteHeader(400)
 			return
@@ -360,13 +392,13 @@ func TestOfficialBalanceActualCoreChain(t *testing.T) {
 		t.Fatal("job exceeded hard test wait")
 		return ob.Job{}
 	}
-	update := ob.Update{Config: ob.Config{Binding: before, Adapter: "deepseek", Endpoint: upstream.URL + "/user/balance", PrivateTargets: []string{"127.0.0.1"}}, Secret: "synthetic-query-canary"}
+	update := ob.Update{Config: ob.Config{Binding: before, Adapter: adapter, Endpoint: upstream.URL + route, PrivateTargets: []string{"127.0.0.1"}}, Secret: "synthetic-query-canary"}
 	code, data := api("PUT", balancePath, update)
 	if code != 200 {
 		t.Fatalf("configure HTTP %d: %s", code, data)
 	}
 	success := wait(query(before).ID)
-	if success.Status == nil || success.Status.LastSuccess == nil || len(success.Status.LastSuccess.Balances) != 2 || success.Status.LastSuccess.Balances[0].Total != "-12345678901234567890.000000001" || success.Status.LastSuccess.Balances[1].Currency != "USD" {
+	if success.Status == nil || !assertMoney(success.Status.LastSuccess, false) {
 		t.Fatal("real public chain lost exact wallet", success)
 	}
 	count := upstreamCalls.Load()
@@ -377,7 +409,7 @@ func TestOfficialBalanceActualCoreChain(t *testing.T) {
 	}
 	mode.Store(1)
 	failure := wait(query(before).ID)
-	if failure.Status == nil || failure.Status.State != "auth_error" || !failure.Status.Stale || failure.Status.LastSuccess == nil || failure.Status.LastSuccess.Balances[0].Total != "-12345678901234567890.000000001" {
+	if failure.Status == nil || failure.Status.State != "auth_error" || !failure.Status.Stale || !assertMoney(failure.Status.LastSuccess, false) {
 		t.Fatal("actual-chain auth failure lost last success", failure)
 	}
 	if afterFailure := protection(); !reflect.DeepEqual(protectionBefore, afterFailure) {
@@ -407,7 +439,7 @@ func TestOfficialBalanceActualCoreChain(t *testing.T) {
 		t.Fatal("new boot joined old operation")
 	}
 	newResult := wait(fresh.ID)
-	if newResult.Status == nil || newResult.Status.LastSuccess == nil || newResult.Status.LastSuccess.Balances[0].Total != "9.123456789012345678901234567890" {
+	if newResult.Status == nil || !assertMoney(newResult.Status.LastSuccess, true) {
 		t.Fatal("fresh-boot query did not reuse preserved explicit billing secret")
 	}
 	close(release)
@@ -426,14 +458,14 @@ func TestOfficialBalanceActualCoreChain(t *testing.T) {
 		t.Fatal("preboot job escaped full scope fence")
 	}
 	final := read(after)
-	if final.LastSuccess == nil || final.LastSuccess.Balances[0].Total != "9.123456789012345678901234567890" || !final.DirectQuery {
+	if !assertMoney(final.LastSuccess, true) || !final.DirectQuery {
 		t.Fatal("late preboot result overwrote current target")
 	}
 	if afterQueries := protection(); !reflect.DeepEqual(protectionAfterRestart, afterQueries) {
 		t.Fatal("billing refresh/rebind changed Core capabilities or source/manual state")
 	}
 	stop()
-	t.Logf("ACTUAL_CHAIN_PASS: full native provider/member targets; exact multi-currency wallet; auth failure retains success; GET billing calls=0; restart rebind secret resubmissions=0; old in-flight result fenced; Core capabilities/source/manual state unchanged; no protection ACK; denied startup=%d inference calls=%d billing calls=%d", denied.Load(), inferenceCalls.Load(), upstreamCalls.Load())
+	t.Logf("ACTUAL_CHAIN_PASS: adapter=%s full native provider/member targets; exact monetary observation; auth failure retains success; GET billing calls=0; restart rebind secret resubmissions=0; old in-flight result fenced; Core capabilities/source/manual state unchanged; no protection ACK; denied startup=%d inference calls=%d billing calls=%d", adapter, denied.Load(), inferenceCalls.Load(), upstreamCalls.Load())
 	if inferenceCalls.Load() != 0 {
 		t.Fatal("fixture performed inference")
 	}

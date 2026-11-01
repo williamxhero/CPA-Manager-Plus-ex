@@ -4,7 +4,13 @@ export interface BalanceBinding {
   scope: ResourceScope;
   targets: ResourceTarget[];
 }
+export type OfficialBalanceAdapter = 'deepseek' | 'deepinfra';
+
 export interface BalanceObservation {
+  semantic?: string;
+  amountDecimal?: string;
+  currency?: string;
+  errorCode?: string;
   queryStatus: string;
   observedAtMs: number;
   available?: boolean;
