@@ -214,6 +214,15 @@ func (s *Service) ProxyV8APIKeysConfig(w http.ResponseWriter, r *http.Request, w
 }
 
 func (s *Service) proxyToSavedSetup(w http.ResponseWriter, r *http.Request, writeError func(http.ResponseWriter, int, error), useSavedManagementKey bool, rewritePluginOrigin bool) {
+	setup, ok, err := s.resolveSetup(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusPreconditionRequired, errors.New("usage service is not configured"))
+		return
+	}
 	if s.LegacyQuotaGuard != nil {
 		quota, err := isLegacyQuotaRequest(r)
 		if err != nil {
@@ -221,7 +230,7 @@ func (s *Service) proxyToSavedSetup(w http.ResponseWriter, r *http.Request, writ
 			return
 		}
 		if quota {
-			operation, release, err := s.LegacyQuotaGuard.Begin(r.Context())
+			operation, release, err := s.LegacyQuotaGuard.Begin(r.Context(), setup.CPAUpstreamURL, setup.ManagementKey)
 			if err != nil {
 				code := 409
 				if errors.Is(err, managementquery.ErrBusy) {
@@ -235,15 +244,6 @@ func (s *Service) proxyToSavedSetup(w http.ResponseWriter, r *http.Request, writ
 		}
 	}
 
-	setup, ok, err := s.resolveSetup(r.Context())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if !ok {
-		writeError(w, http.StatusPreconditionRequired, errors.New("usage service is not configured"))
-		return
-	}
 	target, err := url.Parse(setup.CPAUpstreamURL)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)

@@ -17,6 +17,7 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/model"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpa"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpaauthfiles"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managementquery"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/usage"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/usageidentity"
@@ -71,6 +72,7 @@ type RateLimitAutoDisableWorker struct {
 	enabled             bool
 	enableCheckInterval time.Duration
 	quotaProbe          quotaRecoveryProbe
+	legacyGuard         *managementquery.LegacyGuard
 }
 
 type quotaAutoDisableCandidate struct {
@@ -174,6 +176,9 @@ func (w *RateLimitAutoDisableWorker) HandleUsageEvents(ctx context.Context, cfg 
 		if !ok {
 			continue
 		}
+		if w.checkLegacyAutomaticTarget(ctx, baseURL, managementKey) != nil {
+			return
+		}
 		select {
 		case w.jobs <- candidate:
 		case <-ctx.Done():
@@ -269,6 +274,9 @@ func (w *RateLimitAutoDisableWorker) handleCandidateLocked(ctx context.Context, 
 		return
 	}
 	if candidate.FileName == "" || candidate.BaseURL == "" || candidate.ManagementKey == "" {
+		return
+	}
+	if w.checkLegacyAutomaticTarget(ctx, candidate.BaseURL, candidate.ManagementKey) != nil {
 		return
 	}
 	now := time.Now()
@@ -758,6 +766,9 @@ func (w *RateLimitAutoDisableWorker) RecoverOwnedCooldown(
 }
 
 func (w *RateLimitAutoDisableWorker) recoverCooldown(ctx context.Context, baseURL string, managementKey string, item store.QuotaCooldown, now time.Time, eventConfirmed bool) (bool, error) {
+	if err := w.checkLegacyAutomaticTarget(ctx, baseURL, managementKey); err != nil {
+		return false, err
+	}
 	if item.Owner != model.QuotaCooldownOwnerUsage429 && item.Owner != model.QuotaCooldownOwnerXAIFreeUsage {
 		reason := "unknown owner"
 		_ = w.store.MarkQuotaCooldownSkipped(ctx, item.ID, reason)
@@ -1864,6 +1875,9 @@ func codexCooldownIdentity(item store.QuotaCooldown) (workspace string, member s
 }
 
 func (w *RateLimitAutoDisableWorker) patchAuthFileTarget(ctx context.Context, baseURL string, managementKey string, target cpaauthfiles.StatusMutationTarget, disabled bool) error {
+	if err := w.checkLegacyAutomaticTarget(ctx, baseURL, managementKey); err != nil {
+		return err
+	}
 	return cpaauthfiles.New(w.client, quotaAutoDisableActionTimeout).PatchDisabledTarget(ctx, baseURL, managementKey, target, disabled)
 }
 
