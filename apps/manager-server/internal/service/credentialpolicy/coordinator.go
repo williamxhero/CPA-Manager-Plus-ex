@@ -21,7 +21,12 @@ func (s *Service) BindCoordinator(coordinator *fr.Service) error {
 	s.reconcileMu.Unlock()
 	coordinator.SubscribeStarted(func(ctx context.Context, event fr.StartedObservation) error {
 		if event.Source.Kind == fr.Credential && event.Source.Credential != nil {
-			return s.CaptureCredentialQueryStart(ctx, *event.Source.Credential, event.AttemptID)
+			return s.CaptureAdmittedCredentialQueryStart(ctx, *event.Source.Credential, event.AttemptID)
+		}
+		if event.Source.Kind == fr.Official && event.Source.Official != nil {
+			if err := s.CaptureOfficialQueryStart(ctx, *event.Source.Official, event.AttemptID); err != nil {
+				log.Print("credential policy association capture unavailable; independent billing preserved")
+			}
 		}
 		// Missing inference association never cancels independently authorized
 		// official billing reads. It cannot create an automation fence/proof.

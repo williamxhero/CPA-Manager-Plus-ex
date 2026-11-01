@@ -82,6 +82,38 @@ func policyOperationGuard(ctx context.Context, tx *sql.Tx, op CredentialPolicyOp
 	if generation != op.Generation || owner != op.Owner || owner != "cpa-manager.credential-policy.v1/"+installation || op.Automatic && !enabled {
 		return ErrPolicyConflict
 	}
+	if op.Automatic && op.Body != "" {
+		var envelope struct {
+			Evidence struct {
+				CaptureID  string `json:"associationCaptureId"`
+				ValidUntil int64  `json:"validUntilMs"`
+			} `json:"evidence"`
+			Operation struct {
+				Reason string `json:"reason"`
+			} `json:"operation"`
+		}
+		if json.Unmarshal([]byte(op.Body), &envelope) != nil {
+			return ErrPolicyOperationConflict
+		}
+		if envelope.Operation.Reason == "quota_native_key_exhausted" && envelope.Evidence.CaptureID == "" {
+			return ErrPolicyOperationConflict
+		}
+		if envelope.Evidence.CaptureID != "" {
+			if envelope.Evidence.ValidUntil <= now {
+				return ErrPolicyConflict
+			}
+			capture, err := checkAcceptedAssociationTx(ctx, tx, envelope.Evidence.CaptureID, "")
+			if err != nil {
+				if errors.Is(err, ErrBalanceConflict) || errors.Is(err, ErrPolicyConflict) || errors.Is(err, sql.ErrNoRows) {
+					return errors.Join(ErrPolicyConflict, err)
+				}
+				return err
+			}
+			if capture.PolicyID != op.SubjectID || capture.PolicyGeneration != op.Generation {
+				return ErrPolicyConflict
+			}
+		}
+	}
 	return nil
 }
 func (s *Store) BeginCredentialPolicyOperation(ctx context.Context, op CredentialPolicyOperation, lease CredentialPolicyLease, now int64) (CredentialPolicyOperation, error) {
@@ -127,7 +159,11 @@ func (s *Store) CheckCredentialPolicyOperation(ctx context.Context, id string, l
 	if err != nil {
 		return op, err
 	}
-	if err = policyOperationGuard(ctx, tx, op, lease, now); err != nil {
+	// Read-only receipt reconciliation must survive a newer official attempt.
+	// This does NOT authorize a send; Plan/Claim retain the full capture guard.
+	intentOnly := op
+	intentOnly.Body = ""
+	if err = policyOperationGuard(ctx, tx, intentOnly, lease, now); err != nil {
 		return op, err
 	}
 	if op.State != "queued" && op.State != "pending" && op.State != "error" {
@@ -148,7 +184,11 @@ func (s *Store) CompleteCredentialPolicyOperation(ctx context.Context, id string
 	if err != nil {
 		return err
 	}
-	if err = policyOperationGuard(ctx, tx, op, lease, now); err != nil {
+	// Persist a real receipt or precise failure even when acquisition evidence
+	// has changed. Lease/owner/current policy generation remain mandatory.
+	intentOnly := op
+	intentOnly.Body = ""
+	if err = policyOperationGuard(ctx, tx, intentOnly, lease, now); err != nil {
 		return err
 	}
 	if op.Revision != revision || op.State == "superseded" {

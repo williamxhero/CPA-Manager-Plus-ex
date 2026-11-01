@@ -26,6 +26,29 @@ func (s *Store) CredentialPolicyQuery(ctx context.Context, attempt string) (Cred
 // Capture runs synchronously after the query job commit and before upstream I/O.
 // A reused job may never refresh the captured policy generation.
 func (s *Store) CaptureCredentialPolicyQuery(ctx context.Context, f CredentialPolicyQueryFence) error {
+	return s.captureCredentialPolicyQuery(ctx, f, false)
+}
+
+// The trusted76 path requires the literal durable running Job and current
+// source attempt in the SAME transaction as the original-generation fence.
+func (s *Store) CaptureCredentialPolicyAdmittedQuery(ctx context.Context, f CredentialPolicyQueryFence) error {
+	return s.captureCredentialPolicyQuery(ctx, f, true)
+}
+
+const admittedCredentialQuery = `SELECT EXISTS(SELECT 1 FROM credential_quota_jobs j JOIN credential_quota_sources q ON q.id=j.source_id WHERE j.id=? AND j.source_id=? AND json_extract(j.document,'$.state')='running' AND json(json_extract(j.document,'$.query'))=json(?) AND q.version=json_extract(j.document,'$.query.version') AND json_extract(q.attempt,'$.queryId')=j.id AND json_extract(q.attempt,'$.queryStatus')='running')`
+
+func (s *Store) CheckCredentialPolicyAdmittedQuery(ctx context.Context, attempt, subject, query string) error {
+	var valid bool
+	if err := s.db.QueryRowContext(ctx, admittedCredentialQuery, attempt, subject, query).Scan(&valid); err != nil {
+		return err
+	}
+	if !valid {
+		return ErrPolicyConflict
+	}
+	return nil
+}
+
+func (s *Store) captureCredentialPolicyQuery(ctx context.Context, f CredentialPolicyQueryFence, admitted bool) error {
 	if id, err := uuid.Parse(f.AttemptID); err != nil || id.String() != f.AttemptID || len(f.Source) > 32<<10 {
 		return ErrPolicyConflict
 	}
@@ -34,6 +57,15 @@ func (s *Store) CaptureCredentialPolicyQuery(ctx context.Context, f CredentialPo
 		return err
 	}
 	defer tx.Rollback()
+	if admitted {
+		var valid bool
+		if err := tx.QueryRowContext(ctx, admittedCredentialQuery, f.AttemptID, f.SubjectID, f.Source).Scan(&valid); err != nil {
+			return err
+		}
+		if !valid {
+			return ErrPolicyConflict
+		}
+	}
 	var generation int64
 	var owner, installation string
 	var enabled bool

@@ -40,6 +40,25 @@ func validEvidenceReference(intent PendingIntent) bool {
 		return err == nil && parsed.String() == intent.Operation.OpID && intent.Evidence.EvidenceVersion == "management:"+intent.Operation.OpID
 	}
 	parts := strings.Split(intent.Evidence.EvidenceVersion, ":")
+	if intent.Evidence.AssociationCaptureID != "" {
+		if len(parts) != 5 || parts[0] != "native-key" || parts[1] != intent.Source.SourceVersion || intent.Evidence.OwnedReason != "quota_native_key_exhausted" || intent.Operation.Reason != intent.Evidence.OwnedReason || parts[3] != intent.Evidence.AttemptID {
+			return false
+		}
+		for _, value := range []string{parts[1], parts[4]} {
+			decoded, err := hex.DecodeString(value)
+			if err != nil || len(decoded) != 32 {
+				return false
+			}
+		}
+		for _, value := range []string{parts[3], intent.Evidence.AssociationCaptureID} {
+			id, err := uuid.Parse(value)
+			if err != nil || id.String() != value {
+				return false
+			}
+		}
+		version, err := strconv.ParseInt(parts[2], 10, 64)
+		return err == nil && version > 0 && version < 9007199254740991 && (intent.Evidence.Action == "pause" && intent.Operation.Action == "pause" || intent.Evidence.Action == "recover" && intent.Operation.Action == "clear")
+	}
 	if len(parts) != 3 || parts[0] != intent.Source.SourceVersion || len(parts[0]) != 64 {
 		return false
 	}
@@ -76,7 +95,7 @@ func (s *Service) attachOperation(ctx context.Context, status *Status, current b
 		op.ModelAutomationReason = intent.Evidence.ModelAutomationReason
 	}
 	switch record.LastError {
-	case "gate_operation_id_unsupported", "gate_operation_invalid", "gate_request_invalid", "outcome_unverified", "policy_generation_changed", "gate_cas_replanned", "gate_replan_limit", "gate_conflict_requery_required", "fresh_authoritative_evidence_required", "current_binding_unverified", "source_authority_changed", "gate_core_unavailable", "gate_auth_error", "gate_current_readback_unconfirmed", "gate_ack_unconfirmed", "gate_replan_outcome_unverified", "no_owned_pause", "owned_pause_evidence_mismatch", "gate_connection_unavailable", "gate_contract_unavailable":
+	case "association_evidence_changed", "association_evidence_changed_outcome_unverified", "gate_operation_id_unsupported", "gate_operation_invalid", "gate_request_invalid", "outcome_unverified", "policy_generation_changed", "gate_cas_replanned", "gate_replan_limit", "gate_conflict_requery_required", "fresh_authoritative_evidence_required", "current_binding_unverified", "source_authority_changed", "gate_core_unavailable", "gate_auth_error", "gate_current_readback_unconfirmed", "gate_ack_unconfirmed", "gate_replan_outcome_unverified", "no_owned_pause", "owned_pause_evidence_mismatch", "gate_connection_unavailable", "gate_contract_unavailable":
 		op.Reason = record.LastError
 	}
 	var receipt GateResult
@@ -87,8 +106,18 @@ func (s *Service) attachOperation(ctx context.Context, status *Status, current b
 	if record.State == "applied" && !op.ReceiptConfirmed {
 		op.State, op.Reason = "error", "gate_ack_unconfirmed"
 	}
-	if !current || !op.ReceiptConfirmed || status.Availability.State != "available" || !sameAuthority(status.Source, intent.Source) {
+	if !current || !op.ReceiptConfirmed || !sameAuthority(status.Source, intent.Source) {
 		return nil
+	}
+	if status.Availability.State != "available" {
+		// Query evidence authorizes NEW actions, not visibility of an existing
+		// restriction. Unknown/missing quota must not hide a real applied pause.
+		// Independently verify this exact source's eligibility and ledger integrity;
+		// unavailable/corrupt gate state still cannot become a positive readback.
+		if _, reason := s.core.capabilities(ctx, status.Source); reason != "" {
+			op.Reason = reason
+			return nil
+		}
 	}
 	var live GateResult
 	if reason := s.core.request(ctx, "GET", "operations/"+record.ID, nil, &live); reason != "" {

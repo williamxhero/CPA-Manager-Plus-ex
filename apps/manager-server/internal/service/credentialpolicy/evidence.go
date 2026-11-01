@@ -23,6 +23,8 @@ type EvidenceDecision struct {
 	ObservedAtMS          int64  `json:"observedAtMs,omitempty"`
 	ModelAutomationReason string `json:"modelAutomationReason,omitempty"`
 	ValidUntilMS          int64  `json:"validUntilMs,omitempty"`
+	AssociationCaptureID  string `json:"associationCaptureId,omitempty"`
+	OwnedReason           string `json:"ownedReason,omitempty"`
 }
 
 func noEvidence(reason string) EvidenceDecision {

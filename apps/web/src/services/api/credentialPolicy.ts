@@ -92,6 +92,7 @@ export interface CredentialPolicyStatus extends Omit<CredentialQuotaSource, 'sta
   queryAvailability: { state: string; reason: string };
   applied: boolean;
   operation?: CredentialPolicyOperationStatus;
+  authorityReboundTo?: string;
 }
 
 export interface CredentialPolicyUpdate extends QuotaBinding {

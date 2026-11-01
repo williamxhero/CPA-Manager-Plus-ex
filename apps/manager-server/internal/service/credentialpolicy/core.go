@@ -38,6 +38,9 @@ type coreClient struct{ connection *mc.Service }
 // Contact only the saved management connection. Refuse redirects and changed
 // connection readback; never echo Core bodies, keys or transport errors.
 func (c coreClient) request(ctx context.Context, method, path string, body, out any) string {
+	return c.requestAt(ctx, "inference-gates", method, path, body, out)
+}
+func (c coreClient) requestAt(ctx context.Context, root, method, path string, body, out any) string {
 	if c.connection == nil {
 		return "gate_connection_unavailable"
 	}
@@ -57,7 +60,7 @@ func (c coreClient) request(ctx context.Context, method, path string, body, out 
 			return "gate_contract_invalid"
 		}
 	}
-	endpoint := strings.TrimRight(u.String(), "/") + "/v8/management/inference-gates"
+	endpoint := strings.TrimRight(u.String(), "/") + "/v8/management/" + root
 	if path != "" {
 		endpoint += "/" + path
 	}
@@ -110,8 +113,12 @@ func (c coreClient) request(ctx context.Context, method, path string, body, out 
 	default:
 		return "gate_core_unavailable"
 	}
-	raw, err := io.ReadAll(io.LimitReader(res.Body, (2<<20)+1))
-	if err != nil || len(raw) > 2<<20 || json.Unmarshal(raw, out) != nil {
+	limit := 2 << 20
+	if root == "credential-quota/credential-association" {
+		limit = 32 << 10
+	}
+	raw, err := io.ReadAll(io.LimitReader(res.Body, int64(limit)+1))
+	if err != nil || len(raw) > limit || json.Unmarshal(raw, out) != nil {
 		return "gate_contract_invalid"
 	}
 	current, _, _, err := c.connection.ResolveManagerConfigWithSource(ctx)

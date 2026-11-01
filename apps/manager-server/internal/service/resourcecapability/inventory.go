@@ -25,6 +25,21 @@ type Negotiated struct {
 	Query             Capability       `json:"query"`
 	IndependentGate   Capability       `json:"independentGate"`
 	PolicyLocked      bool             `json:"policyLocked"`
+
+	// Request-local authenticated projection. Never serialized or reused by a
+	// later Inventory call; the deferred connection CAS can discard it entirely.
+	credentialQuotaSources json.RawMessage
+}
+
+// CredentialQuotaSourceProjection returns an isolated copy of the source
+// envelope verified against this inventory. It performs no I/O and exposes no
+// write access to the retained evidence. Consumers must still validate their
+// complete source/binding/protocol contract, not infer readiness from headers.
+func (n *Negotiated) CredentialQuotaSourceProjection() json.RawMessage {
+	if n == nil {
+		return nil
+	}
+	return append(json.RawMessage(nil), n.credentialQuotaSources...)
 }
 
 type coreCapabilities struct {
@@ -128,8 +143,10 @@ func (s *Service) Inventory(ctx context.Context, bindings ...bool) (out *Negotia
 				Version int               `json:"version"`
 				Sources []json.RawMessage `json:"sources"`
 			}
-			if readCore(ctx, conn.CPABaseURL, conn.ManagementKey, "credential-quota/sources", &query) == "" && query.Version == 1 && validQuotaSourceHeaders(snapshot, query.Sources) {
+			var projection json.RawMessage
+			if readCore(ctx, conn.CPABaseURL, conn.ManagementKey, "credential-quota/sources", &projection) == "" && json.Unmarshal(projection, &query) == nil && query.Version == 1 && validQuotaSourceHeaders(snapshot, query.Sources) {
 				result.CredentialQuery = Capability{"available", "scoped_credential_query_v1"}
+				result.credentialQuotaSources = append(json.RawMessage(nil), projection...)
 			}
 		}
 		result.Snapshot = &snapshot

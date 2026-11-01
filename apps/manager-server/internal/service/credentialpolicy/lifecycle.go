@@ -29,6 +29,12 @@ func (s *CoordinatedService) Run(ctx context.Context) error {
 	done := make(chan struct{})
 	s.stop, s.done = cancel, done
 	s.mu.Unlock()
+	// One startup catalog/source discovery, before76 admits any scheduled job.
+	// This is not a quota acquisition or another background query loop. Missing
+	// discovery stays unavailable; Started never waits on a discovery/proof RPC.
+	discovery, stopDiscovery := context.WithTimeout(worker, 5*time.Second)
+	_, _ = s.Policy.source(discovery, "") // warms all descriptors; selects no credential
+	stopDiscovery()
 	go func() { defer close(done); _ = s.Policy.Run(worker) }()
 	defer func() { cancel(); <-done }()
 	return s.Service.Run(ctx)

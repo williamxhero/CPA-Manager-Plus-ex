@@ -55,6 +55,9 @@ func (s *Store) BeginCredentialPolicyDecision(ctx context.Context, key, legacyID
 		if body != old.Body {
 			return op, ErrPolicyOperationConflict
 		}
+		if err := policyOperationGuard(ctx, tx, old, lease, now); err != nil {
+			return op, err
+		}
 		if !mapped {
 			if _, err := tx.ExecContext(ctx, `INSERT INTO credential_policy_decisions(decision_key,op_id) VALUES(?,?)`, key, old.ID); err != nil {
 				return op, err
@@ -69,6 +72,9 @@ func (s *Store) BeginCredentialPolicyDecision(ctx context.Context, key, legacyID
 	}
 	if len(op.Body) == 0 || len(op.Body) > 32<<10 {
 		return op, ErrPolicyOperationConflict
+	}
+	if err := policyOperationGuard(ctx, tx, op, lease, now); err != nil {
+		return op, err
 	}
 	op.State = "queued"
 	op.Revision = 1

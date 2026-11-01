@@ -175,7 +175,7 @@ func (s *Service) Sources(ctx context.Context) ([]Source, error) {
 		Version int      `json:"version"`
 		Sources []Source `json:"sources"`
 	}
-	if s.Identity.CredentialQuotaRequest(ctx, nil, &response) != nil || response.Version != 1 || response.Sources == nil || len(response.Sources) > 10000 {
+	if json.Unmarshal(n.CredentialQuotaSourceProjection(), &response) != nil || response.Version != 1 || response.Sources == nil || len(response.Sources) > 10000 {
 		return nil, ErrIdentity
 	}
 	seen := map[string]bool{}

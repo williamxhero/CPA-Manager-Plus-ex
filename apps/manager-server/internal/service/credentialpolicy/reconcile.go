@@ -74,6 +74,20 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 		// Keep failure persistence inside this attempt's original budget.
 		return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "pending", "", reason, lease, s.now().UnixMilli())
 	}
+	staleAssociation := func(err error) error {
+		if !errors.Is(err, store.ErrPolicyConflict) {
+			return err
+		}
+		state, reason := "conflict", "association_evidence_changed"
+		if record.Attempted {
+			state, reason = "pending", "association_evidence_changed_outcome_unverified"
+		}
+		if err := s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, state, "", reason, lease, s.now().UnixMilli()); errors.Is(err, store.ErrPolicyConflict) {
+			return nil
+		} else {
+			return err
+		}
+	}
 	var desired PendingIntent
 	if json.Unmarshal([]byte(record.Body), &desired) != nil || desired.Operation.OpID != record.ID || desired.Operation.Owner != record.Owner || SubjectID(desired.Source) != record.SubjectID || desired.Operation.Model != "" {
 		return save("invalid_pending_intent")
@@ -138,6 +152,9 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 		body, _ := json.Marshal(desired)
 		record, err = s.Store.PlanCredentialPolicyOperation(ctx, record.ID, record.Revision, string(body), lease, s.now().UnixMilli())
 		if err != nil {
+			if desired.Evidence.AssociationCaptureID != "" {
+				return staleAssociation(err)
+			}
 			return err
 		}
 	}
@@ -145,6 +162,9 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 	// waits on this network request; subsequent claims are generation-fenced.
 	record, err = s.Store.ClaimCredentialPolicyOperation(ctx, record.ID, record.Revision, lease, s.now().UnixMilli())
 	if err != nil {
+		if desired.Evidence.AssociationCaptureID != "" {
+			return staleAssociation(err)
+		}
 		return err
 	}
 	reason = s.core.request(ctx, "POST", "operations", desired.Operation, &result)

@@ -21,8 +21,96 @@ type CompletionOutcome struct {
 // Unknown/unmanaged sources may still query quota. A known source's start fence
 // must commit synchronously; any storage failure is returned to #76 before I/O.
 func (s *Service) CaptureCredentialQueryStart(ctx context.Context, q cq.Query, attemptID string) error {
+	return s.captureCredentialQueryStart(ctx, q, attemptID, false)
+}
+
+// Called ONLY by76's trusted Started hook after its host admission/Job commit.
+// A raw caller's query is never enough to activate the local scope-rebind path.
+func (s *Service) CaptureAdmittedCredentialQueryStart(ctx context.Context, q cq.Query, attemptID string) error {
+	body, err := json.Marshal(q)
+	if err != nil {
+		return ErrInput
+	}
+	if err := s.Store.CheckCredentialPolicyAdmittedQuery(ctx, attemptID, SubjectID(cq.Source{Binding: q.Binding}), string(body)); err != nil {
+		return err
+	}
+	return s.captureCredentialQueryStart(ctx, q, attemptID, true)
+}
+
+func (s *Service) captureCredentialQueryStart(ctx context.Context, q cq.Query, attemptID string, admitted bool) error {
 	id := SubjectID(cq.Source{Binding: q.Binding})
 	r, err := s.Store.CredentialPolicy(ctx, id)
+	if err != nil {
+		return err
+	}
+	if r.Document == "" {
+		// An issued-ID match selects a possible predecessor, NOT an authority
+		// proof. Unmanaged/unrelated B remains queryable without RPC fanout.
+		records, err := s.Store.CredentialPolicies(ctx)
+		if err != nil {
+			return err
+		}
+		candidate := false
+		for _, record := range records {
+			var saved Status
+			if json.Unmarshal([]byte(record.Document), &saved) != nil {
+				return ErrInput
+			}
+			if saved.AuthorityReboundTo == "" && saved.SourceVersion == q.SourceVersion && refreshCandidate(saved.Binding, q.Binding) {
+				candidate = true
+				break
+			}
+		}
+		if !candidate {
+			// The trusted76 hook has already committed this exact running Job.
+			// Capture implicit OFF without inventory RPC or invented intent. The
+			// store validates the Job and installation before accepting it.
+			installation, err := s.Store.CredentialPolicyInstallation(ctx)
+			if err != nil {
+				return err
+			}
+			body, err := json.Marshal(q)
+			if err != nil {
+				return ErrInput
+			}
+			return s.Store.CaptureCredentialPolicyPrerequisite(ctx, store.CredentialPolicyQueryFence{AttemptID: attemptID, SubjectID: id, Owner: OwnerNamespace + installation, Source: string(body)})
+		}
+	}
+	if r.Document != "" {
+		stored, err := s.StoredStatus(ctx, id)
+		if err != nil {
+			return err
+		}
+		bindingMatches := reflect.DeepEqual(stored.Binding, q.Binding) && stored.AuthIndex == q.AuthIndex
+		if admitted {
+			// Only transient issuance scope/index can differ. Every persistent
+			// identity/incarnation/credential/membership version remains exact.
+			bindingMatches = stored.Scope.InstanceID == q.Scope.InstanceID && stored.Scope.InstanceIncarnation == q.Scope.InstanceIncarnation && reflect.DeepEqual(stored.Targets, q.Targets)
+		}
+		if bindingMatches && stored.SourceVersion == q.SourceVersion {
+			//76's host has just validated and committed this full issued Query.
+			// An unchanged binding needs no additional inventory round trip in
+			// the acquisition deadline. Changed boot/authority stays on the
+			// explicit current rebind/certification path below.
+			body, err := json.Marshal(q)
+			if err != nil {
+				return ErrInput
+			}
+			fence := store.CredentialPolicyQueryFence{AttemptID: attemptID, SubjectID: id, Generation: stored.Generation, Owner: stored.Owner, Source: string(body), Enabled: stored.Enabled}
+			if admitted {
+				return s.Store.CaptureCredentialPolicyAdmittedQuery(ctx, fence)
+			}
+			return s.Store.CaptureCredentialPolicyQuery(ctx, fence)
+		}
+	}
+	current, err := s.source(ctx, q.AuthIndex)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(current.Binding, q.Binding) || current.SourceVersion != q.SourceVersion {
+		return ErrIdentity
+	}
+	r, err = s.certifiedIntent(ctx, current, r)
 	if err != nil {
 		return err
 	}
@@ -32,13 +120,6 @@ func (s *Service) CaptureCredentialQueryStart(ctx context.Context, q cq.Query, a
 	state, err := s.StoredStatus(ctx, id)
 	if err != nil {
 		return err
-	}
-	current, err := s.source(ctx, q.AuthIndex)
-	if err != nil {
-		return err
-	}
-	if !reflect.DeepEqual(current.Binding, q.Binding) || current.SourceVersion != q.SourceVersion {
-		return ErrIdentity
 	}
 	if !sameAuthority(state.Source, current) {
 		return nil
@@ -127,6 +208,9 @@ func (s *Service) enqueueDecision(ctx context.Context, state Status, source cq.S
 	// one cryptographic v4 in the same CAS transaction as its immutable body.
 	key := uuid.NewSHA1(uuid.NameSpaceOID, []byte(state.Owner+":"+state.SubjectID+":"+strconv.FormatInt(state.Generation, 10)+":"+decision.Action+":"+decision.EvidenceVersion)).String()
 	action, reason := "pause", "quota_windows_exhausted"
+	if decision.OwnedReason != "" {
+		reason = decision.OwnedReason
+	}
 	if decision.Action == "recover" {
 		action = "clear"
 	}

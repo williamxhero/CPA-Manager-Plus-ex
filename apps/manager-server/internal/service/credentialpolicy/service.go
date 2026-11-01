@@ -38,17 +38,18 @@ type Update struct {
 
 type Status struct {
 	cq.Source
-	SubjectID         string           `json:"subjectId"`
-	BindingCurrent    bool             `json:"bindingCurrent"`
-	Enabled           bool             `json:"enabled"`
-	Generation        int64            `json:"generation"`
-	Owner             string           `json:"owner"`
-	Availability      rc.Capability    `json:"availability"`
-	QueryAvailability rc.Capability    `json:"queryAvailability"`
-	State             string           `json:"state"`
-	Reason            string           `json:"reason"`
-	Applied           bool             `json:"applied"`
-	Operation         *OperationStatus `json:"operation,omitempty"`
+	SubjectID          string           `json:"subjectId"`
+	BindingCurrent     bool             `json:"bindingCurrent"`
+	Enabled            bool             `json:"enabled"`
+	Generation         int64            `json:"generation"`
+	Owner              string           `json:"owner"`
+	Availability       rc.Capability    `json:"availability"`
+	QueryAvailability  rc.Capability    `json:"queryAvailability"`
+	State              string           `json:"state"`
+	Reason             string           `json:"reason"`
+	Applied            bool             `json:"applied"`
+	Operation          *OperationStatus `json:"operation,omitempty"`
+	AuthorityReboundTo string           `json:"authorityReboundTo,omitempty"`
 }
 
 // SourceReader supplies the authoritative current inventory, not query results.
@@ -94,6 +95,18 @@ func (s *Service) source(ctx context.Context, index string) (cq.Source, error) {
 	sources, err := s.Quota.Sources(ctx)
 	if err != nil {
 		return cq.Source{}, ErrIdentity
+	}
+	for _, src := range sources {
+		if src.AuthIndex == "" || len(src.Targets) == 0 {
+			continue
+		}
+		document, err := json.Marshal(src)
+		if err != nil {
+			return cq.Source{}, ErrIdentity
+		}
+		if err := s.Store.RememberCredentialPolicySource(ctx, SubjectID(src), string(document)); err != nil {
+			return cq.Source{}, err
+		}
 	}
 	for _, src := range sources {
 		if index != "" && src.AuthIndex == index {
@@ -148,9 +161,6 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 	out.BindingCurrent = true
 	out.QueryAvailability = rc.Capability{State: src.State, Reason: src.Reason}
 	_, out.Reason = s.core.capabilities(ctx, src)
-	if out.Reason == "" && src.State != "ready" {
-		out.Reason = "query_not_ready"
-	}
 	if s.lockedOff {
 		out.Reason = "environment_locked_off"
 	}
@@ -160,6 +170,10 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 		out.Availability.Reason = "current_source_gate_ready"
 	}
 	r, err := s.Store.CredentialPolicy(ctx, policyKey(src))
+	if err != nil {
+		return Status{}, err
+	}
+	r, err = s.certifiedIntent(ctx, src, r)
 	if err != nil {
 		return Status{}, err
 	}
@@ -176,6 +190,18 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 			}
 		} else {
 			out.Reason = "source_changed"
+		}
+	}
+	if out.Reason == "" && src.State != "ready" {
+		if _, err := s.officialPrerequisite(ctx, out); err != nil {
+			out.Reason = "verified_selected_key_evidence_required"
+			var unavailable *UnavailableError
+			if errors.As(err, &unavailable) {
+				out.Reason = unavailable.Reason
+			}
+			out.Availability = rc.Capability{State: "unavailable", Reason: out.Reason}
+		} else {
+			out.QueryAvailability = rc.Capability{State: "available", Reason: "verified_selected_key_evidence"}
 		}
 	}
 	if err := s.attachOperation(ctx, &out, true); err != nil {
@@ -213,9 +239,20 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	if q.Owner != "" && q.Owner != out.Owner {
 		return Status{}, ErrIdentity
 	}
+	var prerequisite store.CredentialPolicyQueryFence
+	var completed string
+	var associationEvidence store.CredentialAssociationEvidence
 	if *q.Enabled {
 		if out.Availability.State != "available" {
 			return Status{}, &UnavailableError{Reason: out.Availability.Reason}
+		}
+		if src.State == "ready" {
+			prerequisite, completed, err = s.enablePrerequisite(ctx, out)
+		} else {
+			associationEvidence, err = s.officialPrerequisite(ctx, out)
+		}
+		if err != nil {
+			return Status{}, err
 		}
 		out.Enabled = true
 		out.State = "armed"
@@ -229,7 +266,17 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	if err = s.Store.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: policyKey(src), Generation: out.Generation, Document: string(document)}, *q.ExpectedGeneration); err != nil {
+	record := store.CredentialPolicyRecord{ID: policyKey(src), Generation: out.Generation, Document: string(document)}
+	if *q.Enabled {
+		if src.State == "ready" {
+			err = s.Store.SaveCredentialPolicyWithPrerequisite(ctx, record, *q.ExpectedGeneration, prerequisite, completed)
+		} else {
+			err = s.Store.SaveCredentialPolicyWithAssociation(ctx, record, *q.ExpectedGeneration, associationEvidence)
+		}
+	} else {
+		err = s.Store.SaveCredentialPolicy(ctx, record, *q.ExpectedGeneration)
+	}
+	if err != nil {
 		return Status{}, err
 	}
 	return out, nil
