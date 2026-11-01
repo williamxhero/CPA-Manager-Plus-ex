@@ -83,6 +83,9 @@ func TestCredentialPolicyReconcileRetainsPendingOnUnavailableOrMalformedACK(t *t
 			if saved.State != "pending" || saved.Result != "" || strings.Contains(saved.LastError, "CANARY") {
 				t.Fatalf("unavailable/malformed ACK became applied: %+v", saved)
 			}
+			if saved.Attempted {
+				t.Fatal("failed receipt read fabricated a dispatch claim and froze unplanned retry")
+			}
 			if reads.Load() != 1 || writes.Load() != 0 {
 				t.Fatalf("unknown outcome inferred a gate write: read=%d write=%d", reads.Load(), writes.Load())
 			}

@@ -82,6 +82,17 @@ func (c coreClient) request(ctx context.Context, method, path string, body, out 
 		}
 		return "gate_contract_unavailable"
 	case 409:
+		if method == "POST" && path == "operations" {
+			raw, readErr := io.ReadAll(io.LimitReader(res.Body, 4097))
+			if readErr != nil {
+				return "gate_conflict"
+			}
+			current, _, _, configErr := c.connection.ResolveManagerConfigWithSource(ctx)
+			if configErr != nil || current.CPAConnection != conn || current.UpdatedAtMS != cfg.UpdatedAtMS {
+				return "gate_connection_changed"
+			}
+			return DecodeGateConflict(raw)
+		}
 		return "gate_conflict"
 	case 422:
 		return "model_scope_unsupported"

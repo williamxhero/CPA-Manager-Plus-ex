@@ -37,6 +37,14 @@ func (s *Store) CredentialPolicyOperation(ctx context.Context, id string) (Crede
 	return scanPolicyOperation(s.db.QueryRowContext(ctx, `SELECT `+policyOperationColumns+` FROM credential_policy_operations WHERE id=?`, id))
 }
 
+func (s *Store) LatestCredentialPolicyOperation(ctx context.Context, subject string) (CredentialPolicyOperation, error) {
+	r, err := scanPolicyOperation(s.db.QueryRowContext(ctx, `SELECT `+policyOperationColumns+` FROM credential_policy_operations WHERE subject_id=? ORDER BY rowid DESC LIMIT 1`, subject))
+	if errors.Is(err, sql.ErrNoRows) {
+		return CredentialPolicyOperation{}, nil
+	}
+	return r, err
+}
+
 func (s *Store) PendingCredentialPolicyOperations(ctx context.Context) ([]CredentialPolicyOperation, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+policyOperationColumns+` FROM credential_policy_operations WHERE state IN ('queued','pending','error') ORDER BY rowid LIMIT 64`)
 	if err != nil {
@@ -146,7 +154,9 @@ func (s *Store) CompleteCredentialPolicyOperation(ctx context.Context, id string
 	if op.Revision != revision || op.State == "superseded" {
 		return ErrPolicyConflict
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE credential_policy_operations SET state=?,result=?,last_error=?,revision=revision+1,attempted=1 WHERE id=? AND revision=?`, state, result, reason, id, revision)
+	// Only Claim marks an attempted write. A failed receipt/inventory read must
+	// not freeze an unplanned envelope or invent an uncertain write outcome.
+	_, err = tx.ExecContext(ctx, `UPDATE credential_policy_operations SET state=?,result=?,last_error=?,revision=revision+1 WHERE id=? AND revision=?`, state, result, reason, id, revision)
 	if err != nil {
 		return err
 	}
@@ -210,4 +220,35 @@ func (s *Store) ClaimCredentialPolicyOperation(ctx context.Context, id string, r
 	op.LastError = "outcome_unverified"
 	op.Revision++
 	return op, tx.Commit()
+}
+
+// Caller must have an explicit non-application/global-revision rejection. This
+// atomic handover never rewrites the attempted body and cannot survive OFF.
+func (s *Store) ReplanCredentialPolicyOperation(ctx context.Context, id string, revision int64, next CredentialPolicyOperation, lease CredentialPolicyLease, now int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	old, err := scanPolicyOperation(tx.QueryRowContext(ctx, `SELECT `+policyOperationColumns+` FROM credential_policy_operations WHERE id=?`, id))
+	if err != nil {
+		return err
+	}
+	if err := policyOperationGuard(ctx, tx, old, lease, now); err != nil {
+		return err
+	}
+	if old.Revision != revision || old.State != "pending" || !old.Attempted {
+		return ErrPolicyConflict
+	}
+	parsed, err := uuid.Parse(next.ID)
+	if err != nil || parsed.String() != next.ID || next.ID == old.ID || next.SubjectID != old.SubjectID || next.Generation != old.Generation || next.Owner != old.Owner || next.Automatic != old.Automatic || !json.Valid([]byte(next.Body)) || len(next.Body) > 32<<10 {
+		return ErrPolicyOperationConflict
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO credential_policy_operations(`+policyOperationColumns+`) VALUES(?,?,?,?,?,'queued',?,'','',1,0)`, next.ID, next.SubjectID, next.Generation, next.Owner, next.Automatic, next.Body); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE credential_policy_operations SET state='conflict',last_error='gate_cas_replanned',revision=revision+1 WHERE id=? AND revision=?`, id, revision); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

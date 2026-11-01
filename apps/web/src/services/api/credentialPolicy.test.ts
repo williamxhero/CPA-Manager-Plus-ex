@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import type { CredentialPolicyOperationStatus } from './credentialPolicy';
 import {
   getCredentialPolicy,
   getStoredCredentialPolicy,
@@ -6,6 +7,35 @@ import {
 } from './credentialPolicy';
 
 afterEach(() => vi.unstubAllGlobals());
+
+it('keeps durable receipt metadata separate from current applied readback', async () => {
+  const operation: CredentialPolicyOperationStatus = {
+    opId: '00000000-0000-4000-8000-000000000001',
+    policyGeneration: 2,
+    state: 'pending',
+    action: 'pause',
+    revision: 3,
+    attempted: true,
+    planned: true,
+    expectedGateRevision: 7,
+    evidenceVersion: 'opaque-evidence-reference',
+    gateRevision: 0,
+    durableRevision: 0,
+    appliedRevision: 0,
+    receiptConfirmed: false,
+    currentApplied: false,
+    reason: 'outcome_unverified',
+    retry: 0,
+  };
+  const status = { enabled: true, applied: false, operation };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(status)))
+  );
+  const read = await getStoredCredentialPolicy('http://manager.invalid', 'panel-key', 'subject');
+  expect(read.operation).toEqual(operation);
+  expect(read.applied).toBe(false);
+});
 
 it('reads stored emergency intent by issued subject without treating cached binding as current', async () => {
   const status = {

@@ -2,6 +2,7 @@ package credentialpolicy
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
@@ -129,6 +130,24 @@ func (s *Service) enqueueDecision(ctx context.Context, state Status, source cq.S
 	document, err := json.Marshal(desired)
 	if err != nil {
 		return out, err
+	}
+	existing, lookupErr := s.Store.CredentialPolicyOperation(ctx, id)
+	if lookupErr == nil {
+		var prior PendingIntent
+		if json.Unmarshal([]byte(existing.Body), &prior) != nil {
+			return out, store.ErrPolicyOperationConflict
+		}
+		// Planning alone changes the frozen revision envelope. A replayed
+		// completion must match every original intent/evidence/source field.
+		prior.Planned = false
+		prior.Operation.ExpectedGateRevision = 0
+		prior.OwnedAtPlan = nil
+		if !reflect.DeepEqual(prior, desired) {
+			return out, store.ErrPolicyOperationConflict
+		}
+		document = []byte(existing.Body)
+	} else if !errors.Is(lookupErr, sql.ErrNoRows) {
+		return out, lookupErr
 	}
 	_, err = s.Store.BeginCredentialPolicyOperation(ctx, store.CredentialPolicyOperation{ID: id, SubjectID: state.SubjectID, Generation: state.Generation, Owner: state.Owner, Automatic: true, Body: string(document)}, lease, s.now().UnixMilli())
 	if err == nil {

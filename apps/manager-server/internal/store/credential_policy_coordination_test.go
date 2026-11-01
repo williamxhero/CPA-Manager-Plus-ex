@@ -237,4 +237,25 @@ func TestCredentialPolicyDispatchPersistsUnknownOutcomeBeforeRPCAndFreezesBody(t
 	if _, err := db.ClaimCredentialPolicyOperation(ctx, op.ID, planned.Revision, lease, 1005); !errors.Is(err, store.ErrPolicyConflict) {
 		t.Fatal("stale dispatch claim reused")
 	}
+	next := store.CredentialPolicyOperation{ID: "00000000-0000-4000-8000-000000000003", SubjectID: subject, Generation: 1, Owner: owner, Automatic: true, Body: `{"planned":true,"expectedGateRevision":8}`}
+	if err := db.ReplanCredentialPolicyOperation(ctx, sending.ID, sending.Revision, next, lease, 1006); err != nil {
+		t.Fatal(err)
+	}
+	old, err := db.CredentialPolicyOperation(ctx, sending.ID)
+	if err != nil || old.Body != sending.Body || old.State != "conflict" || old.LastError != "gate_cas_replanned" {
+		t.Fatal("CAS successor rewrote sent predecessor")
+	}
+	created, err := db.CredentialPolicyOperation(ctx, next.ID)
+	if err != nil || created.State != "queued" || created.Attempted {
+		t.Fatal("fresh-ID successor not atomically queued")
+	}
+	if err := db.ReplanCredentialPolicyOperation(ctx, sending.ID, sending.Revision, next, lease, 1007); !errors.Is(err, store.ErrPolicyConflict) {
+		t.Fatal("duplicate successor admitted")
+	}
+	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: subject, Generation: 2, Document: `{"enabled":false,"owner":"` + owner + `"}`}, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReplanCredentialPolicyOperation(ctx, created.ID, created.Revision, next, lease, 1008); !errors.Is(err, store.ErrPolicyConflict) {
+		t.Fatal("OFF permitted successor")
+	}
 }

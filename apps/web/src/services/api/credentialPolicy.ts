@@ -49,6 +49,36 @@ async function policyError(response: Response): Promise<CredentialPolicyError> {
 
 // Durable intent and actual protection are distinct. Never render enabled as an
 // applied pause; unavailable and failed writes must use backend readback.
+export interface CredentialPolicyOperationStatus {
+  opId: string;
+  policyGeneration: number;
+  state:
+    | 'queued'
+    | 'pending'
+    | 'error'
+    | 'conflict'
+    | 'superseded'
+    | 'no_action'
+    | 'applied'
+    | 'invalid';
+  action: 'pause' | 'clear' | '';
+  revision: number;
+  attempted: boolean;
+  planned: boolean;
+  expectedGateRevision: number;
+  evidenceVersion: string;
+  gateRevision: number;
+  durableRevision: number;
+  appliedRevision: number;
+  /** Historical receipt only; never means that today's gate is unchanged. */
+  receiptConfirmed: boolean;
+  currentApplied: boolean;
+  reason: string;
+  modelAutomationReason?: 'model_scope_unsupported';
+  previousOpId?: string;
+  retry: number;
+}
+
 export interface CredentialPolicyStatus extends Omit<CredentialQuotaSource, 'state' | 'reason'> {
   subjectId: string;
   bindingCurrent: boolean;
@@ -60,6 +90,7 @@ export interface CredentialPolicyStatus extends Omit<CredentialQuotaSource, 'sta
   availability: { state: 'available' | 'unavailable'; reason: string };
   queryAvailability: { state: string; reason: string };
   applied: boolean;
+  operation?: CredentialPolicyOperationStatus;
 }
 
 export interface CredentialPolicyUpdate extends QuotaBinding {

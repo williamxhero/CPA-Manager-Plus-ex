@@ -185,4 +185,56 @@ func TestCredentialPolicyFreshFencedEvidenceQueuesDurablyWithoutClaimingApplied(
 	if local.Applied || local.BindingCurrent {
 		t.Fatal("local queue claimed an actual Core ACK")
 	}
+	if local.Operation == nil || local.Operation.OpID != first.OperationID || local.Operation.State != "queued" || local.Operation.CurrentApplied || local.Operation.ReceiptConfirmed || local.Operation.EvidenceVersion != first.Decision.EvidenceVersion {
+		t.Fatalf("local pending operation metadata missing or misleading: %+v", local.Operation)
+	}
+	lease, err := db.AcquireCredentialPolicyLease(ctx, uuid.NewString(), now.UnixMilli(), 30000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var intent policy.PendingIntent
+	if err := json.Unmarshal([]byte(pending[0].Body), &intent); err != nil {
+		t.Fatal(err)
+	}
+	intent.Planned = true
+	intent.Operation.ExpectedGateRevision = 7
+	body, _ := json.Marshal(intent)
+	planned, err := db.PlanCredentialPolicyOperation(ctx, first.OperationID, pending[0].Revision, string(body), lease, now.UnixMilli())
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := db.ClaimCredentialPolicyOperation(ctx, planned.ID, planned.Revision, lease, now.UnixMilli())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReleaseCredentialPolicyLease(ctx, lease); err != nil {
+		t.Fatal(err)
+	}
+	third, err := coordinator.CompleteCredentialQuery(ctx, q, source, source.Attempt.QueryID)
+	if err != nil || third.OperationID != first.OperationID {
+		t.Fatalf("duplicate after immutable planning failed: %+v %v", third, err)
+	}
+	after, err := db.CredentialPolicyOperation(ctx, claimed.ID)
+	if err != nil || after.Body != claimed.Body || after.Revision != claimed.Revision {
+		t.Fatal("duplicate changed already claimed operation")
+	}
+	local, err = coordinator.StoredStatus(ctx, id)
+	if err != nil || local.Operation == nil || !local.Operation.Planned || !local.Operation.Attempted || local.Operation.ExpectedGateRevision != 7 || local.Operation.CurrentApplied || local.Operation.ReceiptConfirmed {
+		t.Fatal("planned pending metadata implied applied state")
+	}
+	lease, err = db.AcquireCredentialPolicyLease(ctx, uuid.NewString(), now.UnixMilli(), 30000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A forged/local DB outcome with no actual receipt must NEVER become proof.
+	if err := db.CompleteCredentialPolicyOperation(ctx, after.ID, after.Revision, "applied", "", "", lease, now.UnixMilli()); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReleaseCredentialPolicyLease(ctx, lease); err != nil {
+		t.Fatal(err)
+	}
+	local, err = coordinator.StoredStatus(ctx, id)
+	if err != nil || local.Applied || local.Operation.ReceiptConfirmed || local.Operation.CurrentApplied || local.Operation.State != "error" || local.Operation.Reason != "gate_ack_unconfirmed" {
+		t.Fatal("DB applied string became a confirmed receipt")
+	}
 }

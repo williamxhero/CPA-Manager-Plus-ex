@@ -37,16 +37,17 @@ type Update struct {
 
 type Status struct {
 	cq.Source
-	SubjectID         string        `json:"subjectId"`
-	BindingCurrent    bool          `json:"bindingCurrent"`
-	Enabled           bool          `json:"enabled"`
-	Generation        int64         `json:"generation"`
-	Owner             string        `json:"owner"`
-	Availability      rc.Capability `json:"availability"`
-	QueryAvailability rc.Capability `json:"queryAvailability"`
-	State             string        `json:"state"`
-	Reason            string        `json:"reason"`
-	Applied           bool          `json:"applied"`
+	SubjectID         string           `json:"subjectId"`
+	BindingCurrent    bool             `json:"bindingCurrent"`
+	Enabled           bool             `json:"enabled"`
+	Generation        int64            `json:"generation"`
+	Owner             string           `json:"owner"`
+	Availability      rc.Capability    `json:"availability"`
+	QueryAvailability rc.Capability    `json:"queryAvailability"`
+	State             string           `json:"state"`
+	Reason            string           `json:"reason"`
+	Applied           bool             `json:"applied"`
+	Operation         *OperationStatus `json:"operation,omitempty"`
 }
 
 // SourceReader supplies the authoritative current inventory, not query results.
@@ -172,6 +173,9 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 			out.Reason = "source_changed"
 		}
 	}
+	if err := s.attachOperation(ctx, &out, true); err != nil {
+		return Status{}, err
+	}
 	// Capability/network I/O may span an instance switch or credential mutation.
 	// A current selector is not a lease on its earlier issued source binding.
 	current, verifyErr := s.source(ctx, src.AuthIndex)
@@ -262,6 +266,9 @@ func (s *Service) StoredStatus(ctx context.Context, id string) (Status, error) {
 	} else {
 		out.State = "pending"
 	}
+	if err := s.attachOperation(ctx, &out, false); err != nil {
+		return Status{}, err
+	}
 	return out, nil
 }
 
@@ -293,6 +300,9 @@ func (s *Service) localOff(ctx context.Context, q Update) (Status, bool, error) 
 		return Status{}, true, err
 	}
 	err = s.Store.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: out.Generation, Document: string(document)}, *q.ExpectedGeneration)
+	if err == nil {
+		err = s.attachOperation(ctx, &out, false)
+	}
 	return out, true, err
 }
 

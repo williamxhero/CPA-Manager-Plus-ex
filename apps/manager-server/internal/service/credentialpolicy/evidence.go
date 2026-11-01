@@ -15,12 +15,13 @@ import (
 // A candidate is not a gate action. Current generation/start fence, real source
 // eligibility, durable journal and applied/current-ledger readback are separate.
 type EvidenceDecision struct {
-	Action          string `json:"action"`
-	Model           string `json:"model"`
-	Reason          string `json:"reason"`
-	EvidenceVersion string `json:"evidenceVersion,omitempty"`
-	AttemptID       string `json:"attemptId,omitempty"`
-	ObservedAtMS    int64  `json:"observedAtMs,omitempty"`
+	Action                string `json:"action"`
+	Model                 string `json:"model"`
+	Reason                string `json:"reason"`
+	EvidenceVersion       string `json:"evidenceVersion,omitempty"`
+	AttemptID             string `json:"attemptId,omitempty"`
+	ObservedAtMS          int64  `json:"observedAtMs,omitempty"`
+	ModelAutomationReason string `json:"modelAutomationReason,omitempty"`
 }
 
 func noEvidence(reason string) EvidenceDecision {
@@ -65,7 +66,7 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 		}
 	}
 	globalExhausted := false
-	allPositive := true
+	globalPositive := true
 	modelExhausted := false
 	for _, w := range core.Windows {
 		if w.Name == "" || len(w.Name) > 128 || len(w.Model) > 128 || math.IsNaN(w.UsedPercent) || math.IsInf(w.UsedPercent, 0) || w.UsedPercent < 0 || w.UsedPercent > 100 || math.IsNaN(w.RemainingFraction) || math.IsInf(w.RemainingFraction, 0) || w.RemainingFraction < 0 || w.RemainingFraction > 1 {
@@ -91,9 +92,13 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 		}
 		globalExhausted = globalExhausted || w.Model == "" && exhausted
 		modelExhausted = modelExhausted || w.Model != "" && exhausted
-		allPositive = allPositive && w.RemainingFraction > 0 && w.UsedPercent < 100 && w.SourceStatus != "rate-limited"
+		if w.Model == "" {
+			globalPositive = globalPositive && w.RemainingFraction > 0 && w.UsedPercent < 100 && w.SourceStatus != "rate-limited"
+		}
 	}
-	for _, names := range groups {
+	// Model subgroups cannot widen a pause OR veto recovery of a distinct
+	// whole/global reason. Only the complete global scope can vote here.
+	if names := groups[""]; len(names) != 0 {
 		if core.Protocol == "codex-oauth-wham" {
 			if len(names) != 2 || !names["primary"] || !names["secondary"] {
 				return noEvidence("incomplete_evidence")
@@ -105,18 +110,21 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 		}
 	}
 	out := EvidenceDecision{Action: "none", AttemptID: obs.QueryID, ObservedAtMS: obs.ObservedAtMS, EvidenceVersion: status.SourceVersion + ":" + strconv.FormatInt(status.Version, 10) + ":" + obs.QueryID}
+	if modelExhausted {
+		out.ModelAutomationReason = "model_scope_unsupported"
+	}
 	if globalExhausted {
 		out.Action = "pause"
 		out.Reason = "quota_windows_exhausted"
 		return out
 	}
-	if modelExhausted {
-		return noEvidence("model_scope_unsupported")
-	}
 	if len(groups[""]) == 0 {
+		if modelExhausted {
+			return noEvidence("model_scope_unsupported")
+		}
 		return noEvidence("whole_credential_scope_unproven")
 	}
-	if allPositive {
+	if globalPositive {
 		out.Action = "recover"
 		out.Reason = "quota_windows_positive"
 		return out

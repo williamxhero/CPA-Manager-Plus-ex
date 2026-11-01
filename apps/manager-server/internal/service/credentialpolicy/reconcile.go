@@ -14,12 +14,14 @@ import (
 // The immutable operation body and its evidence/version are durable before RPC.
 // Never rewrite a previously sent opId when binding or global ledger CAS changes.
 type PendingIntent struct {
-	Planned     bool             `json:"planned"`
-	Operation   GateOperation    `json:"operation"`
-	Source      cq.Source        `json:"source"`
-	Evidence    EvidenceDecision `json:"evidence"`
-	ExpiresAtMS int64            `json:"expiresAtMs"`
-	Retry       int              `json:"retry,omitempty"`
+	Planned      bool              `json:"planned"`
+	Operation    GateOperation     `json:"operation"`
+	Source       cq.Source         `json:"source"`
+	Evidence     EvidenceDecision  `json:"evidence"`
+	ExpiresAtMS  int64             `json:"expiresAtMs"`
+	Retry        int               `json:"retry,omitempty"`
+	PreviousOpID string            `json:"previousOpId,omitempty"`
+	OwnedAtPlan  []GateRestriction `json:"ownedAtPlan,omitempty"`
 }
 
 func (s *Service) Reconcile(ctx context.Context) error {
@@ -82,7 +84,7 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 	if reason != "" && reason != "gate_operation_not_found" {
 		return save(reason)
 	}
-	if reason == "" && !result.Confirms(desired.Operation) {
+	if reason == "" && (!desired.Planned || !result.Confirms(desired.Operation)) {
 		return save("gate_ack_unconfirmed")
 	}
 	if reason == "" {
@@ -124,6 +126,7 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 	}
 	if !desired.Planned {
 		desired.Operation.ExpectedGateRevision = ledger.GateRevision
+		desired.OwnedAtPlan = ownedSourceRows(ledger, desired.Operation)
 		desired.Planned = true
 		body, _ := json.Marshal(desired)
 		record, err = s.Store.PlanCredentialPolicyOperation(ctx, record.ID, record.Revision, string(body), lease, s.now().UnixMilli())
@@ -139,6 +142,9 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 	}
 	reason = s.core.request(ctx, "POST", "operations", desired.Operation, &result)
 	if reason != "" {
+		if reason == "gate_revision_conflict" && record.Automatic {
+			return s.replanRevisionConflict(ctx, record, desired, lease)
+		}
 		if reason == "gate_conflict" {
 			return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "conflict", "", "gate_conflict_requery_required", lease, s.now().UnixMilli())
 		}
@@ -148,6 +154,45 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 		return save("gate_ack_unconfirmed")
 	}
 	return s.confirmOperation(ctx, record, desired, result, lease)
+}
+
+func (s *Service) replanRevisionConflict(ctx context.Context, record store.CredentialPolicyOperation, desired PendingIntent, lease store.CredentialPolicyLease) error {
+	save := func(reason string) error {
+		return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "pending", "", reason, lease, s.now().UnixMilli())
+	}
+	// Only reached after a typed non-application rejection, never a timeout.
+	var receipt GateResult
+	reason := s.core.request(ctx, "GET", "operations/"+record.ID, nil, &receipt)
+	if reason != "gate_operation_not_found" {
+		return save("gate_replan_outcome_unverified")
+	}
+	source, err := s.source(ctx, desired.Source.AuthIndex)
+	if err != nil || !reflect.DeepEqual(source, desired.Source) {
+		return save("source_authority_changed")
+	}
+	if _, reason = s.core.capabilities(ctx, source); reason != "" {
+		return save(reason)
+	}
+	ledger, reason := s.core.snapshot(ctx)
+	if reason != "" {
+		return save(reason)
+	}
+	next, reason := PrepareGateRevisionRetry(desired, source, ledger, s.now())
+	if reason != "" {
+		if desired.Retry >= 3 {
+			return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "conflict", "", "gate_replan_limit", lease, s.now().UnixMilli())
+		}
+		return save(reason)
+	}
+	current, err := s.source(ctx, source.AuthIndex)
+	if err != nil || !reflect.DeepEqual(current, source) {
+		return save("source_authority_changed")
+	}
+	body, err := json.Marshal(next)
+	if err != nil {
+		return err
+	}
+	return s.Store.ReplanCredentialPolicyOperation(ctx, record.ID, record.Revision, store.CredentialPolicyOperation{ID: next.Operation.OpID, SubjectID: record.SubjectID, Generation: record.Generation, Owner: record.Owner, Automatic: record.Automatic, Body: string(body)}, lease, s.now().UnixMilli())
 }
 
 func (s *Service) confirmOperation(ctx context.Context, record store.CredentialPolicyOperation, desired PendingIntent, result GateResult, lease store.CredentialPolicyLease) error {
