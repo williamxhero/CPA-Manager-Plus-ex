@@ -1,6 +1,9 @@
 import type { CredentialQuotaSource, QuotaBinding } from './credentialQuota';
 
 const safeErrors = new Set([
+  'fresh_authoritative_evidence_required',
+  'verified_selected_key_evidence_required',
+  'source_changed',
   'gate_source_unsupported',
   'gate_eligibility_invalid',
   'identity_changed',
@@ -81,6 +84,7 @@ export interface CredentialPolicyOperationStatus {
 }
 
 export interface CredentialPolicyStatus extends Omit<CredentialQuotaSource, 'state' | 'reason'> {
+  legacyMigration?: {state: string; reason: string};
   subjectId: string;
   bindingCurrent: boolean;
   enabled: boolean;

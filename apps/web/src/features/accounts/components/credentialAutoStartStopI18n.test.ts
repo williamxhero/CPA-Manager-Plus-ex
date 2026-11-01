@@ -48,3 +48,14 @@ describe('credential auto start/stop i18n coverage', () => {
     }
   });
 });
+
+it('ticket93 localizes all new independent-policy and common-refresh copy in every locale',()=>{
+ const dictionaries=[en,zhCN,zhTW,ru] as Array<Record<string,unknown>>;
+ const keys=['saved_on','saved_off','details','refresh','native_disabled','other_unknown','migration','no_guess','own_action','applied_current','applied_unverified','resume','refresh_required','inventory_title','refresh_all','progress','observation_unknown'];
+ for(const dictionary of dictionaries) {
+  const copy=dictionary.credential_policy as Record<string,string>;
+  expect(copy).toBeDefined();
+  for(const key of keys)expect(copy[key]?.length,key).toBeGreaterThan(0);
+ }
+ expect(JSON.stringify((en as Record<string,unknown>).credential_policy)).not.toMatch(/[\u3400-\u9fff]/);
+});

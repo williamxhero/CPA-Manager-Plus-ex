@@ -1076,8 +1076,9 @@ const findHostButtonByText = (renderer: ReactTestRenderer, text: string) => {
 
 const openCodexQuotaTab = async (renderer: ReactTestRenderer, fileName: string) => {
   await act(async () => {
-    findDetailButtonByName(renderer, fileName).props.onClick();
+    findSettingsButtonByName(renderer, fileName).props.onClick();
   });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
   await flushPromises();
   await act(async () => {
     findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
@@ -1149,12 +1150,12 @@ const renderAccountsPage = async () => {
   return renderer!;
 };
 
-const findDetailButtonByName = (renderer: ReactTestRenderer, fileName: string) => {
-  const button = renderer.root
-    .findAll((node) => node.type === 'button')
-    .find((node) => node.props['aria-label'] === `accounts.open_detail:${fileName}`);
-  if (!button) throw new Error(`Detail button not found: ${fileName}`);
-  return button;
+// Ticket93 removes the outer Details route. All detail regressions now enter
+// through the actual Settings button; no synthetic replacement action is mocked.
+const findSettingsButtonByName = (renderer: ReactTestRenderer, fileName: string) => {
+  const file=mocks.files.find(file=>file.name===fileName);
+  if(!file)throw new Error(`Fixture credential not found: ${fileName}`);
+  return findAccountCardButtonByAriaLabel(renderer,getAuthFileSelectionKey(file),'accounts.detail_tab_config');
 };
 
 const findAccountCardByKey = (renderer: ReactTestRenderer, selectionKey: string) =>
@@ -2194,8 +2195,9 @@ describe('AccountsPage replacement flows', () => {
     expect(getAccountCardText(renderer, selectionKey)).not.toContain('accounts.health_reauth');
 
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -3369,9 +3371,10 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
       await Promise.resolve();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
 
     const providerIcon = renderer.root.findByProps({ 'data-account-provider-icon': 'codex' });
     expect(providerIcon.findByType('img').props.alt).toBe('');
@@ -3382,8 +3385,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     const refreshItem = findDrawerMoreItem(renderer, 'refresh-credential');
 
     expect(refreshItem.label).toBe('auth_files.credential_refresh_button');
@@ -4501,9 +4505,10 @@ describe('AccountsPage replacement flows', () => {
     expect(readText(accountCard)).not.toContain('accounts.health_reauth');
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
       await Promise.resolve();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
     expect(
       renderer.root.findAllByProps({ 'data-overview-recent-status-message': 'true' })
@@ -5468,28 +5473,11 @@ describe('AccountsPage replacement flows', () => {
     expect(options.message.props.fileNames).toContain('codex.json');
   });
 
-  it('keeps runtime Aistudio model discovery available', async () => {
-    mocks.files = [
-      {
-        name: 'runtime-aistudio.json',
-        type: 'aistudio',
-        provider: 'aistudio',
-        runtimeOnly: true,
-        disabled: false,
-      } as AuthFileItem,
-    ];
-
+  it('keeps runtime Aistudio model discovery available inside Settings', async () => {
+    mocks.files = [{name:'runtime-aistudio.json',type:'aistudio',provider:'aistudio',runtimeOnly:true,disabled:false} as AuthFileItem];
     const renderer = await renderAccountsPage();
-    const modelsButton = findAccountCardButtonByAriaLabel(
-      renderer,
-      getAuthFileSelectionKey(mocks.files[0]),
-      'auth_files.models_button'
-    );
-
-    expect(modelsButton.props.disabled).toBe(false);
-    await act(async () => {
-      modelsButton.props.onClick();
-    });
+    await act(async()=> {findAccountCardButtonByAriaLabel(renderer,getAuthFileSelectionKey(mocks.files[0]),'accounts.detail_tab_config').props.onClick();});
+    await act(async()=> {findHostButtonByText(renderer,'accounts.detail_tab_models').props.onClick();});
     expect(mocks.showModels).toHaveBeenCalledWith(mocks.files[0]);
   });
 
@@ -5643,8 +5631,9 @@ describe('AccountsPage replacement flows', () => {
     expect(readText(accountCard)).not.toContain('accounts.health_reauth');
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       await Promise.resolve();
@@ -6011,8 +6000,9 @@ describe('AccountsPage replacement flows', () => {
       await flushPromises();
 
       await act(async () => {
-        findDetailButtonByName(renderer, 'codex.json').props.onClick();
+        findSettingsButtonByName(renderer, 'codex.json').props.onClick();
       });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
       await act(async () => {
         findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       });
@@ -6096,8 +6086,9 @@ describe('AccountsPage replacement flows', () => {
       findHostButtonByText(renderer, 'accounts.tab_accounts').props.onClick();
     });
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
     });
@@ -6209,8 +6200,9 @@ describe('AccountsPage replacement flows', () => {
     expect(cardText).not.toContain('accounts.health_weekly_exhausted');
 
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     expect(renderer.root.findAllByProps({ 'data-overview-section': 'attention' })).toHaveLength(0);
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
@@ -6279,8 +6271,9 @@ describe('AccountsPage replacement flows', () => {
     expect(cardText).not.toContain('accounts.health_exhausted');
     expect(cardText).not.toContain('accounts.health_weekly_exhausted');
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -6332,8 +6325,9 @@ describe('AccountsPage replacement flows', () => {
 
     expect(getAccountCardText(renderer, selectionKey)).toContain('accounts.health_available');
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
 
     expect(renderer.root.findAllByProps({ 'data-overview-section': 'attention' })).toHaveLength(1);
@@ -6508,8 +6502,9 @@ describe('AccountsPage replacement flows', () => {
     expect(cardText).not.toContain('accounts.health_weekly_exhausted');
 
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     expect(renderer.root.findAllByProps({ 'data-overview-section': 'attention' })).toHaveLength(0);
     expect(treeText(renderer)).not.toContain('accounts.detail_overview_basis_cooldown');
   });
@@ -7637,8 +7632,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
     await flushPromises();
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     expect(treeText(renderer)).toContain('accounts.quota_source_observed_header');
 
     act(() => {
@@ -7721,8 +7717,9 @@ describe('AccountsPage replacement flows', () => {
     });
     await flushPromises();
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     expect(treeText(renderer)).not.toContain('accounts.quota_source_observed_header');
     expect(treeText(renderer)).toContain('accounts.quota_source_none');
 
@@ -7978,8 +7975,9 @@ describe('AccountsPage replacement flows', () => {
       'accounts.health_available'
     );
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -8402,8 +8400,9 @@ describe('AccountsPage replacement flows', () => {
       'accounts.health_reauth'
     );
     await act(async () => {
-      findDetailButtonByName(renderer, second.name).props.onClick();
+      findSettingsButtonByName(renderer, second.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -10699,11 +10698,12 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         selectionKey,
-        'auth_files.models_button'
+        'accounts.detail_tab_config'
       ).props.onClick();
       await Promise.resolve();
     });
 
+    await act(async()=> {findHostButtonByText(renderer,'accounts.detail_tab_models').props.onClick();});
     expect(mocks.showModels).toHaveBeenCalledWith(mocks.files[0]);
     expect(treeText(renderer)).toContain('auth_files.models_empty');
 
@@ -10746,8 +10746,9 @@ describe('AccountsPage replacement flows', () => {
     );
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     expect(treeText(renderer)).toContain('accounts.detail_tab_overview');
   });
 
@@ -10755,8 +10756,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
 
     expect(renderer.root.findAllByProps({ 'data-overview-section': 'decision' })).toHaveLength(1);
@@ -10821,8 +10823,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
 
     const recentStatusSection = renderer.root.findByProps({
@@ -10870,8 +10873,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
 
     expect(mocks.listAccountActionCandidates).toHaveBeenCalledTimes(1);
@@ -10883,8 +10887,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -10944,8 +10949,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
 
     expect(
@@ -10992,8 +10998,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
 
     expect(
@@ -11066,8 +11073,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
 
     expect(
@@ -11102,8 +11110,9 @@ describe('AccountsPage replacement flows', () => {
     };
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
     expect(countAnalyticsRequests()).toEqual({ overview: 1, diagnostics: 0 });
 
@@ -11157,13 +11166,15 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex-a.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex-a.json').props.onClick();
       await Promise.resolve();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex-b.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex-b.json').props.onClick();
       await Promise.resolve();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
 
     await act(async () => {
       secondActivity.resolve({
@@ -11269,15 +11280,17 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
       await Promise.resolve();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       renderer.root.findByType(Drawer).props.onClose();
     });
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
 
     expect(overviewRequestCount).toBe(2);
@@ -11576,8 +11589,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
     await flushPromises();
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -11626,8 +11640,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
     await flushPromises();
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -11749,8 +11764,9 @@ describe('AccountsPage replacement flows', () => {
     await flushPromises();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'stale.json').props.onClick();
+      findSettingsButtonByName(renderer, 'stale.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -11809,8 +11825,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'generic-a.json').props.onClick();
+      findSettingsButtonByName(renderer, 'generic-a.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -11863,8 +11880,9 @@ describe('AccountsPage replacement flows', () => {
     ).not.toContain('111');
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'generic-b.json').props.onClick();
+      findSettingsButtonByName(renderer, 'generic-b.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -11896,8 +11914,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
     await flushPromises();
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -11998,8 +12017,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
     await flushPromises();
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -12094,8 +12114,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'generic-a.json').props.onClick();
+      findSettingsButtonByName(renderer, 'generic-a.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -12129,8 +12150,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
     await flushPromises();
     await act(async () => {
-      findDetailButtonByName(renderer, 'generic-history.json').props.onClick();
+      findSettingsButtonByName(renderer, 'generic-history.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -12391,8 +12413,9 @@ describe('AccountsPage replacement flows', () => {
       findHostButtonByText(renderer, 'accounts.tab_accounts').props.onClick();
     });
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
     expect(renderer.root.findAllByProps({ 'data-overview-section': 'attention' })).toHaveLength(1);
 
@@ -12525,8 +12548,9 @@ describe('AccountsPage replacement flows', () => {
     expect(cardText).not.toContain('accounts.health_reauth');
 
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -12758,8 +12782,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex-reset.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex-reset.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findDrawerMoreItem(renderer, 'reset-codex-quota').onClick();
     });
@@ -12994,8 +13019,9 @@ describe('AccountsPage replacement flows', () => {
     expect(cardText).not.toContain('999');
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'healthy.json').props.onClick();
+      findSettingsButtonByName(renderer, 'healthy.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
@@ -13188,8 +13214,9 @@ describe('AccountsPage replacement flows', () => {
     expect(mocks.getHeaderSnapshots).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex-diagnostic.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex-diagnostic.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
 
     expect(mocks.getHeaderSnapshots).toHaveBeenCalledTimes(1);
@@ -13280,8 +13307,9 @@ describe('AccountsPage replacement flows', () => {
     expect(mocks.getAccountWindowUsage).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex-a.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex-a.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
 
     expect(mocks.getActiveQuotaCooldowns).toHaveBeenCalledTimes(1);
@@ -13380,8 +13408,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
@@ -13860,9 +13889,10 @@ describe('AccountsPage replacement flows', () => {
     expect(card.findByProps({ title: 'Go' }).children[0]).toBe('Go');
 
     await act(async () => {
-      findDetailButtonByName(renderer, file.name).props.onClick();
+      findSettingsButtonByName(renderer, file.name).props.onClick();
       await Promise.resolve();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
     const drawer = renderer.root.findByType(Drawer);
     expect(readText(drawer.props.title)).toContain('accounts.list_plan_remaining_days:25');
@@ -13916,9 +13946,10 @@ describe('AccountsPage replacement flows', () => {
         expect(readText(findAccountCardByKey(renderer, getAuthFileSelectionKey(file))))
           .not.toContain('accounts.list_plan_remaining_days:');
         await act(async () => {
-          findDetailButtonByName(renderer, file.name).props.onClick();
+          findSettingsButtonByName(renderer, file.name).props.onClick();
           await Promise.resolve();
         });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
         await flushPromises();
         const drawer = renderer.root.findByType(Drawer);
         expect(readText(drawer.props.title)).not.toContain('accounts.list_plan_remaining_days:');
@@ -14367,8 +14398,9 @@ describe('AccountsPage replacement flows', () => {
     expect(renderer.root.findAllByType(AccountQuotaTab)).toHaveLength(0);
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'xai-ops.json').props.onClick();
+      findSettingsButtonByName(renderer, 'xai-ops.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
@@ -15252,8 +15284,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -15301,8 +15334,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'xai-unknown.json').props.onClick();
+      findSettingsButtonByName(renderer, 'xai-unknown.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
     });
@@ -15324,8 +15358,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
 
     const tablist = renderer.root
       .findAllByProps({ role: 'tablist' })
@@ -15345,9 +15380,10 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
       await Promise.resolve();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
 
     const drawer = renderer.root.findByType(Drawer);
     const bodyRef = drawer.props.bodyRef as { current: { scrollTop: number } | null };
@@ -15395,8 +15431,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
@@ -15459,8 +15496,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
@@ -15485,8 +15523,9 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await flushPromises();
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
@@ -15940,8 +15979,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.refresh_quota').props.onClick();
     });
@@ -16383,7 +16423,7 @@ describe('AccountsPage replacement flows', () => {
       .find(
         (node) =>
           typeof node.props['aria-label'] === 'string' &&
-          node.props['aria-label'].startsWith('accounts.open_detail:')
+          node.props['aria-label'] === 'accounts.detail_tab_config'
       );
     if (!detailButton) throw new Error('Detail button not found');
 
@@ -16431,8 +16471,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       await Promise.resolve();
@@ -16519,8 +16560,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       await Promise.resolve();
@@ -16546,8 +16588,9 @@ describe('AccountsPage replacement flows', () => {
   it('renders the diagnostics tab with the prototype layout marker and active tab state', async () => {
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       await Promise.resolve();
@@ -16591,8 +16634,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       await Promise.resolve();
@@ -16636,8 +16680,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       await Promise.resolve();
@@ -16674,8 +16719,9 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       await Promise.resolve();
@@ -16684,8 +16730,9 @@ describe('AccountsPage replacement flows', () => {
       renderer.root.findByType(Drawer).props.onClose();
     });
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
     });
@@ -16747,8 +16794,9 @@ describe('AccountsPage replacement flows', () => {
     mocks.getAnalytics.mockClear();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       await Promise.resolve();
@@ -16806,16 +16854,18 @@ describe('AccountsPage replacement flows', () => {
     mocks.getAnalytics.mockClear();
 
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex-a.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex-a.json').props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       await Promise.resolve();
     });
     await act(async () => {
-      findDetailButtonByName(renderer, 'codex-b.json').props.onClick();
+      findSettingsButtonByName(renderer, 'codex-b.json').props.onClick();
       await Promise.resolve();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_diagnostics').props.onClick();
       await Promise.resolve();
@@ -17251,8 +17301,9 @@ describe('AccountsPage replacement flows', () => {
     expect(mocks.quotaState.codexQuota).toHaveProperty(storeKey, oauthQuota);
     expect(getAccountCardText(renderer, oauthSelectionKey)).toContain('accounts.health_limited');
     await act(async () => {
-      findDetailButtonByName(renderer, oauthFile.name).props.onClick();
+      findSettingsButtonByName(renderer, oauthFile.name).props.onClick();
     });
+    await act(async()=> {findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();});
     expect(
       renderer.root.findByType(AccountOverviewTab).props.detailView.overview.recentStatus
         .statusMessage
@@ -19556,7 +19607,7 @@ describe('AccountsPage replacement flows', () => {
       expect(mocks.showNotification).not.toHaveBeenCalled();
     });
 
-    it('provides keyboard accessibility for Grid card shortcuts and includes footer detail button', async () => {
+    it('provides keyboard accessibility for Grid card shortcuts without a duplicate footer detail button', async () => {
       const file = makeCodexFile('codex-a11y.json', 'auth-a11y', 'a11y@example.com');
       mocks.files = [file];
       const targetSelectionKey = getAuthFileSelectionKey(file);
@@ -19578,14 +19629,7 @@ describe('AccountsPage replacement flows', () => {
       expect(card.props.role).toBeUndefined();
       expect(card.props.tabIndex).toBeUndefined();
 
-      const detailButton = card.findAll(
-        (node) =>
-          node.type === 'button' &&
-          typeof node.props?.className === 'string' &&
-          node.props.className.includes('rowDetailButton')
-      )[0];
-      expect(detailButton).toBeTruthy();
-      expect(detailButton.props['aria-label']).toContain('accounts.open_detail');
+      expect(card.findAll((node)=>node.type==='button' && String(node.props.className??'').includes('rowDetailButton'))).toHaveLength(0);
 
       const recentStatusSection = card.findByProps({
         'data-account-grid-recent-status': targetSelectionKey,
@@ -21145,30 +21189,42 @@ describe('AccountsPage replacement flows', () => {
     });
   });
 
-  it('renders the credential auto start/stop switch to the left of the select / full / refresh-quota actions', async () => {
-    const renderer = await renderAccountsPage();
-    const ordered = renderer.root.findAll(() => true);
-    const stub = renderer.root.findByProps({ 'data-credential-auto-start-stop-stub': true });
-    const stubIndex = ordered.indexOf(stub);
-
-    expect(stubIndex).toBeGreaterThanOrEqual(0);
+  it('renders each credential automatic control inside its row, never in the global toolbar',async()=>{
+    const renderer=await renderAccountsPage();
+    const stub=renderer.root.findByProps({'data-credential-auto-start-stop-stub':true});
     expect(stub.props['data-manager-service-base']).toBe('http://manager.local:18317');
     expect(stub.props['data-management-key']).toBe('manager-key');
-
-    const selectButton = findButtonByText(renderer, 'accounts.selection_mode_enter');
-    const refreshButton = findButtonByText(renderer, 'accounts.refresh_quota');
-    expect(stubIndex).toBeLessThan(ordered.indexOf(selectButton));
-    expect(stubIndex).toBeLessThan(ordered.indexOf(refreshButton));
-
-    const hasBatchActionsAncestor = (node: ReactTestInstance | null): boolean => {
-      let current = node;
-      while (current) {
-        const className = (current.props as { className?: unknown }).className;
-        if (typeof className === 'string' && className.includes('batchActions')) return true;
-        current = current.parent;
-      }
-      return false;
-    };
-    expect(hasBatchActionsAncestor(stub.parent)).toBe(true);
+    let current:ReactTestInstance|null=stub.parent;
+    let inCard=false;
+    while(current){
+      expect(String(current.props.className??'')).not.toContain('batchActions');
+      if(current.props['data-account-card'])inCard=true;
+      current=current.parent;
+    }
+    expect(inCard).toBe(true);
   });
+  it.each(['table', 'grid'] as const)('ticket93 removes actual outer duplicate nodes in %s', async (layout) => {
+    mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+    const renderer = await renderAccountsPage();
+    expect(renderer.root.findAll((n) => n.type === 'button' &&
+      (n.props['aria-label'] === 'auth_files.models_button' ||
+       String(n.props['aria-label'] ?? '').startsWith('accounts.open_detail')))).toHaveLength(0);
+    expect(renderer.root.findAll((n) => n.type === 'button' && n.props['aria-label'] === 'accounts.detail_tab_config').length).toBeGreaterThan(0);
+    expect(renderer.root.findAllByProps({'data-credential-auto-start-stop-stub': true})).toHaveLength(mocks.files.length);
+  });
+
+  it('ticket93 capable refresh uses common76 and never browser-private quota acquisition',async () => {
+    mocks.panelFeatureAvailability.managerServiceAvailable = true;
+    const calls:string[]=[];
+    vi.stubGlobal('fetch',vi.fn(async(url:string,init?:RequestInit)=> {
+      calls.push(url);
+      return new Response(JSON.stringify(init?.method === 'POST' ? {id:'job',state:'complete',failed:0} : {sources:[{id:'host',queryCapable:true,request:{kind:'credential_quota',credential:{auth_index:'auth-1'}}}]}));
+    }));
+    const direct=vi.spyOn(CODEX_CONFIG,'fetchQuota');
+    const renderer=await renderAccountsPage();
+    await act(async () => {findAccountCardButtonByAriaLabel(renderer,getAuthFileSelectionKey(mocks.files[0]),'accounts.refresh_quota').props.onClick();});
+    expect(calls).toContain('http://manager.local:18317/usage-service/full-refresh');
+    expect(direct).not.toHaveBeenCalled();
+  });
+
 });

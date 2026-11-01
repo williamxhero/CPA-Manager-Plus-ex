@@ -1,3 +1,6 @@
+import { CommonQuotaInventoryPanel } from '@/components/quota/CommonQuotaInventoryPanel';
+import { refreshCredentialSource } from '@/services/api/fullRefresh';
+import { CredentialAutoStartStopToggle } from '@/features/accounts/components/CredentialAutoStartStopToggle';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   KeyboardEvent,
@@ -94,7 +97,6 @@ import { useAccountCredentialMutationSubscription } from '@/features/accounts/ho
 import { useHeaderSnapshotsLoader } from '@/features/monitoring/hooks/useHeaderSnapshotsLoader';
 import { PaginationControls } from '@/features/monitoring/components/MonitoringShared';
 import { CredentialHealthInspectionWorkspace } from '@/features/monitoring/components/CredentialHealthInspectionWorkspace';
-import { CredentialAutoStartStopToggle } from '@/features/accounts/components/CredentialAutoStartStopToggle';
 import { AuthJsonPasteModal } from '@/features/authFiles/components/AuthJsonPasteModal';
 import { OAuthExcludedCard } from '@/features/authFiles/components/OAuthExcludedCard';
 import {
@@ -1371,6 +1373,8 @@ export function AccountsPage() {
   });
   const { forCredential: credentialProtection, refresh: refreshResourceProtection } =
     useResourceProtection({ ...featureAvailability, checking: featureAvailability.checking || loading }, files);
+
+  const backendCredentialQuota = Boolean(featureAvailability.managerServiceAvailable);
 
   const [oauthViewMode, setOauthViewMode] = useState<'diagram' | 'list'>('list');
   const oauthState = useAuthFilesOauth({
@@ -5705,6 +5709,7 @@ export function AccountsPage() {
 
   const loadCodexResetCreditDetails = useCallback(
     (row: AccountRow): Promise<CodexResetCreditsData | null> => {
+      if (backendCredentialQuota) return Promise.resolve(null);
       const storeKey = CODEX_CONFIG.getStoreKey?.(row.raw) ?? row.fileName;
       const existing = codexResetCreditDetailRequestsRef.current.get(storeKey);
       if (existing?.isCurrent()) return existing.promise;
@@ -5840,7 +5845,7 @@ export function AccountsPage() {
       });
       return requestPromise;
     },
-    [authFilesRequestScope, connectionFingerprint, setCodexQuota, t]
+    [backendCredentialQuota, authFilesRequestScope, connectionFingerprint, setCodexQuota, t]
   );
 
   useEffect(() => {
@@ -6567,6 +6572,13 @@ export function AccountsPage() {
       row: AccountRow,
       mode: AccountQuotaRefreshMode = 'summary'
     ): Promise<AccountQuotaRefreshOutcome> => {
+      if (backendCredentialQuota) {
+        if (!row.authIndex || !featureAvailability.managerServiceBase) return {status:'error',error:'current_credential_source_unavailable'};
+        try {
+          await refreshCredentialSource(featureAvailability.managerServiceBase,managementKey,String(row.authIndex));
+          return {status:'success'};
+        } catch {return {status:'error',error:'common_refresh_unavailable'};}
+      }
       if (row.runtimeOnly || !isQuotaRefreshSupportedProvider(row.provider)) {
         return { status: 'ignored' };
       }
@@ -6697,7 +6709,7 @@ export function AccountsPage() {
           return { status: 'error', error: t('common.unknown_error') };
       }
     },
-    [
+    [backendCredentialQuota, featureAvailability.managerServiceBase, managementKey,
       invalidateCodexCredentialStatusForSelectionKeys,
       setAntigravityQuota,
       setClaudeQuota,
@@ -7127,7 +7139,7 @@ export function AccountsPage() {
 
   const canResetCodexQuota = useCallback(
     (row: AccountRow) => {
-      if (row.provider !== CODEX_CONFIG.type || row.runtimeOnly) return false;
+      if (backendCredentialQuota || row.provider !== CODEX_CONFIG.type || row.runtimeOnly) return false;
       if (normalizeAuthIndex(row.raw['auth_index'] ?? row.raw.authIndex) === null) return false;
       const evidence = getDisplayCodexResetEvidenceQuota(row);
       return (
@@ -7135,7 +7147,7 @@ export function AccountsPage() {
         (evidence?.rateLimitResetCredits?.length ?? 0) > 0
       );
     },
-    [getDisplayCodexResetEvidenceQuota]
+    [backendCredentialQuota, getDisplayCodexResetEvidenceQuota]
   );
 
   const resetCodexQuotaForRow = useCallback(
@@ -7477,6 +7489,7 @@ export function AccountsPage() {
             let quotaRefreshSuccess = false;
             let quotaHealthy = false;
             try {
+              if (backendCredentialQuota) throw new Error('common_refresh_required');
               const data = await CODEX_CONFIG.fetchQuota(row.raw, t, authFilesRequestScope);
               const healthState = CODEX_CONFIG.buildSuccessState(data, row.raw);
               quotaHealthy =
@@ -7580,6 +7593,7 @@ export function AccountsPage() {
       void runResetTransaction();
     },
     [
+      backendCredentialQuota,
       canResetCodexQuota,
       connectionFingerprint,
       getDisplayAccount,
@@ -8462,10 +8476,7 @@ export function AccountsPage() {
           </small>
         </div>
         <div className={styles.batchActions}>
-          <CredentialAutoStartStopToggle
-            managerServiceBase={featureAvailability.managerServiceBase ?? ''}
-            managementKey={managementKey}
-          />
+          {backendCredentialQuota && <CommonQuotaInventoryPanel base={featureAvailability.managerServiceBase ?? ''} managementKey={managementKey} />}
           {!isSelectionMode && !hasSelection ? (
             <Button
               variant="secondary"
@@ -8666,6 +8677,11 @@ export function AccountsPage() {
     hideSideActions = false,
     isGridCard = false
   ) => {
+    const automaticSwitch = <CredentialAutoStartStopToggle
+      key={`${connectionFingerprint}:${row.selectionKey}`}
+      managerServiceBase={featureAvailability.managerServiceBase ?? ''}
+      managementKey={managementKey} authIndex={row.authIndex || undefined}
+      revision={`${credentialQuotaRevision}:${managerConnectionFingerprint}:${JSON.stringify(credentialProtection(row.authIndex).binding ?? null)}`} />;
     const reauthButton = needsReauth ? (
       <Button
         variant="secondary"
@@ -8712,26 +8728,11 @@ export function AccountsPage() {
         iconOnly
         className={`${styles.accountIconButton} ${styles.accountIconButtonSettings}`}
         onClick={() => void openAccountDetail(row, 'config')}
-        disabled={row.runtimeOnly}
+        disabled={row.runtimeOnly && row.provider !== 'aistudio'}
         title={t('accounts.detail_tab_config')}
         aria-label={t('accounts.detail_tab_config')}
       >
         <IconSettings size={15} />
-      </Button>
-    );
-
-    const modelsButton = (
-      <Button
-        variant="secondary"
-        size="sm"
-        iconOnly
-        className={`${styles.accountIconButton} ${styles.accountIconButtonModels}`}
-        onClick={() => void openAccountDetail(row, 'models')}
-        disabled={row.runtimeOnly && row.provider !== 'aistudio'}
-        title={t('auth_files.models_button')}
-        aria-label={t('auth_files.models_button')}
-      >
-        <IconModelCluster size={15} />
       </Button>
     );
 
@@ -8765,19 +8766,6 @@ export function AccountsPage() {
       </Button>
     );
 
-    const detailButton = (
-      <Button
-        variant="ghost"
-        size="xs"
-        className={styles.rowDetailButton}
-        onClick={() => void openAccountDetail(row)}
-        title={t('accounts.open_detail', { name: row.fileName })}
-        aria-label={t('accounts.open_detail', { name: row.fileName })}
-      >
-        {t('accounts.open_detail_short')}
-      </Button>
-    );
-
     if (isGridCard) {
       return (
         <div className={styles.accountGridCardActions} onClick={(event) => event.stopPropagation()}>
@@ -8786,11 +8774,10 @@ export function AccountsPage() {
             {deleteButton}
             {downloadButton}
           </div>
+          {automaticSwitch}
           <div className={styles.accountGridCardPrimaryActions}>
             {refreshButton}
-            {modelsButton}
             {settingsButton}
-            {detailButton}
           </div>
         </div>
       );
@@ -8798,11 +8785,11 @@ export function AccountsPage() {
 
     return (
       <div className={styles.rowActions} onClick={(event) => event.stopPropagation()}>
+        {automaticSwitch}
         <div className={styles.accountQuickActionsGrid}>
           {reauthButton}
           {refreshButton}
           {settingsButton}
-          {modelsButton}
           {downloadButton}
           {deleteButton}
         </div>
@@ -8818,8 +8805,7 @@ export function AccountsPage() {
                   ariaLabel={t('auth_files.status_toggle_label')}
                 />
               </div>
-              {detailButton}
-            </div>
+              </div>
           </>
         ) : null}
       </div>

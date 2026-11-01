@@ -36,8 +36,17 @@ type Update struct {
 	Owner              string `json:"owner,omitempty"`
 }
 
+// LegacyMigration is a bounded read classification, not a mapping certificate.
+// Legacy selectors/global flags do not prove per-issued-subject intent. Keep
+// native state, history, encrypted secrets and pause ownership untouched.
+type LegacyMigration struct {
+	State  string `json:"state"`
+	Reason string `json:"reason"`
+}
+
 type Status struct {
 	cq.Source
+	LegacyMigration    *LegacyMigration `json:"legacyMigration,omitempty"`
 	SubjectID          string           `json:"subjectId"`
 	BindingCurrent     bool             `json:"bindingCurrent"`
 	Enabled            bool             `json:"enabled"`
@@ -178,6 +187,12 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 		return Status{}, err
 	}
 	out.Generation = r.Generation
+	if r.Document == "" {
+		out.LegacyMigration = &LegacyMigration{State: "default_off", Reason: "no_proven_per_subject_legacy_intent"}
+		if src.ManualDisabled {
+			out.LegacyMigration = &LegacyMigration{State: "pending_confirmation", Reason: "legacy_identity_owner_manual_history_unproven"}
+		}
+	}
 	if r.Document != "" {
 		var saved Status
 		if json.Unmarshal([]byte(r.Document), &saved) != nil {
