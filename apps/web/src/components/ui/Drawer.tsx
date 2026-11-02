@@ -85,6 +85,9 @@ export function Drawer({
         setIsClosing(false);
         closeTimerRef.current = null;
         if (notifyParent) {
+          // The parent may unmount this drawer in onClose, before its closed effect runs.
+          previouslyFocusedRef.current?.focus();
+          previouslyFocusedRef.current = null;
           onClose();
         }
       }, CLOSE_ANIMATION_DURATION);

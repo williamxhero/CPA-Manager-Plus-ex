@@ -5280,7 +5280,7 @@ export function AccountsPage() {
         (detailTab === 'config' || detailTab === 'models') &&
         (tab === 'config' || tab === 'models');
       const hadDirtyConfiguration = configurationEditor.dirty;
-      if (!preservesConfigurationDraft && !(await confirmConfigurationDiscard())) return;
+      if (!preservesConfigurationDraft && !(await confirmConfigurationDiscard())) return false;
       if (
         hadDirtyConfiguration &&
         (!preservesConfigurationDraft || row.selectionKey !== selectedRowKey || tab !== detailTab)
@@ -5313,6 +5313,7 @@ export function AccountsPage() {
         pendingWorkspaceSearchesRef.current.push(searchValue);
         navigate({ pathname: location.pathname, search: searchValue }, { replace: true });
       }
+      return true;
     },
     [
       allowNextNavigation,
@@ -10083,6 +10084,37 @@ export function AccountsPage() {
       { id: 'models', label: t('accounts.detail_tab_models') },
       { id: 'diagnostics', label: t('accounts.detail_tab_diagnostics') },
     ];
+    const handleDetailTabKeyDown = async (
+      event: KeyboardEvent<HTMLButtonElement>,
+      tabId: DetailTab
+    ) => {
+      const currentIndex = detailTabs.findIndex((tab) => tab.id === tabId);
+      let nextIndex: number;
+      switch (event.key) {
+        case 'ArrowRight':
+          nextIndex = (currentIndex + 1) % detailTabs.length;
+          break;
+        case 'ArrowLeft':
+          nextIndex = (currentIndex - 1 + detailTabs.length) % detailTabs.length;
+          break;
+        case 'Home':
+          nextIndex = 0;
+          break;
+        case 'End':
+          nextIndex = detailTabs.length - 1;
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+      const nextTab = detailTabs[nextIndex];
+      const nextTabElement = event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(
+        `#accounts-detail-tab-${nextTab.id}`
+      );
+      if (await openAccountDetail(selectedRow, nextTab.id)) {
+        nextTabElement?.focus();
+      }
+    };
     const valueRow =
       usageRows.find((row) => row.row?.selectionKey === selectedRow.selectionKey) ??
       usageRows.find((row) => !row.row && row.fileName === selectedRow.fileName);
@@ -10447,8 +10479,10 @@ export function AccountsPage() {
                 id={`accounts-detail-tab-${tab.id}`}
                 aria-selected={detailTab === tab.id}
                 aria-controls="accounts-detail-tab-panel"
+                tabIndex={detailTab === tab.id ? 0 : -1}
                 className={detailTab === tab.id ? styles.drawerTabActive : ''}
                 onClick={() => void openAccountDetail(selectedRow, tab.id)}
+                onKeyDown={(event) => void handleDetailTabKeyDown(event, tab.id)}
               >
                 {tab.label}
               </button>
