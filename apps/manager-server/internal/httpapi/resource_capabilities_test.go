@@ -153,7 +153,7 @@ func TestResourceCapabilitiesReadOnlyWithSavedConnection(t *testing.T) {
 	}
 	enabled := true
 	if _, err := db.SaveAutomationSettings(ctx, store.AutomationSettings{
-		QuotaCooldownEnabled: &enabled, AccountActionsEnabled: &enabled, AccountActionsAutoDisable: &enabled,
+		AccountActionsEnabled: &enabled, AccountActionsAutoDisable: &enabled,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestResourceCapabilitiesReadOnlyWithSavedConnection(t *testing.T) {
 			case http.MethodOptions:
 				want = http.StatusNoContent
 			default:
-				body = `{"codexQuotaCooldownEnabled":false,"authIssueQueueEnabled":false,"authIssueAutoDisableEnabled":false,"disabled":false,"excluded-models":[]}`
+				body = `{"authIssueQueueEnabled":false,"authIssueAutoDisableEnabled":false,"disabled":false,"excluded-models":[]}`
 			}
 			rr := testutil.Request(t, handler, method, resourceCapabilitiesPath, body, testutil.AdminKey)
 			testutil.RequireStatus(t, rr, want)
@@ -282,7 +282,7 @@ func TestResourceCapabilitiesPersistedPolicyAndEnvLocksAreNotACK(t *testing.T) {
 			db := testutil.NewStore(t, cfg)
 			enabled := true
 			saved, err := db.SaveAutomationSettings(context.Background(), store.AutomationSettings{
-				QuotaCooldownEnabled: &enabled, AccountActionsEnabled: &enabled, AccountActionsAutoDisable: &enabled,
+				AccountActionsEnabled: &enabled, AccountActionsAutoDisable: &enabled,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -294,7 +294,6 @@ func TestResourceCapabilitiesPersistedPolicyAndEnvLocksAreNotACK(t *testing.T) {
 				t.Fatal(err)
 			}
 			db = testutil.NewStore(t, cfg) // Prove real persistence, not a service cache.
-			cfg.QuotaCooldownEnvSet = locked
 			cfg.AccountActionsEnvSet = locked
 			cfg.AccountActionsAutoEnvSet = locked
 			cfg.AccountActionsAutoDisable = true
@@ -312,10 +311,6 @@ func TestResourceCapabilitiesPersistedPolicyAndEnvLocksAreNotACK(t *testing.T) {
 			}
 			want := automationsvc.Status{
 				Source: source, UpdatedAtMS: saved.UpdatedAtMS,
-				QuotaCooldown: automationsvc.Capability{
-					Enabled: false, Configured: false, Source: "legacy-inert", Locked: locked, DisabledReason: "per_credential_policy_only",
-					EnvKey: "USAGE_QUOTA_COOLDOWN_ENABLED", ConfigFileKey: "quotaCooldownEnabled",
-				},
 				AccountActions: automationsvc.Capability{
 					Enabled: !locked, Configured: !locked, Source: source, Locked: locked,
 					EnvKey: "USAGE_ACCOUNT_ACTIONS_ENABLED", ConfigFileKey: "accountActionsEnabled",
@@ -338,7 +333,7 @@ func TestResourceCapabilitiesPersistedPolicyAndEnvLocksAreNotACK(t *testing.T) {
 			if !bytes.Equal(bytes.TrimSpace(raw["policy"]), bytes.TrimSpace(legacy.Body.Bytes())) {
 				t.Fatal("policy must preserve the legacy automation.Status JSON verbatim")
 			}
-			patch := testutil.Request(t, handler, http.MethodPatch, "/usage-service/account-processing-policy", `{"codexQuotaCooldownEnabled":false}`, testutil.AdminKey)
+			patch := testutil.Request(t, handler, http.MethodPatch, "/usage-service/account-processing-policy", `{"authIssueQueueEnabled":false}`, testutil.AdminKey)
 			if locked {
 				testutil.RequireStatus(t, patch, http.StatusConflict)
 			} else {
@@ -346,12 +341,9 @@ func TestResourceCapabilitiesPersistedPolicyAndEnvLocksAreNotACK(t *testing.T) {
 				next := testutil.Request(t, handler, http.MethodGet, resourceCapabilitiesPath, "", testutil.AdminKey)
 				testutil.RequireStatus(t, next, http.StatusOK)
 				testutil.DecodeJSON(t, next, &summary)
-				if summary.Policy.QuotaCooldown.Enabled || summary.Policy.QuotaCooldown.Configured {
-					t.Fatal("legacy PATCH must remain inert in capability status")
-				}
-				if summary.Gate["state"] != "unavailable" {
-					t.Fatal("legacy PATCH must not configure a gate")
-				}
+			}
+			if summary.Gate["state"] != "unavailable" {
+				t.Fatal("legacy PATCH must not configure a gate")
 			}
 		})
 	}

@@ -40,31 +40,20 @@ func mustStatus(t *testing.T, svc *Service, ctx context.Context) Status {
 }
 
 func TestStatusExposesEffectiveFlagsAndKeys(t *testing.T) {
-	cfg := config.Config{
-		QuotaCooldownEnabled:      true,
+	status := mustStatus(t, New(config.Config{
 		AccountActionsEnabled:     true,
 		AccountActionsAutoDisable: false,
-	}
-	status := mustStatus(t, New(cfg), context.Background())
+	}), context.Background())
 
 	if status.Source != SourceStartup {
 		t.Fatalf("source = %q, want %q", status.Source, SourceStartup)
 	}
-
-	if status.QuotaCooldown.Enabled || status.QuotaCooldown.Configured || status.QuotaCooldown.Source != "legacy-inert" || status.QuotaCooldown.DisabledReason != "per_credential_policy_only" || status.QuotaCooldown.EnvKey != "USAGE_QUOTA_COOLDOWN_ENABLED" || status.QuotaCooldown.ConfigFileKey != "quotaCooldownEnabled" {
-		t.Fatalf("quotaCooldown = %#v", status.QuotaCooldown)
-	}
-	if status.QuotaCooldown.DependsOn != "" {
-		t.Fatalf("quotaCooldown should not declare a dependency, got %q", status.QuotaCooldown.DependsOn)
-	}
-
 	if !status.AccountActions.Enabled || status.AccountActions.EnvKey != "USAGE_ACCOUNT_ACTIONS_ENABLED" || status.AccountActions.ConfigFileKey != "accountActionsEnabled" {
 		t.Fatalf("accountActions = %#v", status.AccountActions)
 	}
 	if status.AccountActions.DependsOn != "" {
 		t.Fatalf("accountActions should not declare a dependency, got %q", status.AccountActions.DependsOn)
 	}
-
 	if status.AccountActionsAutoDisable.Enabled {
 		t.Fatalf("accountActionsAutoDisable should be disabled, got %#v", status.AccountActionsAutoDisable)
 	}
@@ -109,26 +98,17 @@ func TestStatusUsesDBSettingsUnlessEnvLocked(t *testing.T) {
 	ctx := context.Background()
 
 	if _, err := st.SaveAutomationSettings(ctx, store.AutomationSettings{
-		QuotaCooldownEnabled:      boolPtr(true),
 		AccountActionsEnabled:     boolPtr(false),
 		AccountActionsAutoDisable: boolPtr(true),
 	}); err != nil {
 		t.Fatalf("save automation settings: %v", err)
 	}
 	status := mustStatus(t, New(config.Config{}, st), ctx)
-	if status.QuotaCooldown.Enabled || status.QuotaCooldown.Configured || status.QuotaCooldown.Source != "legacy-inert" || status.QuotaCooldown.Locked {
-		t.Fatalf("quotaCooldown = %#v", status.QuotaCooldown)
-	}
 	if status.AccountActions.Enabled || status.AccountActions.Source != SourceDB {
 		t.Fatalf("accountActions = %#v", status.AccountActions)
 	}
 	if status.AccountActionsAutoDisable.Enabled || !status.AccountActionsAutoDisable.Configured || status.AccountActionsAutoDisable.Source != SourceDB {
 		t.Fatalf("accountActionsAutoDisable = %#v", status.AccountActionsAutoDisable)
-	}
-
-	status = mustStatus(t, New(config.Config{QuotaCooldownEnabled: false, QuotaCooldownEnvSet: true}, st), ctx)
-	if status.QuotaCooldown.Enabled || status.QuotaCooldown.Source != "legacy-inert" || !status.QuotaCooldown.Locked {
-		t.Fatalf("env locked quotaCooldown = %#v", status.QuotaCooldown)
 	}
 }
 
@@ -146,14 +126,14 @@ func TestUpdateRejectsEnvLockedFields(t *testing.T) {
 
 func TestStatusDefaultsAllOff(t *testing.T) {
 	status := mustStatus(t, New(config.Config{}), context.Background())
-	if status.QuotaCooldown.Enabled || status.AccountActions.Enabled || status.AccountActionsAutoDisable.Enabled {
-		t.Fatalf("expected all capabilities disabled by default, got %#v", status)
+	if status.AccountActions.Enabled || status.AccountActionsAutoDisable.Enabled {
+		t.Fatalf("expected all account actions disabled by default, got %#v", status)
 	}
 }
 
 func TestStatusReturnsErrorWhenLoadFails(t *testing.T) {
 	svc := &Service{
-		cfg:   config.Config{QuotaCooldownEnabled: true},
+		cfg:   config.Config{},
 		store: &stubSettingsStore{err: errors.New("simulated db read failure")},
 	}
 	if _, err := svc.Status(context.Background()); err == nil {
@@ -164,38 +144,35 @@ func TestStatusReturnsErrorWhenLoadFails(t *testing.T) {
 func TestRuntimeSettingsKeepsLastKnownOnLoadError(t *testing.T) {
 	ctx := context.Background()
 	loader := &stubSettingsStore{
-		settings: store.AutomationSettings{QuotaCooldownEnabled: boolPtr(true)},
+		settings: store.AutomationSettings{AccountActionsEnabled: boolPtr(true)},
 		ok:       true,
 	}
 	svc := &Service{cfg: config.Config{}, store: loader}
 
 	first := svc.RuntimeSettings(ctx)
-	if !first.QuotaCooldownEnabled {
+	if !first.AccountActionsEnabled {
 		t.Fatalf("first runtime load should reflect DB value, got %#v", first)
 	}
 
-	// Simulate a later read failure (e.g. SQLite error / corrupted JSON).
 	loader.err = errors.New("simulated db read failure")
 	second := svc.RuntimeSettings(ctx)
-	if !second.QuotaCooldownEnabled {
+	if !second.AccountActionsEnabled {
 		t.Fatalf("runtime gating should keep last known config on read failure, got %#v", second)
 	}
 
-	// A service that has never loaded successfully falls back to startup defaults.
 	fresh := &Service{
-		cfg:   config.Config{QuotaCooldownEnabled: false},
+		cfg:   config.Config{},
 		store: &stubSettingsStore{err: errors.New("simulated db read failure")},
 	}
 	fallback := fresh.RuntimeSettings(ctx)
-	if fallback.QuotaCooldownEnabled {
+	if fallback.AccountActionsEnabled {
 		t.Fatalf("runtime gating should fall back to startup default before first successful load, got %#v", fallback)
 	}
 }
 
 // TestUpdateSerializesConcurrentPatches is a regression guard for the
 // read-modify-write race: many concurrent PATCH requests targeting different
-// fields must all be persisted. Without the updateMu lock, later saves would
-// overwrite earlier ones based on a stale snapshot and drop fields.
+// fields must all be persisted.
 func TestUpdateSerializesConcurrentPatches(t *testing.T) {
 	st, err := store.Open(t.TempDir() + "/usage.sqlite")
 	if err != nil {
@@ -206,7 +183,6 @@ func TestUpdateSerializesConcurrentPatches(t *testing.T) {
 	svc := New(config.Config{}, st)
 
 	patches := []UpdateRequest{
-		{QuotaCooldownEnabled: boolPtr(true)},
 		{AccountActionsEnabled: boolPtr(true)},
 		{AccountActionsAutoDisable: boolPtr(true)},
 	}
@@ -224,9 +200,6 @@ func TestUpdateSerializesConcurrentPatches(t *testing.T) {
 	wg.Wait()
 
 	status := mustStatus(t, svc, ctx)
-	if status.QuotaCooldown.Enabled || status.QuotaCooldown.DisabledReason != "per_credential_policy_only" {
-		t.Fatalf("quotaCooldown legacy field became active: %#v", status)
-	}
 	if !status.AccountActions.Enabled {
 		t.Fatalf("accountActions field lost under concurrent updates: %#v", status)
 	}
@@ -240,27 +213,23 @@ func TestUpdateSerializesConcurrentPatches(t *testing.T) {
 
 // TestUpdateReturnsPersistedRecordWithoutRereading verifies that Update builds
 // its response from the record the repository just persisted (with an
-// UpdatedAtMS), not from a re-read. This guarantees the persisted state and the
-// returned runtime view cannot diverge when a transient read failure happens
-// right after a successful save.
+// UpdatedAtMS), not from a re-read.
 func TestUpdateReturnsPersistedRecordWithoutRereading(t *testing.T) {
 	loader := &stubSettingsStore{ok: false}
 	svc := &Service{cfg: config.Config{}, store: loader}
 
-	status, err := svc.Update(context.Background(), UpdateRequest{QuotaCooldownEnabled: boolPtr(true)})
+	status, err := svc.Update(context.Background(), UpdateRequest{AccountActionsEnabled: boolPtr(true)})
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
-	if status.QuotaCooldown.Enabled || status.QuotaCooldown.DisabledReason != "per_credential_policy_only" {
-		t.Fatalf("response exposed an active legacy quota policy, got %#v", status.QuotaCooldown)
+	if !status.AccountActions.Enabled {
+		t.Fatalf("response should expose the persisted account action policy, got %#v", status.AccountActions)
 	}
 	if status.UpdatedAtMS == 0 {
 		t.Fatalf("response should carry the UpdatedAtMS assigned by the store, got 0")
 	}
-	// The runtime cache must also reflect what we persisted, so a later read
-	// failure cannot regress the workers.
 	runtime := svc.RuntimeSettings(context.Background())
-	if !runtime.QuotaCooldownEnabled {
+	if !runtime.AccountActionsEnabled {
 		t.Fatalf("runtime cache should reflect persisted value after Update, got %#v", runtime)
 	}
 }

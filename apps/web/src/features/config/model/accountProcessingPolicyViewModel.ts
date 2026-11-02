@@ -1,11 +1,8 @@
 import type { AccountPolicyCapability, AccountProcessingPolicy } from '@/services/api/usageService';
 
-export type AccountPolicyCapabilityKey =
-  | 'providerQuotaCooldown'
-  | 'authIssueQueue'
-  | 'authIssueAutoDisable';
+export type AccountPolicyCapabilityKey = 'authIssueQueue' | 'authIssueAutoDisable';
 
-export type AccountPolicyGroupKey = 'quota' | 'authIssues';
+export type AccountPolicyGroupKey = 'authIssues';
 
 export interface AccountPolicyViewOptions {
   loading?: boolean;
@@ -40,17 +37,12 @@ export interface AccountPolicyViewGroup {
   items: AccountPolicyViewItem[];
 }
 
-const capabilityKeys: AccountPolicyCapabilityKey[] = [
-  'providerQuotaCooldown',
-  'authIssueQueue',
-  'authIssueAutoDisable',
-];
+const capabilityKeys: AccountPolicyCapabilityKey[] = ['authIssueQueue', 'authIssueAutoDisable'];
 
 const capabilitySourceKey: Record<
   AccountPolicyCapabilityKey,
-  'codexQuotaCooldown' | 'authIssueQueue' | 'authIssueAutoDisable'
+  'authIssueQueue' | 'authIssueAutoDisable'
 > = {
-  providerQuotaCooldown: 'codexQuotaCooldown',
   authIssueQueue: 'authIssueQueue',
   authIssueAutoDisable: 'authIssueAutoDisable',
 };
@@ -62,14 +54,6 @@ const capabilityMetadata: Record<
     'titleKey' | 'descriptionKey' | 'behaviorKey' | 'summaryKey' | 'toggleLabelKey' | 'nested'
   >
 > = {
-  providerQuotaCooldown: {
-    titleKey: 'accountPolicy.providerQuotaCooldown_title',
-    descriptionKey: 'accountPolicy.providerQuotaCooldown_description',
-    behaviorKey: 'accountPolicy.providerQuotaCooldown_behavior',
-    summaryKey: 'accountPolicy.providerQuotaCooldown_summary',
-    toggleLabelKey: 'accountPolicy.providerQuotaCooldown_toggle',
-    nested: false,
-  },
   authIssueQueue: {
     titleKey: 'accountPolicy.authIssueQueue_title',
     descriptionKey: 'accountPolicy.authIssueQueue_description',
@@ -94,12 +78,6 @@ const groupDefinitions: Array<{
   descriptionKey: string;
   itemKeys: AccountPolicyCapabilityKey[];
 }> = [
-  {
-    key: 'quota',
-    titleKey: 'accountPolicy.group_quota_title',
-    descriptionKey: 'accountPolicy.group_quota_description',
-    itemKeys: ['providerQuotaCooldown'],
-  },
   {
     key: 'authIssues',
     titleKey: 'accountPolicy.group_auth_issues_title',

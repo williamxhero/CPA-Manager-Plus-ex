@@ -85,7 +85,7 @@ func TestCredentialPolicyCoordinatorCapturesKnownOFFBeforeUpstream(t *testing.T)
 	if json.Unmarshal(data, &status) != nil {
 		t.Fatal("invalid query status")
 	}
-	query := cq.Query{Binding: source.Binding, SourceVersion: source.SourceVersion, AuthIndex: source.AuthIndex, Version: status.Version}
+	query := cq.Query{Binding: source.Binding, SourceVersion: source.SourceVersion, SourceID: source.SourceID, SubjectID: source.SubjectID, AuthIndex: source.AuthIndex, Version: status.Version}
 	code, data = f.api("POST", "/usage-service/credential-quota", query)
 	if code != 202 {
 		t.Fatalf("same76 start %d %s", code, data)

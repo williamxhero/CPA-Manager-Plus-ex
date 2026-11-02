@@ -6922,14 +6922,6 @@ export const getDemoQuotaStoreState = (baseNow = getDemoEvidenceEpochMs()): Demo
 export const getDemoAccountProcessingPolicy = (): AccountProcessingPolicy => ({
   source: 'db',
   updatedAtMs: now() - hour,
-  codexQuotaCooldown: {
-    enabled: true,
-    configured: true,
-    source: 'db',
-    locked: false,
-    envKey: 'CPA_CODEX_QUOTA_COOLDOWN_ENABLED',
-    configFileKey: 'codexQuotaCooldownEnabled',
-  },
   authIssueQueue: {
     enabled: true,
     configured: true,

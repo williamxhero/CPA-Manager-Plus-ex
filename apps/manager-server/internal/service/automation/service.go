@@ -37,13 +37,11 @@ type Capability struct {
 type Status struct {
 	Source                    string     `json:"source"`
 	UpdatedAtMS               int64      `json:"updatedAtMs,omitempty"`
-	QuotaCooldown             Capability `json:"codexQuotaCooldown"`
 	AccountActions            Capability `json:"authIssueQueue"`
 	AccountActionsAutoDisable Capability `json:"authIssueAutoDisable"`
 }
 
 type UpdateRequest struct {
-	QuotaCooldownEnabled      *bool `json:"codexQuotaCooldownEnabled,omitempty"`
 	AccountActionsEnabled     *bool `json:"authIssueQueueEnabled,omitempty"`
 	AccountActionsAutoDisable *bool `json:"authIssueAutoDisableEnabled,omitempty"`
 }
@@ -93,12 +91,6 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) (Status, error)
 	current, _, err := s.loadSettings(ctx)
 	if err != nil {
 		return Status{}, err
-	}
-	if req.QuotaCooldownEnabled != nil {
-		if s.cfg.QuotaCooldownEnvSet {
-			return Status{}, errors.New("quotaCooldownEnabled is locked by environment variable")
-		}
-		current.QuotaCooldownEnabled = boolPtr(*req.QuotaCooldownEnabled)
 	}
 	if req.AccountActionsEnabled != nil {
 		if s.cfg.AccountActionsEnvSet {
@@ -151,7 +143,6 @@ func (s *Service) RuntimeSettings(ctx context.Context) RuntimeSettings {
 }
 
 type RuntimeSettings struct {
-	QuotaCooldownEnabled      bool
 	AccountActionsEnabled     bool
 	AccountActionsAutoDisable bool
 }
@@ -164,8 +155,6 @@ func (s *Service) loadSettings(ctx context.Context) (store.AutomationSettings, b
 }
 
 type resolved struct {
-	quotaValue, quotaLocked     bool
-	quotaSource                 string
 	accountValue, accountLocked bool
 	accountSource               string
 	autoConfigured, autoLocked  bool
@@ -173,13 +162,9 @@ type resolved struct {
 }
 
 func (s *Service) resolve(settings store.AutomationSettings) resolved {
-	quotaValue, quotaSource, quotaLocked := s.resolveField(settings.QuotaCooldownEnabled, s.cfg.QuotaCooldownEnabled, s.cfg.QuotaCooldownEnvSet)
 	accountValue, accountSource, accountLocked := s.resolveField(settings.AccountActionsEnabled, s.cfg.AccountActionsEnabled, s.cfg.AccountActionsEnvSet)
 	autoConfigured, autoSource, autoLocked := s.resolveField(settings.AccountActionsAutoDisable, s.cfg.AccountActionsAutoDisable, s.cfg.AccountActionsAutoEnvSet)
 	return resolved{
-		quotaValue:     quotaValue,
-		quotaSource:    quotaSource,
-		quotaLocked:    quotaLocked,
 		accountValue:   accountValue,
 		accountSource:  accountSource,
 		accountLocked:  accountLocked,
@@ -194,19 +179,8 @@ func (s *Service) statusFromSettings(settings store.AutomationSettings) Status {
 	autoEffective := r.accountValue && r.autoConfigured
 
 	return Status{
-		Source:      overallSource(r.quotaSource, r.accountSource, r.autoSource),
+		Source:      overallSource(r.accountSource, r.autoSource),
 		UpdatedAtMS: settings.UpdatedAtMS,
-		// Kept in the response for old clients, but deliberately inert. The
-		// per-credential policy/full-refresh path is the only quota authority.
-		QuotaCooldown: Capability{
-			Enabled:        false,
-			Configured:     false,
-			Source:         "legacy-inert",
-			Locked:         r.quotaLocked,
-			EnvKey:         "USAGE_QUOTA_COOLDOWN_ENABLED",
-			ConfigFileKey:  "quotaCooldownEnabled",
-			DisabledReason: "per_credential_policy_only",
-		},
 		AccountActions: Capability{
 			Enabled:       r.accountValue,
 			Configured:    r.accountValue,
@@ -230,7 +204,6 @@ func (s *Service) statusFromSettings(settings store.AutomationSettings) Status {
 func (s *Service) runtimeFromSettings(settings store.AutomationSettings) RuntimeSettings {
 	r := s.resolve(settings)
 	return RuntimeSettings{
-		QuotaCooldownEnabled:      r.quotaValue,
 		AccountActionsEnabled:     r.accountValue,
 		AccountActionsAutoDisable: r.accountValue && r.autoConfigured,
 	}

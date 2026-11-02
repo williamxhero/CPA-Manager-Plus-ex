@@ -87,7 +87,7 @@ func (f *nativeAdmissionFixture) recoverThrough76() cp.Status {
 		t.Fatal("recovery changed native credential authority")
 	}
 	var job cq.Job
-	f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: current.Binding, SourceVersion: current.SourceVersion, AuthIndex: current.AuthIndex, Version: current.Version}, 202, &job)
+	f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: current.Binding, SourceVersion: current.SourceVersion, SourceID: current.SourceID, SubjectID: current.SubjectID, AuthIndex: current.AuthIndex, Version: current.Version}, 202, &job)
 	deadline := time.After(15 * time.Second)
 	for {
 		select {
@@ -224,7 +224,7 @@ func (f *nativeAdmissionFixture) enableAB() {
 	var before cq.Status
 	f.api("GET", "/usage-service/credential-quota?authIndex="+f.sources["A"].AuthIndex, nil, 200, &before)
 	var prerequisite cq.Job
-	f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: before.Binding, AuthIndex: before.AuthIndex, SourceVersion: before.SourceVersion, Version: before.Version}, 202, &prerequisite)
+	f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: before.Binding, AuthIndex: before.AuthIndex, SourceID: before.SourceID, SubjectID: before.SubjectID, SourceVersion: before.SourceVersion, Version: before.Version}, 202, &prerequisite)
 	deadline := time.After(15 * time.Second)
 	qualified := false
 	for !qualified {

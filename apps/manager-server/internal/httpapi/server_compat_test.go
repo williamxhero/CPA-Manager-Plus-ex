@@ -346,17 +346,13 @@ func TestServerCompatAccountProcessingPolicyPatchReloadsRuntime(t *testing.T) {
 	server := New(cfg, db, manager, runtime)
 	handler := server.Handler()
 
-	body := `{"codexQuotaCooldownEnabled":true,"authIssueQueueEnabled":true,"authIssueAutoDisableEnabled":true}`
+	body := `{"authIssueQueueEnabled":true,"authIssueAutoDisableEnabled":true}`
 	rr := testutil.Request(t, handler, http.MethodPatch, "/usage-service/account-processing-policy", body, testutil.AdminKey)
 	testutil.RequireStatus(t, rr, http.StatusOK)
 	if runtime.reloadCount != 1 {
 		t.Fatalf("reloadCount = %d, want 1", runtime.reloadCount)
 	}
 	var response struct {
-		QuotaCooldown struct {
-			Enabled bool   `json:"enabled"`
-			Source  string `json:"source"`
-		} `json:"codexQuotaCooldown"`
 		AccountActionsAutoDisable struct {
 			Enabled    bool   `json:"enabled"`
 			Configured bool   `json:"configured"`
@@ -364,9 +360,6 @@ func TestServerCompatAccountProcessingPolicyPatchReloadsRuntime(t *testing.T) {
 		} `json:"authIssueAutoDisable"`
 	}
 	testutil.DecodeJSON(t, rr, &response)
-	if response.QuotaCooldown.Enabled || response.QuotaCooldown.Source != "legacy-inert" {
-		t.Fatalf("quotaCooldown response = %#v", response.QuotaCooldown)
-	}
 	if !response.AccountActionsAutoDisable.Enabled || !response.AccountActionsAutoDisable.Configured || response.AccountActionsAutoDisable.Source != "database" {
 		t.Fatalf("auto-disable response = %#v", response.AccountActionsAutoDisable)
 	}
@@ -381,18 +374,31 @@ func TestServerCompatAccountProcessingPolicyPatchReloadsRuntime(t *testing.T) {
 		t.Fatalf("close store: %v", err)
 	}
 	runtimeSettings := server.AppContext().AccountProcessingPolicyService.RuntimeSettings(context.Background())
-	if !runtimeSettings.QuotaCooldownEnabled || !runtimeSettings.AccountActionsEnabled || !runtimeSettings.AccountActionsAutoDisable {
+	if !runtimeSettings.AccountActionsEnabled || !runtimeSettings.AccountActionsAutoDisable {
 		t.Fatalf("runtime settings should use the PATCH-updated cache after load failure, got %#v", runtimeSettings)
+	}
+}
+
+func TestServerCompatAccountProcessingPolicyRejectsRemovedGlobalQuotaField(t *testing.T) {
+	cfg := testutil.NewConfig(t)
+	db := testutil.NewStore(t, cfg)
+	runtime := &recordingAutomationRuntimeService{}
+	handler := New(cfg, db, collector.NewManager(cfg, db), runtime).Handler()
+
+	rr := testutil.Request(t, handler, http.MethodPatch, "/usage-service/account-processing-policy", `{"codexQuotaCooldownEnabled":true}`, testutil.AdminKey)
+	testutil.RequireStatus(t, rr, http.StatusBadRequest)
+	if runtime.reloadCount != 0 {
+		t.Fatalf("removed global quota field triggered runtime reload: %d", runtime.reloadCount)
 	}
 }
 
 func TestServerCompatAccountProcessingPolicyPatchRejectsEnvLockedField(t *testing.T) {
 	cfg := testutil.NewConfig(t)
-	cfg.QuotaCooldownEnvSet = true
+	cfg.AccountActionsEnvSet = true
 	db := testutil.NewStore(t, cfg)
 	handler := New(cfg, db, collector.NewManager(cfg, db)).Handler()
 
-	rr := testutil.Request(t, handler, http.MethodPatch, "/usage-service/account-processing-policy", `{"codexQuotaCooldownEnabled":true}`, testutil.AdminKey)
+	rr := testutil.Request(t, handler, http.MethodPatch, "/usage-service/account-processing-policy", `{"authIssueQueueEnabled":true}`, testutil.AdminKey)
 	testutil.RequireStatus(t, rr, http.StatusConflict)
 	if !strings.Contains(rr.Body.String(), `"code":"account_processing_policy_env_locked"`) {
 		t.Fatalf("expected env locked error code, body = %s", rr.Body.String())

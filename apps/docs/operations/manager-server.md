@@ -217,7 +217,6 @@ Manager Server 管理：
 | `USAGE_ARCHIVE_RETENTION_DAYS`          | `30`                                                        | 自动 retention 的保留天数；仅在 retention 与小时汇总同时启用时生效。                                                                                       |
 | `USAGE_CORS_ORIGINS`                    | `*`                                                         | 兼容接口 CORS origin。                                                                                                                                     |
 | `USAGE_RESP_TLS_SKIP_VERIFY`            | `false`                                                     | RESP 跳过 TLS 校验。                                                                                                                                       |
-| `USAGE_QUOTA_COOLDOWN_ENABLED`          | `false`                                                     | 启用多供应商额度冷却 worker，严格处理 Codex usage-limit 和 xAI free-usage-exhausted 信号。启动时重新应用；关闭时 worker 既不会禁用凭证，也不会重新启用此前自己禁用的凭证。 |
 | `USAGE_ACCOUNT_ACTIONS_ENABLED`         | `false`                                                     | 启用账号处理队列，用于记录需要人工处理的认证问题。                                                                                                         |
 | `USAGE_ACCOUNT_ACTIONS_AUTO_DISABLE`    | `false`                                                     | 启用认证问题自动禁用；只有账号处理队列启用时才会生效。                                                                                                     |
 | `PANEL_PATH`                            | 空                                                          | 使用自定义 `management.html`。                                                                                                                             |
@@ -361,7 +360,7 @@ Manager Server 在整个生命周期内都会持有 `<数据库绝对路径>.man
 
 完整的优化原因、实现阶段和 100k benchmark 数据见 [2026-07-10 性能优化报告](./performance-optimization-2026-07-10.md)。
 
-如果 `USAGE_QUOTA_COOLDOWN_ENABLED`、`USAGE_ACCOUNT_ACTIONS_ENABLED` 或 `USAGE_ACCOUNT_ACTIONS_AUTO_DISABLE` 由环境变量设置，面板中的对应开关会显示为环境变量来源并被锁定。要改成面板可编辑，需要移除环境变量并重启 Manager Server。
+账号处理队列的两个环境变量如果被设置，面板中的对应开关会显示为环境变量来源并被锁定。旧的全局 `USAGE_QUOTA_COOLDOWN_ENABLED` 不再是 Manager 配置项，也不会启动旧 quota worker；逐凭证自动启停以 credential-policy 为唯一策略入口。
 
 ::: details 高级：运行时接口
 
@@ -374,7 +373,7 @@ Manager Server 在整个生命周期内都会持有 `<数据库绝对路径>.man
 | `GET /usage-service/info`                                        | Manager Server 模式探测。                                     |
 | `GET /usage-service/config`                                      | 读取 CPAMP Manager Server 配置。                              |
 | `PUT /usage-service/config`                                      | 保存 CPAMP 配置，必要时重启采集器。                           |
-| `GET /usage-service/account-processing-policy`                   | 读取配额冷却、账号处理队列和自动禁用策略。                    |
+| `GET /usage-service/account-processing-policy`                   | 读取账号处理队列和自动禁用策略。                              |
 | `PATCH /usage-service/account-processing-policy`                 | 更新账号处理策略；被环境变量锁定的字段不能通过接口修改。      |
 | `GET /usage-service/quota-cooldowns`                             | 读取当前活跃的配额冷却，用于凭证管理展示恢复提示。            |
 | `POST /setup`                                                    | 首次 setup。                                                  |

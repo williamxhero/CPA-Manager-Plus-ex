@@ -39,7 +39,7 @@ func TestRejectedLegacyV5OperationSettlesWithoutBodyMutationOrReplacement(t *tes
 	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: state.SubjectID, Generation: 1, Document: string(doc)}, 0); err != nil {
 		t.Fatal(err)
 	}
-	svc := p.New(db, fixedPolicySources{observed.Source}, nil, false, p.WithClock(func() time.Time { return now }))
+	svc := p.New(db, fixedPolicySources{observed.Source}, nil, p.WithClock(func() time.Time { return now }))
 	q := cq.Query{Binding: observed.Binding, AuthIndex: observed.AuthIndex, SourceVersion: observed.SourceVersion, Version: observed.Version}
 	if err := svc.CaptureCredentialQueryStart(ctx, q, observed.Attempt.QueryID); err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestRejectedLegacyV5OperationSettlesWithoutBodyMutationOrReplacement(t *tes
 		t.Fatal(err)
 	}
 	db = testutil.NewStore(t, cfg)
-	svc = p.New(db, fixedPolicySources{observed.Source}, nil, false, p.WithClock(func() time.Time { return now }))
+	svc = p.New(db, fixedPolicySources{observed.Source}, nil, p.WithClock(func() time.Time { return now }))
 	again, err := svc.CompleteCredentialQuery(ctx, q, observed, observed.Attempt.QueryID)
 	if err != nil || again.OperationID != oldID {
 		t.Fatal("restart replaced rejected legacy ID", err)

@@ -5,14 +5,6 @@ import { buildAccountProcessingPolicyViewModel } from './accountProcessingPolicy
 function policy(overrides: Partial<AccountProcessingPolicy> = {}): AccountProcessingPolicy {
   return {
     source: 'startup',
-    codexQuotaCooldown: {
-      enabled: false,
-      configured: false,
-      source: 'startup',
-      locked: false,
-      envKey: 'USAGE_QUOTA_COOLDOWN_ENABLED',
-      configFileKey: 'quotaCooldownEnabled',
-    },
     authIssueQueue: {
       enabled: false,
       configured: false,
@@ -35,14 +27,12 @@ function policy(overrides: Partial<AccountProcessingPolicy> = {}): AccountProces
 }
 
 describe('buildAccountProcessingPolicyViewModel', () => {
-  it('groups quota handling and auth issue handling separately', () => {
+  it('groups auth issue handling under the remaining policy controls', () => {
     const groups = buildAccountProcessingPolicyViewModel(policy());
 
-    expect(groups).toHaveLength(2);
-    expect(groups[0].key).toBe('quota');
-    expect(groups[0].items.map((item) => item.key)).toEqual(['providerQuotaCooldown']);
-    expect(groups[1].key).toBe('authIssues');
-    expect(groups[1].items.map((item) => item.key)).toEqual([
+    expect(groups).toHaveLength(1);
+    expect(groups[0].key).toBe('authIssues');
+    expect(groups[0].items.map((item) => item.key)).toEqual([
       'authIssueQueue',
       'authIssueAutoDisable',
     ]);
@@ -63,7 +53,7 @@ describe('buildAccountProcessingPolicyViewModel', () => {
       })
     );
 
-    const autoDisable = groups[1].items[1];
+    const autoDisable = groups[0].items[1];
     expect(autoDisable.configured).toBe(true);
     expect(autoDisable.enabled).toBe(false);
     expect(autoDisable.dependencyBlocked).toBe(true);
@@ -75,7 +65,7 @@ describe('buildAccountProcessingPolicyViewModel', () => {
   it('prevents enabling auto-disable before the auth issue queue is effective', () => {
     const groups = buildAccountProcessingPolicyViewModel(policy());
 
-    const autoDisable = groups[1].items[1];
+    const autoDisable = groups[0].items[1];
     expect(autoDisable.dependencyBlocked).toBe(true);
     expect(autoDisable.configured).toBe(false);
     expect(autoDisable.toggleDisabled).toBe(true);
@@ -84,21 +74,21 @@ describe('buildAccountProcessingPolicyViewModel', () => {
   it('uses locked status when a capability is controlled by environment variables', () => {
     const groups = buildAccountProcessingPolicyViewModel(
       policy({
-        codexQuotaCooldown: {
+        authIssueQueue: {
           enabled: true,
           configured: true,
           source: 'env',
           locked: true,
-          envKey: 'USAGE_QUOTA_COOLDOWN_ENABLED',
-          configFileKey: 'quotaCooldownEnabled',
+          envKey: 'USAGE_ACCOUNT_ACTIONS_ENABLED',
+          configFileKey: 'accountActionsEnabled',
         },
       })
     );
 
-    const quota = groups[0].items[0];
-    expect(quota.locked).toBe(true);
-    expect(quota.statusTone).toBe('locked');
-    expect(quota.toggleDisabled).toBe(true);
-    expect(quota.effectiveStateKey).toBe('accountPolicy.effective_on');
+    const queue = groups[0].items[0];
+    expect(queue.locked).toBe(true);
+    expect(queue.statusTone).toBe('locked');
+    expect(queue.toggleDisabled).toBe(true);
+    expect(queue.effectiveStateKey).toBe('accountPolicy.effective_on');
   });
 });

@@ -43,7 +43,7 @@ function readCapability(value: unknown): ResourceProtectionCapability {
       (typeof policy.updatedAtMs !== 'number' || !Number.isFinite(policy.updatedAtMs)))
   )
     return 'unknown';
-  for (const field of ['codexQuotaCooldown', 'authIssueQueue', 'authIssueAutoDisable']) {
+  for (const field of ['authIssueQueue', 'authIssueAutoDisable']) {
     const capability = policy[field];
     if (
       !isRecord(capability) ||

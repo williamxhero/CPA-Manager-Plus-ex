@@ -240,7 +240,7 @@ function Invoke-CPAMPRehearsal($Context, [string]$Exe, [string]$Panel, [string]$
             foreach ($name in @('CPA_MANAGEMENT_KEY_FILE', 'CPA_MANAGER_ADMIN_KEY_FILE', 'CPA_MANAGER_DATA_KEY_FILE')) {
                 $info.EnvironmentVariables[$name] = Join-Path $Directory ('absent-' + $name)
             }
-            foreach ($name in @('CPAMP_UPDATE_CHECK_ENABLED', 'USAGE_QUOTA_COOLDOWN_ENABLED', 'USAGE_ACCOUNT_ACTIONS_ENABLED', 'USAGE_ACCOUNT_ACTIONS_AUTO_DISABLE', 'USAGE_ARCHIVE_RETENTION_ENABLED', 'USAGE_DASHBOARD_HOURLY_ROLLUP_ENABLED')) {
+            foreach ($name in @('CPAMP_UPDATE_CHECK_ENABLED', 'USAGE_ACCOUNT_ACTIONS_ENABLED', 'USAGE_ACCOUNT_ACTIONS_AUTO_DISABLE', 'USAGE_ARCHIVE_RETENTION_ENABLED', 'USAGE_DASHBOARD_HOURLY_ROLLUP_ENABLED')) {
                 $info.EnvironmentVariables[$name] = 'false'
             }
             $info.EnvironmentVariables['PANEL_PATH'] = $panelCopy

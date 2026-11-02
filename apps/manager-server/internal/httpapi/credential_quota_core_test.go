@@ -309,6 +309,8 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 			rc.RuntimeBinding
 			Protocol      string `json:"protocol"`
 			SourceVersion string `json:"sourceVersion"`
+			SourceID      string `json:"sourceId"`
+			SubjectID     string `json:"subjectId"`
 			State         string `json:"state"`
 			Reason        string `json:"reason"`
 		}
@@ -340,6 +342,7 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 	native, plugin := false, false
 	var nativeBinding rc.RuntimeBinding
 	var pluginBinding rc.RuntimeBinding
+	var nativeSourceID, nativeSubjectID, pluginSourceID, pluginSubjectID string
 	var pluginSourceVersion string
 	for _, source := range view.Sources {
 		if source.Protocol != "codex-oauth-wham" && source.Protocol != "opencode-go-usage" {
@@ -350,6 +353,8 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 		}
 		if source.Protocol == "opencode-go-usage" {
 			plugin = true
+			pluginSourceID = source.SourceID
+			pluginSubjectID = source.SubjectID
 			pluginBinding = source.RuntimeBinding
 			pluginBinding.Targets = append([]rc.Target(nil), source.Targets...)
 			pluginSourceVersion = source.SourceVersion
@@ -368,6 +373,8 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 			}
 		} else {
 			native = true
+			nativeSourceID = source.SourceID
+			nativeSubjectID = source.SubjectID
 			nativeBinding = source.RuntimeBinding
 			nativeBinding.Targets = append([]rc.Target(nil), source.Targets...)
 		}
@@ -378,7 +385,7 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 		}
 		var state map[string]any
 		json.Unmarshal(data, &state)
-		q := map[string]any{"scope": source.Scope, "targets": source.Targets, "auth_index": source.AuthIndex, "version": state["version"], "sourceVersion": source.SourceVersion}
+		q := map[string]any{"scope": source.Scope, "targets": source.Targets, "auth_index": source.AuthIndex, "sourceId": source.SourceID, "subjectId": source.SubjectID, "version": state["version"], "sourceVersion": source.SourceVersion}
 		code, data = api("POST", "/usage-service/credential-quota", q)
 		if code != 202 {
 			t.Fatalf("start %d: %s", code, data)
@@ -451,7 +458,7 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 		_, data = api("GET", pluginPath, nil)
 		var sourceState map[string]any
 		json.Unmarshal(data, &sourceState)
-		query := map[string]any{"scope": pluginBinding.Scope, "targets": pluginBinding.Targets, "auth_index": pluginBinding.AuthIndex, "version": sourceState["version"], "sourceVersion": pluginSourceVersion}
+		query := map[string]any{"scope": pluginBinding.Scope, "targets": pluginBinding.Targets, "auth_index": pluginBinding.AuthIndex, "sourceId": pluginSourceID, "subjectId": pluginSubjectID, "version": sourceState["version"], "sourceVersion": pluginSourceVersion}
 		query["sourceVersion"] = "changed-source"
 		code, _ = api("POST", "/usage-service/credential-quota", query)
 		if code != 409 {
@@ -581,7 +588,7 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 		status string
 	}{{1, "auth_error"}, {2, "rate_limited"}} {
 		mode.Store(failure.mode)
-		q := map[string]any{"scope": nativeBinding.Scope, "targets": nativeBinding.Targets, "auth_index": nativeBinding.AuthIndex, "version": before["version"], "sourceVersion": before["sourceVersion"]}
+		q := map[string]any{"scope": nativeBinding.Scope, "targets": nativeBinding.Targets, "auth_index": nativeBinding.AuthIndex, "sourceId": nativeSourceID, "subjectId": nativeSubjectID, "version": before["version"], "sourceVersion": before["sourceVersion"]}
 		code, data = api("POST", "/usage-service/credential-quota", q)
 		if code != 202 {
 			t.Fatalf("refresh %d %s", code, data)
@@ -622,7 +629,7 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 	// source versions, query deadlines or the unchanged timeout assertions below.
 	admissionOffset.Store(int64(time.Hour))
 	mode.Store(3)
-	q := map[string]any{"scope": nativeBinding.Scope, "targets": nativeBinding.Targets, "auth_index": nativeBinding.AuthIndex, "version": before["version"], "sourceVersion": before["sourceVersion"]}
+	q := map[string]any{"scope": nativeBinding.Scope, "targets": nativeBinding.Targets, "auth_index": nativeBinding.AuthIndex, "sourceId": nativeSourceID, "subjectId": nativeSubjectID, "version": before["version"], "sourceVersion": before["sourceVersion"]}
 	code, data = api("POST", "/usage-service/credential-quota", q)
 	if code != 202 {
 		t.Fatal(string(data))
@@ -812,7 +819,7 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 	if stale["stale"] != true || string(retained) != string(oldSuccess) {
 		t.Fatal("verified boot rebind did not retain stale history")
 	}
-	q = map[string]any{"scope": nativeBinding.Scope, "targets": nativeBinding.Targets, "auth_index": nativeBinding.AuthIndex, "version": stale["version"], "sourceVersion": stale["sourceVersion"]}
+	q = map[string]any{"scope": nativeBinding.Scope, "targets": nativeBinding.Targets, "auth_index": nativeBinding.AuthIndex, "sourceId": nativeSourceID, "subjectId": nativeSubjectID, "version": stale["version"], "sourceVersion": stale["sourceVersion"]}
 	code, _ = api("POST", "/usage-service/credential-quota", q)
 	if code != 409 {
 		t.Fatal("old boot accepted query")

@@ -67,7 +67,7 @@ func credentialQuotaCompletionCancellation(t *testing.T, beforeCommit bool) {
 	if source.AuthIndex == "" {
 		t.Fatalf("actual native source missing: %s", data)
 	}
-	code, data = f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: source.Binding, AuthIndex: source.AuthIndex, SourceVersion: source.SourceVersion})
+	code, data = f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: source.Binding, AuthIndex: source.AuthIndex, SourceID: source.SourceID, SubjectID: source.SubjectID, SourceVersion: source.SourceVersion})
 	if code != 202 {
 		t.Fatalf("start HTTP%d: %s", code, data)
 	}

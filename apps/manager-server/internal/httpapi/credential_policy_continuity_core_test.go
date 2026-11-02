@@ -73,7 +73,7 @@ func runActualNativePolicyContinuity(t *testing.T, paused bool) {
 		var status cq.Status
 		f.api("GET", "/usage-service/credential-quota?authIndex="+source.AuthIndex, nil, 200, &status)
 		var job cq.Job
-		f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: status.Binding, AuthIndex: status.AuthIndex, SourceVersion: status.SourceVersion, Version: status.Version}, 202, &job)
+		f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: status.Binding, AuthIndex: status.AuthIndex, SourceID: status.SourceID, SubjectID: status.SubjectID, SourceVersion: status.SourceVersion, Version: status.Version}, 202, &job)
 		deadline := time.After(5 * time.Second)
 		for {
 			select {
@@ -226,7 +226,7 @@ func runActualNativePolicyContinuity(t *testing.T, paused bool) {
 	f.api("GET", "/usage-service/credential-quota?authIndex="+after.AuthIndex, nil, 200, &oldBootQuota)
 	f.restart()
 	var staleReply any
-	f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: oldBootQuota.Binding, AuthIndex: oldBootQuota.AuthIndex, SourceVersion: oldBootQuota.SourceVersion, Version: oldBootQuota.Version}, 409, &staleReply)
+	f.api("POST", "/usage-service/credential-quota", cq.Query{Binding: oldBootQuota.Binding, AuthIndex: oldBootQuota.AuthIndex, SourceID: oldBootQuota.SourceID, SubjectID: oldBootQuota.SubjectID, SourceVersion: oldBootQuota.SourceVersion, Version: oldBootQuota.Version}, 409, &staleReply)
 	restarted := currentSource()
 	if restarted.Scope.BootEpoch == after.Scope.BootEpoch || restarted.Scope.InstanceID != after.Scope.InstanceID || restarted.Scope.InstanceIncarnation != after.Scope.InstanceIncarnation || !reflect.DeepEqual(restarted.Targets, after.Targets) {
 		t.Fatal("restart did not preserve exact lifecycle with a newly issued boot")

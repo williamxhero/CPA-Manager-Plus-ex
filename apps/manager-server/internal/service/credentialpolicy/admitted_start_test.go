@@ -42,7 +42,7 @@ func TestAdmittedKnownOFFCapturesOriginalGenerationAcrossIssuedScopeWithoutIO(t 
 	if err := db.BeginCredentialQuota(ctx, store.CredentialQuotaRecord{ID: id, Version: 1, Source: string(sourceDoc), Attempt: string(attemptDoc)}, 0, job.ID, string(jobDoc), false); err != nil {
 		t.Fatal(err)
 	}
-	svc := p.New(db, nil, nil, false) // any remote fallback is unavailable
+	svc := p.New(db, nil, nil) // any remote fallback is unavailable
 	if err := svc.CaptureAdmittedCredentialQueryStart(ctx, q, job.ID); err != nil {
 		t.Fatal(err)
 	}

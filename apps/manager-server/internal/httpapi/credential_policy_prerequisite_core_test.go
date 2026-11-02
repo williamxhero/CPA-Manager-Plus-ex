@@ -48,7 +48,7 @@ func runCredentialPolicyONPrerequisite(t *testing.T, timeout int64) {
 	query := func() {
 		var status cq.Status
 		f.api("GET", "/usage-service/credential-quota?authIndex="+src.AuthIndex, nil, 200, &status)
-		q := cq.Query{Binding: status.Binding, AuthIndex: status.AuthIndex, SourceVersion: status.SourceVersion, Version: status.Version, TimeoutMS: timeout}
+		q := cq.Query{Binding: status.Binding, AuthIndex: status.AuthIndex, SourceID: status.SourceID, SubjectID: status.SubjectID, SourceVersion: status.SourceVersion, Version: status.Version, TimeoutMS: timeout}
 		var job cq.Job
 		f.api("POST", "/usage-service/credential-quota", q, 202, &job)
 		// Wait on the real typed completion; aggressive Job polling itself

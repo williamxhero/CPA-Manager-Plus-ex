@@ -6,6 +6,9 @@ export interface QuotaBinding {
 }
 export interface CredentialQuotaSource extends QuotaBinding {
   sourceVersion: string;
+  sourceId: string;
+  subjectId: string;
+  queryVersion?: number;
   auth_index?: string;
   protocol: string;
   state: string;

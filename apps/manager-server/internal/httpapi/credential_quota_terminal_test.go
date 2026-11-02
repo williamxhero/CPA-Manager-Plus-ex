@@ -24,7 +24,7 @@ func nativeTerminalSource(t *testing.T, f *refreshFixture) cq.Query {
 	}
 	for _, s := range response.Sources {
 		if s.State == "ready" && s.Protocol == "codex-oauth-wham" {
-			return cq.Query{Binding: s.Binding, SourceVersion: s.SourceVersion, AuthIndex: s.AuthIndex}
+			return cq.Query{Binding: s.Binding, SourceVersion: s.SourceVersion, SourceID: s.SourceID, SubjectID: s.SubjectID, AuthIndex: s.AuthIndex}
 		}
 	}
 	t.Fatal("actual native source missing")

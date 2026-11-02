@@ -199,7 +199,7 @@ func fromExisting(
 	officialBalanceService := officialbalancesvc.New(st, identityService, officialbalancesvc.WithBudget(managementBudget))
 	credentialQuotaService := credentialquotasvc.New(st, identityService, credentialquotasvc.WithBudget(managementBudget))
 	out := &Context{
-		CredentialPolicyService: credentialpolicysvc.New(st, credentialQuotaService, managerConfigService, cfg.QuotaCooldownEnvSet && !cfg.QuotaCooldownEnabled),
+		CredentialPolicyService: credentialpolicysvc.New(st, credentialQuotaService, managerConfigService),
 		ManagementQueryBudget:   managementBudget,
 		FullRefreshService:      fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget)),
 		OfficialBalanceService:  officialBalanceService,

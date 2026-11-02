@@ -190,7 +190,6 @@ export interface AccountPolicyCapability {
 export interface AccountProcessingPolicy {
   source: string;
   updatedAtMs?: number;
-  codexQuotaCooldown: AccountPolicyCapability;
   authIssueQueue: AccountPolicyCapability;
   authIssueAutoDisable: AccountPolicyCapability;
 }
@@ -214,7 +213,12 @@ export interface ResourceInventoryRow extends ResourceTarget {
   kind: 'provider' | 'credential';
   family: string;
   source_bindings?: ResourceTarget[];
-  binding_state?: 'missing_credential' | 'standalone' | 'unmaterialized' | 'verified_projection' | 'ambiguous_projection';
+  binding_state?:
+    | 'missing_credential'
+    | 'standalone'
+    | 'unmaterialized'
+    | 'verified_projection'
+    | 'ambiguous_projection';
   parent_id?: string;
   members?: string[];
   manual: { disabled: boolean; excluded: boolean; zero_weight: boolean };
@@ -230,8 +234,8 @@ export interface RuntimeResourceBinding {
   targets: ResourceTarget[];
 }
 export interface NegotiatedResourceInventory {
-	credentialQuery?: { state: 'available' | 'unknown'; reason: string };
-  bindingCapability?: {state: 'available' | 'unavailable'; reason: string};
+  credentialQuery?: { state: 'available' | 'unknown'; reason: string };
+  bindingCapability?: { state: 'available' | 'unavailable'; reason: string };
   bindings?: RuntimeResourceBinding[];
   contractVersion: number;
   identity: { state: 'available' | 'unavailable' | 'unknown'; reason: string };
@@ -252,7 +256,6 @@ export interface ResourceCapabilities {
 }
 
 export interface AccountProcessingPolicyPatch {
-  codexQuotaCooldownEnabled?: boolean;
   authIssueQueueEnabled?: boolean;
   authIssueAutoDisableEnabled?: boolean;
 }
@@ -2398,10 +2401,6 @@ const getDemoPatchedAccountProcessingPolicy = (
   return {
     ...policy,
     updatedAtMs: Date.now(),
-    codexQuotaCooldown: {
-      ...policy.codexQuotaCooldown,
-      enabled: patch.codexQuotaCooldownEnabled ?? policy.codexQuotaCooldown.enabled,
-    },
     authIssueQueue: {
       ...policy.authIssueQueue,
       enabled: patch.authIssueQueueEnabled ?? policy.authIssueQueue.enabled,
@@ -3209,7 +3208,11 @@ export const usageServiceApi = {
 
     return withUsageServiceError(async () => {
       const response = await axios.get<ResourceCapabilities>(
-        buildUrl(base, '/usage-service/resource-capabilities' + (inventory ? '?inventory=1' + (bindings ? '&bindings=1' : '') : '')),
+        buildUrl(
+          base,
+          '/usage-service/resource-capabilities' +
+            (inventory ? '?inventory=1' + (bindings ? '&bindings=1' : '') : '')
+        ),
         {
           timeout: USAGE_SERVICE_TIMEOUT_MS,
           headers: authHeaders(managementKey),

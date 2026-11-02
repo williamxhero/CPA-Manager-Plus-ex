@@ -66,11 +66,14 @@ type SourceReader interface {
 	Sources(context.Context) ([]cq.Source, error)
 }
 
+type statusReader interface {
+	Status(context.Context, string) (cq.Status, error)
+}
+
 type Service struct {
 	Store       *store.Store
 	Quota       SourceReader
 	core        coreClient
-	lockedOff   bool
 	reconcileMu sync.Mutex
 	holder      string
 	clock       func() time.Time
@@ -90,8 +93,8 @@ func WithClock(clock func() time.Time) Option {
 	}
 }
 func (s *Service) now() time.Time { return s.clock().UTC() }
-func New(st *store.Store, quota SourceReader, connection *mc.Service, lockedOff bool, options ...Option) *Service {
-	s := &Service{Store: st, Quota: quota, core: coreClient{connection: connection}, lockedOff: lockedOff, holder: uuid.NewString(), clock: time.Now, wake: make(chan struct{}, 1)}
+func New(st *store.Store, quota SourceReader, connection *mc.Service, options ...Option) *Service {
+	s := &Service{Store: st, Quota: quota, core: coreClient{connection: connection}, holder: uuid.NewString(), clock: time.Now, wake: make(chan struct{}, 1)}
 	for _, option := range options {
 		option(s)
 	}
@@ -119,6 +122,13 @@ func (s *Service) source(ctx context.Context, index string) (cq.Source, error) {
 	}
 	for _, src := range sources {
 		if index != "" && src.AuthIndex == index {
+			if reader, ok := s.Quota.(statusReader); ok {
+				status, err := reader.Status(ctx, index)
+				if err != nil {
+					return cq.Source{}, ErrIdentity
+				}
+				src.QueryVersion = status.Version
+			}
 			return src, nil
 		}
 	}
@@ -158,6 +168,8 @@ func sameAuthority(a, b cq.Source) bool {
 	b.State = ""
 	a.Reason = ""
 	b.Reason = ""
+	a.QueryVersion = 0
+	b.QueryVersion = 0
 	return reflect.DeepEqual(a, b)
 }
 func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
@@ -170,9 +182,6 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 	out.BindingCurrent = true
 	out.QueryAvailability = rc.Capability{State: src.State, Reason: src.Reason}
 	_, out.Reason = s.core.capabilities(ctx, src)
-	if s.lockedOff {
-		out.Reason = "environment_locked_off"
-	}
 	out.Availability.Reason = out.Reason
 	if out.Reason == "" {
 		out.Availability.State = "available"

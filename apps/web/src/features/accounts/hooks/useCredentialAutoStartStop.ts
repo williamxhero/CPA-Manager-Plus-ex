@@ -24,7 +24,9 @@ export function useCredentialAutoStartStop(
   const pending = useRef(false);
   useLayoutEffect(() => {
     current.current = context;
-    return () => { if(current.current === context) current.current = null; };
+    return () => {
+      if (current.current === context) current.current = null;
+    };
   }, [context]);
   const [view, setView] = useState<{
     context: typeof context;
@@ -111,7 +113,10 @@ export function useCredentialAutoStartStop(
       if (valid()) setView({ context, data: live });
     } catch (e) {
       error = e instanceof CredentialPolicyError ? e.code : 'credential_policy_request_failed';
-      if(error === 'identity_changed') {if(valid()) setView({context,error});return;}
+      if (error === 'identity_changed') {
+        if (valid()) setView({ context, error });
+        return;
+      }
       // A failed readback is unknown, not a successful toggle. Reconcile known
       // subject once, with no retry of user intent (especially no ON replay).
       try {
@@ -140,6 +145,9 @@ export function useCredentialAutoStartStop(
         scope: data.scope,
         targets: data.targets,
         authIndex: data.auth_index ?? '',
+        sourceId: data.sourceId,
+        subjectId: data.subjectId,
+        queryVersion: data.queryVersion ?? 0,
         sourceVersion: data.sourceVersion,
       });
       const next = await getCredentialPolicy(base, managementKey, authIndex);

@@ -133,7 +133,7 @@ func (s *Service) ProcessCompletions(ctx context.Context) error {
 					if err != nil {
 						return err
 					}
-					if !state.Enabled || s.lockedOff {
+					if !state.Enabled {
 						reason = "policy_off"
 						continue
 					}
@@ -176,7 +176,7 @@ func (s *Service) ProcessCompletions(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if !state.Enabled || s.lockedOff || state.Generation != candidate.Generation || state.Owner != candidate.Owner {
+		if !state.Enabled || state.Generation != candidate.Generation || state.Owner != candidate.Owner {
 			if err := finish("policy_generation_changed"); err != nil {
 				return err
 			}

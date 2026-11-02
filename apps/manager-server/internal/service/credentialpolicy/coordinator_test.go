@@ -29,7 +29,7 @@ func TestCredentialPolicyCompletedCallbackDurableAndFencedAcrossOFFON(t *testing
 	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: state.SubjectID, Generation: 1, Document: string(doc)}, 0); err != nil {
 		t.Fatal(err)
 	}
-	svc := policy.New(db, fixedPolicySources{status.Source}, nil, false, policy.WithClock(func() time.Time { return now }))
+	svc := policy.New(db, fixedPolicySources{status.Source}, nil, policy.WithClock(func() time.Time { return now }))
 	q := cq.Query{Binding: status.Binding, AuthIndex: status.AuthIndex, SourceVersion: status.SourceVersion, Version: status.Version}
 	if err := svc.CaptureCredentialQueryStart(ctx, q, status.Attempt.QueryID); err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestCredentialPolicyCompletedCallbackDurableAndFencedAcrossOFFON(t *testing
 		t.Fatal(err)
 	}
 	db = testutil.NewStore(t, cfg)
-	svc = policy.New(db, fixedPolicySources{status.Source}, nil, false, policy.WithClock(func() time.Time { return now }))
+	svc = policy.New(db, fixedPolicySources{status.Source}, nil, policy.WithClock(func() time.Time { return now }))
 	if err := svc.ProcessCompletions(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestCredentialPolicyRunDrainsDurableInboxAndStops(t *testing.T) {
 	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: state.SubjectID, Generation: 1, Document: string(doc)}, 0); err != nil {
 		t.Fatal(err)
 	}
-	svc := policy.New(db, nil, nil, false, policy.WithClock(func() time.Time { return now }))
+	svc := policy.New(db, nil, nil, policy.WithClock(func() time.Time { return now }))
 	q := cq.Query{Binding: status.Binding, AuthIndex: status.AuthIndex, SourceVersion: status.SourceVersion, Version: status.Version}
 	if err := svc.ObserveCompleted(ctx, fr.CompletedObservation{Source: fr.SourceRequest{Kind: fr.Credential, Credential: &q}, AttemptID: status.Attempt.QueryID, Credential: &status}); err != nil {
 		t.Fatal(err)
@@ -152,7 +152,7 @@ func TestCredentialPolicyRestartedCompletionPlansOnlyFreshEvidence(t *testing.T)
 			if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: state.SubjectID, Generation: 1, Document: string(doc)}, 0); err != nil {
 				t.Fatal(err)
 			}
-			svc := policy.New(db, fixedPolicySources{status.Source}, nil, false, policy.WithClock(func() time.Time { return now }))
+			svc := policy.New(db, fixedPolicySources{status.Source}, nil, policy.WithClock(func() time.Time { return now }))
 			q := cq.Query{Binding: status.Binding, AuthIndex: status.AuthIndex, SourceVersion: status.SourceVersion, Version: status.Version}
 			if err := svc.CaptureCredentialQueryStart(ctx, q, status.Attempt.QueryID); err != nil {
 				t.Fatal(err)
@@ -168,7 +168,7 @@ func TestCredentialPolicyRestartedCompletionPlansOnlyFreshEvidence(t *testing.T)
 			if expired {
 				now = now.Add(6 * time.Minute)
 			}
-			svc = policy.New(db, fixedPolicySources{status.Source}, nil, false, policy.WithClock(func() time.Time { return now }))
+			svc = policy.New(db, fixedPolicySources{status.Source}, nil, policy.WithClock(func() time.Time { return now }))
 			if err := svc.ProcessCompletions(ctx); err != nil {
 				t.Fatal(err)
 			}

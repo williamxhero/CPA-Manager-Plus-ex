@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
+	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
 )
@@ -105,4 +106,48 @@ func TestCredentialQuotaRequiresPanelAuthorization(t *testing.T) {
 			t.Fatalf("%s: got %d want 401", method, w.Code)
 		}
 	}
+}
+
+func TestCredentialQuotaRejectsStaleIssuedIdentityBeforeUpstreamQuery(t *testing.T) {
+	server, paths := sourceViewContractServer(t, sourceViewContractCase{})
+	handler := server.Handler()
+
+	rr := testutil.Request(t, handler, "GET", "/usage-service/credential-quota?authIndex=0123456789abcdef", "", testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var status cq.Status
+	testutil.DecodeJSON(t, rr, &status)
+	if status.SourceID == "" || status.SubjectID == "" || status.SourceVersion == "" {
+		t.Fatalf("host-issued source identity missing: %+v", status.Source)
+	}
+
+	base := cq.Query{Binding: status.Binding, AuthIndex: status.AuthIndex, SourceID: status.SourceID, SubjectID: status.SubjectID, SourceVersion: status.SourceVersion, Version: status.Version}
+	for _, tc := range []struct {
+		name   string
+		mutate func(*cq.Query)
+	}{
+		{name: "source id", mutate: func(q *cq.Query) { q.SourceID = "replacement-source" }},
+		{name: "subject id", mutate: func(q *cq.Query) { q.SubjectID = "replacement-subject" }},
+		{name: "query version", mutate: func(q *cq.Query) { q.Version++ }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			q := base
+			tc.mutate(&q)
+			rr := testutil.Request(t, handler, "POST", "/usage-service/credential-quota", mustJSON(t, q), testutil.AdminKey)
+			testutil.RequireStatus(t, rr, 409)
+		})
+	}
+	for _, path := range paths() {
+		if path == "/v8/management/credential-quota/query" {
+			t.Fatal("stale host-issued identity reached the upstream query endpoint")
+		}
+	}
+}
+
+func mustJSON(t *testing.T, value any) string {
+	t.Helper()
+	b, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }

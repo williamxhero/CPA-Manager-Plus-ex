@@ -219,7 +219,6 @@ Saving CPAMP configuration does not rewrite the full CPA `config.yaml`.
 | `USAGE_ARCHIVE_RETENTION_DAYS`          | `30`                                                        | Age in days used by automatic retention; effective only when retention and hourly rollup are both enabled.                                                                                                                         |
 | `USAGE_CORS_ORIGINS`                    | `*`                                                         | CORS origins for compatibility endpoints.                                                                                                                                                                                          |
 | `USAGE_RESP_TLS_SKIP_VERIFY`            | `false`                                                     | Skip TLS verification for RESP connection.                                                                                                                                                                                         |
-| `USAGE_QUOTA_COOLDOWN_ENABLED`          | `false`                                                     | Enable the provider quota cooldown worker for strict Codex usage-limit and xAI free-usage-exhausted signals. Re-applied on startup; while OFF the worker neither disables credentials nor re-enables ones it disabled earlier. |
 | `USAGE_ACCOUNT_ACTIONS_ENABLED`         | `false`                                                     | Enable the account action queue for auth issues that need review.                                                                                                                                                                  |
 | `USAGE_ACCOUNT_ACTIONS_AUTO_DISABLE`    | `false`                                                     | Enable automatic disabling for auth issues. This only takes effect when the account action queue is enabled.                                                                                                                       |
 | `PANEL_PATH`                            | empty                                                       | Optional custom `management.html`.                                                                                                                                                                                                 |
@@ -363,7 +362,7 @@ Manager Server holds an operating-system lock at `<absolute-database-path>.manag
 
 See the [July 10, 2026 Performance Optimization Report](./performance-optimization-2026-07-10.md) for the causes, delivery stages, and complete 100k benchmark evidence.
 
-When `USAGE_QUOTA_COOLDOWN_ENABLED`, `USAGE_ACCOUNT_ACTIONS_ENABLED`, or `USAGE_ACCOUNT_ACTIONS_AUTO_DISABLE` is set through the environment, the matching panel switch is shown as environment-sourced and locked. Remove the environment variable and restart Manager Server if you want the setting to be editable from the panel.
+When either account-action environment variable is set, the matching panel switch is shown as environment-sourced and locked. The legacy `USAGE_QUOTA_COOLDOWN_ENABLED` is no longer a Manager setting and does not start the old quota worker; credential-level auto start/stop through credential-policy is the sole policy entry point.
 
 ::: details Advanced: runtime endpoints
 
@@ -376,7 +375,7 @@ When `USAGE_QUOTA_COOLDOWN_ENABLED`, `USAGE_ACCOUNT_ACTIONS_ENABLED`, or `USAGE_
 | `GET /usage-service/info`                                        | Manager Server mode detection.                                                                               |
 | `GET /usage-service/config`                                      | Read CPAMP Manager Server config.                                                                            |
 | `PUT /usage-service/config`                                      | Save CPAMP config and restart collector if needed.                                                           |
-| `GET /usage-service/account-processing-policy`                   | Read quota cooldown, account action queue, and auto-disable policy.                                          |
+| `GET /usage-service/account-processing-policy`                   | Read account action queue and auto-disable policy.                                                           |
 | `PATCH /usage-service/account-processing-policy`                 | Update account processing policy. Fields locked by environment variables cannot be modified through the API. |
 | `GET /usage-service/quota-cooldowns`                             | Read active quota cooldowns so Credential Management can show recovery hints.                                |
 | `POST /setup`                                                    | First setup.                                                                                                 |

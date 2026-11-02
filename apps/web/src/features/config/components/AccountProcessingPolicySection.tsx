@@ -22,7 +22,6 @@ import styles from './AccountProcessingPolicySection.module.scss';
 
 const patchKeyByCapability: Record<AccountPolicyCapabilityKey, keyof AccountProcessingPolicyPatch> =
   {
-    providerQuotaCooldown: 'codexQuotaCooldownEnabled',
     authIssueQueue: 'authIssueQueueEnabled',
     authIssueAutoDisable: 'authIssueAutoDisableEnabled',
   };
@@ -258,7 +257,7 @@ function AccountProcessingPolicyContent() {
   };
 
   const groups = status
-    ? buildAccountProcessingPolicyViewModel(status, { loading, savingKey }).filter(group => group.key !== 'quota')
+    ? buildAccountProcessingPolicyViewModel(status, { loading, savingKey })
     : [];
 
   return (

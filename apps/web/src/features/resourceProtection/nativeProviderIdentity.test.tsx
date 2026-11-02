@@ -39,7 +39,6 @@ const target = {
 };
 const policy = {
   source: 'startup',
-  codexQuotaCooldown: { enabled: false, envKey: 'A', configFileKey: 'a' },
   authIssueQueue: { enabled: false, envKey: 'B', configFileKey: 'b' },
   authIssueAutoDisable: { enabled: false, envKey: 'C', configFileKey: 'c' },
 };

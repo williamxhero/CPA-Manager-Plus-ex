@@ -26,6 +26,8 @@ func validQuotaSourceHeaders(snapshot Snapshot, raw []json.RawMessage) bool {
 			Scope         Scope    `json:"scope"`
 			Targets       []Target `json:"targets"`
 			AuthIndex     string   `json:"auth_index"`
+			SourceID      string   `json:"sourceId"`
+			SubjectID     string   `json:"subjectId"`
 			Protocol      string   `json:"protocol"`
 			State         string   `json:"state"`
 		}
@@ -33,6 +35,9 @@ func validQuotaSourceHeaders(snapshot Snapshot, raw []json.RawMessage) bool {
 			return false
 		}
 		if source.AuthIndex != "" {
+			if source.SourceID == "" || source.SubjectID == "" {
+				return false
+			}
 			if decoded, err := hex.DecodeString(source.SourceVersion); err != nil || len(decoded) != 32 {
 				return false
 			}

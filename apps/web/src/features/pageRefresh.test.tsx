@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   },
   managerBase: 'https://manager.test',
   params: new URLSearchParams(),
-  t: (key: string, options?: { returnObjects?: boolean }) => options?.returnObjects ? [] : key,
+  t: (key: string, options?: { returnObjects?: boolean }) => (options?.returnObjects ? [] : key),
   headerRefresh: undefined as undefined | (() => Promise<unknown>),
   plugins: vi.fn(),
   pluginStore: vi.fn(),
@@ -53,13 +53,21 @@ const mocks = vi.hoisted(() => ({
   fetchModels: vi.fn(),
   fetchConfig: vi.fn(),
   models: {
-    models: [{ name: 'gpt-retained' }], loading: false, error: null as string | null,
-    cache: { data: [{ name: 'gpt-retained' }], timestamp: 1, apiBase: 'https://a.test', apiKey: 'key' },
+    models: [{ name: 'gpt-retained' }],
+    loading: false,
+    error: null as string | null,
+    cache: {
+      data: [{ name: 'gpt-retained' }],
+      timestamp: 1,
+      apiBase: 'https://a.test',
+      apiKey: 'key',
+    },
   },
   config: { loggingToFile: true, requestLog: true, apiKeys: ['key'] },
   scrollNode: { scrollTop: 10, scrollHeight: 1000, clientHeight: 100 },
   requestScroll: vi.fn(),
-  policy: vi.fn(), updatePolicy: vi.fn(),
+  policy: vi.fn(),
+  updatePolicy: vi.fn(),
 }));
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
@@ -111,7 +119,11 @@ vi.mock('@/hooks/useRequestMonitoringAvailability', () => ({
   }),
 }));
 vi.mock('@/services/api', () => ({
-  pluginsApi: { list: mocks.plugins, updateEnabled: mocks.updatePlugin, deletePlugin: mocks.deletePlugin },
+  pluginsApi: {
+    list: mocks.plugins,
+    updateEnabled: mocks.updatePlugin,
+    deletePlugin: mocks.deletePlugin,
+  },
   pluginStoreApi: { list: mocks.pluginStore, install: mocks.installPlugin },
   apiKeysApi: { list: mocks.keys },
   authFilesApi: { list: mocks.files },
@@ -136,7 +148,8 @@ vi.mock('@/services/api/usageService', () => ({
     getManagerConfig: mocks.managerConfig,
     getApiKeyAliases: mocks.aliases,
     getProviderKeyAliases: mocks.providerAliases,
-    getAccountProcessingPolicy: mocks.policy, updateAccountProcessingPolicy: mocks.updatePolicy,
+    getAccountProcessingPolicy: mocks.policy,
+    updateAccountProcessingPolicy: mocks.updatePolicy,
   },
 }));
 vi.mock('./monitoring/services/monitoringMetaService', () => ({
@@ -299,7 +312,14 @@ const pluginData: PluginListResponse = {
       supportsOAuth: false,
       logo: '',
       configFields: [],
-      metadata: { name: 'Retained Plugin', version: '1.0', author: 'test', configFields: [], githubRepository: 'test/plugin', logo: '' },
+      metadata: {
+        name: 'Retained Plugin',
+        version: '1.0',
+        author: 'test',
+        configFields: [],
+        githubRepository: 'test/plugin',
+        logo: '',
+      },
       menus: [{ menu: 'Resource', path: '/v0/resource/plugins/retained/page', description: '' }],
     },
   ],
@@ -363,23 +383,37 @@ describe('page refresh interactions', () => {
     'invalidates a global destructive $kind confirmation across A to B to A ($scope)',
     async ({ kind, scope }) => {
       mocks.logs.mockResolvedValue({ lines: ['retained log'] });
-      mocks.candidates.mockResolvedValue({ items: [{ id: 1, status: 'pending', accountSnapshot: 'account', actionType: 'delete' }], pendingCount: 1 });
-      const element = () => kind === 'logs' ? <LogsPage /> : <AccountActionCandidatesPage />;
-      const open = () => clickButton(kind === 'logs' ? 'logs.clear_button' : 'account_actions.delete_auth_file');
+      mocks.candidates.mockResolvedValue({
+        items: [{ id: 1, status: 'pending', accountSnapshot: 'account', actionType: 'delete' }],
+        pendingCount: 1,
+      });
+      const element = () => (kind === 'logs' ? <LogsPage /> : <AccountActionCandidatesPage />);
+      const open = () =>
+        clickButton(kind === 'logs' ? 'logs.clear_button' : 'account_actions.delete_auth_file');
       const mutation = kind === 'logs' ? mocks.clearLogs : mocks.deleteCandidate;
       await mount(element());
-      act(() => { open(); });
+      act(() => {
+        open();
+      });
       const staleConfirm = mocks.confirmation.mock.lastCall![0].onConfirm;
       const original = scope === 'managerBase' ? mocks.managerBase : mocks.auth[scope];
       for (const value of ['https://other.test', original]) {
         if (scope === 'managerBase') mocks.managerBase = value;
         else mocks.auth[scope] = value;
-        await act(async () => { renderer.update(element()); });
-        await act(async () => { await staleConfirm(); });
+        await act(async () => {
+          renderer.update(element());
+        });
+        await act(async () => {
+          await staleConfirm();
+        });
         expect(mutation).not.toHaveBeenCalled();
       }
-      act(() => { open(); });
-      await act(async () => { await mocks.confirmation.mock.lastCall![0].onConfirm(); });
+      act(() => {
+        open();
+      });
+      await act(async () => {
+        await mocks.confirmation.mock.lastCall![0].onConfirm();
+      });
       expect(mutation).toHaveBeenCalledOnce();
     }
   );
@@ -391,10 +425,15 @@ describe('page refresh interactions', () => {
     const next = deferred<unknown>();
     mocks.candidates.mockReturnValueOnce(next.promise);
     let pending!: Promise<unknown>;
-    act(() => { pending = clickButton('common.refresh'); });
+    act(() => {
+      pending = clickButton('common.refresh');
+    });
     expect(text(renderer.root)).toContain('account_actions.empty_title');
     expect(renderer.root.findAllByType('table')).toHaveLength(0);
-    await act(async () => { next.reject(new Error('empty refresh offline')); await pending; });
+    await act(async () => {
+      next.reject(new Error('empty refresh offline'));
+      await pending;
+    });
     expect(text(renderer.root)).toContain('account_actions.empty_title');
     expect(text(renderer.root)).toContain('empty refresh offline');
   });
@@ -462,7 +501,9 @@ describe('page refresh interactions', () => {
       channelsLoaded: true,
       error: '',
     });
-    await act(async () => { await refresh(); });
+    await act(async () => {
+      await refresh();
+    });
     expect(health().props.channelByAuthIndex.has('auth-fallback')).toBe(false);
 
     mocks.meta.mockResolvedValueOnce({
@@ -472,7 +513,9 @@ describe('page refresh interactions', () => {
       channelsLoaded: false,
       error: 'channels offline again',
     });
-    await act(async () => { await refresh(); });
+    await act(async () => {
+      await refresh();
+    });
     expect(health().props.channelByAuthIndex.has('auth-fallback')).toBe(false);
     expect(text(renderer.root)).toContain('notification.refresh_failed');
   });
@@ -524,7 +567,9 @@ describe('page refresh interactions', () => {
       error: 'meta offline',
     });
     mocks.aliases.mockRejectedValueOnce(new Error('aliases offline'));
-    await act(async () => { await refresh(); });
+    await act(async () => {
+      await refresh();
+    });
 
     expect(version().props.cpaBase).toBe('https://cpa.last-good');
     expect(health().props.authFileMap.has('auth-retained')).toBe(true);
@@ -536,14 +581,18 @@ describe('page refresh interactions', () => {
   it('uses a successful empty dashboard summary during background refresh', async () => {
     await mount(<DashboardPage />);
     mocks.usageSummary.loading = true;
-    await act(async () => { renderer.update(<DashboardPage />); });
-    expect(renderer.root.findAllByType(UsageMetricsCard).every(n => n.props.loading)).toBe(true);
+    await act(async () => {
+      renderer.update(<DashboardPage />);
+    });
+    expect(renderer.root.findAllByType(UsageMetricsCard).every((n) => n.props.loading)).toBe(true);
     mocks.usageSummary.summary = { window: { now_ms: 1 } };
-    await act(async () => { renderer.update(<DashboardPage />); });
+    await act(async () => {
+      renderer.update(<DashboardPage />);
+    });
     for (const component of [UsageMetricsCard, TrafficOverviewCard, HealthAlertsCard]) {
       const cards = renderer.root.findAllByType(component);
       expect(cards.length).toBeGreaterThan(0);
-      expect(cards.every(n => n.props.loading === false)).toBe(true);
+      expect(cards.every((n) => n.props.loading === false)).toBe(true);
     }
   });
 
@@ -554,11 +603,15 @@ describe('page refresh interactions', () => {
     expect(version().errorLogsLoaded).toBe(false);
     expect(version().errorLogsError).toBe('bootstrap logs offline');
     mocks.errorLogs.mockResolvedValueOnce({ files: [] });
-    await act(async () => { await refresh(); });
+    await act(async () => {
+      await refresh();
+    });
     expect(version().errorLogsLoaded).toBe(true);
     expect(version().errorLogCount).toBe(0);
     mocks.errorLogs.mockRejectedValueOnce(new Error('refresh logs offline'));
-    await act(async () => { await refresh(); });
+    await act(async () => {
+      await refresh();
+    });
     expect(version().errorLogsLoaded).toBe(true);
     expect(version().errorLogCount).toBe(0);
   });
@@ -566,28 +619,42 @@ describe('page refresh interactions', () => {
   it.each(['installed-read', 'installed-delete', 'store-delete'] as const)(
     'never resumes an old reinstall after capability revoke and restore (%s)',
     async (phase) => {
-      const { PluginStorePage } = await vi.importActual<typeof import('./plugins/PluginStorePage')>('./plugins/PluginStorePage');
+      const { PluginStorePage } = await vi.importActual<typeof import('./plugins/PluginStorePage')>(
+        './plugins/PluginStorePage'
+      );
       const installed = { ...storeData, plugins: [{ ...storeData.plugins[0], installed: true }] };
       mocks.plugins.mockResolvedValue(pluginData);
       mocks.pluginStore.mockResolvedValue(installed);
       mocks.deletePlugin.mockResolvedValue({ restartRequired: false });
-      const element = () => phase === 'store-delete' ? <PluginStorePage /> : <PluginsPage />;
+      const element = () => (phase === 'store-delete' ? <PluginStorePage /> : <PluginsPage />);
       const open = () => {
         if (phase === 'store-delete') clickButton('plugin_store.reinstall_plugin');
-        else renderer.root.findByType(DropdownMenu).props.items.find((item: {key: string}) => item.key === 'reinstall').onClick();
+        else
+          renderer.root
+            .findByType(DropdownMenu)
+            .props.items.find((item: { key: string }) => item.key === 'reinstall')
+            .onClick();
       };
       await mount(element());
       act(open);
       const staleConfirm = mocks.confirmation.mock.lastCall![0].onConfirm;
       const next = deferred<unknown>();
-      (phase === 'installed-read' ? mocks.pluginStore : mocks.deletePlugin).mockReturnValueOnce(next.promise);
+      (phase === 'installed-read' ? mocks.pluginStore : mocks.deletePlugin).mockReturnValueOnce(
+        next.promise
+      );
       let pending!: Promise<unknown>;
-      await act(async () => { pending = staleConfirm(); });
+      await act(async () => {
+        pending = staleConfirm();
+      });
       for (const supports of [false, true]) {
         mocks.auth.supportsPlugin = supports;
-        await act(async () => { renderer.update(element()); });
+        await act(async () => {
+          renderer.update(element());
+        });
       }
-      expect(text(renderer.root)).toContain(phase === 'store-delete' ? 'Retained Store Plugin' : 'Retained Plugin');
+      expect(text(renderer.root)).toContain(
+        phase === 'store-delete' ? 'Retained Store Plugin' : 'Retained Plugin'
+      );
       await act(async () => {
         next.resolve(phase === 'installed-read' ? installed : { restartRequired: false });
         await pending;
@@ -596,7 +663,9 @@ describe('page refresh interactions', () => {
       expect(mocks.installPlugin).not.toHaveBeenCalled();
       expect(mocks.deletePlugin).toHaveBeenCalledTimes(phase === 'installed-read' ? 0 : 1);
       act(open);
-      await act(async () => { await mocks.confirmation.mock.lastCall![0].onConfirm(); });
+      await act(async () => {
+        await mocks.confirmation.mock.lastCall![0].onConfirm();
+      });
       expect(mocks.installPlugin).toHaveBeenCalledOnce();
     }
   );
@@ -649,10 +718,9 @@ describe('page refresh interactions', () => {
       });
       expect(mocks.installPlugin).toHaveBeenCalledOnce();
       expect(text(renderer.root)).toContain('v2.0');
-      const refreshReleased = !(
-        renderer.root.findAllByType('button').find((n) => text(n) === 'plugin_store.refresh')!.props
-          .disabled
-      );
+      const refreshReleased = !renderer.root
+        .findAllByType('button')
+        .find((n) => text(n) === 'plugin_store.refresh')!.props.disabled;
       await act(async () => {
         old.resolve(before);
         await pending;
@@ -787,7 +855,9 @@ describe('page refresh interactions', () => {
         }
       });
       if (kind === 'store') {
-        await act(async () => { await installOptions().props.onConfirm(); });
+        await act(async () => {
+          await installOptions().props.onConfirm();
+        });
       }
       expect(text(renderer.root)).not.toContain(
         kind === 'installed' ? 'Retained Plugin' : 'Retained Store Plugin'
@@ -865,17 +935,35 @@ describe('page refresh interactions', () => {
   });
 
   it('keeps store results on failure and only accepts the latest overlapping refresh', async () => {
-    const { PluginStorePage } = await vi.importActual<typeof import('./plugins/PluginStorePage')>('./plugins/PluginStorePage');
-    const data = { plugins: [], sources: [], sourceErrors: [], pluginsEnabled: true, pluginsDir: 'plugins' };
+    const { PluginStorePage } = await vi.importActual<typeof import('./plugins/PluginStorePage')>(
+      './plugins/PluginStorePage'
+    );
+    const data = {
+      plugins: [],
+      sources: [],
+      sourceErrors: [],
+      pluginsEnabled: true,
+      pluginsDir: 'plugins',
+    };
     mocks.pluginStore.mockResolvedValueOnce(data);
     await mount(<PluginStorePage />);
-    const old = deferred<unknown>(), next = deferred<unknown>();
+    const old = deferred<unknown>(),
+      next = deferred<unknown>();
     mocks.pluginStore.mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise);
     let first!: Promise<unknown>, second!: Promise<unknown>;
-    act(() => { first = refresh(); second = refresh(); });
-    await act(async () => { next.reject(new Error('current-offline')); await second; });
+    act(() => {
+      first = refresh();
+      second = refresh();
+    });
+    await act(async () => {
+      next.reject(new Error('current-offline'));
+      await second;
+    });
     expect(text(renderer.root)).toContain('current-offline');
-    await act(async () => { old.reject(new Error('stale-offline')); await first; });
+    await act(async () => {
+      old.reject(new Error('stale-offline'));
+      await first;
+    });
     expect(text(renderer.root)).not.toContain('stale-offline');
     expect(text(renderer.root)).toContain('current-offline');
     expect(text(renderer.root)).toContain('plugin_store.global_enabled');
@@ -887,12 +975,25 @@ describe('page refresh interactions', () => {
     const old = deferred<PluginListResponse>();
     mocks.plugins.mockReturnValueOnce(old.promise);
     let pending!: Promise<unknown>;
-    act(() => { pending = refresh(); });
-    mocks.plugins.mockResolvedValueOnce({ ...pluginData, plugins: [{ ...pluginData.plugins[0], enabled: false }] });
-    await act(async () => { await renderer.root.findByType(ToggleSwitch).props.onChange(false); });
+    act(() => {
+      pending = refresh();
+    });
+    mocks.plugins.mockResolvedValueOnce({
+      ...pluginData,
+      plugins: [{ ...pluginData.plugins[0], enabled: false }],
+    });
+    await act(async () => {
+      await renderer.root.findByType(ToggleSwitch).props.onChange(false);
+    });
     expect(renderer.root.findByType(ToggleSwitch).props.checked).toBe(false);
-    expect(renderer.root.findAllByType('button').find(n => text(n) === 'plugin_management.refresh')!.props.disabled).toBe(false);
-    await act(async () => { old.resolve(pluginData); await pending; });
+    expect(
+      renderer.root.findAllByType('button').find((n) => text(n) === 'plugin_management.refresh')!
+        .props.disabled
+    ).toBe(false);
+    await act(async () => {
+      old.resolve(pluginData);
+      await pending;
+    });
     expect(renderer.root.findByType(ToggleSwitch).props.checked).toBe(false);
   });
 
@@ -902,47 +1003,100 @@ describe('page refresh interactions', () => {
     const next = deferred<unknown>();
     mocks.logs.mockReturnValueOnce(next.promise);
     let pending!: Promise<unknown>;
-    act(() => { pending = refresh(); });
+    act(() => {
+      pending = refresh();
+    });
     await act(async () => {
-      renderer.root.findAllByType('button').find(n => text(n) === 'logs.clear_button')!.props.onClick();
+      renderer.root
+        .findAllByType('button')
+        .find((n) => text(n) === 'logs.clear_button')!
+        .props.onClick();
       await mocks.confirmation.mock.calls[0][0].onConfirm();
     });
     expect(text(renderer.root)).not.toContain('before-clear');
-    await act(async () => { next.resolve({ lines: ['stale-cleared-line'] }); await pending; });
+    await act(async () => {
+      next.resolve({ lines: ['stale-cleared-line'] });
+      await pending;
+    });
     expect(text(renderer.root)).not.toContain('stale-cleared-line');
     expect(mocks.clearLogs).toHaveBeenCalled();
   });
 
   it('reconciles a completed mutation using the current candidate filter', async () => {
-    const candidate = { id: 1, accountSnapshot: 'pending-account', status: 'pending', actionType: 'disable' };
+    const candidate = {
+      id: 1,
+      accountSnapshot: 'pending-account',
+      status: 'pending',
+      actionType: 'disable',
+    };
     mocks.candidates.mockResolvedValue({ items: [candidate], pendingCount: 1 });
     await mount(<AccountActionCandidatesPage />);
     const mutation = deferred<unknown>();
     mocks.ignoreCandidate.mockReturnValueOnce(mutation.promise);
     let pending!: Promise<unknown>;
-    act(() => { pending = renderer.root.findAllByType('button').find(n => text(n) === 'account_actions.ignore')!.props.onClick(); });
-    await act(async () => {
-      renderer.root.findAllByType('button').find(n => text(n) === 'account_actions.filter_all')!.props.onClick();
+    act(() => {
+      pending = renderer.root
+        .findAllByType('button')
+        .find((n) => text(n) === 'account_actions.ignore')!
+        .props.onClick();
     });
-    await act(async () => { mutation.resolve({}); await pending; });
+    await act(async () => {
+      renderer.root
+        .findAllByType('button')
+        .find((n) => text(n) === 'account_actions.filter_all')!
+        .props.onClick();
+    });
+    await act(async () => {
+      mutation.resolve({});
+      await pending;
+    });
     expect(mocks.candidates.mock.lastCall?.[2]).toBe('');
     expect(text(renderer.root)).toContain('pending-account');
   });
 
   it('keeps policy controls visible and busy during refresh and isolates a new manager', async () => {
-    const capability = { enabled: true, configured: true, source: 'database', locked: false, envKey: 'ENV', configFileKey: 'field' };
-    mocks.policy.mockResolvedValueOnce({ codexQuotaCooldown: capability, authIssueQueue: capability, authIssueAutoDisable: capability });
+    const capability = {
+      enabled: true,
+      configured: true,
+      source: 'database',
+      locked: false,
+      envKey: 'ENV',
+      configFileKey: 'field',
+    };
+    mocks.policy.mockResolvedValueOnce({
+      source: 'database',
+      authIssueQueue: capability,
+      authIssueAutoDisable: capability,
+    });
     await mount(<AccountProcessingPolicySection />);
-    expect(renderer.root.findAllByType(ToggleSwitch).map(n => n.props.checked)).toEqual([true, true]);
-    const next = deferred<unknown>(); mocks.policy.mockReturnValueOnce(next.promise);
-    const refreshButton = renderer.root.findAllByType('button').find(n => text(n) === 'accountPolicy.refresh')!;
-    let pending!: Promise<unknown>; act(() => { pending = refreshButton.props.onClick(); });
-    expect(renderer.root.findAllByType(ToggleSwitch).every(n => n.props.disabled)).toBe(true);
-    await act(async () => { next.reject(new Error('offline')); await pending; });
-    expect(renderer.root.findAllByType(ToggleSwitch).map(n => n.props.checked)).toEqual([true, true]);
+    expect(renderer.root.findAllByType(ToggleSwitch).map((n) => n.props.checked)).toEqual([
+      true,
+      true,
+    ]);
+    const next = deferred<unknown>();
+    mocks.policy.mockReturnValueOnce(next.promise);
+    const refreshButton = renderer.root
+      .findAllByType('button')
+      .find((n) => text(n) === 'accountPolicy.refresh')!;
+    let pending!: Promise<unknown>;
+    act(() => {
+      pending = refreshButton.props.onClick();
+    });
+    expect(renderer.root.findAllByType(ToggleSwitch).every((n) => n.props.disabled)).toBe(true);
+    await act(async () => {
+      next.reject(new Error('offline'));
+      await pending;
+    });
+    expect(renderer.root.findAllByType(ToggleSwitch).map((n) => n.props.checked)).toEqual([
+      true,
+      true,
+    ]);
     expect(text(renderer.root)).toContain('offline');
-    mocks.policy.mockReturnValue(new Promise(() => {})); mocks.managerBase = 'https://new-manager.test';
-    await act(async () => { renderer.update(<AccountProcessingPolicySection />); });
+    mocks.policy.mockReturnValue(new Promise(() => {}));
+    mocks.managerBase = 'https://new-manager.test';
+    await act(async () => {
+      renderer.update(<AccountProcessingPolicySection />);
+    });
     expect(renderer.root.findAllByType(ToggleSwitch)).toHaveLength(0);
   });
 
@@ -950,8 +1104,19 @@ describe('page refresh interactions', () => {
     mocks.policy.mockReset();
     mocks.updatePolicy.mockReset();
     mocks.noop.mockClear();
-    const capability = { enabled: true, configured: true, source: 'database', locked: false, envKey: 'ENV', configFileKey: 'field' };
-    const policy = { codexQuotaCooldown: capability, authIssueQueue: capability, authIssueAutoDisable: capability };
+    const capability = {
+      enabled: true,
+      configured: true,
+      source: 'database',
+      locked: false,
+      envKey: 'ENV',
+      configFileKey: 'field',
+    };
+    const policy = {
+      source: 'database',
+      authIssueQueue: capability,
+      authIssueAutoDisable: capability,
+    };
     mocks.policy.mockResolvedValueOnce(policy);
     await mount(<AccountProcessingPolicySection />);
 
@@ -978,20 +1143,53 @@ describe('page refresh interactions', () => {
     ).toBe(false);
   });
 
-  it.each(['logs', 'system', 'dashboard', 'candidates'] as const)('rejects a late %s response after a connection switch', async (kind) => {
-    const old = deferred<unknown>(), next = deferred<unknown>();
-    mocks.logs.mockResolvedValue({ lines: [] }); mocks.candidates.mockResolvedValue({ items: [], pendingCount: 0 });
-    const api = kind === 'logs' ? mocks.logs : kind === 'candidates' ? mocks.candidates : mocks.status;
-    api.mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise);
-    const element = () => kind === 'logs' ? <LogsPage /> : kind === 'system' ? <SystemPage /> : kind === 'dashboard' ? <DashboardPage /> : <AccountActionCandidatesPage />;
-    await mount(element());
-    mocks.auth.managementKey = 'b';
-    await act(async () => { renderer.update(element()); });
-    await act(async () => { old.resolve(kind === 'logs' ? { lines: ['old-scope-secret'] } : kind === 'candidates' ? { items: [{ id: 1, accountSnapshot: 'old-scope-secret' }], pendingCount: 1 } : { marker: 'old-scope-secret' }); });
-    expect(text(renderer.root)).not.toContain('old-scope-secret');
-    await act(async () => { next.resolve(kind === 'logs' ? { lines: ['new-scope-result'] } : kind === 'candidates' ? { items: [{ id: 2, accountSnapshot: 'new-scope-result' }], pendingCount: 1 } : { marker: 'new-scope-result' }); });
-    expect(text(renderer.root)).toContain('new-scope-result');
-  });
+  it.each(['logs', 'system', 'dashboard', 'candidates'] as const)(
+    'rejects a late %s response after a connection switch',
+    async (kind) => {
+      const old = deferred<unknown>(),
+        next = deferred<unknown>();
+      mocks.logs.mockResolvedValue({ lines: [] });
+      mocks.candidates.mockResolvedValue({ items: [], pendingCount: 0 });
+      const api =
+        kind === 'logs' ? mocks.logs : kind === 'candidates' ? mocks.candidates : mocks.status;
+      api.mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise);
+      const element = () =>
+        kind === 'logs' ? (
+          <LogsPage />
+        ) : kind === 'system' ? (
+          <SystemPage />
+        ) : kind === 'dashboard' ? (
+          <DashboardPage />
+        ) : (
+          <AccountActionCandidatesPage />
+        );
+      await mount(element());
+      mocks.auth.managementKey = 'b';
+      await act(async () => {
+        renderer.update(element());
+      });
+      await act(async () => {
+        old.resolve(
+          kind === 'logs'
+            ? { lines: ['old-scope-secret'] }
+            : kind === 'candidates'
+              ? { items: [{ id: 1, accountSnapshot: 'old-scope-secret' }], pendingCount: 1 }
+              : { marker: 'old-scope-secret' }
+        );
+      });
+      expect(text(renderer.root)).not.toContain('old-scope-secret');
+      await act(async () => {
+        next.resolve(
+          kind === 'logs'
+            ? { lines: ['new-scope-result'] }
+            : kind === 'candidates'
+              ? { items: [{ id: 2, accountSnapshot: 'new-scope-result' }], pendingCount: 1 }
+              : { marker: 'new-scope-result' }
+        );
+      });
+      expect(text(renderer.root)).toContain('new-scope-result');
+    }
+  );
 
   it.each(['installed', 'resource'])(
     'keeps the %s plugin mounted through pending/failure and clears it on connection change',
@@ -1062,12 +1260,16 @@ describe('page refresh interactions', () => {
       .findAllByType(ToggleSwitch)
       .find((node) => text(node).includes('logs.auto_refresh'));
     expect(autoRefreshToggle).toBeTruthy();
-    act(() => { autoRefreshToggle!.props.onChange(true); });
+    act(() => {
+      autoRefreshToggle!.props.onChange(true);
+    });
     expect(poll).not.toBeNull();
 
     const next = deferred<unknown>();
     mocks.logs.mockReturnValueOnce(next.promise);
-    act(() => { poll!(); });
+    act(() => {
+      poll!();
+    });
     await act(async () => {
       next.reject(new Error('poll offline'));
       await Promise.resolve();

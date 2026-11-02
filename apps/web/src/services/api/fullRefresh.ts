@@ -12,6 +12,9 @@ export interface RefreshSource {
   };
   targets: ResourceTarget[];
   authIndex?: string;
+  sourceId?: string;
+  subjectId?: string;
+  queryVersion?: number;
   sourceVersion?: string;
   state: string;
   reason?: string;
@@ -23,6 +26,9 @@ export interface CredentialRefreshBinding {
   scope: ResourceScope;
   targets: ResourceTarget[];
   authIndex: string;
+  sourceId: string;
+  subjectId: string;
+  queryVersion: number;
   sourceVersion: string;
 }
 
@@ -37,7 +43,8 @@ const canonical = (value: unknown): unknown => {
   }
   return value;
 };
-const exact = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+const sameCanonicalValue = (a: unknown, b: unknown) =>
+  JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 export interface RefreshProgress {
   id: string;
   state: string;
@@ -113,16 +120,23 @@ export async function refreshCredentialSource(
     undefined,
     signal
   );
-  if (!exact(inventory.scope, binding.scope)) throw new Error('identity_or_source_changed');
+  if (!sameCanonicalValue(inventory.scope, binding.scope))
+    throw new Error('identity_or_source_changed');
   const matches = inventory.sources.filter((s) => {
     const credential = s.request.credential;
     return (
       s.request.kind === 'credential_quota' &&
       credential?.auth_index === binding.authIndex &&
+      credential?.sourceId === binding.sourceId &&
+      credential?.subjectId === binding.subjectId &&
+      credential?.version === binding.queryVersion &&
+      s.sourceId === binding.sourceId &&
+      s.subjectId === binding.subjectId &&
+      s.queryVersion === binding.queryVersion &&
       credential?.sourceVersion === binding.sourceVersion &&
-      exact(s.targets, binding.targets) &&
-      exact(credential.scope, binding.scope) &&
-      exact(credential.targets, binding.targets)
+      sameCanonicalValue(s.targets, binding.targets) &&
+      sameCanonicalValue(credential.scope, binding.scope) &&
+      sameCanonicalValue(credential.targets, binding.targets)
     );
   });
   if (matches.length !== 1 || !matches[0].queryCapable)

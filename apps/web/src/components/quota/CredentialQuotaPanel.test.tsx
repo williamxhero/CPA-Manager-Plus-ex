@@ -36,6 +36,10 @@ it('invalidates persisted row display on a credential mutation even if auth_inde
 const status = (percent = 42) => ({
   scope: { instance_id: 'issued-instance' },
   targets: [{ resource_id: 'issued-resource' }],
+  sourceId: 'issued-source',
+  subjectId: 'issued-subject',
+  queryVersion: 1,
+  sourceVersion: 'host-source-v1',
   protocol: 'codex-oauth-wham',
   state: 'ready',
   reason: 'selected_oauth',
@@ -64,7 +68,31 @@ it('keeps the prior window mounted through refresh and reconciles the persisted 
   });
   let read = 0;
   const request = vi.fn(async (_url: string, options?: RequestInit) => {
-    if (_url.endsWith('/full-refresh') && options?.method === 'GET') return json({sources:[{id:'host-source',queryCapable:true,request:{kind:'credential_quota',credential:{...status(),auth_index:'a',sourceVersion:'host-source-v1'}},targets:status().targets}]});
+    if (_url.endsWith('/full-refresh') && options?.method === 'GET')
+      return json({
+        scope: status().scope,
+        sources: [
+          {
+            id: 'host-source',
+            queryCapable: true,
+            sourceId: 'issued-source',
+            subjectId: 'issued-subject',
+            queryVersion: 1,
+            request: {
+              kind: 'credential_quota',
+              credential: {
+                ...status(),
+                auth_index: 'a',
+                sourceVersion: 'host-source-v1',
+                sourceId: 'issued-source',
+                subjectId: 'issued-subject',
+                version: 1,
+              },
+            },
+            targets: status().targets,
+          },
+        ],
+      });
     if (options?.method === 'POST') return waiting;
     return json(status(read++ ? 80 : 42));
   });
@@ -85,8 +113,24 @@ it('keeps the prior window mounted through refresh and reconciles the persisted 
   });
   expect(JSON.stringify(renderer.toJSON())).toContain('80');
   expect(request.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(1);
-  expect(JSON.parse(String(request.mock.calls.find(c=>c[1]?.method === 'POST')?.[1]?.body))).toMatchObject({purpose:'manual',source:{kind:'credential_quota',credential:{auth_index:'a',version:1,targets:[{resource_id:'issued-resource'}]}}});
-  expect(request.mock.calls.filter(c=>c[1]?.method==='POST').map(c=>c[0])).toEqual(['http://manager/usage-service/full-refresh']);
+  expect(
+    JSON.parse(String(request.mock.calls.find((c) => c[1]?.method === 'POST')?.[1]?.body))
+  ).toMatchObject({
+    purpose: 'manual',
+    source: {
+      kind: 'credential_quota',
+      credential: {
+        auth_index: 'a',
+        sourceId: 'issued-source',
+        subjectId: 'issued-subject',
+        version: 1,
+        targets: [{ resource_id: 'issued-resource' }],
+      },
+    },
+  });
+  expect(request.mock.calls.filter((c) => c[1]?.method === 'POST').map((c) => c[0])).toEqual([
+    'http://manager/usage-service/full-refresh',
+  ]);
   await act(async () => renderer.unmount());
 });
 
@@ -125,7 +169,35 @@ it('removes invalid old authority on conflict without reflecting authenticated e
   vi.stubGlobal(
     'fetch',
     vi.fn(async (_url: string, options?: RequestInit) =>
-      options?.method === 'POST' ? new Response('SECRET-CANARY', { status: 409 }) : _url.endsWith('/full-refresh') ? json({sources:[{id:'host-source',queryCapable:true,request:{kind:'credential_quota',credential:{auth_index:'a'}}}]}) : json(status())
+      options?.method === 'POST'
+        ? new Response('SECRET-CANARY', { status: 409 })
+        : _url.endsWith('/full-refresh')
+          ? json({
+              scope: status().scope,
+              sources: [
+                {
+                  id: 'host-source',
+                  queryCapable: true,
+                  sourceId: 'issued-source',
+                  subjectId: 'issued-subject',
+                  queryVersion: 1,
+                  targets: status().targets,
+                  request: {
+                    kind: 'credential_quota',
+                    credential: {
+                      auth_index: 'a',
+                      scope: status().scope,
+                      targets: status().targets,
+                      sourceId: 'issued-source',
+                      subjectId: 'issued-subject',
+                      sourceVersion: 'host-source-v1',
+                      version: 1,
+                    },
+                  },
+                },
+              ],
+            })
+          : json(status())
     )
   );
   let renderer!: ReactTestRenderer;

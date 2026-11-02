@@ -11,7 +11,7 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/usage"
 )
 
-func TestAutomationUsageHandlerIgnoresLegacyQuotaEventsWhenGlobalSettingIsPatched(t *testing.T) {
+func TestAutomationUsageHandlerDoesNotDispatchLegacyQuotaEvents(t *testing.T) {
 	st, err := store.Open(t.TempDir() + "/usage.sqlite")
 	if err != nil {
 		t.Fatalf("open store: %v", err)
@@ -28,15 +28,10 @@ func TestAutomationUsageHandlerIgnoresLegacyQuotaEventsWhenGlobalSettingIsPatche
 		t.Fatalf("disabled handlers were called quota=%d account=%d", quota.handleCount, account.handleCount)
 	}
 
-	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{QuotaCooldownEnabled: boolPtr(true)}); err != nil {
-		t.Fatalf("enable quota: %v", err)
-	}
-	handler.HandleUsageEvents(ctx, collectorpkg.RuntimeConfig{}, []usage.Event{{EventHash: "evt-quota"}})
-	if quota.handleCount != 0 || account.handleCount != 0 {
-		t.Fatalf("global quota PATCH activated legacy handlers quota=%d account=%d", quota.handleCount, account.handleCount)
-	}
-
-	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{AccountActionsEnabled: boolPtr(true), AccountActionsAutoDisable: boolPtr(true)}); err != nil {
+	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{
+		AccountActionsEnabled:     boolPtr(true),
+		AccountActionsAutoDisable: boolPtr(true),
+	}); err != nil {
 		t.Fatalf("enable account actions: %v", err)
 	}
 	handler.HandleUsageEvents(ctx, collectorpkg.RuntimeConfig{}, []usage.Event{{EventHash: "evt-both"}})
@@ -56,7 +51,10 @@ func TestAutomationRuntimeReloadUpdatesAutoDisable(t *testing.T) {
 	account := &recordingAccountAutomationWorker{}
 	runtime := NewAutomationRuntime(settings, nil, &recordingQuotaAutomationWorker{}, account)
 
-	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{AccountActionsEnabled: boolPtr(true), AccountActionsAutoDisable: boolPtr(true)}); err != nil {
+	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{
+		AccountActionsEnabled:     boolPtr(true),
+		AccountActionsAutoDisable: boolPtr(true),
+	}); err != nil {
 		t.Fatalf("enable auto-disable: %v", err)
 	}
 	if err := runtime.Reload(ctx); err != nil {
@@ -79,31 +77,18 @@ func TestAutomationRuntimeAppliesPersistedPolicyToWorkers(t *testing.T) {
 	account := &recordingAccountAutomationWorker{}
 	runtime := NewAutomationRuntime(settings, nil, quota, account)
 
-	// Persisted OFF: startup must not let the workers take automatic actions.
 	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{
-		QuotaCooldownEnabled:      boolPtr(false),
 		AccountActionsEnabled:     boolPtr(true),
 		AccountActionsAutoDisable: boolPtr(false),
 	}); err != nil {
 		t.Fatalf("persist policy: %v", err)
 	}
 	runtime.Start(ctx)
-	if quota.enabled {
-		t.Fatalf("quota worker enabled on startup despite persisted OFF")
+	if quota.startCount != 0 || quota.enabled {
+		t.Fatalf("legacy quota worker was started or enabled: %#v", quota)
 	}
-	if account.autoDisable {
-		t.Fatalf("account auto-disable enabled on startup despite persisted OFF")
-	}
-
-	// The legacy global ON remains API-compatible but inert.
-	if _, err := settings.Update(ctx, automationsvc.UpdateRequest{QuotaCooldownEnabled: boolPtr(true)}); err != nil {
-		t.Fatalf("enable quota: %v", err)
-	}
-	if err := runtime.Reload(ctx); err != nil {
-		t.Fatalf("reload: %v", err)
-	}
-	if quota.enabled {
-		t.Fatalf("quota worker became enabled after legacy global ON reload")
+	if account.startCount != 1 || account.autoDisable {
+		t.Fatalf("account worker startup state = %#v", account)
 	}
 }
 

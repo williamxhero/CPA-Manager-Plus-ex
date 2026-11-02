@@ -16,7 +16,7 @@ import (
 )
 
 const sourceViewBinding = `{"auth_index":"0123456789abcdef","runtime_alias":"44444444-4444-4444-8444-444444444444","scope":{` + testScopeJSON + `},"targets":[{` + testTargetJSON + `}]}`
-const sourceViewSource = `{"scope":{` + testScopeJSON + `},"targets":[{` + testTargetJSON + `}],"auth_index":"0123456789abcdef","sourceVersion":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","protocol":"codex-oauth-wham","state":"ready","reason":"selected_oauth","accountProvenance":"selected_oauth_account","manualDisabled":true}`
+const sourceViewSource = `{"scope":{` + testScopeJSON + `},"targets":[{` + testTargetJSON + `}],"auth_index":"0123456789abcdef","sourceId":"source-view-id","subjectId":"subject-view-id","sourceVersion":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","protocol":"codex-oauth-wham","state":"ready","reason":"selected_oauth","accountProvenance":"selected_oauth_account","manualDisabled":true}`
 const sourceViewEnvelope = `{"version":1,"sources":[` + sourceViewSource + `],"bindings":[` + sourceViewBinding + `]}`
 
 // These are literal frozen READ-contract cases over authenticated HTTP + real

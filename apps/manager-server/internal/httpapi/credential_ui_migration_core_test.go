@@ -9,7 +9,8 @@ import (
 // enrollment, no replay of global intent, no mutation of native disabled state.
 func TestCredentialUI93UnknownDisabledHistoryStaysPending(t *testing.T) {
 	f := newNativeAdmissionFixture(t, true)
-	f.api("PATCH", "/usage-service/account-processing-policy", map[string]any{"codexQuotaCooldownEnabled": true}, 200, nil)
+	// The removed global quota policy is no longer an accepted write field.
+	f.api("PATCH", "/usage-service/account-processing-policy", map[string]any{"codexQuotaCooldownEnabled": true}, 400, nil)
 	for i := 0; i < 2; i++ {
 		var status map[string]json.RawMessage
 		f.api("GET", "/usage-service/credential-policy?authIndex="+f.sources["A"].AuthIndex, nil, 200, &status)

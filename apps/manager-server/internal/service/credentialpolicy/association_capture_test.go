@@ -34,7 +34,7 @@ func TestOfficialStartedCapturesOriginalContractWithoutRemoteIOOrSecrets(t *test
 	src.State = "unsupported"
 	src.Protocol = "unsupported"
 	src.AccountProvenance = ""
-	discovery := p.New(db, fixedPolicySources{src}, nil, false)
+	discovery := p.New(db, fixedPolicySources{src}, nil)
 	if _, err := discovery.Status(ctx, src.AuthIndex); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestOfficialStartedCapturesOriginalContractWithoutRemoteIOOrSecrets(t *test
 	if err := db.BeginOfficialBalanceJob(ctx, sourceID, 1, jobID, string(raw), `{"queryId":"`+jobID+`","queryStatus":"running"}`); err != nil {
 		t.Fatal(err)
 	}
-	svc := p.New(db, nil, nil, false) // NO source/Core/secret-resolution RPC possible
+	svc := p.New(db, nil, nil) // NO source/Core/secret-resolution RPC possible
 	q := ob.Query{Binding: cfg.Binding, Version: 1}
 	if err := svc.CaptureOfficialQueryStart(ctx, q, jobID); err != nil {
 		t.Fatal(err)
@@ -69,7 +69,7 @@ func TestOfficialStartedCapturesOriginalContractWithoutRemoteIOOrSecrets(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc = p.New(db, nil, nil, false)
+	svc = p.New(db, nil, nil)
 	if err := svc.CaptureOfficialQueryStart(ctx, q, jobID); err != nil {
 		t.Fatal(err)
 	}

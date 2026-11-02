@@ -33,6 +33,9 @@ type Binding struct {
 type Source struct {
 	Binding
 	SourceVersion     string `json:"sourceVersion"`
+	SourceID          string `json:"sourceId"`
+	SubjectID         string `json:"subjectId"`
+	QueryVersion      int64  `json:"queryVersion,omitempty"`
 	AuthIndex         string `json:"auth_index,omitempty"`
 	Protocol          string `json:"protocol"`
 	State             string `json:"state"`
@@ -43,8 +46,10 @@ type Source struct {
 type Query struct {
 	Binding
 	SourceVersion string `json:"sourceVersion"`
-	AuthIndex     string `json:"auth_index"`
+	SourceID      string `json:"sourceId"`
+	SubjectID     string `json:"subjectId"`
 	Version       int64  `json:"version"`
+	AuthIndex     string `json:"auth_index"`
 	TimeoutMS     int64  `json:"timeoutMs,omitempty"`
 }
 type Window struct {
@@ -142,6 +147,8 @@ func same(a, b Binding) bool { return reflect.DeepEqual(a, b) }
 func authority(s Source) string {
 	s.Scope.BootEpoch = ""
 	s.Scope.Revision = 0
+	// QueryVersion is the durable observation CAS, not source authority.
+	s.QueryVersion = 0
 	s.AuthIndex = ""
 	s.State = ""
 	s.Reason = ""
@@ -181,6 +188,9 @@ func (s *Service) Sources(ctx context.Context) ([]Source, error) {
 	seen := map[string]bool{}
 	for _, source := range response.Sources {
 		if source.Scope != n.Snapshot.Scope || len(source.Targets) == 0 || len(source.Targets) > 64 {
+			return nil, ErrIdentity
+		}
+		if source.AuthIndex != "" && (source.SourceID == "" || source.SubjectID == "") {
 			return nil, ErrIdentity
 		}
 		if source.AuthIndex == "" {
@@ -230,6 +240,14 @@ func (s *Service) source(ctx context.Context, index string) (Source, error) {
 	}
 	return Source{}, ErrIdentity
 }
+
+func sameSourceIdentity(source Source, query Query) bool {
+	return same(source.Binding, query.Binding) &&
+		query.AuthIndex != "" && source.AuthIndex == query.AuthIndex &&
+		query.SourceID != "" && source.SourceID == query.SourceID &&
+		query.SubjectID != "" && source.SubjectID == query.SubjectID &&
+		query.SourceVersion != "" && source.SourceVersion == query.SourceVersion
+}
 func (s *Service) read(ctx context.Context, source Source) (Status, error) {
 	r, err := s.Store.CredentialQuota(ctx, key(source.Binding))
 	if err != nil {
@@ -241,6 +259,7 @@ func (s *Service) read(ctx context.Context, source Source) (Status, error) {
 // Decode the transaction's committed snapshot without another database access.
 // Notification must not disappear if the acquisition expires after Commit.
 func statusFromRecord(source Source, r store.CredentialQuotaRecord) Status {
+	source.QueryVersion = r.Version
 	out := Status{Source: source, Version: r.Version, CredentialQuery: rc.Capability{State: "available", Reason: "scoped_credential_query_v1"}}
 	var old Source
 	if r.Source == "" || json.Unmarshal([]byte(r.Source), &old) != nil || authority(old) != authority(source) {
@@ -281,7 +300,7 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 	source, err := s.source(ctx, q.AuthIndex)
-	if err != nil || !same(source.Binding, q.Binding) || q.SourceVersion == "" || q.SourceVersion != source.SourceVersion {
+	if err != nil || !sameSourceIdentity(source, q) {
 		return Job{}, ErrIdentity
 	}
 	s.mu.Lock()
@@ -495,7 +514,7 @@ func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 		return Job{}, ErrInput
 	}
 	source, err := s.source(ctx, job.Query.AuthIndex)
-	if err != nil || !same(source.Binding, job.Query.Binding) || source.SourceVersion != job.Query.SourceVersion {
+	if err != nil || !sameSourceIdentity(source, job.Query) {
 		return Job{}, ErrIdentity
 	}
 	s.mu.Lock()
@@ -548,7 +567,7 @@ func (s *Service) TryJoin(ctx context.Context, q Query) (Job, bool, error) {
 		if job.State != "running" {
 			continue
 		}
-		if same(job.Query.Binding, q.Binding) && job.Query.SourceVersion == q.SourceVersion && job.Query.AuthIndex == q.AuthIndex {
+		if sameSourceIdentity(Source{Binding: job.Query.Binding, AuthIndex: job.Query.AuthIndex, SourceID: job.Query.SourceID, SubjectID: job.Query.SubjectID, SourceVersion: job.Query.SourceVersion}, q) {
 			if q.Version != job.RequestedVersion && q.Version != job.Query.Version {
 				return Job{}, true, store.ErrQuotaConflict
 			}

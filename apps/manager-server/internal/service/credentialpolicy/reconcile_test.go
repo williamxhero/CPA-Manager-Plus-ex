@@ -72,7 +72,7 @@ func TestCredentialPolicyReconcileRetainsPendingOnUnavailableOrMalformedACK(t *t
 			if err := db.ReleaseCredentialPolicyLease(ctx, lease); err != nil {
 				t.Fatal(err)
 			}
-			coordinator := policy.New(db, nil, mc.New(cfg, db, nil), false)
+			coordinator := policy.New(db, nil, mc.New(cfg, db, nil))
 			if err := coordinator.Reconcile(ctx); err != nil {
 				t.Fatal(err)
 			}

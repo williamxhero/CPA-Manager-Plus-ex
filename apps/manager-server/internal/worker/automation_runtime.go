@@ -108,7 +108,7 @@ func (r *AutomationRuntime) logState(ctx context.Context, action string) {
 		return
 	}
 	settings := r.settings.RuntimeSettings(ctx)
-	log.Printf("[automation] runtime settings %s quotaCooldown=%t accountActions=%t accountActionsAutoDisable=%t", action, settings.QuotaCooldownEnabled, settings.AccountActionsEnabled, settings.AccountActionsAutoDisable)
+	log.Printf("[automation] runtime settings %s accountActions=%t accountActionsAutoDisable=%t", action, settings.AccountActionsEnabled, settings.AccountActionsAutoDisable)
 }
 
 type automationUsageHandler struct {

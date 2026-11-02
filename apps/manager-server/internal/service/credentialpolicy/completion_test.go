@@ -49,7 +49,7 @@ func TestCredentialPolicyRestartFreshRecoveryCandidateRetainsFullVersionFences(t
 	status.Attempt.WindowsJSON = string(raw)
 	status.Attempt.Binding, _ = json.Marshal(status.Binding)
 	sources := fixedPolicySources{status.Source}
-	coordinator := policy.New(db, sources, nil, false, policy.WithClock(func() time.Time { return now }))
+	coordinator := policy.New(db, sources, nil, policy.WithClock(func() time.Time { return now }))
 	q := cq.Query{Binding: status.Binding, SourceVersion: status.SourceVersion, AuthIndex: status.AuthIndex, Version: status.Version}
 	if err := coordinator.CaptureCredentialQueryStart(ctx, q, status.Attempt.QueryID); err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestCredentialPolicyCompletionRequiresGenerationCapturedBeforeQuery(t *test
 	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: 1, Document: string(document)}, 0); err != nil {
 		t.Fatal(err)
 	}
-	coordinator := policy.New(db, fixedPolicySources{source.Source}, nil, false)
+	coordinator := policy.New(db, fixedPolicySources{source.Source}, nil)
 	q := cq.Query{Binding: source.Binding, SourceVersion: source.SourceVersion, AuthIndex: source.AuthIndex, Version: source.Version}
 	before, err := coordinator.CompleteCredentialQuery(ctx, q, source, source.Attempt.QueryID)
 	if err != nil {
@@ -155,7 +155,7 @@ func TestCredentialPolicyFreshFencedEvidenceQueuesDurablyWithoutClaimingApplied(
 	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: 1, Document: string(document)}, 0); err != nil {
 		t.Fatal(err)
 	}
-	coordinator := policy.New(db, fixedPolicySources{source.Source}, nil, false, policy.WithClock(func() time.Time { return now }))
+	coordinator := policy.New(db, fixedPolicySources{source.Source}, nil, policy.WithClock(func() time.Time { return now }))
 	q := cq.Query{Binding: source.Binding, SourceVersion: source.SourceVersion, AuthIndex: source.AuthIndex, Version: source.Version}
 	if err := coordinator.CaptureCredentialQueryStart(ctx, q, source.Attempt.QueryID); err != nil {
 		t.Fatal(err)
@@ -229,7 +229,7 @@ func TestCredentialPolicyFreshFencedEvidenceQueuesDurablyWithoutClaimingApplied(
 		t.Fatal(err)
 	}
 	db = testutil.NewStore(t, cfg)
-	coordinator = policy.New(db, fixedPolicySources{source.Source}, nil, false, policy.WithClock(func() time.Time { return now }))
+	coordinator = policy.New(db, fixedPolicySources{source.Source}, nil, policy.WithClock(func() time.Time { return now }))
 	restarted, err := coordinator.CompleteCredentialQuery(ctx, q, source, source.Attempt.QueryID)
 	if err != nil || restarted.OperationID != first.OperationID {
 		t.Fatal("restart allocated another random operation UUID", err)

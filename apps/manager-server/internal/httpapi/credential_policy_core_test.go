@@ -44,7 +44,7 @@ func TestCredentialPolicyActualCoreRestartRebindsWithoutUISave(t *testing.T) {
 	}
 	connection := mc.New(cfg, db, nil)
 	quota := cq.New(db, rc.New(nil, connection))
-	coordinator := cp.New(db, quota, connection, false)
+	coordinator := cp.New(db, quota, connection)
 	sources, err := quota.Sources(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +69,7 @@ func TestCredentialPolicyActualCoreRestartRebindsWithoutUISave(t *testing.T) {
 	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: 1, Document: string(document)}, 0); err != nil {
 		t.Fatal(err)
 	}
-	oldQuery := cq.Query{Binding: old.Binding, SourceVersion: old.SourceVersion, AuthIndex: old.AuthIndex, Version: 1}
+	oldQuery := cq.Query{Binding: old.Binding, SourceVersion: old.SourceVersion, SourceID: old.SourceID, SubjectID: old.SubjectID, AuthIndex: old.AuthIndex, Version: 1}
 	oldAttempt := uuid.NewString()
 	if err := coordinator.CaptureCredentialQueryStart(ctx, oldQuery, oldAttempt); err != nil {
 		t.Fatal(err)
@@ -89,7 +89,7 @@ func TestCredentialPolicyActualCoreRestartRebindsWithoutUISave(t *testing.T) {
 	if current.AuthIndex == "" || current.Scope.BootEpoch == old.Scope.BootEpoch {
 		t.Fatal("restart did not issue fresh boot for same authority")
 	}
-	query := cq.Query{Binding: current.Binding, SourceVersion: current.SourceVersion, AuthIndex: current.AuthIndex, Version: 2}
+	query := cq.Query{Binding: current.Binding, SourceVersion: current.SourceVersion, SourceID: current.SourceID, SubjectID: current.SubjectID, AuthIndex: current.AuthIndex, Version: 2}
 	attempt := uuid.NewString()
 	if err := coordinator.CaptureCredentialQueryStart(ctx, query, attempt); err != nil {
 		t.Fatal(err)
@@ -541,37 +541,6 @@ func TestCredentialPolicyActualCoreGateAuthenticationError(t *testing.T) {
 		}
 		break
 	}
-}
-
-func TestCredentialPolicyActualCoreEnvironmentLock(t *testing.T) {
-	base := policyOldCore(t)
-	cfg := testutil.NewConfig(t)
-	cfg.QuotaCooldownEnvSet = true
-	cfg.QuotaCooldownEnabled = false
-	db := testutil.NewStore(t, cfg)
-	if err := db.SaveManagerConfig(context.Background(), store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: base, ManagementKey: "test-password"}}); err != nil {
-		t.Fatal(err)
-	}
-	h := New(cfg, db, collector.NewManager(cfg, db)).Handler()
-	rr := testutil.Request(t, h, "GET", "/usage-service/credential-quota", "", testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 200)
-	var sources struct {
-		Sources []cq.Source `json:"sources"`
-	}
-	testutil.DecodeJSON(t, rr, &sources)
-	for _, src := range sources.Sources {
-		if src.AuthIndex != "" {
-			rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, src, 0, true), testutil.AdminKey)
-			testutil.RequireStatus(t, rr, 503)
-			if !strings.Contains(rr.Body.String(), "environment_locked_off") {
-				t.Fatalf("environment lock not explained: %s", rr.Body.String())
-			}
-			rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, src, 0, false), testutil.AdminKey)
-			testutil.RequireStatus(t, rr, 200)
-			return
-		}
-	}
-	t.Fatal("no actual source")
 }
 
 func TestCredentialPolicyActualCoreConcurrentManagersAndSourceFences(t *testing.T) {

@@ -40,6 +40,9 @@ type SourceStatus struct {
 	Request          SourceRequest            `json:"request"`
 	Targets          []rc.Target              `json:"targets,omitempty"`
 	AuthIndex        string                   `json:"authIndex,omitempty"`
+	SourceID         string                   `json:"sourceId,omitempty"`
+	SubjectID        string                   `json:"subjectId,omitempty"`
+	QueryVersion     int64                    `json:"queryVersion,omitempty"`
 	SourceVersion    string                   `json:"sourceVersion,omitempty"`
 	State            string                   `json:"state"`
 	Reason           string                   `json:"reason,omitempty"`

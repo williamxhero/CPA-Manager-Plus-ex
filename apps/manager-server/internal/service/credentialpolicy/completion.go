@@ -175,7 +175,7 @@ func (s *Service) classifyCompletion(ctx context.Context, q cq.Query, status cq.
 	if err != nil {
 		return Status{}, EvidenceDecision{}, err
 	}
-	if !state.Enabled || s.lockedOff {
+	if !state.Enabled {
 		return state, noEvidence("policy_off"), nil
 	}
 	body, err := json.Marshal(q)

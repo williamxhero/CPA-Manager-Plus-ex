@@ -179,7 +179,10 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 			if err != nil {
 				return Inventory{}, err
 			}
-			out.Sources = append(out.Sources, SourceStatus{RetryNotBeforeMS: retry, QueryCapable: source.State == "ready", ID: id, Request: SourceRequest{Kind: Credential, Credential: q}, Targets: source.Targets, AuthIndex: source.AuthIndex, SourceVersion: source.SourceVersion, State: source.State, Reason: source.Reason, ManualDisabled: source.ManualDisabled, Attempt: status.Attempt, LastSuccess: status.LastSuccess, Stale: status.Stale})
+			q.SourceID = source.SourceID
+			q.SubjectID = source.SubjectID
+			q.Version = status.Version
+			out.Sources = append(out.Sources, SourceStatus{RetryNotBeforeMS: retry, QueryCapable: source.State == "ready", ID: id, Request: SourceRequest{Kind: Credential, Credential: q}, Targets: source.Targets, AuthIndex: source.AuthIndex, SourceID: source.SourceID, SubjectID: source.SubjectID, QueryVersion: status.Version, SourceVersion: source.SourceVersion, State: source.State, Reason: source.Reason, ManualDisabled: source.ManualDisabled, Attempt: status.Attempt, LastSuccess: status.LastSuccess, Stale: status.Stale})
 		}
 	}
 	// A source roster never silently drops catalog-only descriptors.

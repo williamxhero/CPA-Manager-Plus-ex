@@ -48,7 +48,6 @@ type Config struct {
 	PanelPath                    string
 	CORSOrigins                  []string
 	TLSSkipVerify                bool
-	QuotaCooldownEnabled         bool
 	AccountActionsEnabled        bool
 	AccountActionsAutoDisable    bool
 	DashboardHourlyRollupEnabled bool
@@ -59,7 +58,6 @@ type Config struct {
 	UsageArchiveDir              string
 	UsageArchiveRetentionEnabled bool
 	UsageArchiveRetentionDays    int
-	QuotaCooldownEnvSet          bool
 	AccountActionsEnvSet         bool
 	AccountActionsAutoEnvSet     bool
 }
@@ -87,7 +85,6 @@ type fileConfig struct {
 	PanelPath                    string   `json:"panelPath,omitempty"`
 	CORSOrigins                  []string `json:"corsOrigins,omitempty"`
 	TLSSkipVerify                bool     `json:"tlsSkipVerify,omitempty"`
-	QuotaCooldownEnabled         bool     `json:"quotaCooldownEnabled,omitempty"`
 	AccountActionsEnabled        bool     `json:"accountActionsEnabled,omitempty"`
 	AccountActionsAutoDisable    bool     `json:"accountActionsAutoDisable,omitempty"`
 	UsageImportChunkBytes        int64    `json:"usageImportChunkBytes,omitempty"`
@@ -173,7 +170,6 @@ func LoadWithOptions(options LoadOptions) (Config, error) {
 		PanelPath:                    env("PANEL_PATH", resolveConfigPath(cfgFile.PanelPath, cfgDir)),
 		CORSOrigins:                  splitCSV(env("USAGE_CORS_ORIGINS", strings.Join(sliceFallback(cfgFile.CORSOrigins, []string{"*"}), ","))),
 		TLSSkipVerify:                envBool("USAGE_RESP_TLS_SKIP_VERIFY", cfgFile.TLSSkipVerify),
-		QuotaCooldownEnabled:         envBool("USAGE_QUOTA_COOLDOWN_ENABLED", cfgFile.QuotaCooldownEnabled),
 		AccountActionsEnabled:        envBool("USAGE_ACCOUNT_ACTIONS_ENABLED", cfgFile.AccountActionsEnabled),
 		AccountActionsAutoDisable:    envBool("USAGE_ACCOUNT_ACTIONS_AUTO_DISABLE", cfgFile.AccountActionsAutoDisable),
 		DashboardHourlyRollupEnabled: envBool("USAGE_DASHBOARD_HOURLY_ROLLUP_ENABLED", true),
@@ -199,7 +195,6 @@ func LoadWithOptions(options LoadOptions) (Config, error) {
 			cfgFile.UsageArchiveRetentionEnabled,
 		),
 		UsageArchiveRetentionDays: usageArchiveRetentionDays,
-		QuotaCooldownEnvSet:       hasEnv("USAGE_QUOTA_COOLDOWN_ENABLED"),
 		AccountActionsEnvSet:      hasEnv("USAGE_ACCOUNT_ACTIONS_ENABLED"),
 		AccountActionsAutoEnvSet:  hasEnv("USAGE_ACCOUNT_ACTIONS_AUTO_DISABLE"),
 	}, nil
