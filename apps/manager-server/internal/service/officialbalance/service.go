@@ -28,12 +28,13 @@ type Binding struct {
 }
 type Config struct {
 	Binding
-	Version        int64                 `json:"version"`
-	Adapter        string                `json:"adapter"`
-	Endpoint       string                `json:"endpoint"`
-	PrivateTargets []string              `json:"privateTargets,omitempty"`
-	TimeoutMS      int64                 `json:"timeoutMs,omitempty"`
-	NewAPI         *balance.NewAPIConfig `json:"newAPI,omitempty"`
+	Version        int64                     `json:"version"`
+	Adapter        string                    `json:"adapter"`
+	Endpoint       string                    `json:"endpoint"`
+	PrivateTargets []string                  `json:"privateTargets,omitempty"`
+	TimeoutMS      int64                     `json:"timeoutMs,omitempty"`
+	NewAPI         *balance.NewAPIConfig     `json:"newAPI,omitempty"`
+	Volcengine     *balance.VolcengineConfig `json:"volcengine,omitempty"`
 }
 type Update struct {
 	Config
@@ -223,7 +224,17 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	if u.Version < 0 || u.Version >= 9007199254740991 || len(u.Secret) > 8192 || u.ClearSecret && strings.TrimSpace(u.Secret) != "" || u.TimeoutMS < 0 || u.TimeoutMS > 60000 || len(u.PrivateTargets) > 16 {
 		return Status{}, ErrInput
 	}
-	if u.Adapter != "deepseek" && u.Adapter != "deepinfra" && u.Adapter != balance.NewAPIUserSelfV1 && u.Adapter != balance.NewAPITokenUsageV1 {
+	if u.Adapter != "deepseek" && u.Adapter != "deepinfra" && u.Adapter != balance.NewAPIUserSelfV1 && u.Adapter != balance.NewAPITokenUsageV1 && u.Adapter != balance.VolcengineAccountBalanceV20220101 {
+		return Status{}, ErrInput
+	}
+	if u.Adapter == balance.VolcengineAccountBalanceV20220101 {
+		if balance.ValidateVolcengineContract(u.Volcengine) != nil || strings.TrimSpace(u.Secret) != "" && balance.ValidateVolcengineSecret(u.Secret) != nil {
+			return Status{}, ErrInput
+		}
+		if u.Endpoint == "" {
+			u.Endpoint = balance.VolcengineBalanceEndpoint
+		}
+	} else if u.Volcengine != nil {
 		return Status{}, ErrInput
 	}
 	if u.Adapter == balance.NewAPIUserSelfV1 || u.Adapter == balance.NewAPITokenUsageV1 {
@@ -242,8 +253,24 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	if err := balance.ValidateAdapterSource(u.Adapter, u.Endpoint, u.PrivateTargets); err != nil {
 		return Status{}, ErrInput
 	}
-	if !s.verify(ctx, u.Binding) {
+	inventory := s.Identity.Inventory(ctx)
+	if !verifyInventory(inventory, u.Binding) {
 		return Status{}, ErrIdentity
+	}
+	if u.Adapter == balance.VolcengineAccountBalanceV20220101 {
+		// CPA entry, not hostname/provider branding, selects prepaid semantics.
+		// The complete host-issued group must contain an actual AI provider.
+		providerEntry := false
+		for _, row := range inventory.Snapshot.Resources {
+			for _, target := range u.Targets {
+				if row.Kind == "provider" && row.Target == target {
+					providerEntry = true
+				}
+			}
+		}
+		if !providerEntry {
+			return Status{}, ErrInput
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -296,7 +323,7 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 	}
 	out.Binding = b
 	out.Configured = r.Configured
-	out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra" || ((out.Adapter == balance.NewAPIUserSelfV1 || out.Adapter == balance.NewAPITokenUsageV1) && balance.ValidateNewAPIContract(out.Adapter, out.NewAPI) == nil)
+	out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra" || out.Adapter == balance.VolcengineAccountBalanceV20220101 && balance.ValidateVolcengineContract(out.Volcengine) == nil || ((out.Adapter == balance.NewAPIUserSelfV1 || out.Adapter == balance.NewAPITokenUsageV1) && balance.ValidateNewAPIContract(out.Adapter, out.NewAPI) == nil)
 	if !out.DirectQuery {
 		out.State = "unsupported"
 	} else if r.Configured {
