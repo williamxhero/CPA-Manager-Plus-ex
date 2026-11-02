@@ -1,8 +1,11 @@
-import js from '@eslint/js';
-import globals from 'globals';
-import reactHooks from 'eslint-plugin-react-hooks';
-import reactRefresh from 'eslint-plugin-react-refresh';
-import tseslint from 'typescript-eslint';
+import { createRequire } from 'node:module';
+
+const requireWeb = createRequire(new URL('./apps/web/package.json', import.meta.url));
+const js = requireWeb('@eslint/js');
+const globals = requireWeb('globals');
+const reactHooks = requireWeb('eslint-plugin-react-hooks');
+const reactRefresh = requireWeb('eslint-plugin-react-refresh');
+const tseslint = requireWeb('typescript-eslint');
 
 export default tseslint.config(
   { ignores: ['dist'] },
