@@ -66,6 +66,7 @@ export function OfficialBalancePanel({
     data?: OfficialBalanceStatus;
     error?: string;
     busy?: boolean;
+    readbackRequired?: boolean;
   }>({ context });
   const [editor, setEditor] = useState({
     context,
@@ -79,6 +80,8 @@ export function OfficialBalancePanel({
   const pending = useRef<AbortController | null>(null);
   const data = view.context === context ? view.data : undefined;
   const busy = view.context === context && view.busy;
+  const readbackRequired = view.context === context && view.readbackRequired;
+  const controlsDisabled = busy || readbackRequired;
   const edit =
     editor.context === context
       ? editor
@@ -134,13 +137,14 @@ export function OfficialBalancePanel({
     };
   }, [context, usable, base, managementKey, bindingJSON]);
 
-  const run = async (action: 'save' | 'query') => {
-    if (!usable || !binding || !data || busy) return;
+  const run = async (action: 'save' | 'query' | 'reload') => {
+    if (!usable || !binding || !data || busy || (readbackRequired && action !== 'reload')) return;
     const abort = new AbortController();
     pending.current?.abort();
     pending.current = abort;
     const previous = data;
-    setView({ context, data: previous, busy: true });
+    let saved = !!readbackRequired;
+    setView({ context, data: previous, busy: true, readbackRequired });
     try {
       if (action === 'save') {
         await officialBalanceRequest(
@@ -167,7 +171,11 @@ export function OfficialBalancePanel({
           },
           abort.signal
         );
-        // Save is not success until authenticated server readback succeeds.
+        saved = true;
+      }
+      if (action === 'save' || action === 'reload') {
+        // The write succeeded, but only readback establishes the next editable baseline.
+        if (current.current !== context || abort.signal.aborted) return;
         const value = await officialBalanceRequest<OfficialBalanceStatus>(
           base,
           managementKey,
@@ -216,7 +224,14 @@ export function OfficialBalancePanel({
       }
     } catch {
       if (current.current === context && !abort.signal.aborted)
-        setView({ context, data: previous, error: 'balance_request_failed_reload_identity' });
+        setView({
+          context,
+          data: previous,
+          readbackRequired: saved,
+          error: saved
+            ? '余额来源已保存，但回读失败；请重试回读后再操作。'
+            : 'balance_request_failed_reload_identity',
+        });
     }
   };
 
@@ -235,6 +250,11 @@ export function OfficialBalancePanel({
             {data?.stale ? ' · stale' : ''}
           </p>
           {view.context === context && view.error && <p role="alert">{view.error}</p>}
+          {readbackRequired && (
+            <button type="button" disabled={busy} onClick={() => void run('reload')}>
+              重试回读
+            </button>
+          )}
           {data && (
             <>
               <p>
@@ -248,7 +268,7 @@ export function OfficialBalancePanel({
                 <select
                   aria-label="官方余额协议"
                   value={selectedAdapter}
-                  disabled={busy}
+                  disabled={controlsDisabled}
                   onChange={(event) => {
                     if (isAdapter(event.target.value))
                       setEditor({
@@ -274,7 +294,7 @@ export function OfficialBalancePanel({
                 <p>候选协议未确认；不会按域名自动选择、探测或推断授权/单位。</p>
               )}
               {isNewAPI && (
-                <fieldset disabled={busy}>
+                <fieldset disabled={controlsDisabled}>
                   <legend>显式实例来源合同</legend>
                   <label>
                     <input
@@ -504,7 +524,7 @@ export function OfficialBalancePanel({
                   autoComplete="new-password"
                   value={edit.secret}
                   onChange={(event) => setEditor({ ...edit, secret: event.target.value })}
-                  disabled={busy}
+                  disabled={controlsDisabled}
                 />
               </label>
               <p>空白仅在来源合同未变时保留现有密钥；不要填写 Core 管理密钥。</p>
@@ -513,7 +533,7 @@ export function OfficialBalancePanel({
                   aria-label="明确清除查询密钥"
                   type="checkbox"
                   checked={edit.clear}
-                  disabled={busy}
+                  disabled={controlsDisabled}
                   onChange={(event) => setEditor({ ...edit, clear: event.target.checked })}
                 />
                 明确清除查询密钥
@@ -523,7 +543,7 @@ export function OfficialBalancePanel({
                 <input
                   aria-label="查询 HTTPS 地址"
                   value={endpoint}
-                  disabled={busy}
+                  disabled={controlsDisabled}
                   onChange={(event) => setEditor({ ...edit, endpoint: event.target.value })}
                 />
               </label>
@@ -532,14 +552,14 @@ export function OfficialBalancePanel({
                 <input
                   aria-label="允许的私网 IP"
                   value={edit.permits ?? data.privateTargets?.join(',') ?? ''}
-                  disabled={busy}
+                  disabled={controlsDisabled}
                   onChange={(event) => setEditor({ ...edit, permits: event.target.value })}
                 />
               </label>
               <button
                 type="button"
                 disabled={
-                  busy ||
+                  controlsDisabled ||
                   !selectedAdapter ||
                   (isNewAPI && !contract.protocolConfirmed) ||
                   (isNewAPI && !!conversion && !conversion.confirmed) ||
@@ -551,7 +571,7 @@ export function OfficialBalancePanel({
               </button>
               <button
                 type="button"
-                disabled={busy || !data.configured || !data.managerDirectQuery}
+                disabled={controlsDisabled || !data.configured || !data.managerDirectQuery}
                 onClick={() => void run('query')}
               >
                 手动查询余额

@@ -16,8 +16,9 @@ export function CommonQuotaInventoryPanel({
 }) {
   const { t } = useTranslation();
   const context = useMemo(() => ({ base, managementKey }), [base, managementKey]);
-  const current = useRef(context),
+  const current = useRef<typeof context | null>(context),
     pending = useRef(false);
+  const activeRequest = useRef<AbortController | null>(null);
   const [view, setView] = useState<{
     context: typeof context;
     inventory?: RefreshInventory;
@@ -29,6 +30,7 @@ export function CommonQuotaInventoryPanel({
     current.current = context;
     pending.current = false;
     const abort = new AbortController();
+    activeRequest.current = abort;
     fullRefreshRequest<RefreshInventory>(base, managementKey, undefined, undefined, abort.signal)
       .then((inventory) => {
         if (!abort.signal.aborted && current.current === context) setView({ context, inventory });
@@ -37,27 +39,46 @@ export function CommonQuotaInventoryPanel({
         if (!abort.signal.aborted && current.current === context)
           setView({ context, error: 'common_inventory_unavailable' });
       });
-    return () => abort.abort();
+    return () => {
+      abort.abort();
+      activeRequest.current?.abort();
+      if (current.current === context) current.current = null;
+    };
   }, [context, base, managementKey]);
   const data = view.context === context ? view : undefined;
   const refresh = async () => {
     if (pending.current || current.current !== context) return;
+    activeRequest.current?.abort();
+    const abort = new AbortController();
+    activeRequest.current = abort;
+    const valid = () => current.current === context && !abort.signal.aborted;
     pending.current = true;
     setView({ ...data, context, busy: true });
     try {
-      const job = await fullRefreshRequest<RefreshProgress>(base, managementKey, {
-        purpose: 'manual',
+      const job = await fullRefreshRequest<RefreshProgress>(
+        base,
+        managementKey,
+        { purpose: 'manual' },
+        undefined,
+        abort.signal
+      );
+      if (!valid()) return;
+      const progress = await waitFullRefresh(base, managementKey, job, abort.signal, (p) => {
+        if (valid()) setView({ ...data, context, busy: true, progress: p });
       });
-      const progress = await waitFullRefresh(base, managementKey, job, undefined, (p) => {
-        if (current.current === context) setView({ ...data, context, busy: true, progress: p });
-      });
-      const inventory = await fullRefreshRequest<RefreshInventory>(base, managementKey);
-      if (current.current === context) setView({ context, inventory, progress });
+      if (!valid()) return;
+      const inventory = await fullRefreshRequest<RefreshInventory>(
+        base,
+        managementKey,
+        undefined,
+        undefined,
+        abort.signal
+      );
+      if (valid()) setView({ context, inventory, progress });
     } catch {
-      if (current.current === context)
-        setView({ ...data, context, error: 'common_refresh_unavailable' });
+      if (valid()) setView({ ...data, context, error: 'common_refresh_unavailable' });
     } finally {
-      if (current.current === context) pending.current = false;
+      if (valid()) pending.current = false;
     }
   };
   return (
