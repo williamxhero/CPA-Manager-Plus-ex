@@ -46,8 +46,10 @@ type LegacyMigration struct {
 
 type Status struct {
 	cq.Source
-	LegacyMigration    *LegacyMigration `json:"legacyMigration,omitempty"`
-	SubjectID          string           `json:"subjectId"`
+	LegacyMigration *LegacyMigration `json:"legacyMigration,omitempty"`
+	SubjectID       string           `json:"subjectId"`
+	// QuerySubjectID is the issued quota-query handle, never the durable policy key.
+	QuerySubjectID     string           `json:"querySubjectId,omitempty"`
 	BindingCurrent     bool             `json:"bindingCurrent"`
 	Enabled            bool             `json:"enabled"`
 	Generation         int64            `json:"generation"`
@@ -179,6 +181,7 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 	}
 	out := Status{Source: src, Owner: OwnerNamespace + installation, State: "off", Reason: "gate_contract_unavailable", Availability: rc.Capability{State: "unavailable", Reason: "gate_contract_unavailable"}}
 	out.SubjectID = policyKey(src)
+	out.QuerySubjectID = src.SubjectID
 	out.BindingCurrent = true
 	out.QueryAvailability = rc.Capability{State: src.State, Reason: src.Reason}
 	_, out.Reason = s.core.capabilities(ctx, src)
@@ -337,6 +340,7 @@ func (s *Service) StoredStatus(ctx context.Context, id string) (Status, error) {
 		return Status{}, ErrIdentity
 	}
 	out.SubjectID = id
+	out.QuerySubjectID = out.Source.SubjectID
 	out.BindingCurrent = false
 	out.Applied = false
 	out.Availability = rc.Capability{State: "unavailable", Reason: "current_binding_unverified"}

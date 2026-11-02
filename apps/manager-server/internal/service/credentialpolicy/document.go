@@ -9,7 +9,8 @@ import (
 
 // Internal SQLite document only. The public Status retains its existing local
 // subjectId; it cannot serialize the embedded Source's distinct host subjectId.
-// Keep the full issued receipt separately, without changing any public wire.
+// Keep the full issued receipt separately; the public querySubjectId refresh
+// handle does not replace this sealed persistence envelope.
 type policyDocument struct {
 	Status
 	IssuedSource *cq.Source `json:"issuedSource,omitempty"`
