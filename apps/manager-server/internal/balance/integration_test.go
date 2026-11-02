@@ -25,8 +25,23 @@ func (r *integrationCredentialResolver) ResolveCredential(context.Context, strin
 func TestBalanceIntegrationCapabilityAndFailureContract(t *testing.T) {
 	q := balance.New()
 	caps, err := q.ListCapabilities(context.Background())
-	if err != nil || len(caps) != 4 || caps[0].Adapter != "deepseek" || !caps[0].Supported || caps[1].Adapter != "deepinfra" || !caps[1].Supported || caps[2].Adapter != balance.NewAPIUserSelfV1 || caps[3].Adapter != balance.NewAPITokenUsageV1 {
+	expectedScopes := map[string]string{
+		"aliyun-prepaid-cash-v2017-12-14":        "account_wallet",
+		"volcengine-account-balance-v2022-01-01": "account_wallet",
+		"deepseek":                               "account_wallet",
+		"deepinfra":                              "signed_prepaid_net",
+		"newapi-user-self-v1":                    "account_wallet",
+		"newapi-token-usage-v1":                  "key_remaining",
+	}
+	if err != nil || len(caps) != len(expectedScopes) {
 		t.Fatalf("capabilities: %+v %v", caps, err)
+	}
+	for _, capability := range caps {
+		scope, expected := expectedScopes[capability.Adapter]
+		if !expected || !capability.Supported || len(capability.SupportedScopes) != 1 || capability.SupportedScopes[0] != scope {
+			t.Fatalf("unexpected, duplicate, unsupported or wrong-scope capability: %+v", capability)
+		}
+		delete(expectedScopes, capability.Adapter)
 	}
 	for _, tc := range []struct {
 		name, adapter, value, url, code, status, capability string

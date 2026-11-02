@@ -35,6 +35,7 @@ type QueryTarget struct {
 	AccountScope string
 	NewAPI       *NewAPIConfig
 	Volcengine   *VolcengineConfig
+	Aliyun       *AliyunConfig
 	// Currency/unit info for interpretation
 	Currency       string
 	UnitMultiplier string // decimal string
@@ -51,6 +52,7 @@ type CurrencyBalance struct {
 }
 
 type Observation struct {
+	AliyunAccount     *AliyunAccountEvidence     `json:"aliyunAccount,omitempty"`
 	VolcengineAccount *VolcengineAccountEvidence `json:"volcengineAccount,omitempty"`
 	Conversion        *NewAPIConversionEvidence  `json:"conversion,omitempty"`
 	NativeQuota       *NewAPINativeQuota         `json:"nativeQuota,omitempty"`

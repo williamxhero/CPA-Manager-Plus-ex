@@ -16,6 +16,12 @@ func ValidateSource(endpoint string, permits []string) error {
 // Each protocol owns an exact path. Preserve ValidateSource as the DeepSeek-only
 // compatibility entry point; adding an adapter never widens its route policy.
 func ValidateAdapterSource(adapter, endpoint string, permits []string) error {
+	if adapter == AliyunPrepaidCashV20171214 {
+		if endpoint != AliyunBalanceEndpoint || len(permits) != 0 {
+			return errors.New("fixed China-site official billing origin required")
+		}
+		return nil
+	}
 	if adapter == VolcengineAccountBalanceV20220101 {
 		if endpoint != VolcengineBalanceEndpoint || len(permits) != 0 {
 			return errors.New("fixed official billing origin required")
