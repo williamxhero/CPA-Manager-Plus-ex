@@ -251,7 +251,9 @@ export function ProviderDetailDrawer({
       // account, permission or quota conversion is inferred from this domain.
       compatibleCandidate =
         endpoint.protocol === 'https:' &&
-        ['api.liangrekui.com', 'ark.cn-beijing.volces.com'].includes(endpoint.hostname);
+        ['api.liangrekui.com', 'ark.cn-beijing.volces.com', 'dashscope.aliyuncs.com'].includes(
+          endpoint.hostname
+        );
     } catch {
       /* Unknown protocols remain explicitly unsupported. */
     }

@@ -8,6 +8,7 @@ export type OfficialBalanceAdapter =
   | 'deepseek'
   | 'deepinfra'
   | 'volcengine-account-balance-v2022-01-01'
+  | 'aliyun-prepaid-cash-v2017-12-14'
   | 'newapi-user-self-v1'
   | 'newapi-token-usage-v1';
 export interface VolcengineBalanceProfile {
@@ -15,6 +16,12 @@ export interface VolcengineBalanceProfile {
   currency: string;
   unit: 'major';
   currencyUnitConfirmed: boolean;
+  accountBindingConfirmed: boolean;
+  proofReference: string;
+}
+export interface AliyunBalanceProfile {
+  site: string;
+  accountID: string;
   accountBindingConfirmed: boolean;
   proofReference: string;
 }
@@ -37,6 +44,12 @@ export interface NewAPIConversionProfile {
 }
 
 export interface BalanceObservation {
+  aliyunAccount?: {
+    accountID: string;
+    identityType: 'Account' | 'RAMUser';
+    proofReference: string;
+    qualification: 'caller_account_matched_operator_asserted_source_binding_not_key_or_payer_verified';
+  };
   volcengineAccount?: {
     accountID: string;
     unit: 'major';
@@ -62,6 +75,7 @@ export interface BalanceObservation {
   balances?: { currency: string; total: string; granted: string; toppedUp: string }[];
 }
 export interface OfficialBalanceStatus extends BalanceBinding {
+  aliyun?: AliyunBalanceProfile;
   volcengine?: VolcengineBalanceProfile;
   newAPI?: NewAPIConfig;
   version: number;
