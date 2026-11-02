@@ -86,6 +86,8 @@ export interface CredentialPolicyOperationStatus {
 export interface CredentialPolicyStatus extends Omit<CredentialQuotaSource, 'state' | 'reason'> {
   legacyMigration?: { state: string; reason: string };
   subjectId: string;
+  /** Issued quota-query identity; absent for old/incomplete policy records. */
+  querySubjectId?: string;
   bindingCurrent: boolean;
   enabled: boolean;
   generation: number;

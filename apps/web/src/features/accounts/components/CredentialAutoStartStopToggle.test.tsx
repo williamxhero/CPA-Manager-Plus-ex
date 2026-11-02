@@ -8,6 +8,7 @@ const source = (auth_index = 'a', enabled = false): CredentialPolicyStatus => ({
   auth_index,
   sourceId: `source-${auth_index}`,
   subjectId: `issued-${auth_index}`,
+  querySubjectId: `query-${auth_index}`,
   queryVersion: 0,
   scope: {
     instance_id: 'instance',
@@ -46,9 +47,75 @@ const flush = async () => {
 };
 const toggle = (r: ReactTestRenderer, i = 0) => r.root.findAllByType(ToggleSwitch)[i];
 afterEach(() => vi.unstubAllGlobals());
+it('refreshes the issued query subject while retaining the distinct durable policy subject', async () => {
+  const policy = { ...source(), querySubjectId: 'quota-subject-a' };
+  const issued = {
+    kind: 'credential_quota',
+    credential: {
+      scope: policy.scope,
+      targets: policy.targets,
+      auth_index: 'a',
+      sourceId: 'source-a',
+      subjectId: 'quota-subject-a',
+      sourceVersion: 'v1',
+      version: 0,
+    },
+  };
+  const posts: unknown[] = [];
+  let reads = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit) => {
+      if (url.endsWith('/full-refresh')) {
+        if (init.method === 'POST') {
+          posts.push(JSON.parse(String(init.body)));
+          return Response.json({ id: 'selected-a', state: 'complete', pending: 0, failed: 0 });
+        }
+        return Response.json({
+          scope: policy.scope,
+          sources: [
+            {
+              id: 'selected-a',
+              queryCapable: true,
+              request: issued,
+              targets: policy.targets,
+              sourceId: 'source-a',
+              subjectId: 'quota-subject-a',
+              sourceVersion: 'v1',
+            },
+          ],
+        });
+      }
+      return Response.json({ ...policy, reason: reads++ ? 'refreshed-selected-a' : '' });
+    })
+  );
+  let r!: ReactTestRenderer;
+  try {
+    await act(async () => {
+      r = create(
+        <CredentialAutoStartStopToggle
+          managerServiceBase="http://fixture"
+          managementKey="test"
+          authIndex="a"
+        />
+      );
+    });
+    expect(r.root.findByType('button').props.disabled).toBe(false);
+    await act(async () => r.root.findByType('button').props.onClick());
+    await flush();
+    expect(posts).toEqual([{ purpose: 'manual', source: issued }]);
+    expect(JSON.stringify(r.toJSON())).toContain('refreshed-selected-a');
+    expect(r.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
+    expect(toggle(r).props.checked).toBe(false);
+  } finally {
+    if (r) await act(async () => r.unmount());
+  }
+});
+
 it('ticket93 saves one issued subject and requires separate server readback, leaving B OFF', async () => {
   const states = { a: source(), b: source('b') };
   const writes: unknown[] = [];
+  const storedReads: string[] = [];
   let readback!: (v: Response) => void;
   vi.stubGlobal(
     'fetch',
@@ -59,10 +126,12 @@ it('ticket93 saves one issued subject and requires separate server readback, lea
         states.a = { ...states.a, enabled: true, generation: 1 };
         return Response.json(states.a);
       }
-      if (url.includes('subjectId='))
+      if (url.includes('subjectId=')) {
+        storedReads.push(url);
         return new Promise<Response>((resolve) => {
           readback = resolve;
         });
+      }
       return Response.json(url.includes('authIndex=b') ? states.b : states.a);
     })
   );
@@ -90,6 +159,9 @@ it('ticket93 saves one issued subject and requires separate server readback, lea
   expect(toggle(r).props.checked).toBe(false);
   expect(toggle(r).props.disabled).toBe(true);
   expect(toggle(r, 1).props.checked).toBe(false);
+  expect(storedReads).toEqual([
+    'http://fixture/usage-service/credential-policy?subjectId=issued-a',
+  ]);
   expect(writes).toEqual([
     {
       scope: states.a.scope,
@@ -108,6 +180,73 @@ it('ticket93 saves one issued subject and requires separate server readback, lea
   expect(toggle(r, 1).props.checked).toBe(false);
   await act(async () => r.unmount());
 });
+
+it.each(['missing', 'mismatched'] as const)(
+  'fails shared refresh closed for a %s query subject without a policy/target fallback',
+  async (identity) => {
+    const policy = {
+      ...source(),
+      querySubjectId: identity === 'missing' ? undefined : 'wrong-query-subject',
+    };
+    let posts = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (!url.endsWith('/full-refresh')) return Response.json(policy);
+        if (init.method === 'POST') {
+          posts++;
+          return Response.json({ id: 'forbidden', state: 'complete', pending: 0, failed: 0 });
+        }
+        // The missing-field case deliberately offers a policy-shaped subject:
+        // an old-server policy hash fallback would improperly accept it.
+        const subjectId = identity === 'missing' ? 'issued-a' : 'query-a';
+        return Response.json({
+          scope: policy.scope,
+          sources: [
+            {
+              queryCapable: true,
+              sourceId: 'source-a',
+              subjectId,
+              targets: policy.targets,
+              request: {
+                kind: 'credential_quota',
+                credential: {
+                  scope: policy.scope,
+                  targets: policy.targets,
+                  auth_index: 'a',
+                  sourceId: 'source-a',
+                  subjectId,
+                  sourceVersion: 'v1',
+                  version: 0,
+                },
+              },
+            },
+          ],
+        });
+      })
+    );
+    let r!: ReactTestRenderer;
+    try {
+      await act(async () => {
+        r = create(
+          <CredentialAutoStartStopToggle
+            managerServiceBase="http://fixture"
+            managementKey="test"
+            authIndex="a"
+          />
+        );
+      });
+      await act(async () => r.root.findByType('button').props.onClick());
+      await flush();
+      expect(posts).toBe(0);
+      expect(r.root.findByProps({ role: 'alert' }).children).toContain('common_refresh_unavailable');
+      expect(toggle(r).props.checked).toBe(false);
+      expect(JSON.stringify(r.toJSON())).toContain('credential_policy.saved_off');
+    } finally {
+      if (r) await act(async () => r.unmount());
+    }
+  }
+);
 
 it('ticket93 rejects ON without fresh common76 evidence, preserves OFF and explains refresh without retry', async () => {
   let puts = 0;

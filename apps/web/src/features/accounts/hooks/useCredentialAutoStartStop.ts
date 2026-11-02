@@ -141,12 +141,13 @@ export function useCredentialAutoStartStop(
     pending.current = true;
     setView({ context, data, busy: true });
     try {
+      if (!data.querySubjectId) throw new Error('current_credential_source_unavailable');
       await refreshCredentialSource(base, managementKey, {
         scope: data.scope,
         targets: data.targets,
         authIndex: data.auth_index ?? '',
         sourceId: data.sourceId,
-        subjectId: data.subjectId,
+        subjectId: data.querySubjectId,
         queryVersion: data.queryVersion ?? 0,
         sourceVersion: data.sourceVersion,
       });

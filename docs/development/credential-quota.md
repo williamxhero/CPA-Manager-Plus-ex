@@ -102,6 +102,18 @@ change does not migrate their global policy or claim a completed #93 redesign.
 Rendered UI, scheduler/gate, full release/security regression, main promotion,
 deployment and tracker closure remain parent-owned gates.
 
+## Policy row refresh identity
+
+`GET /usage-service/credential-policy` uses `subjectId` for the durable hashed
+policy identity. Its additive `querySubjectId` is copied from the issued quota
+source, and is the **only** subject the policy row passes to common full-refresh
+matching. All source, scope, target and version guards remain unchanged. A
+missing query handle (old server/incomplete record) fails closed; never derive
+one from a target, name, selector or policy hash. Policy mutation/readback keeps
+the original policy identity. Stored policy reads expose a query handle only
+from their sealed issued-source receipt; they remain `bindingCurrent=false`,
+not proof of current query authority.
+
 ## Selected plugin wire and source revision
 
 Every bound source and query carries `sourceVersion`, a secret-free query-semantics
