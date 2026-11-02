@@ -2,7 +2,6 @@ package credentialpolicy
 
 import (
 	"context"
-	"encoding/json"
 	"reflect"
 	"sort"
 
@@ -23,10 +22,10 @@ func refreshCandidate(previous, current cq.Binding) bool {
 func (s *Service) certifiedIntent(ctx context.Context, current cq.Source, record store.CredentialPolicyRecord) (store.CredentialPolicyRecord, error) {
 	if record.Document != "" {
 		var saved Status
-		if json.Unmarshal([]byte(record.Document), &saved) != nil {
+		if unmarshalPolicyDocument([]byte(record.Document), &saved) != nil {
 			return record, ErrInput
 		}
-		if sameAuthority(saved.Source, current) || saved.AuthorityReboundTo != "" {
+		if !hasSourceAuthority(saved.Source) || sameAuthority(saved.Source, current) || saved.AuthorityReboundTo != "" {
 			return record, nil
 		}
 	}
@@ -44,10 +43,10 @@ func (s *Service) certifiedIntent(ctx context.Context, current cq.Source, record
 	var original Status
 	for _, candidate := range records {
 		var saved Status
-		if json.Unmarshal([]byte(candidate.Document), &saved) != nil {
+		if unmarshalPolicyDocument([]byte(candidate.Document), &saved) != nil {
 			return record, ErrInput
 		}
-		if saved.AuthorityReboundTo != "" || saved.Owner != OwnerNamespace+installation || SubjectID(saved.Source) != candidate.ID || saved.Generation != candidate.Generation || !refreshCandidate(saved.Binding, current.Binding) || saved.Protocol != current.Protocol || saved.SourceVersion != current.SourceVersion {
+		if !hasSourceAuthority(saved.Source) || saved.AuthorityReboundTo != "" || saved.Owner != OwnerNamespace+installation || SubjectID(saved.Source) != candidate.ID || saved.Generation != candidate.Generation || !refreshCandidate(saved.Binding, current.Binding) || saved.Protocol != current.Protocol || saved.SourceVersion != current.SourceVersion {
 			continue
 		}
 		if sameAuthority(saved.Source, current) {
@@ -82,7 +81,7 @@ func (s *Service) certifiedIntent(ctx context.Context, current cq.Source, record
 	if next.Enabled {
 		next.State = "armed"
 	}
-	doc, err := json.Marshal(next)
+	doc, err := marshalPolicyDocument(next)
 	if err != nil {
 		return record, err
 	}
@@ -94,7 +93,7 @@ func (s *Service) certifiedIntent(ctx context.Context, current cq.Source, record
 	tomb.Applied = false
 	tomb.Operation = nil
 	tomb.AuthorityReboundTo = next.SubjectID
-	tombDoc, err := json.Marshal(tomb)
+	tombDoc, err := marshalPolicyDocument(tomb)
 	if err != nil {
 		return record, err
 	}
