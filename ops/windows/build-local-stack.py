@@ -86,7 +86,7 @@ def build(args, sources):
     for name, item in sources["sources"].items():
         checkout = output / "sources" / name
         checkout.parent.mkdir(exist_ok=True)
-        subprocess.run(["git", "clone", "--quiet", "--shared", "--no-checkout",
+        subprocess.run(["git", "clone", "--quiet", "--no-hardlinks", "--no-checkout",
                         str(Path(item["repository"]).resolve()), str(checkout)], check=True)
         git(checkout, "-c", "core.autocrlf=false", "checkout", "--quiet", "--detach", item["head"])
         if git(checkout, "rev-parse", "HEAD") != item["head"] or git(checkout, "status", "--porcelain"):
