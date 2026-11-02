@@ -34,6 +34,7 @@ type QueryTarget struct {
 	// Account scope (user ID, account ID, or empty for key-level)
 	AccountScope string
 	NewAPI       *NewAPIConfig
+	Volcengine   *VolcengineConfig
 	// Currency/unit info for interpretation
 	Currency       string
 	UnitMultiplier string // decimal string
@@ -50,12 +51,13 @@ type CurrencyBalance struct {
 }
 
 type Observation struct {
-	Conversion  *NewAPIConversionEvidence `json:"conversion,omitempty"`
-	NativeQuota *NewAPINativeQuota        `json:"nativeQuota,omitempty"`
-	DeadlineMS  int64                     `json:"deadlineMs,omitempty"`
-	Binding     json.RawMessage           `json:"binding,omitempty"`
-	Balances    []CurrencyBalance         `json:"balances,omitempty"`
-	Available   *bool                     `json:"available,omitempty"`
+	VolcengineAccount *VolcengineAccountEvidence `json:"volcengineAccount,omitempty"`
+	Conversion        *NewAPIConversionEvidence  `json:"conversion,omitempty"`
+	NativeQuota       *NewAPINativeQuota         `json:"nativeQuota,omitempty"`
+	DeadlineMS        int64                      `json:"deadlineMs,omitempty"`
+	Binding           json.RawMessage            `json:"binding,omitempty"`
+	Balances          []CurrencyBalance          `json:"balances,omitempty"`
+	Available         *bool                      `json:"available,omitempty"`
 	// Query identity
 	QueryID string `json:"queryId,omitempty"`
 	// Capability status
