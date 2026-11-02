@@ -14,6 +14,7 @@ import (
 
 const managerConfigKey = "manager_config_v1"
 const automationSettingsKey = "automation_settings_v1"
+const automationSettingsPreservationKey = "automation_settings_legacy_preservation_v1"
 const adminCredentialKey = "admin_credential_v1"
 const bootstrapStateKey = "bootstrap_state_v1"
 
@@ -250,16 +251,76 @@ func (r *repository) SaveAutomationSettings(ctx context.Context, settings model.
 	if err != nil {
 		return model.AutomationSettings{}, err
 	}
-	_, err = r.db.ExecContext(
-		ctx,
-		`insert into settings(key, value, updated_at_ms)
-		 values(?, ?, ?)
-		 on conflict(key) do update set value = excluded.value, updated_at_ms = excluded.updated_at_ms`,
-		automationSettingsKey,
-		string(data),
-		settings.UpdatedAtMS,
-	)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
+		return model.AutomationSettings{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Read the current document inside the write transaction. The runtime model
+	// deliberately omits legacy/unknown fields; replacing its JSON would destroy
+	// the only remaining record of those settings on an unrelated PATCH.
+	var raw string
+	var originalUpdatedAtMS int64
+	err = tx.QueryRowContext(ctx, `select value, updated_at_ms from settings where key = ?`, automationSettingsKey).Scan(&raw, &originalUpdatedAtMS)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return model.AutomationSettings{}, err
+	}
+	fields := make(map[string]json.RawMessage)
+	if err == nil {
+		if err := json.Unmarshal([]byte(raw), &fields); err != nil {
+			return model.AutomationSettings{}, err
+		}
+		if fields == nil {
+			return model.AutomationSettings{}, errors.New("automation settings must be a JSON object")
+		}
+	}
+	preserved := make(map[string]string)
+	for key := range fields {
+		switch key {
+		case "authIssueQueueEnabled", "authIssueAutoDisableEnabled", "updatedAtMs":
+		case "codexQuotaCooldownEnabled":
+			preserved[key] = "preserved_unmapped_requires_confirmation"
+		default:
+			preserved[key] = "preserved_uninterpreted"
+		}
+	}
+	if len(preserved) > 0 {
+		// Capture the first pre-write document exactly, in the same transaction
+		// as the merged write. Subsequent PATCHes never replace this rollback
+		// evidence. Neither this receipt nor the retained flag enrolls a subject.
+		receipt, err := json.Marshal(model.AutomationSettingsPreservation{
+			Version: 1, SourceKey: automationSettingsKey, Strategy: "preserve_only",
+			PerSubjectMapping: "none", Fields: preserved, OriginalValue: raw,
+			OriginalUpdatedAtMS: originalUpdatedAtMS, PreservedAtMS: settings.UpdatedAtMS,
+		})
+		if err != nil {
+			return model.AutomationSettings{}, err
+		}
+		if _, err := tx.ExecContext(ctx, `insert into settings(key,value,updated_at_ms) values(?,?,?) on conflict(key) do nothing`, automationSettingsPreservationKey, string(receipt), settings.UpdatedAtMS); err != nil {
+			return model.AutomationSettings{}, err
+		}
+	}
+	var current map[string]json.RawMessage
+	if err := json.Unmarshal(data, &current); err != nil {
+		return model.AutomationSettings{}, err
+	}
+	// Only these fields belong to the current model. Nil overrides must still
+	// clear a known field; all other fields remain uninterpreted and untouched.
+	for _, key := range []string{"authIssueQueueEnabled", "authIssueAutoDisableEnabled", "updatedAtMs"} {
+		delete(fields, key)
+	}
+	for key, value := range current {
+		fields[key] = value
+	}
+	data, err = json.Marshal(fields)
+	if err != nil {
+		return model.AutomationSettings{}, err
+	}
+	if err := upsertSetting(ctx, tx, automationSettingsKey, data, settings.UpdatedAtMS); err != nil {
+		return model.AutomationSettings{}, err
+	}
+	if err := tx.Commit(); err != nil {
 		return model.AutomationSettings{}, err
 	}
 	return settings, nil

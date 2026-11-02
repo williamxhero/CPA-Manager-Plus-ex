@@ -1,0 +1,6 @@
+=== RUN   TestAccountProcessingPolicyPatchPreservesLegacySQLiteDocument
+2026/11/02 10:10:41 http PATCH /usage-service/account-processing-policy status=200 duration=1.1024ms remote=192.0.2.1:1234
+--- PASS: TestAccountProcessingPolicyPatchPreservesLegacySQLiteDocument (0.32s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	0.877s
+GREEN_EXIT=0

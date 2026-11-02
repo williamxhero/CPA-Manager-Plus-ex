@@ -1,0 +1,8 @@
+=== RUN   TestAccountProcessingPolicyPatchPreservesLegacySQLiteDocument
+2026/11/02 10:09:24 http PATCH /usage-service/account-processing-policy status=200 duration=1.0421ms remote=192.0.2.1:1234
+    automation_settings_legacy_test.go:42: unrelated PATCH erased legacy global intent: {"authIssueQueueEnabled":true,"updatedAtMs":1793585364644}
+--- FAIL: TestAccountProcessingPolicyPatchPreservesLegacySQLiteDocument (0.41s)
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	0.990s
+FAIL
+RED_EXIT=1

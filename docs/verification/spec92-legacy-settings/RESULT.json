@@ -1,0 +1,98 @@
+{
+  "base": "030e54324ce2c3dbd07d6b39c5526c68538ee03d",
+  "branch": "spec/92-legacy-policy-isolation",
+  "sourceFiles": [
+    {
+      "path": "apps/manager-server/internal/model/automation_settings.go",
+      "sha256": "e70617f883661a226f9810df351d0ceb7b72f61e225d69c5340d2ca2b12faad5"
+    },
+    {
+      "path": "apps/manager-server/internal/repository/setting/repository.go",
+      "sha256": "b7ef0c52aefe9a0ca008c742ea6ffc2ae9a9590ac97264887362608b5b141116"
+    },
+    {
+      "path": "apps/manager-server/internal/service/automation/service.go",
+      "sha256": "3ad26d9d9c734ffce89c7271e5301320ab1c30113483da4238e5f914810f695e"
+    },
+    {
+      "path": "apps/manager-server/internal/httpapi/automation_settings_legacy_test.go",
+      "sha256": "25d0cbb7e0483236dfa1d9933760196e9de9e34ac95212ee49292d41c5e9e567"
+    },
+    {
+      "path": "apps/manager-server/internal/httpapi/credential_ui_migration_core_test.go",
+      "sha256": "989791c68f23a870e1c35c3ebdc552fa425c57f48d14d8879a77ccc345b88738"
+    },
+    {
+      "path": "apps/manager-server/internal/repository/setting/automation_settings_test.go",
+      "sha256": "cd5e5e14b1d616803d9ae501fb656f631977add360c26bf72370661de8578bb5"
+    },
+    {
+      "path": "apps/manager-server/internal/service/automation/legacy_settings_test.go",
+      "sha256": "4aca550010ee47eb9d51e7b97e6d6602edf876c5d36608d9ae713e0de7bb33c9"
+    }
+  ],
+  "tests": {
+    "publicApiAndNativeTopPassed": 6,
+    "modelRepositoryServiceTopPassed": 29,
+    "finalScopedUniqueTopPassed": 35,
+    "finalFail": 0,
+    "finalSkip": 0,
+    "finalRaceReport": 0,
+    "testFlags": "-race -count=1",
+    "coreFixtureRevision": "2b825585fc04d5d1982b83151bb5bd7e5b6c0dca",
+    "failedOlderEnvironmentRetained": "06-public-api-native-race.log"
+  },
+  "vetExit": 0,
+  "verificationBuildExit": 0,
+  "deployed": false,
+  "pushed": false,
+  "descendants": 0,
+  "transcriptNormalization": [
+    {
+      "file": "01-red.log",
+      "originalCRLFsha256": "6d5c27cf01d4f945bba85f41a2400a2c36d0ebe47060914cd8a83ed0f1a8df56",
+      "trackedLFsha256": "c588d57a6f830c2c78d28bad844f88948a6a67aedc763ccf164dd37419af46f7"
+    },
+    {
+      "file": "02-green.log",
+      "originalCRLFsha256": "7e3ba95ea53dea10ccacbff867a9b00fc2199cf827458593e4ce602533b1ff8f",
+      "trackedLFsha256": "32f10ec0a144da943e6920564e31b92a0cf43e13c51300984562d88f6c2a758e"
+    },
+    {
+      "file": "03-audit-red.log",
+      "originalCRLFsha256": "b1d042bd5269e06046ad37ff96d1af7368664747e68a9e367826d2f58ca663f5",
+      "trackedLFsha256": "72279536b16c5e1cf65de0f297bec978b2633bf1f3b53dd549de72ebc68a24dc"
+    },
+    {
+      "file": "04-audit-green.log",
+      "originalCRLFsha256": "ea36f2b7860b23c601e1ef735efbe9a350789384b7d06b835bf575b49b785802",
+      "trackedLFsha256": "1f6ef430d784d90f0b8785cf01bc806107b81c8b0a88ee342cb4a6cacd1ada94"
+    },
+    {
+      "file": "05-repository-service.log",
+      "originalCRLFsha256": "cd57c392fa8b6764937441d46cacb86a4c2a07334b10cdbbe3e0e5e9fceeb36f",
+      "trackedLFsha256": "86e167bed5c02e95988c17f62253a71099c52ebc3d12c0d44e5d6aae069e7f99"
+    },
+    {
+      "file": "06-public-api-native-race.log",
+      "originalCRLFsha256": "862ab1fe7322d785d021049c4e81ea958a777c18a2bafce0a7aebf61bd126924",
+      "trackedLFsha256": "b5abb37ceb1162f904293d1e4e2431bd3827983052bf19314bca3d865c8a0a89"
+    },
+    {
+      "file": "07-public-api-native-matched-race.log",
+      "originalCRLFsha256": "5d989be6654e0d207d8771eae1c81c12eee540b3f6eb902309d7cf97238416b2",
+      "trackedLFsha256": "2479c733d7a264c675c551bf88f2b2012cb0a9648de8bed4c293fc01ffc6410f"
+    },
+    {
+      "file": "08-settings-service-restart-race.log",
+      "originalCRLFsha256": "f39fc45ce513d929e776fdd469346df89a8947c2dad7b7595c94738c2ba424f3",
+      "trackedLFsha256": "b50febb8a37daaa9362adbf8d9df5cbe1bf5407a5c549c67f8a5b50d50a17915"
+    },
+    {
+      "file": "09-build-vet.log",
+      "originalCRLFsha256": "31a48ef671bf48eb743a325004fd5b3d929c245c0db778c4c02ab477d9b38d0b",
+      "trackedLFsha256": "d6e38e5a3f5966042e7054458da2377fed584474c3d14c221bdb653de897a41a"
+    }
+  ],
+  "transcriptFormatting": "CRLF to LF; remove indentation on whitespace-only empty lines; no nonblank output or result changes"
+}

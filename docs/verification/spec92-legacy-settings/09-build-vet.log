@@ -1,0 +1,11 @@
+go vet ./internal/model ./internal/repository/setting ./internal/service/automation ./internal/httpapi
+VET_EXIT=0
+go build ./cmd/cpa-manager-plus (verification-only, uncommitted source)
+BUILD_EXIT=0
+
+Algorithm : SHA256
+Hash      : 8898F27F68C045A4CD3D255117EDB5535C557D541F6E1A7B43EF92E30A79939E
+Path      : D:\WILL\AGENT\CPA\ops\implement-spec92-20261101\worktrees\legacy-policy-isolation\docs\verification\spec92-legacy-settings\.tmp-manager-check.exe
+
+
+DIFF_CHECK_EXIT=0

@@ -1,0 +1,101 @@
+=== RUN   TestNormalizeCodexInspectionTimeZone
+=== RUN   TestNormalizeCodexInspectionTimeZone/empty_falls_back_to_default
+=== RUN   TestNormalizeCodexInspectionTimeZone/empty_with_empty_fallback
+=== RUN   TestNormalizeCodexInspectionTimeZone/valid_IANA_wins
+=== RUN   TestNormalizeCodexInspectionTimeZone/invalid_falls_back
+=== RUN   TestNormalizeCodexInspectionTimeZone/whitespace_is_trimmed
+--- PASS: TestNormalizeCodexInspectionTimeZone (0.00s)
+    --- PASS: TestNormalizeCodexInspectionTimeZone/empty_falls_back_to_default (0.00s)
+    --- PASS: TestNormalizeCodexInspectionTimeZone/empty_with_empty_fallback (0.00s)
+    --- PASS: TestNormalizeCodexInspectionTimeZone/valid_IANA_wins (0.00s)
+    --- PASS: TestNormalizeCodexInspectionTimeZone/invalid_falls_back (0.00s)
+    --- PASS: TestNormalizeCodexInspectionTimeZone/whitespace_is_trimmed (0.00s)
+=== RUN   TestValidateCodexInspectionTimeZone
+=== RUN   TestValidateCodexInspectionTimeZone/empty_uses_server_default
+=== RUN   TestValidateCodexInspectionTimeZone/valid_IANA
+=== RUN   TestValidateCodexInspectionTimeZone/whitespace_is_trimmed
+=== RUN   TestValidateCodexInspectionTimeZone/invalid_is_rejected
+--- PASS: TestValidateCodexInspectionTimeZone (0.00s)
+    --- PASS: TestValidateCodexInspectionTimeZone/empty_uses_server_default (0.00s)
+    --- PASS: TestValidateCodexInspectionTimeZone/valid_IANA (0.00s)
+    --- PASS: TestValidateCodexInspectionTimeZone/whitespace_is_trimmed (0.00s)
+    --- PASS: TestValidateCodexInspectionTimeZone/invalid_is_rejected (0.00s)
+=== RUN   TestResolveCodexInspectionLocation
+--- PASS: TestResolveCodexInspectionLocation (0.00s)
+=== RUN   TestCodexInspectionScheduleDueWithTimeZone
+--- PASS: TestCodexInspectionScheduleDueWithTimeZone (0.00s)
+=== RUN   TestCodexInspectionTriggerKeyUsesTimeZone
+--- PASS: TestCodexInspectionTriggerKeyUsesTimeZone (0.00s)
+=== RUN   TestNormalizeCodexInspectionSchedulePreservesTimeZone
+--- PASS: TestNormalizeCodexInspectionSchedulePreservesTimeZone (0.00s)
+=== RUN   TestCodexInspectionTargetTypesSupportLegacyAndCombinedSelection
+--- PASS: TestCodexInspectionTargetTypesSupportLegacyAndCombinedSelection (0.00s)
+=== RUN   TestValidateCodexInspectionTargetTypes
+--- PASS: TestValidateCodexInspectionTargetTypes (0.00s)
+=== RUN   TestCodexInspectionXAIInferenceDefaultsAndOverrides
+--- PASS: TestCodexInspectionXAIInferenceDefaultsAndOverrides (0.00s)
+=== RUN   TestNormalizeModelPriceContextTiersSortsAndRejectsDuplicates
+--- PASS: TestNormalizeModelPriceContextTiersSortsAndRejectsDuplicates (0.00s)
+=== RUN   TestModelPriceForContextUsesStrictHighestTierAndInheritsMissingRates
+--- PASS: TestModelPriceForContextUsesStrictHighestTierAndInheritsMissingRates (0.00s)
+=== RUN   TestModelPriceServiceTiersNormalizeMatchAliasesAndInheritRates
+--- PASS: TestModelPriceServiceTiersNormalizeMatchAliasesAndInheritRates (0.00s)
+=== RUN   TestNormalizeModelPriceServiceTiersRejectsAmbiguousAndEmptyRules
+=== RUN   TestNormalizeModelPriceServiceTiersRejectsAmbiguousAndEmptyRules/shared_identifier
+=== RUN   TestNormalizeModelPriceServiceTiersRejectsAmbiguousAndEmptyRules/missing_identifier
+=== RUN   TestNormalizeModelPriceServiceTiersRejectsAmbiguousAndEmptyRules/no_prices
+--- PASS: TestNormalizeModelPriceServiceTiersRejectsAmbiguousAndEmptyRules (0.00s)
+    --- PASS: TestNormalizeModelPriceServiceTiersRejectsAmbiguousAndEmptyRules/shared_identifier (0.00s)
+    --- PASS: TestNormalizeModelPriceServiceTiersRejectsAmbiguousAndEmptyRules/missing_identifier (0.00s)
+    --- PASS: TestNormalizeModelPriceServiceTiersRejectsAmbiguousAndEmptyRules/no_prices (0.00s)
+=== RUN   TestModelPriceStructureRevisionIgnoresRatesButTracksThresholds
+--- PASS: TestModelPriceStructureRevisionIgnoresRatesButTracksThresholds (0.00s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/model	2.854s
+=== RUN   TestAutomationSettingsPreservationAndWriteAreAtomic
+=== RUN   TestAutomationSettingsPreservationAndWriteAreAtomic/receipt
+=== RUN   TestAutomationSettingsPreservationAndWriteAreAtomic/source
+--- PASS: TestAutomationSettingsPreservationAndWriteAreAtomic (0.05s)
+    --- PASS: TestAutomationSettingsPreservationAndWriteAreAtomic/receipt (0.02s)
+    --- PASS: TestAutomationSettingsPreservationAndWriteAreAtomic/source (0.02s)
+=== RUN   TestAutomationSettingsSaveKeepsLatestUnknownFieldsAndClearsNilOverrides
+--- PASS: TestAutomationSettingsSaveKeepsLatestUnknownFieldsAndClearsNilOverrides (0.02s)
+=== RUN   TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting
+=== RUN   TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/null
+=== RUN   TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/[]
+=== RUN   TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/{"incomplete":
+--- PASS: TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting (0.04s)
+    --- PASS: TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/null (0.01s)
+    --- PASS: TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/[] (0.01s)
+    --- PASS: TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/{"incomplete": (0.01s)
+=== RUN   TestAutomationSettingsKnownOnlyNeedsNoLegacyReceipt
+--- PASS: TestAutomationSettingsKnownOnlyNeedsNoLegacyReceipt (0.02s)
+=== RUN   TestNotificationClaimIsAtomicAndDurable
+--- PASS: TestNotificationClaimIsAtomicAndDurable (0.05s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/setting	3.168s
+=== RUN   TestLegacyAutomationSettingsSurviveServiceRestartWithoutActiveGlobalGate
+--- PASS: TestLegacyAutomationSettingsSurviveServiceRestartWithoutActiveGlobalGate (0.77s)
+=== RUN   TestStatusExposesEffectiveFlagsAndKeys
+--- PASS: TestStatusExposesEffectiveFlagsAndKeys (0.00s)
+=== RUN   TestStatusAutoDisableReportsEffectiveValue
+--- PASS: TestStatusAutoDisableReportsEffectiveValue (0.00s)
+=== RUN   TestStatusUsesDBSettingsUnlessEnvLocked
+--- PASS: TestStatusUsesDBSettingsUnlessEnvLocked (0.41s)
+=== RUN   TestUpdateRejectsEnvLockedFields
+--- PASS: TestUpdateRejectsEnvLockedFields (0.39s)
+=== RUN   TestStatusDefaultsAllOff
+--- PASS: TestStatusDefaultsAllOff (0.00s)
+=== RUN   TestStatusReturnsErrorWhenLoadFails
+--- PASS: TestStatusReturnsErrorWhenLoadFails (0.00s)
+=== RUN   TestRuntimeSettingsKeepsLastKnownOnLoadError
+2026/11/02 10:19:58 [account-processing-policy] failed to load runtime settings: simulated db read failure; using last known configuration
+2026/11/02 10:19:58 [account-processing-policy] failed to load runtime settings: simulated db read failure; using last known configuration
+--- PASS: TestRuntimeSettingsKeepsLastKnownOnLoadError (0.04s)
+=== RUN   TestUpdateSerializesConcurrentPatches
+--- PASS: TestUpdateSerializesConcurrentPatches (0.47s)
+=== RUN   TestUpdateReturnsPersistedRecordWithoutRereading
+--- PASS: TestUpdateReturnsPersistedRecordWithoutRereading (0.00s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/automation	5.180s
+TEST_EXIT=0
