@@ -8,16 +8,19 @@ import {
   type NewAPIConfig,
   type NewAPIConversionProfile,
   type VolcengineBalanceProfile,
+  type AliyunBalanceProfile,
 } from '@/services/api/officialBalance';
 import {
   VolcengineBalanceFields,
   type VolcengineBillingCredentials,
 } from './VolcengineBalanceFields';
+import { AliyunBalanceFields, type AliyunBillingCredentials } from './AliyunBalanceFields';
 
 const endpoints: Record<OfficialBalanceAdapter, string> = {
   deepseek: 'https://api.deepseek.com/user/balance',
   deepinfra: 'https://api.deepinfra.com/payment/checklist',
   'volcengine-account-balance-v2022-01-01': 'https://billing.volcengineapi.com/',
+  'aliyun-prepaid-cash-v2017-12-14': 'https://business.aliyuncs.com/',
   'newapi-user-self-v1': '',
   'newapi-token-usage-v1': '',
 };
@@ -25,6 +28,7 @@ const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =
   value === 'deepseek' ||
   value === 'deepinfra' ||
   value === 'volcengine-account-balance-v2022-01-01' ||
+  value === 'aliyun-prepaid-cash-v2017-12-14' ||
   value === 'newapi-user-self-v1' ||
   value === 'newapi-token-usage-v1';
 const nativeContract = (adapter: string): NewAPIConfig => ({
@@ -85,6 +89,8 @@ export function OfficialBalancePanel({
     newAPI: undefined as NewAPIConfig | undefined,
     volcengine: undefined as VolcengineBalanceProfile | undefined,
     volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
+    aliyun: undefined as AliyunBalanceProfile | undefined,
+    aliyunSecret: undefined as AliyunBillingCredentials | undefined,
   });
   const pending = useRef<AbortController | null>(null);
   const data = view.context === context ? view.data : undefined;
@@ -104,12 +110,32 @@ export function OfficialBalancePanel({
           newAPI: undefined as NewAPIConfig | undefined,
           volcengine: undefined as VolcengineBalanceProfile | undefined,
           volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
+          aliyun: undefined as AliyunBalanceProfile | undefined,
+          aliyunSecret: undefined as AliyunBillingCredentials | undefined,
         };
   const selectedAdapter =
     edit.adapter ?? (isAdapter(data?.adapter) ? data.adapter : compatibleCandidate ? '' : adapter);
   const isNewAPI =
     selectedAdapter === 'newapi-user-self-v1' || selectedAdapter === 'newapi-token-usage-v1';
   const isVolcengine = selectedAdapter === 'volcengine-account-balance-v2022-01-01';
+  const isAliyun = selectedAdapter === 'aliyun-prepaid-cash-v2017-12-14';
+  const isBillingProfile = isVolcengine || isAliyun;
+  const aliyun = edit.aliyun ??
+    (data?.adapter === selectedAdapter ? data.aliyun : undefined) ?? {
+      site: '',
+      accountID: '',
+      accountBindingConfirmed: false,
+      proofReference: '',
+    };
+  const aliyunSecret = edit.aliyunSecret ?? { accessKeyID: '', secretAccessKey: '' };
+  const hasAliyunSecret = !!(aliyunSecret.accessKeyID || aliyunSecret.secretAccessKey);
+  const incompleteAliyun =
+    isAliyun &&
+    (aliyun.site !== 'china' ||
+      !aliyun.accountID.trim() ||
+      !aliyun.accountBindingConfirmed ||
+      !aliyun.proofReference.trim() ||
+      (hasAliyunSecret && (!aliyunSecret.accessKeyID || !aliyunSecret.secretAccessKey)));
   const volcengine = edit.volcengine ??
     (data?.adapter === selectedAdapter ? data.volcengine : undefined) ?? {
       accountID: '',
@@ -189,7 +215,7 @@ export function OfficialBalancePanel({
             version: previous.version,
             adapter: selectedAdapter,
             endpoint,
-            privateTargets: isVolcengine
+            privateTargets: isBillingProfile
               ? []
               : edit.permits !== undefined
                 ? edit.permits
@@ -198,14 +224,19 @@ export function OfficialBalancePanel({
                     .filter(Boolean)
                 : (previous.privateTargets ?? []),
             timeoutMs: previous.timeoutMs ?? 15000,
-            secret: isVolcengine
-              ? hasVolcengineSecret
-                ? JSON.stringify(volcengineSecret)
+            secret: isAliyun
+              ? hasAliyunSecret
+                ? JSON.stringify(aliyunSecret)
                 : ''
-              : edit.secret,
+              : isVolcengine
+                ? hasVolcengineSecret
+                  ? JSON.stringify(volcengineSecret)
+                  : ''
+                : edit.secret,
             clearSecret: edit.clear,
             ...(isNewAPI ? { newAPI: contract } : {}),
             ...(isVolcengine ? { volcengine } : {}),
+            ...(isAliyun ? { aliyun } : {}),
           },
           abort.signal
         );
@@ -234,6 +265,8 @@ export function OfficialBalancePanel({
             newAPI: undefined as NewAPIConfig | undefined,
             volcengine: undefined as VolcengineBalanceProfile | undefined,
             volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
+            aliyun: undefined as AliyunBalanceProfile | undefined,
+            aliyunSecret: undefined as AliyunBillingCredentials | undefined,
           });
         }
       } else {
@@ -266,7 +299,8 @@ export function OfficialBalancePanel({
       if (current.current === context && !abort.signal.aborted)
         setView({
           context,
-          data: previous,
+          data:
+            action === 'query' && previous.lastSuccess ? { ...previous, stale: true } : previous,
           readbackRequired: saved,
           error: saved
             ? '余额来源已保存，但回读失败；请重试回读后再操作。'
@@ -320,6 +354,8 @@ export function OfficialBalancePanel({
                         newAPI: undefined,
                         volcengine: undefined,
                         volcengineSecret: undefined,
+                        aliyun: undefined,
+                        aliyunSecret: undefined,
                       });
                   }}
                 >
@@ -330,6 +366,9 @@ export function OfficialBalancePanel({
                   <option value="deepinfra">DeepInfra · signed_prepaid_net</option>
                   <option value="volcengine-account-balance-v2022-01-01">
                     火山引擎 · account_wallet · 独立账务授权
+                  </option>
+                  <option value="aliyun-prepaid-cash-v2017-12-14">
+                    阿里云 · prepaid cash · 独立只读账务授权
                   </option>
                   <option value="newapi-user-self-v1">NewAPI · account_wallet · 原生额度</option>
                   <option value="newapi-token-usage-v1">NewAPI · key_remaining · 原生额度</option>
@@ -345,6 +384,15 @@ export function OfficialBalancePanel({
                   credentials={volcengineSecret}
                   onProfile={(value) => setEditor({ ...edit, volcengine: value })}
                   onCredentials={(value) => setEditor({ ...edit, volcengineSecret: value })}
+                />
+              )}
+              {isAliyun && (
+                <AliyunBalanceFields
+                  disabled={!!controlsDisabled}
+                  profile={aliyun}
+                  credentials={aliyunSecret}
+                  onProfile={(value) => setEditor({ ...edit, aliyun: value })}
+                  onCredentials={(value) => setEditor({ ...edit, aliyunSecret: value })}
                 />
               )}
               {isNewAPI && (
@@ -570,7 +618,7 @@ export function OfficialBalancePanel({
                   operator_asserted_contract_not_live_verified
                 </p>
               )}
-              {!isVolcengine && (
+              {!isBillingProfile && (
                 <label>
                   只读查询密钥
                   <input
@@ -599,12 +647,12 @@ export function OfficialBalancePanel({
                 <input
                   aria-label="查询 HTTPS 地址"
                   value={endpoint}
-                  readOnly={isVolcengine}
+                  readOnly={isBillingProfile}
                   disabled={controlsDisabled}
                   onChange={(event) => setEditor({ ...edit, endpoint: event.target.value })}
                 />
               </label>
-              {!isVolcengine && (
+              {!isBillingProfile && (
                 <label>
                   明确允许的私网 IP（逐项精确授权，逗号分隔）
                   <input
@@ -623,7 +671,13 @@ export function OfficialBalancePanel({
                   (isNewAPI && !contract.protocolConfirmed) ||
                   (isNewAPI && !!conversion && !conversion.confirmed) ||
                   incompleteVolcengine ||
-                  (edit.clear && (isVolcengine ? hasVolcengineSecret : !!edit.secret))
+                  incompleteAliyun ||
+                  (edit.clear &&
+                    (isAliyun
+                      ? hasAliyunSecret
+                      : isVolcengine
+                        ? hasVolcengineSecret
+                        : !!edit.secret))
                 }
                 onClick={() => void run('save')}
               >
@@ -677,6 +731,30 @@ export function OfficialBalancePanel({
                             </p>
                           </>
                         )}
+                    </>
+                  ) : data.lastSuccess.aliyunAccount ? (
+                    <>
+                      <p>
+                        阿里预付费现金余额：{data.lastSuccess.currency}{' '}
+                        {data.lastSuccess.amountDecimal}
+                      </p>
+                      <p>
+                        仅取 AvailableCashAmount
+                        与同次响应币种；负值保留现金欠款，不与信用额度或可用额度相加。
+                      </p>
+                      <p>
+                        查询账户 {data.lastSuccess.aliyunAccount.accountID} · 身份{' '}
+                        {data.lastSuccess.aliyunAccount.identityType} · 关联证据{' '}
+                        {data.lastSuccess.aliyunAccount.proofReference} ·{' '}
+                        {data.lastSuccess.aliyunAccount.qualification}
+                      </p>
+                      <p>
+                        {data.lastSuccess.aliyunAccount.qualification ===
+                        'caller_account_matched_operator_asserted_source_binding_not_key_or_payer_verified'
+                          ? 'STS caller 账户已匹配；来源关联仍是管理员声明，所选推理 Key 或最终 payer 未验证。'
+                          : '账户验证资格未确认；不能作为所选推理 Key 或最终 payer 归属证明。'}
+                        不是 Coding Plan 额度、Core 门禁 ACK 或自动恢复依据。
+                      </p>
                     </>
                   ) : data.lastSuccess.volcengineAccount ? (
                     <>
