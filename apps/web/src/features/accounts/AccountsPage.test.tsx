@@ -4,10 +4,12 @@ import { isValidElement, StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
+import { ConfirmationModal } from '@/components/common/ConfirmationModal';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useUsageServiceStore } from '@/stores/useUsageServiceStore';
+import { useNotificationStore as useRealNotificationStore } from '@/stores/useNotificationStore';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { ProviderStatusBar } from '@/components/providers/ProviderStatusBar';
 import {
@@ -406,6 +408,11 @@ const { mocks } = vi.hoisted(() => {
       batchFieldsUpdating: false,
       configurationDirty: false,
       configurationSaving: false,
+      realConfigurationEditor: false,
+      realConfirmation: false,
+      downloadConfigurationText: vi.fn(async () =>
+        JSON.stringify({ type: 'codex', note: 'original draft' })
+      ),
       configurationEnabledCalls: [] as boolean[],
       configurationSourceMemberCounts: [] as number[],
       configurationReset: vi.fn(),
@@ -752,12 +759,13 @@ vi.mock('@/features/authFiles/hooks/useAuthFilesModels', () => ({
   }),
 }));
 
-vi.mock('@/features/authFiles/hooks/useAuthFileConfigurationEditor', () => ({
-  useAuthFileConfigurationEditor: (options: {
-    enabled: boolean;
-    file: AuthFileItem | null;
-    sourceMemberCount?: number;
-  }) => {
+vi.mock('@/features/authFiles/hooks/useAuthFileConfigurationEditor', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/features/authFiles/hooks/useAuthFileConfigurationEditor')>();
+  const useConfigurationEditor = (
+    options: Parameters<typeof actual.useAuthFileConfigurationEditor>[0]
+  ) => {
+    if (mocks.realConfigurationEditor) return actual.useAuthFileConfigurationEditor(options);
     mocks.configurationEnabledCalls.push(options.enabled);
     mocks.configurationSourceMemberCounts.push(options.sourceMemberCount ?? 0);
     const draft = {
@@ -810,8 +818,9 @@ vi.mock('@/features/authFiles/hooks/useAuthFileConfigurationEditor', () => ({
       reload: mocks.configurationReload,
       save: mocks.configurationSave,
     };
-  },
-}));
+  };
+  return { useAuthFileConfigurationEditor: useConfigurationEditor };
+});
 
 vi.mock('@/features/monitoring/components/CredentialHealthInspectionWorkspace', () => ({
   CredentialHealthInspectionWorkspace: (props: {
@@ -962,6 +971,7 @@ vi.mock('@/services/api', () => ({
   },
   authFilesApi: {
     resetQuota: mocks.resetQuota,
+    downloadText: mocks.downloadConfigurationText,
   },
   consumeCodexRateLimitResetCredit: mocks.consumeResetCredit,
 }));
@@ -986,15 +996,16 @@ vi.mock('@/stores', () => ({
     return true;
   },
   useNotificationStore: (
-    selector?: (state: {
-      showNotification: typeof mocks.showNotification;
-      showConfirmation: typeof mocks.showConfirmation;
-    }) => unknown
+    selector?: (state: ReturnType<typeof useRealNotificationStore.getState>) => unknown
   ) => {
-    const state = {
-      showNotification: mocks.showNotification,
-      showConfirmation: mocks.showConfirmation,
-    };
+    const realState = useRealNotificationStore();
+    const state = mocks.realConfirmation
+      ? realState
+      : {
+          ...realState,
+          showNotification: mocks.showNotification,
+          showConfirmation: mocks.showConfirmation,
+        };
     return selector ? selector(state) : state;
   },
   useAuthStore: (
@@ -1148,7 +1159,17 @@ const mountedAccountsRenderers = new Set<ReactTestRenderer>();
 const renderAccountsPage = async (options?: Parameters<typeof create>[1]) => {
   let renderer: ReactTestRenderer | null = null;
   await act(async () => {
-    renderer = create(<AccountsPage />, options);
+    renderer = create(
+      mocks.realConfirmation ? (
+        <>
+          <AccountsPage />
+          <ConfirmationModal />
+        </>
+      ) : (
+        <AccountsPage />
+      ),
+      options
+    );
     await Promise.resolve();
   });
   mountedAccountsRenderers.add(renderer!);
@@ -1160,9 +1181,13 @@ const installAccountKeyboardDom = (width: number) => {
   const documentEvents = new EventTarget();
   const windowEvents = new EventTarget();
   const elementsById = new Map<string, FocusElement>();
-  class FocusElement {
+  let modalFocusButtons: Array<{ node: ReactTestInstance; element: FocusElement }> = [];
+  class FocusElement extends EventTarget {
     style = { overflow: '' };
+    classList = { add: () => {}, remove: () => {} };
     scrollTop = 0;
+    disabled = false;
+    tabIndex = 0;
     role: string | null = null;
     id = '';
     parentElement: FocusElement | null = null;
@@ -1182,6 +1207,14 @@ const installAccountKeyboardDom = (width: number) => {
     querySelector(selector: string) {
       return elementsById.get(selector.slice(1)) ?? null;
     }
+
+    querySelectorAll() {
+      return modalFocusButtons.map(({ element }) => element);
+    }
+
+    hasAttribute(name: string) {
+      return name === 'disabled' && this.disabled;
+    }
   }
   const tablistElement = new FocusElement();
   const documentState = {
@@ -1189,6 +1222,7 @@ const installAccountKeyboardDom = (width: number) => {
     body: new FocusElement(),
     documentElement: new FocusElement(),
     visibilityState: 'visible',
+    querySelector: () => null,
     addEventListener: documentEvents.addEventListener.bind(documentEvents),
     removeEventListener: documentEvents.removeEventListener.bind(documentEvents),
   };
@@ -1207,6 +1241,9 @@ const installAccountKeyboardDom = (width: number) => {
     location: { hash: '' },
     localStorage,
     sessionStorage: localStorage,
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+    scrollTo: () => {},
     addEventListener: windowEvents.addEventListener.bind(windowEvents),
     removeEventListener: windowEvents.removeEventListener.bind(windowEvents),
     matchMedia: (query: string) => ({
@@ -1223,9 +1260,41 @@ const installAccountKeyboardDom = (width: number) => {
       element.id = id;
       element.role =
         'role' in hostProps && typeof hostProps.role === 'string' ? hostProps.role : null;
+      element.disabled = 'disabled' in hostProps && hostProps.disabled === true;
+      element.tabIndex =
+        'tabIndex' in hostProps && typeof hostProps.tabIndex === 'number' ? hostProps.tabIndex : 0;
       if (id) elementsById.set(id, element);
       if (element.role === 'tab') element.parentElement = tablistElement;
       return element;
+    },
+    setModalFocusButtons: (buttons: ReactTestInstance[]) => {
+      modalFocusButtons = buttons.map((node) => ({ node, element: node.instance }));
+    },
+    isFocused: (node: ReactTestInstance) =>
+      documentState.activeElement ===
+      (modalFocusButtons.find((entry) => entry.node === node)?.element ?? node.instance),
+    // Model browser key dispatch/default button activation at the host boundary.
+    // The page, editor, notification store, ConfirmationModal and Modal stay real.
+    pressKey: async (node: ReactTestInstance, key: string) => {
+      const element: FocusElement =
+        modalFocusButtons.find((entry) => entry.node === node)?.element ?? node.instance;
+      element.focus();
+      const event = new Event('keydown', { cancelable: true });
+      Object.defineProperty(event, 'key', { value: key });
+      const onKeyDown = (event: Event) => node.props.onKeyDown?.(event);
+      await act(async () => {
+        element.addEventListener('keydown', onKeyDown);
+        element.dispatchEvent(event);
+        element.removeEventListener('keydown', onKeyDown);
+        documentEvents.dispatchEvent(event);
+        if (event.defaultPrevented) return;
+        if (key === 'Tab') {
+          const index = modalFocusButtons.findIndex((entry) => entry.element === element);
+          modalFocusButtons[(index + 1) % modalFocusButtons.length]?.element.focus();
+        } else if ((key === 'Enter' || key === ' ') && !node.props.disabled) {
+          node.props.onClick?.();
+        }
+      });
     },
     pressEscape: () => {
       const event = new Event('keydown', { cancelable: true });
@@ -1472,6 +1541,9 @@ describe('AccountsPage replacement flows', () => {
   });
 
   beforeEach(() => {
+    mocks.realConfigurationEditor = false;
+    mocks.realConfirmation = false;
+    useRealNotificationStore.getState().hideConfirmation();
     clearAccountCredentialEvidenceBoundaryStateCache();
     clearAccountCredentialMutationMarkersForTests();
     useAccountCredentialMutationRevisionStore.getState().clearForTests();
@@ -1645,6 +1717,59 @@ describe('AccountsPage replacement flows', () => {
     mocks.lastHealthWorkspaceProps = null;
     mocks.localInspection = null;
   });
+
+  it.each([1440, 390])(
+    '#92 keyboard returns to the dirty tab after cancelling the real confirmation at %ipx',
+    async (width) => {
+      vi.useFakeTimers();
+      const dom = installAccountKeyboardDom(width);
+      mocks.realConfigurationEditor = true;
+      mocks.realConfirmation = true;
+      const renderer = await renderAccountsPage({ createNodeMock: dom.createNodeMock });
+      await dom.pressKey(findSettingsButtonByName(renderer, 'codex.json'), 'Enter');
+      await act(async () => {
+        vi.advanceTimersByTime(0);
+      });
+
+      const noteInput = () =>
+        renderer.root
+          .findAllByType(Input)
+          .find((input) => input.props.label === 'auth_files.note_label')!
+          .findByType('input');
+      expect(noteInput().props.value).toBe('original draft');
+      await act(async () => {
+        noteInput().props.onChange({ target: { value: 'keep this unsaved draft' } });
+      });
+      const configTab = renderer.root.findByProps({ id: 'accounts-detail-tab-config' });
+      await dom.pressKey(configTab, 'ArrowLeft');
+      const confirmation = renderer.root
+        .findByType(ConfirmationModal)
+        .findByProps({ role: 'dialog' });
+      const buttons = confirmation.findAllByType('button');
+      dom.setModalFocusButtons(buttons);
+      await act(async () => {
+        vi.advanceTimersByTime(0);
+      });
+      expect(document.activeElement === configTab.instance).toBe(false);
+
+      await dom.pressKey(buttons[0], 'Tab');
+      expect(dom.isFocused(buttons[1])).toBe(true);
+      await dom.pressKey(buttons[1], 'Enter');
+
+      expect(renderer.root.findAllByProps({ role: 'dialog' })).toHaveLength(1);
+      expect(noteInput().props.value).toBe('keep this unsaved draft');
+      expect(configTab.props['aria-selected']).toBe(true);
+      expect(configTab.props.tabIndex).toBe(0);
+      expect(renderer.root.findByProps({ role: 'tabpanel' }).props['aria-labelledby']).toBe(
+        'accounts-detail-tab-config'
+      );
+      expect(document.activeElement === configTab.instance).toBe(true);
+      await dom.pressKey(configTab, 'ArrowRight');
+      expect(renderer.root.findByProps({ id: 'accounts-detail-tab-models' }).props['aria-selected']).toBe(
+        true
+      );
+    }
+  );
 
   it.each([
     ['desktop table Escape', 1440, 'table', 'Escape'],
