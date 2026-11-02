@@ -113,6 +113,93 @@ it('rejects a same-auth-index replacement before POSTing the refresh job', async
   expect(calls).toHaveLength(1);
 });
 
+it('refreshes a never-queried source whose zero queryVersion is omitted by the host', async () => {
+  const source = {
+    kind: 'credential_quota',
+    credential: {
+      auth_index: binding.authIndex,
+      scope: binding.scope,
+      targets: binding.targets,
+      sourceId: binding.sourceId,
+      subjectId: binding.subjectId,
+      sourceVersion: binding.sourceVersion,
+      version: 0,
+    },
+  };
+  const calls: Array<[string, RequestInit | undefined]> = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push([url, init]);
+      return Response.json(
+        init?.method === 'POST'
+          ? { id: 'first-job', state: 'complete', pending: 0, failed: 0, items: [] }
+          : {
+              scope: binding.scope,
+              sources: [
+                {
+                  request: source,
+                  targets: binding.targets,
+                  sourceId: binding.sourceId,
+                  subjectId: binding.subjectId,
+                  queryCapable: true,
+                  // Go omitempty omits exactly the zero-valued inventory summary.
+                },
+              ],
+            }
+      );
+    })
+  );
+  await refreshCredentialSource('http://fixture', 'test', { ...binding, queryVersion: 0 });
+  expect(calls).toHaveLength(2);
+  expect(JSON.parse(String(calls[1][1]?.body))).toEqual({ purpose: 'manual', source });
+});
+
+it.each([
+  ['omitted nonzero summary', 7, undefined, 7],
+  ['null zero summary', 0, null, 0],
+  ['missing issued request version', 0, undefined, undefined],
+  ['changed issued request version', 0, undefined, 8],
+] as const)(
+  'rejects %s without posting a refresh',
+  async (_label, queryVersion, summaryVersion, requestVersion) => {
+    const fetch = vi.fn(async () =>
+      Response.json({
+        scope: binding.scope,
+        sources: [
+          {
+            queryCapable: true,
+            sourceId: binding.sourceId,
+            subjectId: binding.subjectId,
+            queryVersion: summaryVersion,
+            targets: binding.targets,
+            request: {
+              kind: 'credential_quota',
+              credential: {
+                auth_index: binding.authIndex,
+                scope: binding.scope,
+                targets: binding.targets,
+                sourceId: binding.sourceId,
+                subjectId: binding.subjectId,
+                sourceVersion: binding.sourceVersion,
+                version: requestVersion,
+              },
+            },
+          },
+        ],
+      })
+    );
+    vi.stubGlobal('fetch', fetch);
+    await expect(
+      refreshCredentialSource('http://fixture', 'test', {
+        ...binding,
+        queryVersion,
+      })
+    ).rejects.toThrow('current_credential_source_unavailable');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  }
+);
+
 it.each([
   ['source id', { sourceId: 'replacement-source' }],
   ['subject id', { subjectId: 'replacement-subject' }],

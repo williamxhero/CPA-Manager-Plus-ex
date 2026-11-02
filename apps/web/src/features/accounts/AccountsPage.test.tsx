@@ -22148,40 +22148,108 @@ describe('AccountsPage replacement flows', () => {
     }
   );
 
-  it('ticket93 capable refresh uses common76 and never browser-private quota acquisition', async () => {
-    mocks.panelFeatureAvailability.managerServiceAvailable = true;
-    const calls: string[] = [];
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: string, init?: RequestInit) => {
-        calls.push(url);
-        return new Response(
-          JSON.stringify(
+  it.each([7, 0])(
+    'ticket93 row refresh uses the quota host subject at query version %s',
+    async (queryVersion) => {
+      const authIndex = '0123456789abcdef';
+      mocks.files = [makeCodexFile('bound.json', authIndex, 'bound@example.com')];
+      const scope = {
+        instance_id: '11111111-1111-4111-8111-111111111111',
+        instance_incarnation: '22222222-2222-4222-8222-222222222222',
+        boot_epoch: '33333333-3333-4333-8333-333333333333',
+        snapshot_revision: 7,
+      };
+      const target = {
+        resource_id: '44444444-4444-4444-8444-444444444444',
+        incarnation: '55555555-5555-4555-8555-555555555555',
+        identity_version: 2,
+        credential_version: 3,
+        config_version: 4,
+        membership_version: 0,
+      };
+      const quota = {
+        scope,
+        targets: [target],
+        auth_index: authIndex,
+        sourceId: 'host-issued-source',
+        subjectId: '66666666-6666-4666-8666-666666666666',
+        sourceVersion: 'host-v1',
+        ...(queryVersion === 0 ? {} : { queryVersion }),
+        version: queryVersion,
+      };
+      const source = {
+        kind: 'credential_quota',
+        credential: {
+          scope,
+          targets: [target],
+          auth_index: authIndex,
+          sourceId: quota.sourceId,
+          subjectId: quota.subjectId,
+          sourceVersion: quota.sourceVersion,
+          version: queryVersion,
+        },
+      };
+      installCapabilitiesAdapter(async () => ({
+        ...capabilitySummary(),
+        negotiated: {
+          contractVersion: 1,
+          identity: { state: 'available', reason: 'durable_inventory' },
+          policyLocked: true,
+          independentGate: { state: 'unavailable', reason: 'consumer_contract_unconfigured' },
+          bindingCapability: { state: 'available', reason: 'host_issued_bindings' },
+          snapshot: {
+            version: 1,
+            complete: true,
+            ...scope,
+            resources: [{ ...target, identity: 'valid', catalog_readiness: 'ready' }],
+          },
+          bindings: [
+            { scope, targets: [target], auth_index: authIndex, runtime_alias: target.resource_id },
+          ],
+        },
+      }));
+      const calls: Array<[string, RequestInit | undefined]> = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string, init?: RequestInit) => {
+          calls.push([url, init]);
+          if (url.includes('/credential-policy?'))
+            return Response.json({ ...quota, subjectId: 'local-policy-hash' });
+          if (url.includes('/credential-quota?')) return Response.json(quota);
+          return Response.json(
             init?.method === 'POST'
-              ? { id: 'job', state: 'complete', failed: 0 }
+              ? { id: 'job', state: 'complete', pending: 0, failed: 0, items: [] }
               : {
+                  scope,
                   sources: [
                     {
                       id: 'host',
                       queryCapable: true,
-                      request: { kind: 'credential_quota', credential: { auth_index: 'auth-1' } },
+                      request: source,
+                      targets: [target],
+                      sourceId: quota.sourceId,
+                      subjectId: quota.subjectId,
+                      ...(queryVersion === 0 ? {} : { queryVersion }),
                     },
                   ],
                 }
-          )
-        );
-      })
-    );
-    const direct = vi.spyOn(CODEX_CONFIG, 'fetchQuota');
-    const renderer = await renderAccountsPage();
-    await act(async () => {
-      findAccountCardButtonByAriaLabel(
-        renderer,
-        getAuthFileSelectionKey(mocks.files[0]),
-        'accounts.refresh_quota'
-      ).props.onClick();
-    });
-    expect(calls).toContain('http://manager.local:18317/usage-service/full-refresh');
-    expect(direct).not.toHaveBeenCalled();
-  });
+          );
+        })
+      );
+      const direct = vi.spyOn(CODEX_CONFIG, 'fetchQuota');
+      const renderer = await renderAccountsPage();
+      await act(async () => {
+        findAccountCardButtonByAriaLabel(
+          renderer,
+          getAuthFileSelectionKey(mocks.files[0]),
+          'accounts.refresh_quota'
+        ).props.onClick();
+      });
+      const posts = calls.filter(([, init]) => init?.method === 'POST');
+      expect(posts).toHaveLength(1);
+      expect(posts[0][0]).toBe('http://manager.local:18317/usage-service/full-refresh');
+      expect(JSON.parse(String(posts[0][1]?.body))).toEqual({ purpose: 'manual', source });
+      expect(direct).not.toHaveBeenCalled();
+    }
+  );
 });

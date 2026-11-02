@@ -132,7 +132,9 @@ export async function refreshCredentialSource(
       credential?.version === binding.queryVersion &&
       s.sourceId === binding.sourceId &&
       s.subjectId === binding.subjectId &&
-      s.queryVersion === binding.queryVersion &&
+      // The Go inventory summary omits zero, but the issued request's version
+      // above is mandatory and must still match exactly (including first use).
+      (s.queryVersion === undefined ? 0 : s.queryVersion) === binding.queryVersion &&
       credential?.sourceVersion === binding.sourceVersion &&
       sameCanonicalValue(s.targets, binding.targets) &&
       sameCanonicalValue(credential.scope, binding.scope) &&

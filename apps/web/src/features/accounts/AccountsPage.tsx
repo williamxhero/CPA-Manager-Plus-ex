@@ -1,6 +1,6 @@
 import { CommonQuotaInventoryPanel } from '@/components/quota/CommonQuotaInventoryPanel';
 import { refreshCredentialSource } from '@/services/api/fullRefresh';
-import { getCredentialPolicy } from '@/services/api/credentialPolicy';
+import { credentialQuotaRequest, type CredentialQuotaStatus } from '@/services/api/credentialQuota';
 import { CredentialAutoStartStopToggle } from '@/features/accounts/components/CredentialAutoStartStopToggle';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
@@ -6583,26 +6583,30 @@ export function AccountsPage() {
         if (!row.authIndex || !featureAvailability.managerServiceBase)
           return { status: 'error', error: 'current_credential_source_unavailable' };
         try {
-          const policy = await getCredentialPolicy(
+          // Policy subjectId is a local persistence key, not query authority.
+          // Read the public host-issued quota descriptor before common refresh.
+          const quota = await credentialQuotaRequest<CredentialQuotaStatus>(
             featureAvailability.managerServiceBase,
             managementKey,
-            String(row.authIndex)
+            'GET',
+            `?authIndex=${encodeURIComponent(String(row.authIndex))}`
           );
           const currentBinding = credentialProtection(row.authIndex).binding;
           if (
             !currentBinding ||
-            JSON.stringify(currentBinding.scope) !== JSON.stringify(policy.scope) ||
-            JSON.stringify(currentBinding.targets) !== JSON.stringify(policy.targets)
+            (quota.auth_index !== undefined && quota.auth_index !== String(row.authIndex)) ||
+            JSON.stringify(currentBinding.scope) !== JSON.stringify(quota.scope) ||
+            JSON.stringify(currentBinding.targets) !== JSON.stringify(quota.targets)
           )
             return { status: 'error', error: 'identity_or_source_changed' };
           await refreshCredentialSource(featureAvailability.managerServiceBase, managementKey, {
-            scope: policy.scope,
-            targets: policy.targets,
-            authIndex: policy.auth_index ?? String(row.authIndex),
-            sourceId: policy.sourceId,
-            subjectId: policy.subjectId,
-            queryVersion: policy.queryVersion ?? 0,
-            sourceVersion: policy.sourceVersion,
+            scope: quota.scope,
+            targets: quota.targets,
+            authIndex: quota.auth_index ?? String(row.authIndex),
+            sourceId: quota.sourceId,
+            subjectId: quota.subjectId,
+            queryVersion: quota.queryVersion ?? quota.version,
+            sourceVersion: quota.sourceVersion,
           });
           return { status: 'success' };
         } catch (error) {
