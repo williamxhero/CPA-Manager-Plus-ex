@@ -631,6 +631,11 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
+vi.mock('react-dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-dom')>()),
+  createPortal: (children: unknown) => children,
+}));
+
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mocks.navigate,
   useLocation: () => mocks.location,
@@ -1140,14 +1145,94 @@ const findInputByAriaLabel = (renderer: ReactTestRenderer, label: string) => {
 
 const mountedAccountsRenderers = new Set<ReactTestRenderer>();
 
-const renderAccountsPage = async () => {
+const renderAccountsPage = async (options?: Parameters<typeof create>[1]) => {
   let renderer: ReactTestRenderer | null = null;
   await act(async () => {
-    renderer = create(<AccountsPage />);
+    renderer = create(<AccountsPage />, options);
     await Promise.resolve();
   });
   mountedAccountsRenderers.add(renderer!);
   return renderer!;
+};
+
+// Native focus and keyboard events at the host boundary; the page and Drawer stay real.
+const installAccountKeyboardDom = (width: number) => {
+  const documentEvents = new EventTarget();
+  const windowEvents = new EventTarget();
+  const elementsById = new Map<string, FocusElement>();
+  class FocusElement {
+    style = { overflow: '' };
+    scrollTop = 0;
+    role: string | null = null;
+    id = '';
+    parentElement: FocusElement | null = null;
+
+    focus() {
+      documentState.activeElement = this;
+    }
+
+    getAttribute(name: string) {
+      return name === 'role' ? this.role : null;
+    }
+
+    getBoundingClientRect() {
+      return { width: 120, height: 24, top: 0, left: 0, right: 120, bottom: 24 };
+    }
+
+    querySelector(selector: string) {
+      return elementsById.get(selector.slice(1)) ?? null;
+    }
+  }
+  const tablistElement = new FocusElement();
+  const documentState = {
+    activeElement: null as FocusElement | null,
+    body: new FocusElement(),
+    documentElement: new FocusElement(),
+    visibilityState: 'visible',
+    addEventListener: documentEvents.addEventListener.bind(documentEvents),
+    removeEventListener: documentEvents.removeEventListener.bind(documentEvents),
+  };
+  const storage = new Map<string, string>();
+  const localStorage = {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+    removeItem: (key: string) => storage.delete(key),
+    clear: () => storage.clear(),
+  };
+  vi.stubGlobal('HTMLElement', FocusElement);
+  vi.stubGlobal('document', documentState);
+  vi.stubGlobal('window', {
+    innerWidth: width,
+    innerHeight: 900,
+    location: { hash: '' },
+    localStorage,
+    sessionStorage: localStorage,
+    addEventListener: windowEvents.addEventListener.bind(windowEvents),
+    removeEventListener: windowEvents.removeEventListener.bind(windowEvents),
+    matchMedia: (query: string) => ({
+      matches: width <= Number(query.match(/max-width:\s*(\d+)px/)?.[1]),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }),
+  });
+  return {
+    createNodeMock: ({ props }: { props: unknown }) => {
+      const hostProps = props !== null && typeof props === 'object' ? props : {};
+      const id = 'id' in hostProps && typeof hostProps.id === 'string' ? hostProps.id : '';
+      const element = elementsById.get(id) ?? new FocusElement();
+      element.id = id;
+      element.role =
+        'role' in hostProps && typeof hostProps.role === 'string' ? hostProps.role : null;
+      if (id) elementsById.set(id, element);
+      if (element.role === 'tab') element.parentElement = tablistElement;
+      return element;
+    },
+    pressEscape: () => {
+      const event = new Event('keydown', { cancelable: true });
+      Object.defineProperty(event, 'key', { value: 'Escape' });
+      documentEvents.dispatchEvent(event);
+    },
+  };
 };
 
 // Ticket93 removes the outer Details route. All detail regressions now enter
@@ -1560,6 +1645,314 @@ describe('AccountsPage replacement flows', () => {
     mocks.lastHealthWorkspaceProps = null;
     mocks.localInspection = null;
   });
+
+  it.each([
+    ['desktop table Escape', 1440, 'table', 'Escape'],
+    ['desktop table Close', 1440, 'table', 'Close'],
+    ['desktop card Escape', 1440, 'grid', 'Escape'],
+    ['desktop card Close', 1440, 'grid', 'Close'],
+    ['compact Escape', 960, 'table', 'Escape'],
+    ['compact Close', 960, 'table', 'Close'],
+    ['mobile Escape', 390, 'grid', 'Escape'],
+    ['mobile Close', 390, 'grid', 'Close'],
+  ] as const)(
+    '#92 keyboard returns focus to the originating row after Settings %s',
+    async (_label, width, layout, closeMethod) => {
+      vi.useFakeTimers();
+      const dom = installAccountKeyboardDom(width);
+      mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+      mocks.files = [
+        makeCodexFile('first.json', 'auth-1', 'first@example.com'),
+        makeCodexFile('second.json', 'auth-2', 'second@example.com'),
+      ];
+      const renderer = await renderAccountsPage({ createNodeMock: dom.createNodeMock });
+      for (const fileName of ['second.json', 'first.json']) {
+        const opener = findSettingsButtonByName(renderer, fileName);
+        const openerElement = opener.instance;
+        openerElement.focus();
+
+        await act(async () => {
+          opener.props.onClick();
+          await Promise.resolve();
+        });
+        await act(async () => {
+          vi.advanceTimersByTime(0);
+        });
+        expect(renderer.root.findAllByProps({ role: 'dialog' })).toHaveLength(1);
+        expect(document.activeElement === openerElement).toBe(false);
+
+        await act(async () => {
+          if (closeMethod === 'Escape') dom.pressEscape();
+          else
+            renderer.root
+              .findByProps({ role: 'dialog' })
+              .findByProps({ 'aria-label': 'common.close' })
+              .props.onClick();
+          await Promise.resolve();
+        });
+        await act(async () => {
+          vi.advanceTimersByTime(280);
+        });
+
+        expect(renderer.root.findAllByProps({ role: 'dialog' })).toHaveLength(0);
+        expect(document.activeElement === openerElement).toBe(true);
+      }
+    }
+  );
+
+  it.each([
+    ['desktop Escape', 1440, 'Escape'],
+    ['desktop Close', 1440, 'Close'],
+    ['mobile Escape', 390, 'Escape'],
+    ['mobile Close', 390, 'Close'],
+  ] as const)(
+    '#92 keyboard restores focus only after dirty Settings close is confirmed: %s',
+    async (_label, width, closeMethod) => {
+      vi.useFakeTimers();
+      const dom = installAccountKeyboardDom(width);
+      const renderer = await renderAccountsPage({ createNodeMock: dom.createNodeMock });
+      const opener = findSettingsButtonByName(renderer, 'codex.json');
+      const openerElement = opener.instance;
+      openerElement.focus();
+      await act(async () => {
+        opener.props.onClick();
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(0);
+      });
+      mocks.configurationDirty = true;
+      await act(async () => {
+        renderer.update(<AccountsPage />);
+      });
+      const requestClose = () => {
+        if (closeMethod === 'Escape') dom.pressEscape();
+        else
+          renderer.root
+            .findByProps({ role: 'dialog' })
+            .findByProps({ 'aria-label': 'common.close' })
+            .props.onClick();
+      };
+      await act(async () => {
+        requestClose();
+      });
+      expect(mocks.showConfirmation).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        mocks.showConfirmation.mock.calls[0][0].onCancel();
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(280);
+      });
+      expect(renderer.root.findAllByProps({ role: 'dialog' })).toHaveLength(1);
+      expect(document.activeElement === openerElement).toBe(false);
+      expect(mocks.configurationReset).not.toHaveBeenCalled();
+
+      await act(async () => {
+        requestClose();
+      });
+      await act(async () => {
+        mocks.showConfirmation.mock.calls[1][0].onConfirm();
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(280);
+      });
+      expect(renderer.root.findAllByProps({ role: 'dialog' })).toHaveLength(0);
+      expect(document.activeElement === openerElement).toBe(true);
+      expect(mocks.configurationReset).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('#92 keyboard exposes only the selected detail tab as a Tab stop', async () => {
+    const renderer = await renderAccountsPage();
+    await act(async () => {
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+    });
+    const tablist = renderer.root.findByProps({
+      role: 'tablist',
+      'aria-label': 'accounts.detail_tablist_label',
+    });
+    expect(tablist.findAllByProps({ role: 'tab' }).map((tab) => tab.props.tabIndex)).toEqual([
+      -1, -1, 0, -1, -1,
+    ]);
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_models').props.onClick();
+    });
+    expect(tablist.findAllByProps({ role: 'tab' }).map((tab) => tab.props.tabIndex)).toEqual([
+      -1, -1, -1, 0, -1,
+    ]);
+    expect(tablist.findAllByProps({ role: 'tab', 'aria-selected': true })).toHaveLength(1);
+    expect(renderer.root.findByProps({ role: 'tabpanel' }).props['aria-labelledby']).toBe(
+      'accounts-detail-tab-models'
+    );
+  });
+
+  it.each([1440, 390])(
+    '#92 keyboard navigates detail tabs with arrows, Home and End at %ipx',
+    async (width) => {
+      vi.useFakeTimers();
+      const dom = installAccountKeyboardDom(width);
+      const renderer = await renderAccountsPage({ createNodeMock: dom.createNodeMock });
+      await act(async () => {
+        findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(0);
+      });
+      const tablist = renderer.root.findByProps({
+        role: 'tablist',
+        'aria-label': 'accounts.detail_tablist_label',
+      });
+      const tabs = tablist.findAllByProps({ role: 'tab' });
+      const tabElements = tabs.map((tab) => tab.instance);
+      tabElements[2].focus();
+      for (const [key, expectedTab] of [
+        ['ArrowRight', 'models'],
+        ['ArrowRight', 'diagnostics'],
+        ['ArrowRight', 'overview'],
+        ['ArrowLeft', 'diagnostics'],
+        ['Home', 'overview'],
+        ['End', 'diagnostics'],
+        ['ArrowLeft', 'models'],
+        ['ArrowLeft', 'config'],
+        ['ArrowLeft', 'quota'],
+      ]) {
+        const currentTab = tabs.find((tab) => tab.props.id === document.activeElement?.id)!;
+        const preventDefault = vi.fn();
+        await act(async () => {
+          const event = { key, currentTarget: currentTab.instance, preventDefault };
+          currentTab.props.onKeyDown?.(event);
+          // React clears currentTarget after the synchronous event dispatch.
+          event.currentTarget = null;
+        });
+        expect(preventDefault).toHaveBeenCalledTimes(1);
+        expect(document.activeElement?.id).toBe(`accounts-detail-tab-${expectedTab}`);
+        const selectedTabs = tabs.filter((tab) => tab.props['aria-selected']);
+        expect(selectedTabs.map((tab) => tab.props.id)).toEqual([
+          `accounts-detail-tab-${expectedTab}`,
+        ]);
+        expect(tabs.filter((tab) => tab.props.tabIndex === 0).map((tab) => tab.props.id)).toEqual([
+          `accounts-detail-tab-${expectedTab}`,
+        ]);
+        expect(renderer.root.findByProps({ role: 'tabpanel' }).props['aria-labelledby']).toBe(
+          `accounts-detail-tab-${expectedTab}`
+        );
+      }
+      const preventDefault = vi.fn();
+      await act(async () => {
+        tabs[1].props.onKeyDown?.({ key: 'Tab', currentTarget: tabs[1].instance, preventDefault });
+      });
+      expect(preventDefault).not.toHaveBeenCalled();
+      expect(document.activeElement?.id).toBe('accounts-detail-tab-quota');
+    }
+  );
+
+  it.each([1440, 390])(
+    '#92 keyboard keeps dirty tab selection and focus guarded at %ipx',
+    async (width) => {
+      vi.useFakeTimers();
+      const dom = installAccountKeyboardDom(width);
+      const renderer = await renderAccountsPage({ createNodeMock: dom.createNodeMock });
+      await act(async () => {
+        findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(0);
+      });
+      mocks.configurationDirty = true;
+      await act(async () => {
+        renderer.update(<AccountsPage />);
+      });
+      const tablist = renderer.root.findByProps({
+        role: 'tablist',
+        'aria-label': 'accounts.detail_tablist_label',
+      });
+      const tabs = tablist.findAllByProps({ role: 'tab' });
+      const tabElements = tabs.map((tab) => tab.instance);
+      tabElements[2].focus();
+      const pressKey = async (key: string) => {
+        const currentTab = tabs.find((tab) => tab.props.id === document.activeElement?.id)!;
+        const event = { key, currentTarget: currentTab.instance, preventDefault: vi.fn() };
+        await act(async () => {
+          currentTab.props.onKeyDown(event);
+          event.currentTarget = null;
+        });
+      };
+      await pressKey('ArrowRight');
+      expect(document.activeElement?.id).toBe('accounts-detail-tab-models');
+      expect(tabs[3].props['aria-selected']).toBe(true);
+      await pressKey('ArrowLeft');
+      expect(document.activeElement?.id).toBe('accounts-detail-tab-config');
+      expect(mocks.showConfirmation).not.toHaveBeenCalled();
+      expect(mocks.configurationReset).not.toHaveBeenCalled();
+
+      await pressKey('ArrowLeft');
+      expect(mocks.showConfirmation).toHaveBeenCalledTimes(1);
+      expect(document.activeElement?.id).toBe('accounts-detail-tab-config');
+      expect(tabs.filter((tab) => tab.props.tabIndex === 0).map((tab) => tab.props.id)).toEqual([
+        'accounts-detail-tab-config',
+      ]);
+      await act(async () => {
+        mocks.showConfirmation.mock.calls[0][0].onCancel();
+      });
+      expect(document.activeElement?.id).toBe('accounts-detail-tab-config');
+      expect(tabs[2].props['aria-selected']).toBe(true);
+      expect(mocks.configurationReset).not.toHaveBeenCalled();
+
+      await pressKey('Home');
+      await act(async () => {
+        mocks.showConfirmation.mock.calls[1][0].onConfirm();
+      });
+      expect(document.activeElement?.id).toBe('accounts-detail-tab-overview');
+      expect(tabs[0].props['aria-selected']).toBe(true);
+      expect(tabs.filter((tab) => tab.props.tabIndex === 0).map((tab) => tab.props.id)).toEqual([
+        'accounts-detail-tab-overview',
+      ]);
+      expect(mocks.configurationReset).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each([1440, 390])(
+    '#92 keyboard does not move tab focus while Settings is saving at %ipx',
+    async (width) => {
+      vi.useFakeTimers();
+      const dom = installAccountKeyboardDom(width);
+      const renderer = await renderAccountsPage({ createNodeMock: dom.createNodeMock });
+      await act(async () => {
+        findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(0);
+      });
+      mocks.configurationDirty = true;
+      mocks.configurationSaving = true;
+      await act(async () => {
+        renderer.update(<AccountsPage />);
+      });
+      const tabs = renderer.root
+        .findByProps({
+          role: 'tablist',
+          'aria-label': 'accounts.detail_tablist_label',
+        })
+        .findAllByProps({ role: 'tab' });
+      const tabElements = tabs.map((tab) => tab.instance);
+      tabElements[2].focus();
+      await act(async () => {
+        tabs[2].props.onKeyDown({
+          key: 'End',
+          currentTarget: tabElements[2],
+          preventDefault: vi.fn(),
+        });
+      });
+      expect(document.activeElement?.id).toBe('accounts-detail-tab-config');
+      expect(tabs[2].props['aria-selected']).toBe(true);
+      expect(tabs[2].props.tabIndex).toBe(0);
+      expect(mocks.showConfirmation).not.toHaveBeenCalled();
+      expect(mocks.configurationReset).not.toHaveBeenCalled();
+      expect(mocks.showNotification).toHaveBeenCalledWith(
+        'accounts.config_save_in_progress',
+        'info'
+      );
+    }
+  );
 
   it('keeps credential cards mounted during a refresh with existing files', async () => {
     const renderer = await renderAccountsPage();
