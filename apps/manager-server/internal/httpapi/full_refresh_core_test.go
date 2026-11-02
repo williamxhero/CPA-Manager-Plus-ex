@@ -75,7 +75,12 @@ func verifiedRefreshArtifact(t *testing.T, path, sha, revision string) {
 	}
 	t.Logf("actual artifact source=%s sha256=%s modified=false", rev, sha)
 }
-func newRefreshFixture(t *testing.T) *refreshFixture {
+
+type refreshFixtureScale struct {
+	providers, extraKeys, extraOAuthFiles int
+}
+
+func newRefreshFixture(t *testing.T, scales ...refreshFixtureScale) *refreshFixture {
 	t.Helper()
 	binary := os.Getenv("CORE_QUOTA_TEST_BINARY")
 	if binary == "" {
@@ -210,11 +215,32 @@ func newRefreshFixture(t *testing.T) *refreshFixture {
 	}
 	state := filepath.Join(dir, "core-state")
 	os.MkdirAll(state, 0700)
+	scale := refreshFixtureScale{providers: 6}
+	if len(scales) > 0 {
+		scale = scales[0]
+	}
+	if scale.extraOAuthFiles > 0 {
+		auth := filepath.Join(state, "auth")
+		if e = os.MkdirAll(auth, 0700); e != nil {
+			t.Fatal(e)
+		}
+		for i := 0; i < scale.extraOAuthFiles; i++ {
+			body := fmt.Sprintf(`{"type":"codex","access_token":"QUOTA-SECRET-CANARY","account_id":"extra-account-%d","disabled":true}`, i)
+			if e = os.WriteFile(filepath.Join(auth, fmt.Sprintf("codex-extra-%d.json", i)), []byte(body), 0600); e != nil {
+				t.Fatal(e)
+			}
+		}
+	}
 	// Actual producer fixture accepts a preexisting config, allowing more than four
 	// independently disabled provider groups without changing compiled Core.
 	config := fmt.Sprintf("server: {port: 0}\nmanagement: {secret-key: test-password}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\nplugins:\n  enabled: true\n  dir: %q\n  configs:\n    opencode-go-cliproxyapi:\n      enabled: true\n      base-url: https://opencode.ai/zen/go/v1\n      api-keys: [{name: test, value: PLUGIN-SECRET-CANARY}]\napi-keys:\n  openai-compatibility:\n", filepath.ToSlash(filepath.Join(state, "auth")), filepath.ToSlash(plugin))
-	for i := 0; i < 6; i++ {
-		config += fmt.Sprintf("    - name: same-label-%d\n      base-url: https://unqueried.invalid/v1\n      disabled: true\n      keys: [{api-key: INFERENCE-SECRET-%d, disabled: true}]\n", i, i)
+	for i := 0; i < scale.providers; i++ {
+		config += fmt.Sprintf("    - name: same-label-%d\n      base-url: https://unqueried.invalid/v1\n      disabled: true\n      keys:\n        - {api-key: INFERENCE-SECRET-%d, disabled: true}\n", i, i)
+		if i == 0 {
+			for k := 0; k < scale.extraKeys; k++ {
+				config += fmt.Sprintf("        - {api-key: INFERENCE-SECRET-extra-%d, disabled: true}\n", k)
+			}
+		}
 	}
 	if e = os.WriteFile(filepath.Join(state, "config.yaml"), []byte(config), 0600); e != nil {
 		t.Fatal(e)
@@ -282,6 +308,8 @@ func newRefreshFixture(t *testing.T) *refreshFixture {
 	roots.AddCert(root)
 	f.manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(balance.NetworkOptions{RootCAs: roots})
 	server := httptest.NewServer(f.manager.Handler())
+	// Observe the handler's own 15s response instead of racing its deadline.
+	client = &http.Client{Timeout: 20 * time.Second}
 	t.Cleanup(server.Close)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

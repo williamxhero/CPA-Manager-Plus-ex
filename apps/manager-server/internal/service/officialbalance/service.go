@@ -158,7 +158,11 @@ func key(b Binding) string {
 }
 func (s *Service) verify(ctx context.Context, b Binding) bool {
 	n := s.Identity.Inventory(ctx)
-	if n.Snapshot == nil || n.Identity.State != "available" || n.Snapshot.Scope != b.Scope || len(b.Targets) == 0 || len(b.Targets) > 64 {
+	return verifyInventory(n, b)
+}
+
+func verifyInventory(n *rc.Negotiated, b Binding) bool {
+	if n == nil || n.Snapshot == nil || n.Identity.State != "available" || n.Snapshot.Scope != b.Scope || len(b.Targets) == 0 || len(b.Targets) > 64 {
 		return false
 	}
 	seen := map[string]bool{}
@@ -322,6 +326,17 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 }
 func (s *Service) Status(ctx context.Context, b Binding) (Status, error) {
 	if !s.verify(ctx, b) {
+		return Status{}, ErrIdentity
+	}
+	return s.read(ctx, b)
+}
+
+// InventoryStatus reads stored observations against the enclosing read-only
+// inventory's authenticated evidence. The caller must close that inventory with
+// a live identity/connection check. Configure, Start and workers always verify
+// live; this evidence is never installed in a context or retained by the service.
+func (s *Service) InventoryStatus(ctx context.Context, b Binding, n *rc.Negotiated) (Status, error) {
+	if !verifyInventory(n, b) {
 		return Status{}, ErrIdentity
 	}
 	return s.read(ctx, b)

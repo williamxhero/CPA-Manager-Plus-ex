@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/cpa"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
 
 // Negotiated is read evidence only. Neither capability flags nor catalog identity
@@ -30,6 +31,21 @@ type Negotiated struct {
 	// Request-local authenticated projection. Never serialized or reused by a
 	// later Inventory call; the deferred connection CAS can discard it entirely.
 	credentialQuotaSources json.RawMessage
+	connection             *inventoryConnection
+}
+
+// Private provenance, never serialized or used as write/gate authority. Two
+// individually validated inventories must also belong to the same saved
+// connection generation, even when two URLs return the exact same Core scope.
+type inventoryConnection struct {
+	owner     *Service
+	config    store.ManagerCPAConnectionConfig
+	updatedMS int64
+}
+
+func (s *Service) SameInventoryConnection(a, b *Negotiated) bool {
+	return a != nil && b != nil && a.connection != nil && b.connection != nil &&
+		a.connection.owner == s && b.connection.owner == s && *a.connection == *b.connection
 }
 
 // CredentialQuotaSourceProjection returns an isolated copy of the source
@@ -133,6 +149,8 @@ func (s *Service) Inventory(ctx context.Context, bindings ...bool) (out *Negotia
 		}
 		if current.CPAConnection != conn || current.UpdatedAtMS != cfg.UpdatedAtMS {
 			out = unavailable("connection_changed")
+		} else {
+			out.connection = &inventoryConnection{owner: s, config: conn, updatedMS: cfg.UpdatedAtMS}
 		}
 	}()
 	var caps coreCapabilities
