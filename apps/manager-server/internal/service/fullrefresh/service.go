@@ -125,7 +125,7 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 		}
 		sort.Slice(targets, func(i, j int) bool { return targets[i].ResourceID < targets[j].ResourceID })
 		b := ob.Binding{Scope: out.Scope, Targets: targets}
-		status, err := s.Official.Status(ctx, b)
+		status, err := s.Official.InventoryStatus(ctx, b, n)
 		if err != nil {
 			return Inventory{}, ErrUnavailable
 		}
@@ -149,11 +149,12 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 		out.Sources = append(out.Sources, SourceStatus{WalletProof: verifiedWallet(status), RetryNotBeforeMS: retry, QueryCapable: status.Configured && status.DirectQuery, ID: sourceID(Official, out.Scope, targets), Request: SourceRequest{Kind: Official, Official: &ob.Query{Binding: b, Version: status.Version}}, Targets: targets, State: state, Reason: reason, ManualDisabled: disabled, Attempt: status.Attempt, LastSuccess: status.LastSuccess, Stale: status.Stale})
 	}
 	if n.CredentialQuery.State == "available" {
-		sources, err := s.Credential.Sources(ctx)
+		statuses, err := s.Credential.InventoryStatuses(ctx, n)
 		if err != nil {
 			return Inventory{}, ErrUnavailable
 		}
-		for _, source := range sources {
+		for _, status := range statuses {
+			source := status.Source
 			allCovered := true
 			for _, t := range source.Targets {
 				if !covered[t.ResourceID] {
@@ -162,13 +163,6 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 			}
 			if source.State != "ready" && allCovered {
 				continue
-			}
-			var status cq.Status
-			if source.AuthIndex != "" {
-				status, err = s.Credential.Status(ctx, source.AuthIndex)
-				if err != nil {
-					return Inventory{}, ErrUnavailable
-				}
 			}
 			q := &cq.Query{Binding: source.Binding, SourceVersion: source.SourceVersion, AuthIndex: source.AuthIndex, Version: status.Version}
 			id := ""
@@ -198,11 +192,6 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 		}
 		out.Sources = append(out.Sources, SourceStatus{Request: SourceRequest{Kind: Unavailable}, Targets: []rc.Target{r.Target}, State: "unavailable", Reason: "runtime_binding_or_source_authority_unavailable", ManualDisabled: r.Manual.Disabled})
 	}
-	current := s.Identity.Inventory(ctx, true)
-	if current.Snapshot == nil || current.Snapshot.Scope != out.Scope {
-		return Inventory{}, ErrUnavailable
-	}
-
 	for i := range out.Sources {
 		due, err := s.Store.FullRefreshDue(ctx, sourceScheduleKey(out.Sources[i]))
 		if err != nil {
@@ -231,6 +220,13 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 				}
 			}
 		}
+	}
+	// The shared evidence is local to this read only. Always close with a fresh,
+	// fully validated live inventory AND the same Manager connection generation;
+	// never carry it into Configure/Start, workers, or inference admission.
+	current := s.Identity.Inventory(ctx, true)
+	if current.Snapshot == nil || current.Identity.State != "available" || current.BindingCapability == nil || current.BindingCapability.State != "available" || current.CredentialQuery != n.CredentialQuery || current.Snapshot.Scope != out.Scope || !s.Identity.SameInventoryConnection(n, current) {
+		return Inventory{}, ErrUnavailable
 	}
 	return out, nil
 }

@@ -175,7 +175,11 @@ func operation(s Source) string { b, _ := json.Marshal(s); return string(b) }
 // runtime binding. Catalog-only/unbound descriptors are retained, never guessed.
 func (s *Service) Sources(ctx context.Context) ([]Source, error) {
 	n := s.Identity.Inventory(ctx, true)
-	if n.Snapshot == nil || n.BindingCapability == nil || n.BindingCapability.State != "available" || n.CredentialQuery.State != "available" {
+	return sourcesFromInventory(n)
+}
+
+func sourcesFromInventory(n *rc.Negotiated) ([]Source, error) {
+	if n == nil || n.Snapshot == nil || n.Identity.State != "available" || n.BindingCapability == nil || n.BindingCapability.State != "available" || n.CredentialQuery.State != "available" {
 		return nil, ErrIdentity
 	}
 	var response struct {
@@ -286,6 +290,31 @@ func (s *Service) Status(ctx context.Context, index string) (Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.read(ctx, source)
+}
+
+// InventoryStatuses validates the complete consumer contract once, then reads
+// only stored observations for this one read-only inventory. No supplied source
+// or status can authorize Start/worker I/O; those paths still negotiate live.
+// The caller must retain the closing live identity/connection fence.
+func (s *Service) InventoryStatuses(ctx context.Context, n *rc.Negotiated) ([]Status, error) {
+	sources, err := sourcesFromInventory(n)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Status, 0, len(sources))
+	for _, source := range sources {
+		status := Status{Source: source}
+		if source.AuthIndex != "" {
+			status, err = s.read(ctx, source)
+			if err != nil {
+				return nil, err
+			}
+		}
+		out = append(out, status)
+	}
+	return out, nil
 }
 func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	started := time.Now()
