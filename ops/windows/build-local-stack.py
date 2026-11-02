@@ -135,7 +135,9 @@ def build(args, sources):
             elif name == "CPA-Usage-Keeper-ex":
                 npm("ci", "--no-audit", "--no-fund", cwd=source / "web")
                 npm("run", "typecheck", cwd=source / "web")
-                npm("run", "build", cwd=source / "web")
+                # The fresh checkout contains tracked dist/.gitkeep. Preserve
+                # it so Vite does not dirty VCS metadata before Go embeds dist.
+                npm("run", "build", "--", "--emptyOutDir=false", cwd=source / "web")
                 run(["go", "build", "-buildvcs=true", "-trimpath",
                      "-ldflags=-s -w -X cpa-usage-keeper/internal/version.Version=" + version,
                      "-o", dest / "cpa-usage-keeper.exe", "./cmd/server"])
