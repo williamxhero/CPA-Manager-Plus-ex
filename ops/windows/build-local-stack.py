@@ -118,7 +118,9 @@ def build(args, sources):
                 shutil.copy2(source / "go.sum", modfile.with_suffix(".sum"))
                 run(["go", "mod", "edit", "-modfile=" + str(modfile),
                      "-replace=" + CORE_MODULE + "=" + str(checkouts["CPA-Core-ex"])])
-                mod_flags = ["-modfile=" + str(modfile)]
+                # Core's Go directive may require updating this external modfile.
+                # Never update the reviewed plugin checkout or rely on GOFLAGS.
+                mod_flags = ["-mod=mod", "-modfile=" + str(modfile)]
                 plugin = "opencode-go-cliproxyapi" if name == "CPA-OpenCode-ex" else "qwen-cliproxyapi"
                 run(["go", "build", *mod_flags, "-buildvcs=true", "-trimpath", "-buildmode=c-shared",
                      "-ldflags=-s -w", "-o", dest / (plugin + ".dll"), "."])
@@ -178,10 +180,12 @@ def build(args, sources):
             files.append(dict(relative=relative, target=target, sha256=sha256(candidate),
                               source_head=sources["sources"][name]["head"],
                               sdk_revision=sources["sdk_revision"] if candidate.suffix == ".dll" else None))
-    receipt["accepted"] = True
-    write_json(output / "build-result.json", receipt)
     write_json(output / "candidate-manifest.json", dict(schema=1, files=files,
                build_result=str(output / "build-result.json"), sdk_revision=sources["sdk_revision"]))
+    # Acceptance is the final published marker, never a promise that a later
+    # manifest write will succeed. Any publication failure retains accepted=false.
+    receipt["accepted"] = True
+    write_json(output / "build-result.json", receipt)
 
 
 def main():
