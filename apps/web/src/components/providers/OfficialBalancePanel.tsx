@@ -7,17 +7,24 @@ import {
   type OfficialBalanceAdapter,
   type NewAPIConfig,
   type NewAPIConversionProfile,
+  type VolcengineBalanceProfile,
 } from '@/services/api/officialBalance';
+import {
+  VolcengineBalanceFields,
+  type VolcengineBillingCredentials,
+} from './VolcengineBalanceFields';
 
 const endpoints: Record<OfficialBalanceAdapter, string> = {
   deepseek: 'https://api.deepseek.com/user/balance',
   deepinfra: 'https://api.deepinfra.com/payment/checklist',
+  'volcengine-account-balance-v2022-01-01': 'https://billing.volcengineapi.com/',
   'newapi-user-self-v1': '',
   'newapi-token-usage-v1': '',
 };
 const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =>
   value === 'deepseek' ||
   value === 'deepinfra' ||
+  value === 'volcengine-account-balance-v2022-01-01' ||
   value === 'newapi-user-self-v1' ||
   value === 'newapi-token-usage-v1';
 const nativeContract = (adapter: string): NewAPIConfig => ({
@@ -76,6 +83,8 @@ export function OfficialBalancePanel({
     permits: undefined as string | undefined,
     clear: false,
     newAPI: undefined as NewAPIConfig | undefined,
+    volcengine: undefined as VolcengineBalanceProfile | undefined,
+    volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
   });
   const pending = useRef<AbortController | null>(null);
   const data = view.context === context ? view.data : undefined;
@@ -93,11 +102,34 @@ export function OfficialBalancePanel({
           permits: undefined as string | undefined,
           clear: false,
           newAPI: undefined as NewAPIConfig | undefined,
+          volcengine: undefined as VolcengineBalanceProfile | undefined,
+          volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
         };
   const selectedAdapter =
     edit.adapter ?? (isAdapter(data?.adapter) ? data.adapter : compatibleCandidate ? '' : adapter);
   const isNewAPI =
     selectedAdapter === 'newapi-user-self-v1' || selectedAdapter === 'newapi-token-usage-v1';
+  const isVolcengine = selectedAdapter === 'volcengine-account-balance-v2022-01-01';
+  const volcengine = edit.volcengine ??
+    (data?.adapter === selectedAdapter ? data.volcengine : undefined) ?? {
+      accountID: '',
+      currency: '',
+      unit: 'major' as const,
+      currencyUnitConfirmed: false,
+      accountBindingConfirmed: false,
+      proofReference: '',
+    };
+  const volcengineSecret = edit.volcengineSecret ?? { accessKeyID: '', secretAccessKey: '' };
+  const hasVolcengineSecret = !!(volcengineSecret.accessKeyID || volcengineSecret.secretAccessKey);
+  const incompleteVolcengine =
+    isVolcengine &&
+    (!volcengine.accountID ||
+      volcengine.currency !== 'CNY' ||
+      !volcengine.currencyUnitConfirmed ||
+      !volcengine.accountBindingConfirmed ||
+      !volcengine.proofReference ||
+      (hasVolcengineSecret &&
+        (!volcengineSecret.accessKeyID || !volcengineSecret.secretAccessKey)));
   const contract =
     edit.newAPI ??
     (data?.adapter === selectedAdapter ? data.newAPI : undefined) ??
@@ -157,17 +189,23 @@ export function OfficialBalancePanel({
             version: previous.version,
             adapter: selectedAdapter,
             endpoint,
-            privateTargets:
-              edit.permits !== undefined
+            privateTargets: isVolcengine
+              ? []
+              : edit.permits !== undefined
                 ? edit.permits
                     .split(',')
                     .map((ip) => ip.trim())
                     .filter(Boolean)
                 : (previous.privateTargets ?? []),
             timeoutMs: previous.timeoutMs ?? 15000,
-            secret: edit.secret,
+            secret: isVolcengine
+              ? hasVolcengineSecret
+                ? JSON.stringify(volcengineSecret)
+                : ''
+              : edit.secret,
             clearSecret: edit.clear,
             ...(isNewAPI ? { newAPI: contract } : {}),
+            ...(isVolcengine ? { volcengine } : {}),
           },
           abort.signal
         );
@@ -194,6 +232,8 @@ export function OfficialBalancePanel({
             permits: undefined as string | undefined,
             clear: false,
             newAPI: undefined as NewAPIConfig | undefined,
+            volcengine: undefined as VolcengineBalanceProfile | undefined,
+            volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
           });
         }
       } else {
@@ -278,6 +318,8 @@ export function OfficialBalancePanel({
                         secret: '',
                         clear: false,
                         newAPI: undefined,
+                        volcengine: undefined,
+                        volcengineSecret: undefined,
                       });
                   }}
                 >
@@ -286,12 +328,24 @@ export function OfficialBalancePanel({
                   </option>
                   <option value="deepseek">DeepSeek · account_wallet</option>
                   <option value="deepinfra">DeepInfra · signed_prepaid_net</option>
+                  <option value="volcengine-account-balance-v2022-01-01">
+                    火山引擎 · account_wallet · 独立账务授权
+                  </option>
                   <option value="newapi-user-self-v1">NewAPI · account_wallet · 原生额度</option>
                   <option value="newapi-token-usage-v1">NewAPI · key_remaining · 原生额度</option>
                 </select>
               </label>
               {compatibleCandidate && (
                 <p>候选协议未确认；不会按域名自动选择、探测或推断授权/单位。</p>
+              )}
+              {isVolcengine && (
+                <VolcengineBalanceFields
+                  disabled={!!controlsDisabled}
+                  profile={volcengine}
+                  credentials={volcengineSecret}
+                  onProfile={(value) => setEditor({ ...edit, volcengine: value })}
+                  onCredentials={(value) => setEditor({ ...edit, volcengineSecret: value })}
+                />
               )}
               {isNewAPI && (
                 <fieldset disabled={controlsDisabled}>
@@ -516,17 +570,19 @@ export function OfficialBalancePanel({
                   operator_asserted_contract_not_live_verified
                 </p>
               )}
-              <label>
-                只读查询密钥
-                <input
-                  aria-label="只读查询密钥"
-                  type="password"
-                  autoComplete="new-password"
-                  value={edit.secret}
-                  onChange={(event) => setEditor({ ...edit, secret: event.target.value })}
-                  disabled={controlsDisabled}
-                />
-              </label>
+              {!isVolcengine && (
+                <label>
+                  只读查询密钥
+                  <input
+                    aria-label="只读查询密钥"
+                    type="password"
+                    autoComplete="new-password"
+                    value={edit.secret}
+                    onChange={(event) => setEditor({ ...edit, secret: event.target.value })}
+                    disabled={controlsDisabled}
+                  />
+                </label>
+              )}
               <p>空白仅在来源合同未变时保留现有密钥；不要填写 Core 管理密钥。</p>
               <label>
                 <input
@@ -543,19 +599,22 @@ export function OfficialBalancePanel({
                 <input
                   aria-label="查询 HTTPS 地址"
                   value={endpoint}
+                  readOnly={isVolcengine}
                   disabled={controlsDisabled}
                   onChange={(event) => setEditor({ ...edit, endpoint: event.target.value })}
                 />
               </label>
-              <label>
-                明确允许的私网 IP（逐项精确授权，逗号分隔）
-                <input
-                  aria-label="允许的私网 IP"
-                  value={edit.permits ?? data.privateTargets?.join(',') ?? ''}
-                  disabled={controlsDisabled}
-                  onChange={(event) => setEditor({ ...edit, permits: event.target.value })}
-                />
-              </label>
+              {!isVolcengine && (
+                <label>
+                  明确允许的私网 IP（逐项精确授权，逗号分隔）
+                  <input
+                    aria-label="允许的私网 IP"
+                    value={edit.permits ?? data.privateTargets?.join(',') ?? ''}
+                    disabled={controlsDisabled}
+                    onChange={(event) => setEditor({ ...edit, permits: event.target.value })}
+                  />
+                </label>
+              )}
               <button
                 type="button"
                 disabled={
@@ -563,7 +622,8 @@ export function OfficialBalancePanel({
                   !selectedAdapter ||
                   (isNewAPI && !contract.protocolConfirmed) ||
                   (isNewAPI && !!conversion && !conversion.confirmed) ||
-                  (edit.clear && !!edit.secret)
+                  incompleteVolcengine ||
+                  (edit.clear && (isVolcengine ? hasVolcengineSecret : !!edit.secret))
                 }
                 onClick={() => void run('save')}
               >
@@ -617,6 +677,26 @@ export function OfficialBalancePanel({
                             </p>
                           </>
                         )}
+                    </>
+                  ) : data.lastSuccess.volcengineAccount ? (
+                    <>
+                      <p>
+                        资金账户可用余额：{data.lastSuccess.currency}{' '}
+                        {data.lastSuccess.amountDecimal}
+                      </p>
+                      <p>
+                        负值保留账户欠款；可用余额直接取自官方结果，不与现金、信控或冻结金额再次加减。
+                      </p>
+                      <p>
+                        账户 {data.lastSuccess.volcengineAccount.accountID} · 单位{' '}
+                        {data.lastSuccess.volcengineAccount.unit} · 关联证据{' '}
+                        {data.lastSuccess.volcengineAccount.proofReference} ·{' '}
+                        {data.lastSuccess.volcengineAccount.qualification}
+                      </p>
+                      <p>
+                        币种与账户关联是管理员声明，不是独立现场核验，也不是凭证 Coding Plan
+                        配额或自动恢复依据。
+                      </p>
                     </>
                   ) : data.lastSuccess.semantic === 'signed_prepaid_net' ? (
                     <>

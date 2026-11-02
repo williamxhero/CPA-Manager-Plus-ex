@@ -247,10 +247,11 @@ export function ProviderDetailDrawer({
         endpoint.protocol === 'https:' &&
         ['api.deepseek.com', 'api.deepinfra.com'].includes(endpoint.hostname);
       if (endpoint.hostname === 'api.deepinfra.com') balanceAdapter = 'deepinfra';
-      // Branding exposes a MANUAL contract editor only. No protocol, endpoint,
+      // Current candidates expose a MANUAL contract editor only. No protocol, endpoint,
       // account, permission or quota conversion is inferred from this domain.
       compatibleCandidate =
-        endpoint.protocol === 'https:' && endpoint.hostname === 'api.liangrekui.com';
+        endpoint.protocol === 'https:' &&
+        ['api.liangrekui.com', 'ark.cn-beijing.volces.com'].includes(endpoint.hostname);
     } catch {
       /* Unknown protocols remain explicitly unsupported. */
     }

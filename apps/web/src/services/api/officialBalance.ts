@@ -7,8 +7,17 @@ export interface BalanceBinding {
 export type OfficialBalanceAdapter =
   | 'deepseek'
   | 'deepinfra'
+  | 'volcengine-account-balance-v2022-01-01'
   | 'newapi-user-self-v1'
   | 'newapi-token-usage-v1';
+export interface VolcengineBalanceProfile {
+  accountID: string;
+  currency: string;
+  unit: 'major';
+  currencyUnitConfirmed: boolean;
+  accountBindingConfirmed: boolean;
+  proofReference: string;
+}
 export interface NewAPIConfig {
   conversion?: NewAPIConversionProfile;
   protocolConfirmed: boolean;
@@ -28,6 +37,12 @@ export interface NewAPIConversionProfile {
 }
 
 export interface BalanceObservation {
+  volcengineAccount?: {
+    accountID: string;
+    unit: 'major';
+    proofReference: string;
+    qualification: 'operator_asserted_binding_and_units_not_live_verified';
+  };
   conversion?: NewAPIConversionProfile & {
     qualification: 'operator_asserted_contract_not_live_verified';
   };
@@ -47,6 +62,7 @@ export interface BalanceObservation {
   balances?: { currency: string; total: string; granted: string; toppedUp: string }[];
 }
 export interface OfficialBalanceStatus extends BalanceBinding {
+  volcengine?: VolcengineBalanceProfile;
   newAPI?: NewAPIConfig;
   version: number;
   adapter: string;
