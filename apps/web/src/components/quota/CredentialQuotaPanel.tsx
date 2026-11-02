@@ -91,7 +91,13 @@ export function CredentialQuotaPanel({
         (progress) => {
           if (valid()) setView({ context, data, busy: true, progress });
         }
-      );
+      ).catch((error: unknown) => {
+        // A completed upstream failure is persisted too. Read its safe status
+        // and stale last-success value below; never replay the failed query.
+        if (error instanceof Error && error.message === 'common_refresh_source_failed')
+          return undefined;
+        throw error;
+      });
       if (!valid()) return;
       const next = await credentialQuotaRequest<CredentialQuotaStatus>(
         base,
@@ -106,7 +112,7 @@ export function CredentialQuotaPanel({
           context,
           data: next,
           error:
-            job.state === 'running' || job.state === 'discarded'
+            job?.state === 'running' || job?.state === 'discarded'
               ? 'quota_query_not_completed'
               : undefined,
         });
