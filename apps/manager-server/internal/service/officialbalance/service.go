@@ -35,6 +35,7 @@ type Config struct {
 	TimeoutMS      int64                     `json:"timeoutMs,omitempty"`
 	NewAPI         *balance.NewAPIConfig     `json:"newAPI,omitempty"`
 	Volcengine     *balance.VolcengineConfig `json:"volcengine,omitempty"`
+	Aliyun         *balance.AliyunConfig     `json:"aliyun,omitempty"`
 }
 type Update struct {
 	Config
@@ -224,7 +225,17 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	if u.Version < 0 || u.Version >= 9007199254740991 || len(u.Secret) > 8192 || u.ClearSecret && strings.TrimSpace(u.Secret) != "" || u.TimeoutMS < 0 || u.TimeoutMS > 60000 || len(u.PrivateTargets) > 16 {
 		return Status{}, ErrInput
 	}
-	if u.Adapter != "deepseek" && u.Adapter != "deepinfra" && u.Adapter != balance.NewAPIUserSelfV1 && u.Adapter != balance.NewAPITokenUsageV1 && u.Adapter != balance.VolcengineAccountBalanceV20220101 {
+	if u.Adapter != "deepseek" && u.Adapter != "deepinfra" && u.Adapter != balance.NewAPIUserSelfV1 && u.Adapter != balance.NewAPITokenUsageV1 && u.Adapter != balance.VolcengineAccountBalanceV20220101 && u.Adapter != balance.AliyunPrepaidCashV20171214 {
+		return Status{}, ErrInput
+	}
+	if u.Adapter == balance.AliyunPrepaidCashV20171214 {
+		if balance.ValidateAliyunContract(u.Aliyun) != nil || strings.TrimSpace(u.Secret) != "" && balance.ValidateAliyunSecret(u.Secret) != nil {
+			return Status{}, ErrInput
+		}
+		if u.Endpoint == "" {
+			u.Endpoint = balance.AliyunBalanceEndpoint
+		}
+	} else if u.Aliyun != nil {
 		return Status{}, ErrInput
 	}
 	if u.Adapter == balance.VolcengineAccountBalanceV20220101 {
@@ -257,7 +268,7 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	if !verifyInventory(inventory, u.Binding) {
 		return Status{}, ErrIdentity
 	}
-	if u.Adapter == balance.VolcengineAccountBalanceV20220101 {
+	if u.Adapter == balance.VolcengineAccountBalanceV20220101 || u.Adapter == balance.AliyunPrepaidCashV20171214 {
 		// CPA entry, not hostname/provider branding, selects prepaid semantics.
 		// The complete host-issued group must contain an actual AI provider.
 		providerEntry := false
@@ -323,7 +334,7 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 	}
 	out.Binding = b
 	out.Configured = r.Configured
-	out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra" || out.Adapter == balance.VolcengineAccountBalanceV20220101 && balance.ValidateVolcengineContract(out.Volcengine) == nil || ((out.Adapter == balance.NewAPIUserSelfV1 || out.Adapter == balance.NewAPITokenUsageV1) && balance.ValidateNewAPIContract(out.Adapter, out.NewAPI) == nil)
+	out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra" || out.Adapter == balance.VolcengineAccountBalanceV20220101 && balance.ValidateVolcengineContract(out.Volcengine) == nil || out.Adapter == balance.AliyunPrepaidCashV20171214 && balance.ValidateAliyunContract(out.Aliyun) == nil || ((out.Adapter == balance.NewAPIUserSelfV1 || out.Adapter == balance.NewAPITokenUsageV1) && balance.ValidateNewAPIContract(out.Adapter, out.NewAPI) == nil)
 	if !out.DirectQuery {
 		out.State = "unsupported"
 	} else if r.Configured {

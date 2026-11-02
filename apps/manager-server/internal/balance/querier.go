@@ -30,6 +30,7 @@ type defaultQuerier struct{ network NetworkOptions }
 
 func (q *defaultQuerier) ListCapabilities(context.Context) ([]AdapterCapability, error) {
 	return []AdapterCapability{
+		{Adapter: AliyunPrepaidCashV20171214, Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential", "aliyun.site", "aliyun.accountID", "aliyun.accountBindingConfirmed", "aliyun.proofReference"}, SupportedScopes: []string{"account_wallet"}, SupportedFormats: []string{"exact_decimal_amount"}},
 		{Adapter: VolcengineAccountBalanceV20220101, Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential", "volcengine.accountID", "volcengine.currency", "volcengine.unit", "volcengine.currencyUnitConfirmed", "volcengine.accountBindingConfirmed", "volcengine.proofReference"}, SupportedScopes: []string{"account_wallet"}, SupportedFormats: []string{"exact_decimal_amount"}},
 		{Adapter: "deepseek", Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential"}, SupportedScopes: []string{"account_wallet"}, SupportedFormats: []string{"exact_currency_balances"}},
 		{Adapter: "deepinfra", Supported: true, RequiresConfig: true, ConfigFields: []string{"query_credential"}, SupportedScopes: []string{"signed_prepaid_net"}, SupportedFormats: []string{"exact_decimal_amount"}},
@@ -38,6 +39,9 @@ func (q *defaultQuerier) ListCapabilities(context.Context) ([]AdapterCapability,
 	}, nil
 }
 func (q *defaultQuerier) Query(ctx context.Context, target QueryTarget, resolver CredentialResolver) (Observation, error) {
+	if target.Adapter == AliyunPrepaidCashV20171214 {
+		return queryAliyun(ctx, target, resolver, q.network), nil
+	}
 	if target.Adapter == VolcengineAccountBalanceV20220101 {
 		return queryVolcengine(ctx, target, resolver, q.network), nil
 	}
