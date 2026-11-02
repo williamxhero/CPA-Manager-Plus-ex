@@ -416,9 +416,15 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 	query := struct {
 		Binding
 		SourceVersion string `json:"sourceVersion"`
+		SourceID      string `json:"sourceId"`
+		SubjectID     string `json:"subjectId"`
 		AuthIndex     string `json:"auth_index"`
 		TimeoutMS     int64  `json:"timeoutMs"`
-	}{job.Query.Binding, job.Query.SourceVersion, job.Query.AuthIndex, (budget - reserve).Milliseconds()}
+	}{
+		Binding: job.Query.Binding, SourceVersion: source.SourceVersion,
+		SourceID: source.SourceID, SubjectID: source.SubjectID,
+		AuthIndex: source.AuthIndex, TimeoutMS: (budget - reserve).Milliseconds(),
+	}
 	var result CoreObservation
 	startErr := s.queryStarted(network, job)
 	err := startErr
