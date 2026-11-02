@@ -11,6 +11,18 @@
     "apps/docs"
   ],
   "overrides": {
+    "eslint@10.14.0": {
+      "minimatch": "11.0.3"
+    },
+    "@eslint/config-array@0.23.5": {
+      "minimatch": "11.0.3"
+    },
+    "@typescript-eslint/typescript-estree@8.59.3": {
+      "minimatch": "11.0.3"
+    },
+    "eslint-plugin-react-hooks@7.0.1": {
+      "eslint": "10.14.0"
+    },
     "vitepress": {
       "@docsearch/css": "3.9.0",
       "@docsearch/js": "3.9.0",
