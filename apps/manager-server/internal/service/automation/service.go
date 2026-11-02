@@ -105,8 +105,9 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) (Status, error)
 		current.AccountActionsAutoDisable = boolPtr(*req.AccountActionsAutoDisable)
 	}
 	// SaveAutomationSettings returns the record it persisted (including the
-	// UpdatedAtMS it assigned). We build the response from that record instead
-	// of re-reading, so a transient read failure after a successful save cannot
+	// UpdatedAtMS it assigned), retaining uninterpreted legacy fields and their
+	// rollback receipt only in persistence. We build the response from that record
+	// instead of re-reading, so a transient read failure after a successful save cannot
 	// cause the persisted state and runtime cache to diverge.
 	saved, err := s.store.SaveAutomationSettings(ctx, current)
 	if err != nil {

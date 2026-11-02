@@ -1,0 +1,8 @@
+=== RUN   TestAccountProcessingPolicyPatchAuditsPreservationAndAllowsExactRollback
+2026/11/02 10:12:09 http PATCH /usage-service/account-processing-policy status=200 duration=1.0407ms remote=192.0.2.1:1234
+    automation_settings_legacy_test.go:84: PATCH did not durably record its explicit legacy preservation decision: sql: no rows in result set
+--- FAIL: TestAccountProcessingPolicyPatchAuditsPreservationAndAllowsExactRollback (0.29s)
+FAIL
+FAIL	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	0.835s
+FAIL
+RED_EXIT=1

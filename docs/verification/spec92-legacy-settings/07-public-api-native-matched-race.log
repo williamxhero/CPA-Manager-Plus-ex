@@ -1,0 +1,35 @@
+=== RUN   TestAccountProcessingPolicyPatchPreservesLegacySQLiteDocument
+2026/11/02 10:18:18 http PATCH /usage-service/account-processing-policy status=200 duration=3.5621ms remote=192.0.2.1:1234
+--- PASS: TestAccountProcessingPolicyPatchPreservesLegacySQLiteDocument (0.65s)
+=== RUN   TestAccountProcessingPolicyPatchAuditsPreservationAndAllowsExactRollback
+2026/11/02 10:18:19 http PATCH /usage-service/account-processing-policy status=200 duration=3.0652ms remote=192.0.2.1:1234
+2026/11/02 10:18:19 http PATCH /usage-service/account-processing-policy status=200 duration=2.836ms remote=192.0.2.1:1234
+--- PASS: TestAccountProcessingPolicyPatchAuditsPreservationAndAllowsExactRollback (0.53s)
+=== RUN   TestCredentialUI93UnknownDisabledHistoryStaysPending
+    credential_ui_migration_core_test.go:13: actual artifact source=2b825585fc04d5d1982b83151bb5bd7e5b6c0dca sha256=dd57843d49c36d63c3c5c83cbc6ae883a35f3945dbaac3185c6e8c76277d8bb8 modified=false
+    credential_ui_migration_core_test.go:13: actual artifact source=b3fdb65f39f0030b14898a3dbd809484304c9d01 sha256=37a4c69717df93a851d393d4306093cc44000426c7c5012012b4c2667b5f428e modified=false
+2026/11/02 10:18:21 http GET /usage-service/credential-quota status=200 duration=82.0929ms remote=192.0.2.1:1234
+2026/11/02 10:18:22 http PATCH /usage-service/account-processing-policy status=200 duration=3.1459ms remote=192.0.2.1:1234
+2026/11/02 10:18:22 http PATCH /usage-service/account-processing-policy status=400 duration=1.0446ms remote=192.0.2.1:1234
+2026/11/02 10:18:22 http GET /usage-service/credential-policy status=200 duration=323.7731ms remote=192.0.2.1:1234
+2026/11/02 10:18:22 http GET /usage-service/credential-policy status=200 duration=316.1286ms remote=192.0.2.1:1234
+2026/11/02 10:18:23 http GET /usage-service/credential-policy status=200 duration=321.4163ms remote=192.0.2.1:1234
+2026/11/02 10:18:23 http GET /usage-service/credential-policy status=200 duration=316.9339ms remote=192.0.2.1:1234
+2026/11/02 10:18:23 http GET /usage-service/credential-policy status=200 duration=350.5823ms remote=192.0.2.1:1234
+2026/11/02 10:18:24 http GET /usage-service/credential-policy status=200 duration=355.048ms remote=192.0.2.1:1234
+    credential_policy_native_admission_fixture_test.go:203: exact controlled counts quota[A,B]=[0,0] business[A,B]=[0,1]
+--- PASS: TestCredentialUI93UnknownDisabledHistoryStaysPending (4.63s)
+=== RUN   TestServerCompatAccountProcessingPolicyPatchReloadsRuntime
+2026/11/02 10:18:24 http PATCH /usage-service/account-processing-policy status=200 duration=3.083ms remote=192.0.2.1:1234
+2026/11/02 10:18:24 http GET /usage-service/account-processing-policy status=200 duration=1.0322ms remote=192.0.2.1:1234
+2026/11/02 10:18:24 [account-processing-policy] failed to load runtime settings: sql: database is closed; using last known configuration
+--- PASS: TestServerCompatAccountProcessingPolicyPatchReloadsRuntime (0.47s)
+=== RUN   TestServerCompatAccountProcessingPolicyRejectsRemovedGlobalQuotaField
+2026/11/02 10:18:25 http PATCH /usage-service/account-processing-policy status=400 duration=0s remote=192.0.2.1:1234
+--- PASS: TestServerCompatAccountProcessingPolicyRejectsRemovedGlobalQuotaField (0.43s)
+=== RUN   TestServerCompatAccountProcessingPolicyPatchRejectsEnvLockedField
+2026/11/02 10:18:25 http PATCH /usage-service/account-processing-policy status=409 duration=1.5107ms remote=192.0.2.1:1234
+--- PASS: TestServerCompatAccountProcessingPolicyPatchRejectsEnvLockedField (0.45s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/httpapi	8.724s
+TEST_EXIT=0

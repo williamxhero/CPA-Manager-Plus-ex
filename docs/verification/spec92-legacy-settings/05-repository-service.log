@@ -1,0 +1,45 @@
+=== RUN   TestAutomationSettingsPreservationAndWriteAreAtomic
+=== RUN   TestAutomationSettingsPreservationAndWriteAreAtomic/receipt
+=== RUN   TestAutomationSettingsPreservationAndWriteAreAtomic/source
+--- PASS: TestAutomationSettingsPreservationAndWriteAreAtomic (0.02s)
+    --- PASS: TestAutomationSettingsPreservationAndWriteAreAtomic/receipt (0.01s)
+    --- PASS: TestAutomationSettingsPreservationAndWriteAreAtomic/source (0.01s)
+=== RUN   TestAutomationSettingsSaveKeepsLatestUnknownFieldsAndClearsNilOverrides
+--- PASS: TestAutomationSettingsSaveKeepsLatestUnknownFieldsAndClearsNilOverrides (0.01s)
+=== RUN   TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting
+=== RUN   TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/null
+=== RUN   TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/[]
+=== RUN   TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/{"incomplete":
+--- PASS: TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting (0.02s)
+    --- PASS: TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/null (0.01s)
+    --- PASS: TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/[] (0.01s)
+    --- PASS: TestAutomationSettingsSaveRejectsNonObjectWithoutOverwriting/{"incomplete": (0.01s)
+=== RUN   TestAutomationSettingsKnownOnlyNeedsNoLegacyReceipt
+--- PASS: TestAutomationSettingsKnownOnlyNeedsNoLegacyReceipt (0.01s)
+=== RUN   TestNotificationClaimIsAtomicAndDurable
+--- PASS: TestNotificationClaimIsAtomicAndDurable (0.02s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/repository/setting	1.454s
+=== RUN   TestStatusExposesEffectiveFlagsAndKeys
+--- PASS: TestStatusExposesEffectiveFlagsAndKeys (0.00s)
+=== RUN   TestStatusAutoDisableReportsEffectiveValue
+--- PASS: TestStatusAutoDisableReportsEffectiveValue (0.00s)
+=== RUN   TestStatusUsesDBSettingsUnlessEnvLocked
+--- PASS: TestStatusUsesDBSettingsUnlessEnvLocked (0.12s)
+=== RUN   TestUpdateRejectsEnvLockedFields
+--- PASS: TestUpdateRejectsEnvLockedFields (0.11s)
+=== RUN   TestStatusDefaultsAllOff
+--- PASS: TestStatusDefaultsAllOff (0.00s)
+=== RUN   TestStatusReturnsErrorWhenLoadFails
+--- PASS: TestStatusReturnsErrorWhenLoadFails (0.00s)
+=== RUN   TestRuntimeSettingsKeepsLastKnownOnLoadError
+2026/11/02 10:15:17 [account-processing-policy] failed to load runtime settings: simulated db read failure; using last known configuration
+2026/11/02 10:15:17 [account-processing-policy] failed to load runtime settings: simulated db read failure; using last known configuration
+--- PASS: TestRuntimeSettingsKeepsLastKnownOnLoadError (0.04s)
+=== RUN   TestUpdateSerializesConcurrentPatches
+--- PASS: TestUpdateSerializesConcurrentPatches (0.13s)
+=== RUN   TestUpdateReturnsPersistedRecordWithoutRereading
+--- PASS: TestUpdateReturnsPersistedRecordWithoutRereading (0.00s)
+PASS
+ok  	github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/automation	1.881s
+TEST_EXIT=0
