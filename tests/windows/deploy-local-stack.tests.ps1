@@ -1,5 +1,6 @@
 #requires -Version 5.1
-param([Parameter(Mandatory = $true)][string]$OutputDir)
+param([Parameter(Mandatory = $true)][string]$OutputDir,
+      [ValidateSet('All','ShadowIdentity')][string]$Cases = 'All')
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $entry = Join-Path $repo 'ops\windows\deploy-local-stack.ps1'
@@ -18,6 +19,10 @@ $script:processes = @{}; $script:ports = @{}; $script:serviceCalls = [Collection
 $script:startupModes = @{}
 $script:failure = ''; $script:copyCount = 0
 $script:realCompatibility = ${function:Assert-CPAStackCompatibility}
+$script:realRunningIdentity = ${function:Get-CPAStackRunningIdentity}
+$script:useShadowIdentity = $false
+$script:shadowOptions = $null
+$script:shadowMode = 'Correct'
 $script:receiptFailurePath = ''
 $script:receiptWriteAttempts = 0
 $script:receiptFailAt = 1
@@ -127,8 +132,42 @@ function Test-CPAStackHealth {
 }
 function Get-CPAStackRunningIdentity {
     param($Context)
+    if ($script:useShadowIdentity) { return & $script:realRunningIdentity $Context }
     # Native DLL loading and SCM identity are separate production gates, not fixture claims.
     return @($names | ForEach-Object { $p=$script:processes[$_]; Assert-True (-not $p.HasExited) 'owned process remains live'; @{name=$_;pid=$p.Id;sha256=(Get-CPAStackHash (Join-Path $Context.runtime $Context.executables[$_]))} })
+}
+
+function Get-Process {
+    [CmdletBinding()]
+    param([int]$Id)
+    if (-not $script:useShadowIdentity -or $Id -ne $script:processes['LocalCPA'].Id) {
+        return Microsoft.PowerShell.Management\Get-Process -Id $Id -ErrorAction Stop
+    }
+    # External OS-module adapter only: these are declared synthetic module
+    # records and real files, NOT a claim that the fixture mapped native DLLs.
+    $core=Join-Path $script:shadowOptions.RuntimeRoot 'CPA-Core/app/cli-proxy-api.exe'
+    $candidate=(Get-CPAStackHash $core) -eq (Get-CPAStackHash $compiled.new)
+    if($candidate -and $script:shadowMode -eq 'Missing'){return [pscustomobject]@{Modules=@()}}
+    $owner=$(if($candidate -and $script:shadowMode -eq 'WrongPid'){$Id+1}else{$Id})
+    $directory=Join-Path $script:shadowOptions.RuntimeRoot ('shadow-fixture/cliproxy-pluginhost/pid-'+$owner)
+    [IO.Directory]::CreateDirectory($directory)|Out-Null
+    $modules=@()
+    foreach($name in @('opencode-go-cliproxyapi','qwen-cliproxyapi')){
+        $artifact=Join-Path $script:shadowOptions.RuntimeRoot ('CPA-Core/plugins/windows/amd64/'+$name+'.dll')
+        $digest=Get-CPAStackHash $artifact
+        $mapped=Join-Path $directory ('cliproxy-plugin-'+$name+'-'+$digest.Substring(0,32)+'.dll')
+        Copy-Item -LiteralPath $artifact -Destination $mapped -Force
+        if($candidate -and $script:shadowMode -eq 'WrongHash'){[IO.File]::AppendAllText($mapped,'different-full-content')}
+        $modules+=@([pscustomobject]@{FileName=$(if($script:shadowMode -eq 'Direct'){$artifact}else{$mapped})})
+        if($candidate -and $script:shadowMode -eq 'Ambiguous'){
+            $other=Join-Path $script:shadowOptions.RuntimeRoot ('second-shadow-fixture/cliproxy-pluginhost/pid-'+$Id)
+            [IO.Directory]::CreateDirectory($other)|Out-Null
+            $duplicate=Join-Path $other ([IO.Path]::GetFileName($mapped))
+            Copy-Item -LiteralPath $artifact -Destination $duplicate -Force
+            $modules+=@([pscustomobject]@{FileName=$duplicate})
+        }
+    }
+    return [pscustomobject]@{Modules=$modules}
 }
 
 function Invoke-FixtureSQLite([string]$Path, [string]$Mode) {
@@ -220,6 +259,37 @@ function Invoke-Case([string]$Name, [string]$Failure) {
     Write-Host ('CASE '+$Name+': '+$receipt.status+' exit='+$code)
     $script:failure=''; foreach($serviceName in $names){Set-CPAStackService $ctx $serviceName 'Stopped'}
 }
+function Invoke-ShadowIdentityCase([string]$Mode='Correct') {
+    $options=New-Case ('shadow-identity-'+$Mode);$script:shadowOptions=$options;$script:shadowMode=$Mode
+    $script:failure='';$script:copyCount=0;$script:startupModes.Clear()
+    $ctx=@{runtime=$options.RuntimeRoot;executables=@{LocalCPA='CPA-Core/app/cli-proxy-api.exe';LocalCPAManagerPlus='CPA-Manager-Plus/app/cpa-manager-plus.exe';CPAUsageKeeper='CPA-Usage-Keeper/cpa-usage-keeper.exe'}}
+    foreach($name in $names){Set-CPAStackService $ctx $name 'Running'}
+    $script:serviceCalls.Clear();$script:useShadowIdentity=$true
+    try {
+        $code=Invoke-CPALocalStackDeployment @options
+        $receipt=Get-Content -LiteralPath $options.ReceiptPath -Raw|ConvertFrom-Json
+        if($Mode -in @('Correct','Direct')){
+            Assert-True ($code -eq 0 -and $receipt.status -eq 'deployed') 'correct mapped modules are accepted by the deployment entrypoint'
+        } else {
+            Assert-True ($code -eq 1 -and $receipt.status -eq 'rolled_back' -and -not $receipt.success) 'invalid candidate module identity triggers verified rollback'
+            $expected=$(if($Mode -eq 'WrongHash'){'running_plugin_hash_mismatch'}else{'running_plugin_unverified'})
+            Assert-True ($receipt.errorCode -eq $expected -and $receipt.rollback -eq 'verified-current-state-preserved') 'wrong identity is never accepted or silently downgraded'
+            $sqlite=@(Invoke-FixtureSQLite (Join-Path $options.RuntimeRoot 'CPA-Manager-Plus/data/usage.sqlite') 'read')
+            Assert-True ('ok' -in $sqlite -and 'manual-original:1' -in $sqlite) 'identity failure preserves the same current SQLite/manual restriction'
+        }
+        $dlls=@($receipt.running|Where-Object {$_.name.EndsWith('.dll')})
+        Assert-True ($dlls.Count -eq 2) 'both actual mapped DLL identities are recorded'
+        foreach($dll in $dlls){
+            if($Mode -eq 'Direct'){Assert-True ($dll.path -eq $dll.artifactPath) 'classic direct mapping remains supported'}
+            else{Assert-True ($dll.path -ne $dll.artifactPath -and $dll.path.Contains('cliproxy-pluginhost')) 'receipt distinguishes mapped shadow from installed slot'}
+            Assert-True ($dll.sha256 -eq (Get-CPAStackHash $dll.artifactPath)) 'full module digest matches the installed artifact'
+        }
+        Write-Host ('CASE shadow-identity-'+$Mode+': '+$receipt.status+'; production identity function, modeled module adapter; fixture only')
+    } finally {
+        $script:useShadowIdentity=$false;$script:shadowOptions=$null;$script:shadowMode='Correct'
+        foreach($name in $names){Set-CPAStackService $ctx $name 'Stopped'}
+    }
+}
 function Invoke-OverlapCase([string]$Name, [string]$BackupPath, [string]$ReceiptPath) {
     $options=New-Case $Name; $options.BackupRoot=$BackupPath; $options.ReceiptPath=$ReceiptPath; $script:failure='';$script:copyCount=0;$script:startupModes.Clear()
     $ctx=@{runtime=$options.RuntimeRoot;executables=@{LocalCPA='CPA-Core/app/cli-proxy-api.exe';LocalCPAManagerPlus='CPA-Manager-Plus/app/cpa-manager-plus.exe';CPAUsageKeeper='CPA-Usage-Keeper/cpa-usage-keeper.exe'}}
@@ -308,6 +378,8 @@ function Invoke-RelabelledEvidenceCase([string]$Failure='FixtureBody', [string]$
     Write-Host ('CASE '+$name+': refused before stop exit='+$code)
 }
 try {
+    foreach($mode in @('Correct','Direct','WrongHash','WrongPid','Missing','Ambiguous')){Invoke-ShadowIdentityCase $mode}
+    if($Cases -eq 'ShadowIdentity'){return}
     Invoke-RelabelledEvidenceCase 'FloorRejected' 'compatibility_floor_rejection_unproven'
     Invoke-RelabelledEvidenceCase 'ManagerUnreadable' 'compatibility_manager_schema_unproven'
     Invoke-RelabelledEvidenceCase 'OwnerLost' 'compatibility_owner_intent_unproven'
