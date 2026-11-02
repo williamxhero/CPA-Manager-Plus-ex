@@ -90,6 +90,7 @@ export default defineConfig(({ mode }) => {
       cssCodeSplit: false,
       rolldownOptions: {
         output: {
+          charset: 'ascii',
           codeSplitting: false
         }
       }
