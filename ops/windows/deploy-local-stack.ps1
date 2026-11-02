@@ -102,8 +102,29 @@ function Get-CPAStackRunningIdentity($Context) {
             $modules=@((Get-Process -Id $processes[0].ProcessId -ErrorAction Stop).Modules|ForEach-Object {$_.FileName})
             foreach($relative in @('CPA-Core/plugins/windows/amd64/opencode-go-cliproxyapi.dll','CPA-Core/plugins/windows/amd64/qwen-cliproxyapi.dll')){
                 $dll=[IO.Path]::GetFullPath((Join-Path $Context.runtime $relative))
-                if($dll -notin $modules){throw 'running_plugin_unverified'}
-                $identities+=@{name=$relative;pid=$processes[0].ProcessId;path=$dll;sha256=(Get-CPAStackHash $dll)}
+                $expectedHash=Get-CPAStackHash $dll
+                $pluginId=[IO.Path]::GetFileNameWithoutExtension($dll)
+                $shadowName='cliproxy-plugin-'+$pluginId+'-'+$expectedHash.Substring(0,32)+'.dll'
+                $loadedPaths=@()
+                foreach($module in $modules){
+                    $mapped=[IO.Path]::GetFullPath($module)
+                    $processDir=Split-Path -Parent $mapped
+                    $cacheDir=Split-Path -Parent $processDir
+                    $direct=$mapped.Equals($dll,[StringComparison]::OrdinalIgnoreCase)
+                    # Core loads content-addressed copies from its own PID's
+                    # cache. The service account's TEMP need not equal ours.
+                    $shadow=([IO.Path]::GetFileName($mapped) -ieq $shadowName) -and
+                        ((Split-Path -Leaf $processDir) -ieq ('pid-'+$processes[0].ProcessId)) -and
+                        ((Split-Path -Leaf $cacheDir) -ieq 'cliproxy-pluginhost')
+                    if($direct -or $shadow){
+                        $root=$(if($direct){$Context.runtime}else{$cacheDir})
+                        Assert-CPAStackPath $mapped $root | Out-Null
+                        if((Get-CPAStackHash $mapped) -ne $expectedHash){throw 'running_plugin_hash_mismatch'}
+                        $loadedPaths+=@($mapped)
+                    }
+                }
+                if($loadedPaths.Count -ne 1){throw 'running_plugin_unverified'}
+                $identities+=@{name=$relative;pid=$processes[0].ProcessId;path=$loadedPaths[0];artifactPath=$dll;sha256=$expectedHash}
             }
         }
     }
