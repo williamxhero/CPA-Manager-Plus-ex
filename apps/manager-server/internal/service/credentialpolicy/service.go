@@ -204,7 +204,7 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 	}
 	if r.Document != "" {
 		var saved Status
-		if json.Unmarshal([]byte(r.Document), &saved) != nil {
+		if unmarshalPolicyDocument([]byte(r.Document), &saved) != nil {
 			return Status{}, errors.New("credential policy storage unavailable")
 		}
 		if sameAuthority(saved.Source, src) {
@@ -286,7 +286,7 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 		out.State = "off"
 	}
 	out.Generation++
-	document, err := json.Marshal(out)
+	document, err := marshalPolicyDocument(out)
 	if err != nil {
 		return Status{}, err
 	}
@@ -326,7 +326,7 @@ func (s *Service) StoredStatus(ctx context.Context, id string) (Status, error) {
 		return Status{}, ErrIdentity
 	}
 	var out Status
-	if json.Unmarshal([]byte(r.Document), &out) != nil || policyKey(out.Source) != id || out.Generation != r.Generation {
+	if unmarshalPolicyDocument([]byte(r.Document), &out) != nil || policyKey(out.Source) != id || out.Generation != r.Generation {
 		return Status{}, errors.New("credential policy storage unavailable")
 	}
 	installation, err := s.Store.CredentialPolicyInstallation(ctx)
@@ -375,7 +375,7 @@ func (s *Service) localOff(ctx context.Context, q Update) (Status, bool, error) 
 	out.State = "off"
 	out.Reason = "local_intent_off"
 	out.Generation++
-	document, err := json.Marshal(out)
+	document, err := marshalPolicyDocument(out)
 	if err != nil {
 		return Status{}, true, err
 	}

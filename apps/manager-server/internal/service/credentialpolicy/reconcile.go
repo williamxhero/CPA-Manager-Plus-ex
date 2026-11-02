@@ -105,6 +105,15 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 		}
 		return save(reason)
 	}
+	// A read-only operation lookup is safe for historical journals. Missing
+	// persisted authority must still block both acknowledgement and any resend.
+	state, err := s.StoredStatus(ctx, record.SubjectID)
+	if err != nil {
+		return err
+	}
+	if !hasSourceAuthority(state.Source) || !sameAuthority(state.Source, desired.Source) {
+		return save("source_authority_changed")
+	}
 	if reason == "" && (!desired.Planned || !result.Confirms(desired.Operation)) {
 		return save("gate_ack_unconfirmed")
 	}

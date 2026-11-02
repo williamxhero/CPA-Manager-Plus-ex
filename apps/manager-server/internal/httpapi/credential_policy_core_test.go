@@ -25,33 +25,26 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
 	cp "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy"
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
-	mc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
-	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
 )
 
-// This proves actual issued-binding restart fencing, NOT positive gate ON/ACK.
-// The prior ON document is explicitly a local coordinator fixture.
+// ON is enrolled through real public fresh evidence, never a flattened seeded
+// Status (which is an incomplete legacy record). The later direct start hooks
+// test local coordinator fencing only, not positive Core ACK or admission.
 func TestCredentialPolicyActualCoreRestartRebindsWithoutUISave(t *testing.T) {
-	var stop, restart func()
-	base := policyOldCore(t, &stop, &restart)
-	cfg := testutil.NewConfig(t)
-	db := testutil.NewStore(t, cfg)
+	f, _, _ := newSelectedKeyPolicyFixture(t, true)
+	db := f.db
 	ctx := context.Background()
-	if err := db.SaveManagerConfig(ctx, store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: base, ManagementKey: "test-password"}}); err != nil {
-		t.Fatal(err)
-	}
-	connection := mc.New(cfg, db, nil)
-	quota := cq.New(db, rc.New(nil, connection))
-	coordinator := cp.New(db, quota, connection)
+	quota := f.manager.AppContext().CredentialQuotaService
+	coordinator := f.manager.AppContext().CredentialPolicyService
 	sources, err := quota.Sources(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var old cq.Source
 	for _, source := range sources {
-		if source.State == "ready" && source.AuthIndex != "" {
+		if source.Protocol == "codex-oauth-wham" && source.State == "ready" && source.AuthIndex != "" {
 			old = source
 			break
 		}
@@ -59,22 +52,20 @@ func TestCredentialPolicyActualCoreRestartRebindsWithoutUISave(t *testing.T) {
 	if old.AuthIndex == "" {
 		t.Fatal("no actual ready source")
 	}
-	installation, err := db.CredentialPolicyInstallation(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
 	id := cp.SubjectID(old)
-	state := cp.Status{Source: old, SubjectID: id, Generation: 1, Owner: cp.OwnerNamespace + installation, Enabled: true}
-	document, _ := json.Marshal(state)
-	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: 1, Document: string(document)}, 0); err != nil {
-		t.Fatal(err)
+	queryAuthorityTestQuota(f.nativeAdmissionFixture, old)
+	generation, enabled := int64(0), true
+	var state cp.Status
+	f.api("PUT", "/usage-service/credential-policy", cp.Update{Binding: old.Binding, AuthIndex: old.AuthIndex, SourceVersion: old.SourceVersion, ExpectedGeneration: &generation, Enabled: &enabled}, 200, &state)
+	if !state.Enabled || state.Generation != 1 || state.SubjectID != id {
+		t.Fatal("public fresh enrollment failed")
 	}
 	oldQuery := cq.Query{Binding: old.Binding, SourceVersion: old.SourceVersion, SourceID: old.SourceID, SubjectID: old.SubjectID, AuthIndex: old.AuthIndex, Version: 1}
 	oldAttempt := uuid.NewString()
 	if err := coordinator.CaptureCredentialQueryStart(ctx, oldQuery, oldAttempt); err != nil {
 		t.Fatal(err)
 	}
-	restart()
+	f.restart()
 	sources, err = quota.Sources(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -101,6 +92,11 @@ func TestCredentialPolicyActualCoreRestartRebindsWithoutUISave(t *testing.T) {
 	local, err := coordinator.StoredStatus(ctx, id)
 	if err != nil || !local.Enabled || local.Generation != 1 || local.Scope.BootEpoch != current.Scope.BootEpoch {
 		t.Fatal("current binding not durably rebound preserving intent")
+	}
+	var readback cp.Status
+	f.api("GET", "/usage-service/credential-policy?authIndex="+current.AuthIndex, nil, 200, &readback)
+	if !readback.Enabled || readback.SubjectID != id || readback.Owner != state.Owner || readback.Generation != 1 || readback.Scope.BootEpoch != current.Scope.BootEpoch {
+		t.Fatal("public current-source read lost freshly enrolled intent after Core restart")
 	}
 	if err := coordinator.CaptureCredentialQueryStart(ctx, oldQuery, uuid.NewString()); err == nil {
 		t.Fatal("old boot start accepted")

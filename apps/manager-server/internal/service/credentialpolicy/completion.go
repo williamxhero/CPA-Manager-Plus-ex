@@ -54,10 +54,10 @@ func (s *Service) captureCredentialQueryStart(ctx context.Context, q cq.Query, a
 		candidate := false
 		for _, record := range records {
 			var saved Status
-			if json.Unmarshal([]byte(record.Document), &saved) != nil {
+			if unmarshalPolicyDocument([]byte(record.Document), &saved) != nil {
 				return ErrInput
 			}
-			if saved.AuthorityReboundTo == "" && saved.SourceVersion == q.SourceVersion && refreshCandidate(saved.Binding, q.Binding) {
+			if hasSourceAuthority(saved.Source) && saved.AuthorityReboundTo == "" && saved.SourceVersion == q.SourceVersion && refreshCandidate(saved.Binding, q.Binding) {
 				candidate = true
 				break
 			}
