@@ -10112,11 +10112,14 @@ export function AccountsPage() {
       }
       event.preventDefault();
       const nextTab = detailTabs[nextIndex];
-      const nextTabElement = event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(
+      const currentTabElement = event.currentTarget;
+      const nextTabElement = currentTabElement.parentElement?.querySelector<HTMLButtonElement>(
         `#accounts-detail-tab-${nextTab.id}`
       );
       if (await openAccountDetail(selectedRow, nextTab.id)) {
         nextTabElement?.focus();
+      } else {
+        currentTabElement.focus();
       }
     };
     const valueRow =
