@@ -141,6 +141,7 @@ func (p proof) valid(b Binding, expected map[string]rc.Target, inv *rc.Negotiate
 }
 
 type prepared struct {
+	receipt result
 	status  Status
 	record  store.ProviderGateRecord
 	doc     document
@@ -208,12 +209,7 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 	if err != nil {
 		return out, err
 	}
-	raw, _ := json.Marshal([]string{b.Scope.InstanceID, b.Scope.InstanceIncarnation, b.ProviderID})
-	if s.monetary {
-		raw = append([]byte(namespace), raw...)
-	}
-	digest := sha256.Sum256(raw)
-	id := hex.EncodeToString(digest[:])
+	id := s.journalID(b)
 	out.status = Status{Binding: b, SubjectID: id, Owner: namespace + installation, SourceVersion: p.SourceVersion, Ready: true, State: "unpaused"}
 	// The latest command's outcome and the current restriction are independent.
 	// A rejected/pending clear must not hide an existing verified own pause.
@@ -232,6 +228,8 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 			return out, ErrUnavailable
 		}
 		op := out.doc.Operation
+		out.status.UpdatedAtMS = out.doc.UpdatedAtMS
+		out.status.ReceiptPersisted = validReceipt(op, out.doc.Receipt)
 		out.status.Action, out.status.State, out.status.Reason = op.Action, "pending", "operation_outcome_unverified"
 		receipt := out.doc.Receipt
 		if out.doc.CanceledBeforeSend {
@@ -248,6 +246,7 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 			}
 		}
 		out.settled = out.settled || sameInstance(op.Scope, b.Scope) && validReceipt(op, receipt)
+		out.receipt = receipt
 		if sameInstance(op.Scope, b.Scope) && reflect.DeepEqual(op.Targets, b.Targets) {
 			if confirms(op, receipt, out.ledger) {
 				out.status.Applied, out.status.Reason = true, "current_provider_gate_confirmed"
@@ -271,6 +270,46 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 func (s *Service) Status(ctx context.Context, b Binding) (Status, error) {
 	out, err := s.prepare(ctx, b)
 	return out.status, err
+}
+
+func (s *Service) journalID(b Binding) string {
+	raw, _ := json.Marshal([]string{b.Scope.InstanceID, b.Scope.InstanceIncarnation, b.ProviderID})
+	if s.monetary {
+		raw = append([]byte("cpa-manager.provider-balance.v1/"), raw...)
+	}
+	digest := sha256.Sum256(raw)
+	return hex.EncodeToString(digest[:])
+}
+
+// ReconcileMonetary only saves a verified receipt for an already journalled
+// immutable command. It never resends, clears a restriction, or infers an ACK
+// from a missing operation. CAS prevents a late read from changing a newer body.
+func (s *Service) ReconcileMonetary(ctx context.Context, b Binding) error {
+	if !s.monetary {
+		return ErrInput
+	}
+	r, err := s.store.ProviderGate(ctx, s.journalID(b))
+	if err != nil || r.Generation == 0 {
+		return err
+	}
+	var doc document
+	if json.Unmarshal([]byte(r.Document), &doc) != nil {
+		return ErrUnavailable
+	}
+	if doc.CanceledBeforeSend || validReceipt(doc.Operation, doc.Receipt) {
+		return nil
+	}
+	out, err := s.prepare(ctx, b)
+	if err != nil {
+		return err
+	}
+	if out.record != r || !sameInstance(out.doc.Operation.Scope, b.Scope) || !reflect.DeepEqual(out.doc.Operation.Targets, canonical(b).Targets) || out.doc.Operation.SourceVersion != out.status.SourceVersion || !validReceipt(out.doc.Operation, out.receipt) {
+		return ErrUnavailable
+	}
+	out.doc.Receipt = out.receipt
+	out.doc.UpdatedAtMS = time.Now().UnixMilli()
+	raw, _ := json.Marshal(out.doc)
+	return s.store.CompleteProviderGate(ctx, out.record, string(raw))
 }
 
 func (s *Service) Update(ctx context.Context, q Update) (Status, error) {

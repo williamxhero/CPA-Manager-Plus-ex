@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/buildinfo"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/config"
@@ -201,6 +202,7 @@ func fromExisting(
 	identityService := resourcecapabilitysvc.New(accountProcessingPolicyService, managerConfigService)
 	managementBudget := managementquery.NewBudget(st)
 	officialBalanceService := officialbalancesvc.New(st, identityService, officialbalancesvc.WithBudget(managementBudget))
+	officialBalanceService.Querier = balance.NewWithNetwork(providerRuntimeNetwork())
 	webReader, refreshClock := managementRuntimeDependencies()
 	if webReader != nil {
 		officialBalanceService.WebReader = webReader
@@ -260,6 +262,6 @@ func fromExisting(
 	coordinator := out.FullRefreshService.(*fullrefreshsvc.Service)
 	_ = out.CredentialPolicyService.BindCoordinator(coordinator)
 	out.ProviderPolicyService.BindCoordinator(coordinator)
-	out.FullRefreshService = &credentialpolicysvc.CoordinatedService{Service: coordinator, Policy: out.CredentialPolicyService}
+	out.FullRefreshService = &credentialpolicysvc.CoordinatedService{Service: coordinator, Policy: out.CredentialPolicyService, Additional: []func(context.Context) error{out.ProviderPolicyService.Run}}
 	return out
 }

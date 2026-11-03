@@ -45,7 +45,9 @@ type intent struct {
 	Versions      map[string]int64 `json:"versions,omitempty"`
 }
 type Status struct {
-	Evaluation *store.ProviderMoneyEvaluation `json:"evaluation,omitempty"`
+	Coordination *pg.Status                     `json:"coordination,omitempty"`
+	Sources      []ob.Status                    `json:"sources"`
+	Evaluation   *store.ProviderMoneyEvaluation `json:"evaluation,omitempty"`
 	Binding
 	SubjectID      string `json:"subjectId"`
 	Enabled        bool   `json:"enabled"`
@@ -70,9 +72,11 @@ type Service struct {
 	Gate     *pg.Service
 	monetary *pg.Service
 	// Clock is a startup dependency. Cached reads never renew source freshness.
-	Clock  func() time.Time
-	mu     sync.Mutex
-	holder string
+	Clock   func() time.Time
+	runMu   sync.Mutex
+	running bool
+	mu      sync.Mutex
+	holder  string
 }
 
 func New(st *store.Store, identity *rc.Service, balance *ob.Service, gate *pg.Service) *Service {
@@ -156,6 +160,13 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 		return Status{}, err
 	}
 	out := Status{Binding: b, SubjectID: subject(b), Owner: OwnerNamespace + installation, Source: "default_off", BindingCurrent: true, Locked: true, ManualDisabled: disabled, State: "off", Reason: "funding_coverage_unverified"}
+	for _, target := range b.Targets[1:] {
+		source, err := s.Balance.Status(ctx, ob.Binding{Scope: b.Scope, Targets: []rc.Target{target}})
+		if err != nil {
+			return Status{}, ErrUnavailable
+		}
+		out.Sources = append(out.Sources, source)
+	}
 	r, err := s.Store.ProviderPolicy(ctx, out.SubjectID)
 	if err != nil {
 		return Status{}, err
@@ -180,6 +191,7 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 		if out.BindingCurrent && s.monetary != nil {
 			gate, e := s.monetary.Status(ctx, pg.Binding{Scope: b.Scope, Targets: b.Targets, ProviderID: b.ProviderID})
 			if e == nil {
+				out.Coordination = &gate
 				out.OwnPaused, out.Applied = gate.OwnPaused, gate.Applied
 				if !out.Enabled && gate.OwnPaused {
 					out.State, out.Reason = "historical_pause", "explicit_recovery_required"

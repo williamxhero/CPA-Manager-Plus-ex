@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/config"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/security"
 	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
@@ -66,6 +67,10 @@ type providerFundingFixture struct {
 	upstreamAttempts atomic.Int32
 	beforeMatch      func()
 	reopen           func()
+	config           config.Config
+	apiBase          string
+	loseAck          atomic.Bool
+	hideReceipt      atomic.Bool
 }
 
 func (f *providerFundingFixture) policyPath() string {
@@ -82,7 +87,22 @@ func (f *providerFundingFixture) api(method, path string, body any, want int) ma
 			f.t.Fatal(err)
 		}
 	}
-	r := testutil.Request(f.t, f.manager.Handler(), method, path, string(data), testutil.AdminKey)
+	var r *httptest.ResponseRecorder
+	if f.apiBase == "" {
+		r = testutil.Request(f.t, f.manager.Handler(), method, path, string(data), testutil.AdminKey)
+	} else {
+		req, _ := http.NewRequest(method, f.apiBase+path, bytes.NewReader(data))
+		req.Header.Set("Authorization", "Bearer "+testutil.AdminKey)
+		req.Header.Set("Content-Type", "application/json")
+		res, err := (&http.Client{Timeout: 25 * time.Second}).Do(req)
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		defer res.Body.Close()
+		r = httptest.NewRecorder()
+		r.WriteHeader(res.StatusCode)
+		_, _ = io.Copy(r, res.Body)
+	}
 	testutil.RequireStatus(f.t, r, want)
 	if bytes.Contains(r.Body.Bytes(), []byte("FUNDING-SYNTHETIC-")) || bytes.Contains(r.Body.Bytes(), []byte("controlled-core-key")) {
 		f.t.Fatal("funding response leaked a credential")
@@ -164,6 +184,14 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	proxy.ModifyResponse = func(res *http.Response) error {
 		path := res.Request.URL.Path
+		if path == "/v8/management/inference-gates/operations" && f.loseAck.CompareAndSwap(true, false) {
+			_ = res.Body.Close()
+			res.StatusCode = 503
+			res.Body = io.NopCloser(strings.NewReader(`{"error":"controlled_lost_ack"}`))
+			res.ContentLength = -1
+			res.Header.Del("Content-Length")
+			return nil
+		}
 		if res.StatusCode != 200 || path != "/v8/management/inference-gates/providers/key-match" && path != "/v8/management/inference-gates/providers/eligibility" {
 			return nil
 		}
@@ -201,6 +229,10 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 		return nil
 	}
 	management := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/v8/management/inference-gates/operations/") && f.hideReceipt.Load() {
+			w.WriteHeader(503)
+			return
+		}
 		// Fault injection edits JSON, so request its identity representation.
 		// Production management transport and Core compression stay unchanged.
 		r.Header.Set("Accept-Encoding", "identity")
@@ -214,6 +246,7 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 	}))
 	t.Cleanup(management.Close)
 	cfg := testutil.NewConfig(t)
+	f.config = cfg
 	protector, err := security.NewProtector([]byte("0123456789abcdef0123456789abcdef"))
 	if err != nil {
 		t.Fatal(err)

@@ -1,4 +1,5 @@
 import { OfficialBalancePanel } from '../OfficialBalancePanel';
+import { ProviderMoneyPanel } from '../ProviderMoneyPanel';
 import type { OfficialBalancePanelProps } from '../OfficialBalancePanel';
 import type { OfficialBalanceAdapter } from '@/services/api/officialBalance';
 import { useTranslation } from 'react-i18next';
@@ -268,6 +269,9 @@ export function ProviderDetailDrawer({
 
     return (
       <>
+        {officialBalance && row.kind === 'openai' && row.raw.resourceId && (
+          <ProviderMoneyPanel {...officialBalance} providerId={row.raw.resourceId} />
+        )}
         {officialBalance && (
           <OfficialBalancePanel
             {...officialBalance}

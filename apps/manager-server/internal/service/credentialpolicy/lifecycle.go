@@ -12,11 +12,12 @@ import (
 // runtime lifecycle is extended; policy does not own another quota scheduler.
 type CoordinatedService struct {
 	*fr.Service
-	Policy *Service
-	mu     sync.Mutex
-	stop   context.CancelFunc
-	done   chan struct{}
-	closed bool
+	Policy     *Service
+	Additional []func(context.Context) error
+	mu         sync.Mutex
+	stop       context.CancelFunc
+	done       chan struct{}
+	closed     bool
 }
 
 func (s *CoordinatedService) Run(ctx context.Context) error {
@@ -35,7 +36,16 @@ func (s *CoordinatedService) Run(ctx context.Context) error {
 	discovery, stopDiscovery := context.WithTimeout(worker, 5*time.Second)
 	_, _ = s.Policy.source(discovery, "") // warms all descriptors; selects no credential
 	stopDiscovery()
-	go func() { defer close(done); _ = s.Policy.Run(worker) }()
+	go func() {
+		defer close(done)
+		var workers sync.WaitGroup
+		workers.Add(1 + len(s.Additional))
+		go func() { defer workers.Done(); _ = s.Policy.Run(worker) }()
+		for _, run := range s.Additional {
+			go func() { defer workers.Done(); _ = run(worker) }()
+		}
+		workers.Wait()
+	}()
 	defer func() { cancel(); <-done }()
 	return s.Service.Run(ctx)
 }

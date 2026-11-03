@@ -312,6 +312,11 @@ func providerFundingProofNetwork(t *testing.T) balance.NetworkOptions {
 }
 
 func providerFundingNetwork(t *testing.T, respond http.HandlerFunc) balance.NetworkOptions {
+	network, _, _ := providerFundingTLS(t, respond)
+	return network
+}
+
+func providerFundingTLS(t *testing.T, respond http.HandlerFunc) (balance.NetworkOptions, []byte, string) {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -350,5 +355,5 @@ func providerFundingNetwork(t *testing.T, respond http.HandlerFunc) balance.Netw
 			return nil, fmt.Errorf("unexpected fixture address")
 		}
 		return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
-	}}
+	}}, der, server.Listener.Addr().String()
 }
