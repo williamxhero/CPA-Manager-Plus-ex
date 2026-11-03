@@ -46,7 +46,24 @@ export function providerBindingKey(binding: BalanceBinding): string {
   ]);
 }
 
-export async function providerPolicyRequest(
+interface PolicyChange { base: string; managementKey: string; providerId: string }
+const changeListeners = new Set<(change: PolicyChange) => void>();
+export function subscribeProviderPolicyChanges(listener: (change: PolicyChange) => void) {
+  changeListeners.add(listener);
+  return () => { changeListeners.delete(listener); };
+}
+
+export async function providerPolicyRequest(...args: Parameters<typeof request>) {
+  try {
+    return await request(...args);
+  } finally {
+    // An unacknowledged write can still have persisted. Revalidate only the
+    // matching connection/auth scope, including failed recovery attempts.
+    if (args[5]) changeListeners.forEach(listener => listener({ base: args[0], managementKey: args[1], providerId: args[3] }));
+  }
+}
+
+async function request(
   base: string,
   managementKey: string,
   binding: BalanceBinding,

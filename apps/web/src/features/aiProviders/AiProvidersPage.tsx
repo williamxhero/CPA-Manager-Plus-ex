@@ -1637,6 +1637,8 @@ export function AiProvidersPage() {
 
           <Card>
             <ProviderTable
+              moneyStatus={{ base: featureAvailability.managerServiceBase, managementKey: balanceManagementKey,
+                disabled: !featureAvailability.managerServiceAvailable, bindingForRow: (row) => forProvider(row, rows).binding }}
               resourceProtection={resourceProtection}
               resourceProtectionForRow={(row) => forProvider(row, rows)}
               rows={pagedRows}
