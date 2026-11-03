@@ -52,6 +52,11 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	if q.Version == 0 {
 		return Job{}, ErrInput
 	}
+	if st.Adapter == balance.LaysoBillingWebV1 && !st.DirectQuery {
+		// Registration alone cannot authorize a browser read. Keep this source
+		// out of the API querier until a verified browser/parser is available.
+		return Job{}, ErrInput
+	}
 	id := key(q.Binding)
 	flight := id + ":" + strconv.FormatInt(q.Version, 10) + ":" + operationKey(q.Binding)
 	if existing := s.running[flight]; existing != "" {
@@ -91,6 +96,9 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 	doc, _ := json.Marshal(job)
 	bindingJSON, _ := json.Marshal(job.Binding)
 	initial := balance.Observation{QueryID: job.ID, QueryStatus: "running", ObservedAtMS: started.UnixMilli(), DeadlineMS: job.DeadlineMS, Binding: bindingJSON}
+	if st.Adapter == balance.LaysoBillingWebV1 {
+		initial.ObservedAtMS = 0
+	}
 	attemptJSON, _ := json.Marshal(initial)
 	startCtx, cancelStart := context.WithDeadline(ctx, deadline)
 	defer cancelStart()
@@ -145,24 +153,49 @@ func (s *Service) run(job Job, st Status, flight, id string) {
 	}
 	if startErr != nil {
 		obs = balance.Observation{QueryStatus: "network_error", ErrorCode: "START_FENCE_UNAVAILABLE", ObservedAtMS: time.Now().UnixMilli(), DeadlineMS: job.DeadlineMS}
+		if st.Adapter == balance.LaysoBillingWebV1 {
+			obs.ObservedAtMS = 0
+		}
 	} else {
 		record, loadErr := s.Store.OfficialBalance(ctx, id)
 		if loadErr != nil || record.Version != st.Version {
 			record.SecretRef = "invalid"
 		}
-		obs, err = s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI, Volcengine: st.Volcengine, Aliyun: st.Aliyun}, resolver{s.Store, id, st.Version})
+		if st.Adapter == balance.LaysoBillingWebV1 {
+			if loadErr != nil || record.Version != st.Version || s.WebReader == nil {
+				obs = balance.Observation{QueryStatus: "unavailable", ErrorCode: "WEB_SOURCE_CHANGED"}
+			} else {
+				webCtx, webCancel := context.WithDeadline(ctx, deadline.Add(-reserve))
+				obs = s.WebReader.Query(webCtx, webRequest(st.Config))
+				webCancel()
+			}
+		} else {
+			obs, err = s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI, Volcengine: st.Volcengine, Aliyun: st.Aliyun}, resolver{s.Store, id, st.Version})
+		}
 	}
 	// Revalidate full Core scope/versions, even after failures; no cached authority.
-	valid := s.verify(ctx, job.Binding)
+	finishCtx := ctx
+	if st.Adapter == balance.LaysoBillingWebV1 {
+		// Cancellation must stop acquisition without preventing its failure from
+		// becoming durable. Only identity revalidation/SQLite finalization get a
+		// fresh cancellation state, bounded by the SAME hard management deadline.
+		var finishCancel context.CancelFunc
+		finishCtx, finishCancel = context.WithDeadline(context.WithoutCancel(ctx), deadline)
+		defer finishCancel()
+	}
+	valid := s.verify(finishCtx, job.Binding)
+	if st.Adapter == balance.LaysoBillingWebV1 && errors.Is(ctx.Err(), context.Canceled) && obs.ErrorCode != "WEB_CLEANUP_FAILED" {
+		obs = balance.Observation{CapabilityStatus: "supported", QueryStatus: "network_error", ErrorCode: "WEB_CANCELLED"}
+	}
 	s.mu.Lock()
 	job.State = "discarded"
 	if err == nil && valid {
 		obs.QueryID = job.ID
 		obs.Binding, _ = json.Marshal(job.Binding)
 		data, _ := json.Marshal(obs)
-		if s.Store.CompleteOfficialBalance(ctx, id, st.Version, job.ID, string(data), obs.QueryStatus == "success") == nil {
+		if s.Store.CompleteOfficialBalance(finishCtx, id, st.Version, job.ID, string(data), obs.QueryStatus == "success") == nil {
 			job.State = "complete"
-			current, e := s.read(ctx, job.Binding)
+			current, e := s.read(finishCtx, job.Binding)
 			if e == nil {
 				job.Status = &current
 			}
@@ -170,7 +203,7 @@ func (s *Service) run(job Job, st Status, flight, id string) {
 	}
 	// Never extend the hard management deadline merely to persist diagnostics.
 	doc, _ := json.Marshal(job)
-	saved := s.Store.SaveOfficialBalanceJob(ctx, job.ID, id, string(doc))
+	saved := s.Store.SaveOfficialBalanceJob(finishCtx, job.ID, id, string(doc))
 	observer := s.completed
 	s.mu.Unlock()
 	if saved == nil && job.State == "complete" && job.Status != nil && observer != nil {

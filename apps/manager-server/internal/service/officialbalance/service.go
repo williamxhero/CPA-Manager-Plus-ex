@@ -36,6 +36,7 @@ type Config struct {
 	NewAPI         *balance.NewAPIConfig     `json:"newAPI,omitempty"`
 	Volcengine     *balance.VolcengineConfig `json:"volcengine,omitempty"`
 	Aliyun         *balance.AliyunConfig     `json:"aliyun,omitempty"`
+	Web            *balance.WebConfig        `json:"web,omitempty"`
 }
 type Update struct {
 	Config
@@ -44,14 +45,16 @@ type Update struct {
 }
 type Status struct {
 	Config
-	Configured  bool                 `json:"configured"`
-	State       string               `json:"state"`
-	DirectQuery bool                 `json:"managerDirectQuery"`
-	CoreQuery   bool                 `json:"coreQuery"`
-	CoreGate    bool                 `json:"coreGate"`
-	Stale       bool                 `json:"stale"`
-	Attempt     *balance.Observation `json:"attempt,omitempty"`
-	LastSuccess *balance.Observation `json:"lastSuccess,omitempty"`
+	Configured         bool                 `json:"configured"`
+	State              string               `json:"state"`
+	Reason             string               `json:"reason,omitempty"`
+	WebSourceAuthority string               `json:"webSourceAuthority,omitempty"`
+	DirectQuery        bool                 `json:"managerDirectQuery"`
+	CoreQuery          bool                 `json:"coreQuery"`
+	CoreGate           bool                 `json:"coreGate"`
+	Stale              bool                 `json:"stale"`
+	Attempt            *balance.Observation `json:"attempt,omitempty"`
+	LastSuccess        *balance.Observation `json:"lastSuccess,omitempty"`
 }
 type Service struct {
 	running   map[string]string
@@ -61,6 +64,7 @@ type Service struct {
 	Store     *store.Store
 	Identity  *rc.Service
 	Querier   balance.Querier
+	WebReader balance.WebReader
 	mu        sync.Mutex
 }
 
@@ -97,7 +101,7 @@ func (s *Service) SetCompletionObserver(fn func(Job, Status)) {
 	s.completed = fn
 }
 func New(st *store.Store, identity *rc.Service, options ...Option) *Service {
-	s := &Service{Store: st, Identity: identity, Querier: balance.New(), running: map[string]string{}, budget: managementquery.NewBudget(st)}
+	s := &Service{Store: st, Identity: identity, Querier: balance.New(), WebReader: balance.NewBrowserSkill(balance.BrowserSkillOptions{}), running: map[string]string{}, budget: managementquery.NewBudget(st)}
 	for _, option := range options {
 		option(s)
 	}
@@ -225,7 +229,20 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	if u.Version < 0 || u.Version >= 9007199254740991 || len(u.Secret) > 8192 || u.ClearSecret && strings.TrimSpace(u.Secret) != "" || u.TimeoutMS < 0 || u.TimeoutMS > 60000 || len(u.PrivateTargets) > 16 {
 		return Status{}, ErrInput
 	}
-	if u.Adapter != "deepseek" && u.Adapter != "deepinfra" && u.Adapter != balance.NewAPIUserSelfV1 && u.Adapter != balance.NewAPITokenUsageV1 && u.Adapter != balance.VolcengineAccountBalanceV20220101 && u.Adapter != balance.AliyunPrepaidCashV20171214 {
+	if u.Adapter != "deepseek" && u.Adapter != "deepinfra" && u.Adapter != balance.NewAPIUserSelfV1 && u.Adapter != balance.NewAPITokenUsageV1 && u.Adapter != balance.VolcengineAccountBalanceV20220101 && u.Adapter != balance.AliyunPrepaidCashV20171214 && u.Adapter != balance.LaysoBillingWebV1 {
+		return Status{}, ErrInput
+	}
+	if u.Adapter == balance.LaysoBillingWebV1 {
+		if balance.ValidateWebContract(u.Web) != nil || u.Secret != "" || len(u.PrivateTargets) != 0 || u.Endpoint != "" && u.Endpoint != balance.LaysoBillingPage {
+			return Status{}, ErrInput
+		}
+		if u.Web.ParsingRule != "unverified" && (s.WebReader == nil || !s.WebReader.SupportsRule(u.Web.ParsingRule)) {
+			return Status{}, ErrInput
+		}
+		u.Endpoint = balance.LaysoBillingPage
+		// Web sources never inherit an API credential, including API -> web.
+		u.ClearSecret = true
+	} else if u.Web != nil {
 		return Status{}, ErrInput
 	}
 	if u.Adapter == balance.AliyunPrepaidCashV20171214 {
@@ -261,8 +278,10 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	if u.Endpoint == "" && u.Adapter == "deepinfra" {
 		u.Endpoint = "https://api.deepinfra.com/payment/checklist"
 	}
-	if err := balance.ValidateAdapterSource(u.Adapter, u.Endpoint, u.PrivateTargets); err != nil {
-		return Status{}, ErrInput
+	if u.Adapter != balance.LaysoBillingWebV1 {
+		if err := balance.ValidateAdapterSource(u.Adapter, u.Endpoint, u.PrivateTargets); err != nil {
+			return Status{}, ErrInput
+		}
 	}
 	inventory := s.Identity.Inventory(ctx)
 	if !verifyInventory(inventory, u.Binding) {
@@ -334,11 +353,26 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 	}
 	out.Binding = b
 	out.Configured = r.Configured
-	out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra" || out.Adapter == balance.VolcengineAccountBalanceV20220101 && balance.ValidateVolcengineContract(out.Volcengine) == nil || out.Adapter == balance.AliyunPrepaidCashV20171214 && balance.ValidateAliyunContract(out.Aliyun) == nil || ((out.Adapter == balance.NewAPIUserSelfV1 || out.Adapter == balance.NewAPITokenUsageV1) && balance.ValidateNewAPIContract(out.Adapter, out.NewAPI) == nil)
-	if !out.DirectQuery {
-		out.State = "unsupported"
-	} else if r.Configured {
-		out.State = "ready"
+	if out.Adapter == balance.LaysoBillingWebV1 {
+		// The complete typed contract is durable configuration. A fake secret
+		// must never be needed to make a web source appear configured.
+		out.Configured = balance.ValidateWebContract(out.Web) == nil && out.Endpoint == balance.LaysoBillingPage && len(out.PrivateTargets) == 0 && out.NewAPI == nil && out.Volcengine == nil && out.Aliyun == nil
+		request := webRequest(out.Config)
+		out.WebSourceAuthority = request.Authority
+		out.DirectQuery = out.Configured && s.WebReader != nil && s.WebReader.Ready(request)
+		if out.Configured && !out.DirectQuery {
+			out.State = "unavailable"
+			out.Reason = "web_source_verification_required"
+		} else if out.DirectQuery {
+			out.State = "ready"
+		}
+	} else {
+		out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra" || out.Adapter == balance.VolcengineAccountBalanceV20220101 && balance.ValidateVolcengineContract(out.Volcengine) == nil || out.Adapter == balance.AliyunPrepaidCashV20171214 && balance.ValidateAliyunContract(out.Aliyun) == nil || ((out.Adapter == balance.NewAPIUserSelfV1 || out.Adapter == balance.NewAPITokenUsageV1) && balance.ValidateNewAPIContract(out.Adapter, out.NewAPI) == nil)
+		if !out.DirectQuery {
+			out.State = "unsupported"
+		} else if r.Configured {
+			out.State = "ready"
+		}
 	}
 	if r.Attempt != "" {
 		json.Unmarshal([]byte(r.Attempt), &out.Attempt)
@@ -347,13 +381,18 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 				out.Attempt.QueryStatus = "network_error"
 				out.Attempt.ErrorCode = "MANAGEMENT_BUDGET_EXHAUSTED"
 			}
-			out.State = out.Attempt.QueryStatus
+			if out.Adapter != balance.LaysoBillingWebV1 || out.DirectQuery {
+				out.State = out.Attempt.QueryStatus
+			}
 		}
 	}
 	if r.LastSuccess != "" {
 		json.Unmarshal([]byte(r.LastSuccess), &out.LastSuccess)
 	}
-	out.Stale = out.LastSuccess != nil && (out.Attempt == nil || out.Attempt.QueryStatus != "success" || time.Now().UnixMilli()-out.LastSuccess.ObservedAtMS >= 3600000)
+	if out.Adapter == balance.LaysoBillingWebV1 && out.LastSuccess != nil && (out.LastSuccess.WebEvidence == nil || out.LastSuccess.WebEvidence.Authority != out.WebSourceAuthority) {
+		out.LastSuccess = nil
+	}
+	out.Stale = out.LastSuccess != nil && (!out.DirectQuery || out.Attempt == nil || out.Attempt.QueryStatus != "success" || time.Now().UnixMilli()-out.LastSuccess.ObservedAtMS >= 3600000)
 	if out.LastSuccess != nil {
 		var observed Binding
 		if json.Unmarshal(out.LastSuccess.Binding, &observed) != nil || !same(observed, b) {
@@ -361,6 +400,16 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 		}
 	}
 	return out, nil
+}
+
+func webRequest(c Config) balance.WebRequest {
+	raw, _ := json.Marshal(c)
+	h := sha256.Sum256(raw)
+	q := balance.WebRequest{Authority: hex.EncodeToString(h[:])}
+	if c.Web != nil {
+		q.Source = *c.Web
+	}
+	return q
 }
 func (s *Service) Status(ctx context.Context, b Binding) (Status, error) {
 	if !s.verify(ctx, b) {

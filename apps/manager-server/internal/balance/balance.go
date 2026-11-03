@@ -52,6 +52,7 @@ type CurrencyBalance struct {
 }
 
 type Observation struct {
+	WebEvidence       *WebEvidence               `json:"webEvidence,omitempty"`
 	AliyunAccount     *AliyunAccountEvidence     `json:"aliyunAccount,omitempty"`
 	VolcengineAccount *VolcengineAccountEvidence `json:"volcengineAccount,omitempty"`
 	Conversion        *NewAPIConversionEvidence  `json:"conversion,omitempty"`

@@ -107,6 +107,7 @@ export function CommonQuotaInventoryPanel({
           </strong>
           <p>
             {s.attempt?.queryStatus ?? s.state} · {s.reason} · {s.stale ? 'stale' : ''}
+            {s.attempt?.errorCode ? ` · ${s.attempt.errorCode}` : ''}
           </p>
           {s.lastSuccess ? (
             <p>
@@ -118,7 +119,13 @@ export function CommonQuotaInventoryPanel({
               {s.lastSuccess.nativeQuota
                 ? `${s.lastSuccess.nativeQuota.unit} ${s.lastSuccess.nativeQuota.state} ${s.lastSuccess.nativeQuota.remaining ?? 'unknown'}`
                 : `${s.lastSuccess.currency ?? ''} ${s.lastSuccess.amountDecimal ?? 'unknown'}`}{' '}
-              · {new Date(s.lastSuccess.observedAtMs).toString()}
+              ·{' '}
+              {typeof s.lastSuccess.observedAtMs === 'number' &&
+              s.lastSuccess.observedAtMs > 0 &&
+              Number.isFinite(s.lastSuccess.observedAtMs) &&
+              !Number.isNaN(new Date(s.lastSuccess.observedAtMs).getTime())
+                ? new Date(s.lastSuccess.observedAtMs).toISOString()
+                : '未产生采集时间'}
             </p>
           ) : (
             <p>{t('credential_policy.observation_unknown')}</p>

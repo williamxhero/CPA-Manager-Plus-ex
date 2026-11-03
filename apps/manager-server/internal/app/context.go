@@ -197,11 +197,15 @@ func fromExisting(
 	identityService := resourcecapabilitysvc.New(accountProcessingPolicyService, managerConfigService)
 	managementBudget := managementquery.NewBudget(st)
 	officialBalanceService := officialbalancesvc.New(st, identityService, officialbalancesvc.WithBudget(managementBudget))
+	webReader, refreshClock := managementRuntimeDependencies()
+	if webReader != nil {
+		officialBalanceService.WebReader = webReader
+	}
 	credentialQuotaService := credentialquotasvc.New(st, identityService, credentialquotasvc.WithBudget(managementBudget))
 	out := &Context{
 		CredentialPolicyService: credentialpolicysvc.New(st, credentialQuotaService, managerConfigService),
 		ManagementQueryBudget:   managementBudget,
-		FullRefreshService:      fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget)),
+		FullRefreshService:      fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget), fullrefreshsvc.WithClock(refreshClock)),
 		OfficialBalanceService:  officialBalanceService,
 		CredentialQuotaService:  credentialQuotaService,
 		UpdateCheckService:      updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),

@@ -173,7 +173,8 @@ it.skipIf(!directory)(
       await wait('auth_error');
       expect(text()).toContain('stale');
       expect(text()).toContain('-0.000000000000000001');
-      expect(text()).toContain(new Date(before.lastSuccess!.observedAtMs).toISOString());
+      expect(before.lastSuccess?.observedAtMs).toBeTypeOf('number');
+      expect(text()).toContain(new Date(before.lastSuccess!.observedAtMs!).toISOString());
       for (const invented of [
         '赠送部分',
         '充值部分',

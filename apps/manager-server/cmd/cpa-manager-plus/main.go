@@ -270,10 +270,13 @@ func runServer() {
 	go serveHTTPServer(server, listener, stop, serverResult)
 	go serverApp.AppContext().UpdateCheckService.Run(ctx)
 	// Management refresh is independent of usage collection and policy settings.
+	fullRefreshResult := make(chan error, 1)
 	go func() {
-		if err := serverApp.AppContext().FullRefreshService.Run(ctx); err != nil {
+		err := serverApp.AppContext().FullRefreshService.Run(ctx)
+		if err != nil {
 			log.Printf("[full-refresh] background lifecycle unavailable: %v", err)
 		}
+		fullRefreshResult <- err
 	}()
 	if err := serverApp.AppContext().UsageService.StartImportSessionCleanup(ctx); err != nil {
 		log.Printf("[startup] start usage import session cleanup: %v", err)
@@ -341,6 +344,11 @@ func runServer() {
 	stopCodexInspectionWorker(codexInspectionWorker, 20*time.Second)
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelShutdown()
+	// A failed Run can leave later manual hosts active. Explicitly close the
+	// shared lifecycle before SQLite, even if Run has already returned.
+	if err := stopFullRefresh(shutdownCtx, serverApp.AppContext().FullRefreshService, fullRefreshResult); err != nil {
+		log.Printf("shutdown full-refresh: %v; continuing bounded process shutdown", err)
+	}
 	collectorWorker.Stop(context.Background())
 	if pprofServer != nil {
 		if err := pprofServer.Shutdown(shutdownCtx); err != nil {
@@ -365,6 +373,29 @@ func serveHTTPServer(server *http.Server, listener net.Listener, stop context.Ca
 	}
 	result <- err
 	stop()
+}
+
+type fullRefreshStopper interface {
+	Shutdown(context.Context) error
+}
+
+func stopFullRefresh(ctx context.Context, refresh fullRefreshStopper, runResult <-chan error) error {
+	// Shutdown may wait for a coordinator lock or an uncooperative dependency.
+	// Keep both it and Run inside the caller's one existing shutdown deadline.
+	shutdownResult := make(chan error, 1)
+	go func() { shutdownResult <- refresh.Shutdown(ctx) }()
+	var shutdownErr error
+	select {
+	case shutdownErr = <-shutdownResult:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-runResult:
+		return shutdownErr
+	case <-ctx.Done():
+		return errors.Join(shutdownErr, ctx.Err())
+	}
 }
 
 type codexInspectionStopper interface {
