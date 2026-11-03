@@ -30,6 +30,7 @@ import (
 	officialbalancesvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
 	panelsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/panel"
 	providerkeyaliassvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providerkeyalias"
+	providerpolicysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providerpolicy"
 	proxysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/proxy"
 	quotasnapshotsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/quotasnapshot"
 	resourcecapabilitysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
@@ -68,6 +69,7 @@ type FullRefreshCoordinator interface {
 }
 
 type Context struct {
+	ProviderPolicyService   *providerpolicysvc.Service
 	CredentialPolicyService *credentialpolicysvc.Service
 	ManagementQueryBudget   *managementquery.Budget
 	FullRefreshService      FullRefreshCoordinator
@@ -203,6 +205,7 @@ func fromExisting(
 	}
 	credentialQuotaService := credentialquotasvc.New(st, identityService, credentialquotasvc.WithBudget(managementBudget))
 	out := &Context{
+		ProviderPolicyService:   providerpolicysvc.New(st, identityService),
 		CredentialPolicyService: credentialpolicysvc.New(st, credentialQuotaService, managerConfigService),
 		ManagementQueryBudget:   managementBudget,
 		FullRefreshService:      fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget), fullrefreshsvc.WithClock(refreshClock)),
