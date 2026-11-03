@@ -46,12 +46,6 @@ func TestCodexLegacyIdentityBackfillServesHTTPBeforeCompletionAndResumes(t *test
 	}
 
 	first := startManagerServerProcess(t, tempDir, dbPath)
-	firstStopped := false
-	t.Cleanup(func() {
-		if !firstStopped {
-			first.stop(t)
-		}
-	})
 	assertManagerEndpoint(t, first.addr, "/management.html")
 	assertManagerEndpoint(t, first.addr, "/usage-service/info")
 	assertManagerEndpoint(t, first.addr, "/health")
@@ -63,7 +57,6 @@ func TestCodexLegacyIdentityBackfillServesHTTPBeforeCompletionAndResumes(t *test
 	}
 	waitForCodexIdentityCoverage(t, observer, initial)
 	first.stop(t)
-	firstStopped = true
 	checkpoint := readCodexIdentityCoverage(t, observer)
 	if checkpoint <= 0 || checkpoint >= rowCount {
 		t.Fatalf("interrupted identity coverage = %d", checkpoint)
@@ -73,18 +66,11 @@ func TestCodexLegacyIdentityBackfillServesHTTPBeforeCompletionAndResumes(t *test
 	}
 
 	second := startManagerServerProcess(t, tempDir, dbPath)
-	secondStopped := false
-	t.Cleanup(func() {
-		if !secondStopped {
-			second.stop(t)
-		}
-	})
 	assertManagerEndpoint(t, second.addr, "/management.html")
 	assertManagerEndpoint(t, second.addr, "/usage-service/info")
 	assertManagerEndpoint(t, second.addr, "/health")
 	waitForCodexIdentityCoverage(t, observer, checkpoint)
 	second.stop(t)
-	secondStopped = true
 	if after := readUsageEventsSummaryFromDB(t, observer); after != before {
 		t.Fatalf("resumed identity backfill changed raw events: before=%+v after=%+v", before, after)
 	}

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
@@ -321,12 +320,6 @@ func TestLargeDerivedMigrationServesHTTPAndResumesAfterRestart(t *testing.T) {
 	before := prepareLargeStartupMigrationFixture(t, dbPath, rowCount)
 
 	first := startManagerServerProcess(t, tempDir, dbPath)
-	firstStopped := false
-	t.Cleanup(func() {
-		if !firstStopped {
-			first.stop(t)
-		}
-	})
 	assertManagerEndpoint(t, first.addr, "/management.html")
 	assertManagerEndpoint(t, first.addr, "/usage-service/info")
 
@@ -338,7 +331,6 @@ func TestLargeDerivedMigrationServesHTTPAndResumesAfterRestart(t *testing.T) {
 	}
 	waitForMonitoringCleanupProgress(t, observer, processed)
 	first.stop(t)
-	firstStopped = true
 	status, checkpoint := readMonitoringCleanupProgress(t, observer)
 	if status != "online_cleanup" || checkpoint <= 0 || checkpoint >= rowCount {
 		t.Fatalf("interrupted cleanup checkpoint = status:%q processed:%d", status, checkpoint)
@@ -348,17 +340,10 @@ func TestLargeDerivedMigrationServesHTTPAndResumesAfterRestart(t *testing.T) {
 	}
 
 	second := startManagerServerProcess(t, tempDir, dbPath)
-	secondStopped := false
-	t.Cleanup(func() {
-		if !secondStopped {
-			second.stop(t)
-		}
-	})
 	assertManagerEndpoint(t, second.addr, "/management.html")
 	assertManagerEndpoint(t, second.addr, "/usage-service/info")
 	waitForMonitoringCleanupProgress(t, observer, checkpoint)
 	second.stop(t)
-	secondStopped = true
 	_, resumedCheckpoint := readMonitoringCleanupProgress(t, observer)
 	if resumedCheckpoint <= checkpoint {
 		t.Fatalf("cleanup did not resume after restart: before=%d after=%d", checkpoint, resumedCheckpoint)
@@ -424,76 +409,78 @@ func prepareLargeStartupMigrationFixture(t testing.TB, dbPath string, rowCount i
 }
 
 type managerServerProcess struct {
-	cmd  *exec.Cmd
-	addr string
-	done chan error
-	logs *synchronizedLog
+	cmd      *exec.Cmd
+	addr     string
+	done     chan struct{}
+	waitErr  error
+	logs     *synchronizedLog
+	stopOnce sync.Once
+	stopErr  error
 }
 
 type synchronizedLog struct {
-	mu    sync.Mutex
-	lines []string
+	mu        sync.Mutex
+	content   bytes.Buffer
+	listening chan string
+	addr      string
 }
 
-func (l *synchronizedLog) append(line string) {
+func (l *synchronizedLog) Write(data []byte) (int, error) {
 	l.mu.Lock()
-	l.lines = append(l.lines, line)
-	l.mu.Unlock()
+	defer l.mu.Unlock()
+	n, err := l.content.Write(data)
+	// Keep draining stderr after readiness, without a bounded line queue that
+	// could block the child (and cmd.Wait) during shutdown.
+	const marker = "cpa-manager-plus listening on "
+	if l.addr == "" {
+		if _, rest, ok := strings.Cut(l.content.String(), marker); ok {
+			if addr, _, complete := strings.Cut(rest, "\n"); complete {
+				l.addr = strings.TrimSpace(addr)
+				l.listening <- l.addr
+			}
+		}
+	}
+	return n, err
 }
 
 func (l *synchronizedLog) String() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return strings.Join(l.lines, "\n")
+	return l.content.String()
 }
 
 func startManagerServerProcess(t testing.TB, dataDir, dbPath string) *managerServerProcess {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], "-test.run=^TestManagerServerHelperProcess$")
 	cmd.Env = managerServerTestEnvironment(dataDir, dbPath)
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		t.Fatalf("open manager server stderr: %v", err)
-	}
+	configureManagerServerProcess(cmd)
+	logs := &synchronizedLog{listening: make(chan string, 1)}
+	cmd.Stderr = logs
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start manager server helper: %v", err)
 	}
 	process := &managerServerProcess{
 		cmd:  cmd,
-		done: make(chan error, 1),
-		logs: &synchronizedLog{},
+		done: make(chan struct{}),
+		logs: logs,
 	}
-	lines := make(chan string, 128)
 	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			process.logs.append(line)
-			lines <- line
-		}
-		close(lines)
+		process.waitErr = cmd.Wait()
+		close(process.done)
 	}()
-	go func() { process.done <- cmd.Wait() }()
+	// Register ownership before waiting for readiness: every startup/shutdown
+	// failure must reap this exact child. stop is safe to call again in Cleanup.
+	t.Cleanup(func() { process.stop(t) })
+	t.Logf("manager helper pid=%d started", cmd.Process.Pid)
 
 	deadline := time.NewTimer(20 * time.Second)
 	defer deadline.Stop()
-	for process.addr == "" {
-		select {
-		case line, ok := <-lines:
-			if !ok {
-				t.Fatalf("manager server helper exited before listening:\n%s", process.logs.String())
-			}
-			const marker = "cpa-manager-plus listening on "
-			if index := strings.Index(line, marker); index >= 0 {
-				process.addr = strings.TrimSpace(line[index+len(marker):])
-			}
-		case err := <-process.done:
-			t.Fatalf("manager server helper exited before listening: %v\n%s", err, process.logs.String())
-		case <-deadline.C:
-			_ = cmd.Process.Kill()
-			<-process.done
-			t.Fatalf("manager server helper did not listen within timeout:\n%s", process.logs.String())
-		}
+	select {
+	case process.addr = <-logs.listening:
+	case <-process.done:
+		t.Fatalf("manager server helper exited before listening: %v\n%s", process.waitErr, process.logs.String())
+	case <-deadline.C:
+		t.Fatalf("manager server helper did not listen within timeout:\n%s", process.logs.String())
 	}
 	return process
 }
@@ -525,19 +512,46 @@ func managerServerTestEnvironment(dataDir, dbPath string) []string {
 
 func (p *managerServerProcess) stop(t testing.TB) {
 	t.Helper()
-	if err := p.cmd.Process.Signal(os.Interrupt); err != nil {
-		t.Fatalf("signal manager server helper: %v", err)
+	p.stopOnce.Do(func() {
+		p.stopErr = p.stopAndWait()
+		if p.stopErr == nil {
+			t.Logf("manager helper pid=%d stopped gracefully (joined)", p.cmd.Process.Pid)
+		}
+	})
+	if p.stopErr != nil {
+		t.Fatalf("%v\n%s", p.stopErr, p.logs.String())
+	}
+}
+
+func (p *managerServerProcess) stopAndWait() error {
+	select {
+	case <-p.done:
+		return fmt.Errorf("manager server helper exited before shutdown signal: %v", p.waitErr)
+	default:
+	}
+	if err := signalManagerServerProcess(p.cmd); err != nil {
+		// A failed signal is still a failed test, but must not leave a child
+		// holding its SQLite files open. Kill is emergency cleanup only.
+		return errors.Join(fmt.Errorf("signal manager server helper: %w", err), p.killAndWait())
 	}
 	select {
-	case err := <-p.done:
-		if err != nil {
-			t.Fatalf("manager server helper shutdown: %v\n%s", err, p.logs.String())
+	case <-p.done:
+		if p.waitErr != nil {
+			return fmt.Errorf("manager server helper shutdown: %w", p.waitErr)
 		}
+		return nil
 	case <-time.After(20 * time.Second):
-		_ = p.cmd.Process.Kill()
-		<-p.done
-		t.Fatalf("manager server helper shutdown timed out:\n%s", p.logs.String())
+		return errors.Join(errors.New("manager server helper shutdown timed out"), p.killAndWait())
 	}
+}
+
+func (p *managerServerProcess) killAndWait() error {
+	err := p.cmd.Process.Kill()
+	<-p.done
+	if err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return fmt.Errorf("kill manager server helper after failed shutdown: %w", err)
+	}
+	return nil
 }
 
 func assertManagerEndpoint(t testing.TB, addr, path string) {
