@@ -60,4 +60,9 @@ restart, withdrawal, identity rejection and refusal to self-certify. It reuses
 the owned-process shutdown helper from `acceptance.py`. Set `CPAMP_ENTRY_GO`
 and `CPAMP_ENTRY_GOCACHE` to the offline Go toolchain/cache. An optional
 `--artifact PATH` runs the same scenario against an existing executable for RED.
+Every executable is checked offline with `go version -m` before launch; a tagged
+or different entry point is rejected. An external executable's source commit
+is reported as unknown by the runner and must be linked to its original build
+manifest by the evidence recorder; current worktree HEAD is only the harness
+commit. Default clean builds record their actual build commit.
 These controlled checks are not real-account or real-browser acceptance.

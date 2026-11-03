@@ -19,6 +19,24 @@ spec.loader.exec_module(entry)
 OUT = Path(sys.argv[1]).resolve()
 
 
+def verify_ordinary_artifact(artifact):
+    # Read Go metadata without executing the candidate. A caller-supplied exe
+    # cannot self-certify its entry point, build tags or source commit.
+    command = [str(entry.GO), 'version', '-m', str(artifact)]
+    result = subprocess.run(command, env=entry.BUILD_ENV, capture_output=True)
+    (OUT / 'artifact.modules.stdout.log').write_bytes(result.stdout)
+    (OUT / 'artifact.modules.stderr.log').write_bytes(result.stderr)
+    metadata = result.stdout.decode('utf-8', errors='replace')
+    target = '\tpath\tgithub.com/seakee/cpa-manager-plus/apps/manager-server/cmd/cpa-manager-plus\n'
+    verified = (result.returncode == 0 and target in metadata and
+                '\tbuild\t-buildmode=exe\n' in metadata and '\tbuild\t-tags=' not in metadata)
+    entry.dump(OUT / 'ARTIFACT-IDENTITY.json', dict(command=command, exitCode=result.returncode,
+               artifactSHA256=entry.sha(artifact) if artifact.is_file() else None,
+               ordinaryVerified=verified, sourceCommitFromMetadata=None))
+    if not verified:
+        raise SystemExit('ordinary artifact identity verification failed before launch')
+
+
 class EnrollmentAcceptance(unittest.TestCase):
     def setUp(self):
         self.folder = OUT / self._testMethodName
@@ -91,12 +109,14 @@ if __name__ == '__main__':
         assert not subprocess.check_output(['git', 'status', '--porcelain'], cwd=entry.SOURCE), 'Build from clean commit only'
         entry.PRODUCTION_ARTIFACT = OUT / 'cpa-manager-ordinary.exe'
         builds = [entry.build('', entry.PRODUCTION_ARTIFACT)]
+    verify_ordinary_artifact(entry.PRODUCTION_ARTIFACT)
     suite = unittest.TestLoader().loadTestsFromTestCase(EnrollmentAcceptance)
     with (OUT / 'tests.stderr.log').open('w', encoding='utf-8') as stream:
         result = unittest.TextTestRunner(stream=stream, verbosity=2, resultclass=entry.RecordedResult).run(suite)
     after = entry.snapshot()
     processes = [json.loads(p.read_text(encoding='utf-8')) for p in OUT.rglob('PROCESS.json')]
-    entry.dump(OUT / 'RESULT.json', dict(sourceCommit=entry.HEAD, testsRun=result.testsRun,
+    entry.dump(OUT / 'RESULT.json', dict(sourceCommit=entry.HEAD if builds else None,
+               harnessSourceCommit=entry.HEAD, testsRun=result.testsRun,
                success=result.wasSuccessful(), failures=len(result.failures), errors=len(result.errors),
                skips=len(result.skipped), events=result.events, builds=builds, processes=processes,
                sourceBefore=before, sourceAfter=after, sourceUnchanged=before == after,

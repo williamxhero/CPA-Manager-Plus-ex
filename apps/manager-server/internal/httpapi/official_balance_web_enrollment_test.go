@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -222,4 +223,50 @@ func TestOfficialBalanceWebEnrollmentConcurrentWritersCAS(t *testing.T) {
 	if enrollmentRead(t, f.handler)["registrationVersion"] != float64(1) {
 		t.Fatal("two writers both changed registration")
 	}
+}
+
+func TestOfficialBalanceWebEnrollmentTargetReorderingPreservesRegistration(t *testing.T) {
+	f := newOfficialFixture(t)
+	var snapshot map[string]any
+	if err := json.Unmarshal([]byte(testSnapshotJSON), &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	seed := snapshot["resources"].([]any)[0].(map[string]any)
+	var peer map[string]any
+	if err := json.Unmarshal([]byte(webBody(t, seed)), &peer); err != nil {
+		t.Fatal(err)
+	}
+	peer["resource_id"] = "66666666-6666-4666-8666-666666666666"
+	peer["incarnation"] = "77777777-7777-4777-8777-777777777777"
+	body := webConfiguration(0)
+	seedTarget := body["targets"].([]any)[0].(map[string]any)
+	peerTarget := map[string]any{}
+	for k, v := range seedTarget {
+		peerTarget[k] = v
+	}
+	peerTarget["resource_id"], peerTarget["incarnation"] = peer["resource_id"], peer["incarnation"]
+	seed["source_bindings"], peer["source_bindings"] = []any{peerTarget}, []any{seedTarget}
+	seed["binding_state"], peer["binding_state"] = "verified_projection", "verified_projection"
+	snapshot["resources"] = []any{seed, peer}
+	f.coreSnapshot.Store(webBody(t, snapshot))
+	body["targets"] = []any{seedTarget, peerTarget}
+	rr := testutil.Request(t, f.handler, "PUT", balancePath, webBody(t, body), testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var source map[string]any
+	testutil.DecodeJSON(t, rr, &source)
+	request := map[string]any{"scope": body["scope"], "targets": body["targets"], "version": 1,
+		"sourceAuthority": source["webSourceAuthority"], "registrationVersion": 0, "proofReference": "controlled-group-review-1"}
+	testutil.RequireStatus(t, testutil.Request(t, f.handler, "PUT", enrollmentPath, webBody(t, request), testutil.AdminKey), 200)
+	request["targets"] = []any{peerTarget, seedTarget}
+	binding := map[string]any{"scope": request["scope"], "targets": request["targets"]}
+	rr = testutil.Request(t, f.handler, "GET", enrollmentPath+"?binding="+url.QueryEscape(webBody(t, binding)), "", testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var reordered map[string]any
+	testutil.DecodeJSON(t, rr, &reordered)
+	if reordered["state"] != "pending_verification" || reordered["proofReference"] != request["proofReference"] || reordered["sourceAuthority"] != source["webSourceAuthority"] {
+		t.Fatalf("valid target reordering changed authority: %s", rr.Body.String())
+	}
+	request["registrationVersion"] = 1
+	request["proofReference"] = "controlled-group-review-2"
+	testutil.RequireStatus(t, testutil.Request(t, f.handler, "PUT", enrollmentPath, webBody(t, request), testutil.AdminKey), 200)
 }
