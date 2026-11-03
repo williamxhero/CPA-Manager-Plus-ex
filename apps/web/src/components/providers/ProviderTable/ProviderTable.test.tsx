@@ -172,6 +172,22 @@ describe('ProviderTable', () => {
     return renderer;
   };
 
+  it('opens monetary policy details from a name-leading control without toggling manual state', () => {
+    const rows = buildProviderRows({ ...emptyInput, openai: [{ name: 'money-provider', baseUrl: 'https://api.deepseek.com', apiKeyEntries: [{apiKey:'synthetic'}] }] });
+    const onShowDetail = vi.fn();
+    const onToggle = vi.fn();
+    const renderer = renderTable(rows, { onShowDetail, onToggle });
+    try {
+      const trigger = renderer.root.findAllByType('button').find((b) => b.props['aria-label'] === '打开资金自动保护详情');
+      expect(trigger).toBeDefined();
+      const stopPropagation = vi.fn();
+      act(() => trigger!.props.onClick({ stopPropagation }));
+      expect(stopPropagation).toHaveBeenCalledOnce();
+      expect(onShowDetail).toHaveBeenCalledExactlyOnceWith(rows[0]);
+      expect(onToggle).not.toHaveBeenCalled();
+    } finally { act(() => renderer.unmount()); }
+  });
+
   it('places an unknown automatic protection capability before every name, including disabled rows', () => {
     const rows = buildProviderRows({ ...emptyInput, codex: codexConfigs });
     const renderer = renderTable(rows);

@@ -247,6 +247,18 @@ export function ProviderTable({
             <div className={styles.cellIdentity} role="cell">
               <div className={styles.identityMain}>
                 <ResourceProtectionIndicator {...(resourceProtectionForRow?.(row) ?? {status: resourceProtection})} />
+                {row.kind === 'openai' && (
+                  <button
+                    type="button"
+                    className={styles.moneyDetails}
+                    aria-label="打开资金自动保护详情"
+                    title="资金自动保护详情"
+                    onClick={(event) => { event.stopPropagation(); onShowDetail(row); }}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <span aria-hidden="true">¤</span>
+                  </button>
+                )}
                 <span className={styles.identityLabel} title={row.label}>
                   {row.label}
                 </span>

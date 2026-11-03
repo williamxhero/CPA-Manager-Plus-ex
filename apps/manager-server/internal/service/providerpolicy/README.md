@@ -58,9 +58,19 @@ the existing four query slots and is canceled/waited at coordinator shutdown.
 
 Reopening SQLite preserves intent, fences and confirmed Core restrictions; a
 new successful query may decide against that durable state. Interrupted or
-unknown commands are NOT blindly retried. Full unattended reconciliation of
-pending/unknown outcomes, explicit historical-OFF recovery controls, UI,
-additional adapter/funding coverage and operational acceptance remain unfinished.
+unknown commands are NOT blindly retried. A production lifecycle worker now
+rotates through saved subjects with at most one 15-second attempt per tick. It
+only reads and CAS-persists a verified receipt for an existing immutable command,
+under current complete routing/identity/source authority; an unavailable receipt
+never authorizes replay. Cancellation joins the worker before SQLite closes.
+The provider detail and name-leading entrance expose explicit ON/OFF intent,
+effective/applied/manual state, persisted receipt and exact per-member native
+amounts/lastSuccess/stale through the public management API. Failed reloads keep
+the snapshot and lock writes until authoritative readback; auth/binding changes
+hide the old scope. Ordinary builds exclude fixture DNS/socket/TLS overrides.
+Unknown missing-command disposition, explicit historical-OFF recovery controls,
+all-row live summaries, additional adapter/funding coverage, visual/browser and
+operational acceptance remain unfinished.
 Only the independent worker branch implements this slice; any other candidate
 requires explicit reconciliation before integration. Fixtures are not real
 account acceptance and the entire #82 SPEC is not complete.

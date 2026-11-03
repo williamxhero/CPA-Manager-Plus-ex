@@ -71,6 +71,8 @@ type providerFundingFixture struct {
 	apiBase          string
 	loseAck          atomic.Bool
 	hideReceipt      atomic.Bool
+	slowProvider     atomic.Pointer[string]
+	slowReads        atomic.Int32
 }
 
 func (f *providerFundingFixture) policyPath() string {
@@ -229,6 +231,18 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 		return nil
 	}
 	management := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if slow := f.slowProvider.Load(); slow != nil && r.Method == "POST" && r.URL.Path == "/v8/management/inference-gates/providers/eligibility" {
+			raw, _ := io.ReadAll(r.Body)
+			r.Body = io.NopCloser(bytes.NewReader(raw))
+			var q struct {
+				Targets []rc.Target `json:"targets"`
+			}
+			if json.Unmarshal(raw, &q) == nil && len(q.Targets) > 0 && q.Targets[0].ResourceID == *slow {
+				f.slowReads.Add(1)
+				<-r.Context().Done()
+				return
+			}
+		}
 		if strings.HasPrefix(r.URL.Path, "/v8/management/inference-gates/operations/") && f.hideReceipt.Load() {
 			w.WriteHeader(503)
 			return

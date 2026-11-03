@@ -15,7 +15,7 @@ it.skipIf(!process.env.PROVIDER82_LIVE_UI)(
       await act(async () => {
         view = create(<ProviderMoneyPanel {...props} />);
       });
-      for (let i = 0; i < 100 && !JSON.stringify(view.toJSON()).includes('保留历史暂停'); i++)
+      for (let i = 0; i < 100 && !JSON.stringify(view.toJSON()).includes('已关闭 · 保留历史暂停'); i++)
         await act(async () => {
           await new Promise((resolve) => setTimeout(resolve, 30));
         });

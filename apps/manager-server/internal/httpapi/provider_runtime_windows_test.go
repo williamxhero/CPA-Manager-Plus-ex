@@ -18,8 +18,84 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
+	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
+	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
 )
+
+func TestProviderRuntimeMainFairReconciliationSkipsSlowSubject(t *testing.T) {
+	if os.Getenv("PROVIDER82_MANAGER_BINARY") == "" {
+		t.Skip("explicit built Manager artifact required")
+	}
+	f := newProviderFundingFixture(t)
+	f.manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(providerFundingNetwork(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"is_available":true,"balance_infos":[{"currency":"USD","total_balance":"0.0500","granted_balance":"0","topped_up_balance":"0.0500"}]}`)
+	}))
+	a := f.providerID
+	for _, key := range []string{"FUNDING-SYNTHETIC-A1", "FUNDING-SYNTHETIC-A2"} {
+		f.configureAndRefresh(key, key, 0)
+	}
+	f.enableMoney(true)
+	f.awaitMoneyEvaluation(f.refreshMoney("FUNDING-SYNTHETIC-A1", 1))
+	f.loseAck.Store(true)
+	f.hideReceipt.Store(true)
+	f.awaitMoneyEvaluation(f.refreshMoney("FUNDING-SYNTHETIC-A2", 1))
+	inv := f.api("GET", "/usage-service/resource-capabilities?inventory=1&bindings=1", nil, 200)
+	var envelope struct{ Negotiated rc.Negotiated }
+	raw, _ := json.Marshal(inv)
+	if json.Unmarshal(raw, &envelope) != nil || envelope.Negotiated.Snapshot == nil {
+		t.Fatal("issued B inventory missing")
+	}
+	for _, row := range envelope.Negotiated.Snapshot.Resources {
+		if row.Kind == "provider" && row.ResourceID != a {
+			f.providerID = row.ResourceID
+		}
+	}
+	if f.providerID == a {
+		t.Fatal("B provider missing")
+	}
+	for _, row := range envelope.Negotiated.Snapshot.Resources {
+		if row.Kind == "credential" && row.ParentID == f.providerID {
+			f.members["FUNDING-SYNTHETIC-B1"] = ob.Binding{Scope: envelope.Negotiated.Snapshot.Scope, Targets: []rc.Target{row.Target}}
+		}
+	}
+	f.configureAndRefresh("FUNDING-SYNTHETIC-B1", "FUNDING-SYNTHETIC-B1", 0)
+	f.enableMoney(true)
+	f.loseAck.Store(true)
+	f.awaitMoneyEvaluation(f.refreshMoney("FUNDING-SYNTHETIC-B1", 1))
+	if f.operations.Load() != 2 {
+		t.Fatal("two pending provider commands were not established")
+	}
+	f.shutdown()
+	if err := f.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	f.slowProvider.Store(&a)
+	f.hideReceipt.Store(false)
+	if ordinary := os.Getenv("PROVIDER82_ORDINARY_BINARY"); ordinary != "" {
+		t.Setenv("PROVIDER82_MANAGER_BINARY", ordinary)
+	}
+	stop := f.startRuntimeMain("fair-reconciliation", "", "", "")
+	defer stop()
+	for deadline := time.Now().Add(38 * time.Second); ; {
+		state := f.api("GET", f.policyPath(), nil, 200)
+		gate, _ := state["coordination"].(map[string]any)
+		if gate["receiptPersisted"] == true && f.slowReads.Load() > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("slow first provider starved healthy provider receipt persistence")
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	if f.operations.Load() != 2 {
+		t.Fatal("fair read-only reconciliation replayed a command")
+	}
+	// Cancel while the slow external dependency may still be blocked; ordinary
+	// main must cancel/join its coordinator before closing temporary SQLite.
+	stop()
+}
 
 // This opt-in test executes built main artifacts, not a test server/helper main.
 // API credentials/configuration use synthetic values in an owned temp SQLite.
