@@ -73,6 +73,8 @@ type providerFundingFixture struct {
 	hideReceipt      atomic.Bool
 	slowProvider     atomic.Pointer[string]
 	slowReads        atomic.Int32
+	slowActive       atomic.Int32
+	slowCanceled     atomic.Int32
 }
 
 func (f *providerFundingFixture) policyPath() string {
@@ -238,8 +240,11 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 				Targets []rc.Target `json:"targets"`
 			}
 			if json.Unmarshal(raw, &q) == nil && len(q.Targets) > 0 && q.Targets[0].ResourceID == *slow {
+				f.slowActive.Add(1)
+				defer f.slowActive.Add(-1)
 				f.slowReads.Add(1)
 				<-r.Context().Done()
+				f.slowCanceled.Add(1)
 				return
 			}
 		}

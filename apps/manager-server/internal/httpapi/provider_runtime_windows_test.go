@@ -92,9 +92,31 @@ func TestProviderRuntimeMainFairReconciliationSkipsSlowSubject(t *testing.T) {
 	if f.operations.Load() != 2 {
 		t.Fatal("fair read-only reconciliation replayed a command")
 	}
-	// Cancel while the slow external dependency may still be blocked; ordinary
-	// main must cancel/join its coordinator before closing temporary SQLite.
+	// Wait for a NEW slow request after B's durable receipt. This proves shutdown
+	// actually cancels blocked I/O rather than merely stopping between attempts.
+	reads, canceled := f.slowReads.Load(), f.slowCanceled.Load()
+	for deadline := time.Now().Add(25 * time.Second); ; {
+		if f.slowReads.Load() > reads && f.slowActive.Load() > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("new blocked coordinator read not observed before shutdown")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// Ordinary main must cancel/join before closing temporary SQLite. The proxy
+	// independently observes the client context cancellation and handler exit.
 	stop()
+	for deadline := time.Now().Add(time.Second); ; {
+		if f.slowCanceled.Load() > canceled && f.slowActive.Load() == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("shutdown left blocked external coordinator I/O active")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Logf("blocked coordinator cancellation: reads=%d canceled=%d active=%d", f.slowReads.Load(), f.slowCanceled.Load(), f.slowActive.Load())
 }
 
 // This opt-in test executes built main artifacts, not a test server/helper main.
