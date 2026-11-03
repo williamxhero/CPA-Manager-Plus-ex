@@ -63,6 +63,7 @@ func New(appCtx *app.Context) http.Handler {
 	mux.HandleFunc("/usage-service/credential-quota/jobs/", credentialQuotaHandler.Handle)
 	officialBalanceHandler := &officialbalancecontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/official-balance", officialBalanceHandler.Handle)
+	mux.HandleFunc("/usage-service/official-balance/web-enrollment", officialBalanceHandler.Handle)
 	updates := &updatecheckcontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/updates", middleware.WithCORS(appCtx.Config, updates.Handle))
 	mux.HandleFunc("/usage-service/updates/", middleware.WithCORS(appCtx.Config, updates.Handle))

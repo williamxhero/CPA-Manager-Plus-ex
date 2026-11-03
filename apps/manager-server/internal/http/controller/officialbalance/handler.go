@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/app"
@@ -33,43 +34,69 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
 	var out any
 	var err error
-	switch r.Method {
-	case "PUT":
-		var u svc.Update
-		d := json.NewDecoder(r.Body)
-		d.DisallowUnknownFields()
-		if d.Decode(&u) != nil || d.Decode(new(any)) != io.EOF {
-			response.JSON(w, 400, map[string]string{"error": "invalid_configuration"})
+	if r.URL.Path == "/usage-service/official-balance/web-enrollment" {
+		switch r.Method {
+		case "PUT":
+			var u svc.WebEnrollmentUpdate
+			d := json.NewDecoder(r.Body)
+			d.DisallowUnknownFields()
+			if d.Decode(&u) != nil || d.Decode(new(any)) != io.EOF {
+				response.JSON(w, 400, map[string]string{"error": "invalid_configuration"})
+				return
+			}
+			out, err = h.App.OfficialBalanceService.RegisterWebEnrollment(ctx, u)
+		case "GET":
+			var b svc.Binding
+			d := json.NewDecoder(strings.NewReader(r.URL.Query().Get("binding")))
+			d.DisallowUnknownFields()
+			if d.Decode(&b) != nil || d.Decode(new(any)) != io.EOF {
+				response.JSON(w, 400, map[string]string{"error": "invalid_binding"})
+				return
+			}
+			out, err = h.App.OfficialBalanceService.WebEnrollment(ctx, b)
+		default:
+			response.MethodNotAllowed(w)
 			return
 		}
-		out, err = h.App.OfficialBalanceService.Configure(ctx, u)
-	case "POST":
-		var q svc.Query
-		d := json.NewDecoder(r.Body)
-		d.DisallowUnknownFields()
-		if d.Decode(&q) != nil || d.Decode(new(any)) != io.EOF {
-			response.JSON(w, 400, map[string]string{"error": "invalid_query"})
+	} else {
+		switch r.Method {
+		case "PUT":
+			var u svc.Update
+			d := json.NewDecoder(r.Body)
+			d.DisallowUnknownFields()
+			if d.Decode(&u) != nil || d.Decode(new(any)) != io.EOF {
+				response.JSON(w, 400, map[string]string{"error": "invalid_configuration"})
+				return
+			}
+			out, err = h.App.OfficialBalanceService.Configure(ctx, u)
+		case "POST":
+			var q svc.Query
+			d := json.NewDecoder(r.Body)
+			d.DisallowUnknownFields()
+			if d.Decode(&q) != nil || d.Decode(new(any)) != io.EOF {
+				response.JSON(w, 400, map[string]string{"error": "invalid_query"})
+				return
+			}
+			out, err = h.App.FullRefreshService.StartOfficial(ctx, q)
+			if err == nil {
+				response.JSON(w, 202, out)
+				return
+			}
+		case "GET":
+			if id := r.URL.Query().Get("job"); id != "" {
+				out, err = h.App.OfficialBalanceService.Job(ctx, id)
+				break
+			}
+			var b svc.Binding
+			if json.Unmarshal([]byte(r.URL.Query().Get("binding")), &b) != nil {
+				response.JSON(w, 400, map[string]string{"error": "invalid_binding"})
+				return
+			}
+			out, err = h.App.OfficialBalanceService.Status(ctx, b)
+		default:
+			response.MethodNotAllowed(w)
 			return
 		}
-		out, err = h.App.FullRefreshService.StartOfficial(ctx, q)
-		if err == nil {
-			response.JSON(w, 202, out)
-			return
-		}
-	case "GET":
-		if id := r.URL.Query().Get("job"); id != "" {
-			out, err = h.App.OfficialBalanceService.Job(ctx, id)
-			break
-		}
-		var b svc.Binding
-		if json.Unmarshal([]byte(r.URL.Query().Get("binding")), &b) != nil {
-			response.JSON(w, 400, map[string]string{"error": "invalid_binding"})
-			return
-		}
-		out, err = h.App.OfficialBalanceService.Status(ctx, b)
-	default:
-		response.MethodNotAllowed(w)
-		return
 	}
 	if err != nil {
 		code := 500
