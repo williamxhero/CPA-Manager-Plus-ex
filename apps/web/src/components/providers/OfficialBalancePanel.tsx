@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   officialBalanceRequest,
+  OfficialBalanceRequestError,
   type BalanceBinding,
   type BalanceJob,
   type OfficialBalanceStatus,
@@ -9,12 +10,14 @@ import {
   type NewAPIConversionProfile,
   type VolcengineBalanceProfile,
   type AliyunBalanceProfile,
+  type WebBalanceSource,
 } from '@/services/api/officialBalance';
 import {
   VolcengineBalanceFields,
   type VolcengineBillingCredentials,
 } from './VolcengineBalanceFields';
 import { AliyunBalanceFields, type AliyunBillingCredentials } from './AliyunBalanceFields';
+import { WebBalanceFields, WebBalanceObservation } from './WebBalanceFields';
 
 const endpoints: Record<OfficialBalanceAdapter, string> = {
   deepseek: 'https://api.deepseek.com/user/balance',
@@ -23,6 +26,7 @@ const endpoints: Record<OfficialBalanceAdapter, string> = {
   'aliyun-prepaid-cash-v2017-12-14': 'https://business.aliyuncs.com/',
   'newapi-user-self-v1': '',
   'newapi-token-usage-v1': '',
+  layso_billing_web_v1: 'https://layso.ai/billing',
 };
 const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =>
   value === 'deepseek' ||
@@ -30,7 +34,12 @@ const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =
   value === 'volcengine-account-balance-v2022-01-01' ||
   value === 'aliyun-prepaid-cash-v2017-12-14' ||
   value === 'newapi-user-self-v1' ||
-  value === 'newapi-token-usage-v1';
+  value === 'newapi-token-usage-v1' ||
+  value === 'layso_billing_web_v1';
+const observedTime = (ms: number | undefined): string =>
+  typeof ms === 'number' && Number.isFinite(ms) && ms > 0 && !Number.isNaN(new Date(ms).getTime())
+    ? new Date(ms).toISOString()
+    : '未产生采集时间';
 const nativeContract = (adapter: string): NewAPIConfig => ({
   protocolConfirmed: false,
   instanceVersion: '',
@@ -45,6 +54,17 @@ const emptyConversion = (): NewAPIConversionProfile => ({
   moneyPerNativeQuota: '',
   proofReference: '',
   contractVersion: '',
+});
+
+const emptyWebSource = (): WebBalanceSource => ({
+  site: 'layso',
+  accountId: '',
+  tenantId: '',
+  role: '',
+  executionUser: '',
+  browser: { family: 'microsoft-edge', profile: 'Profile 1', instanceId: '' },
+  currency: 'USD',
+  parsingRule: '',
 });
 
 export interface OfficialBalancePanelProps {
@@ -78,6 +98,7 @@ export function OfficialBalancePanel({
     error?: string;
     busy?: boolean;
     readbackRequired?: boolean;
+    baselineRequired?: boolean;
   }>({ context });
   const [editor, setEditor] = useState({
     context,
@@ -91,12 +112,16 @@ export function OfficialBalancePanel({
     volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
     aliyun: undefined as AliyunBalanceProfile | undefined,
     aliyunSecret: undefined as AliyunBillingCredentials | undefined,
+    web: undefined as WebBalanceSource | undefined,
   });
   const pending = useRef<AbortController | null>(null);
+  const generation = useRef(0);
+  const operationGeneration = generation.current;
   const data = view.context === context ? view.data : undefined;
   const busy = view.context === context && view.busy;
   const readbackRequired = view.context === context && view.readbackRequired;
-  const controlsDisabled = busy || readbackRequired;
+  const baselineRequired = view.context === context && view.baselineRequired;
+  const controlsDisabled = busy || readbackRequired || baselineRequired;
   const edit =
     editor.context === context
       ? editor
@@ -112,6 +137,7 @@ export function OfficialBalancePanel({
           volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
           aliyun: undefined as AliyunBalanceProfile | undefined,
           aliyunSecret: undefined as AliyunBillingCredentials | undefined,
+          web: undefined as WebBalanceSource | undefined,
         };
   const selectedAdapter =
     edit.adapter ?? (isAdapter(data?.adapter) ? data.adapter : compatibleCandidate ? '' : adapter);
@@ -120,6 +146,19 @@ export function OfficialBalancePanel({
   const isVolcengine = selectedAdapter === 'volcengine-account-balance-v2022-01-01';
   const isAliyun = selectedAdapter === 'aliyun-prepaid-cash-v2017-12-14';
   const isBillingProfile = isVolcengine || isAliyun;
+  const isWeb = selectedAdapter === 'layso_billing_web_v1';
+  const web =
+    edit.web ?? (data?.adapter === selectedAdapter ? data.web : undefined) ?? emptyWebSource();
+  const incompleteWeb =
+    isWeb &&
+    [
+      web.accountId,
+      web.tenantId,
+      web.role,
+      web.executionUser,
+      web.browser.instanceId,
+      web.parsingRule,
+    ].some((value) => !/^[a-zA-Z0-9_.:@-]{1,128}$/.test(value));
   const aliyun = edit.aliyun ??
     (data?.adapter === selectedAdapter ? data.aliyun : undefined) ?? {
       site: '',
@@ -169,6 +208,7 @@ export function OfficialBalancePanel({
 
   useEffect(() => {
     current.current = context;
+    const operations = generation;
     const abort = new AbortController();
     pending.current = abort;
     if (usable) {
@@ -190,21 +230,32 @@ export function OfficialBalancePanel({
         });
     }
     return () => {
+      operations.current++;
       abort.abort();
       pending.current?.abort();
     };
   }, [context, usable, base, managementKey, bindingJSON]);
 
   const run = async (action: 'save' | 'query' | 'reload') => {
-    if (!usable || !binding || !data || busy || (readbackRequired && action !== 'reload')) return;
+    if (
+      current.current !== context ||
+      generation.current !== operationGeneration ||
+      !usable ||
+      !binding ||
+      busy ||
+      (action !== 'reload' && (!data || readbackRequired || baselineRequired))
+    )
+      return;
+    // A new operation invalidates callbacks captured against an older baseline.
+    generation.current++;
     const abort = new AbortController();
     pending.current?.abort();
     pending.current = abort;
     const previous = data;
     let saved = !!readbackRequired;
-    setView({ context, data: previous, busy: true, readbackRequired });
+    setView({ context, data: previous, busy: true, readbackRequired, baselineRequired });
     try {
-      if (action === 'save') {
+      if (action === 'save' && previous) {
         await officialBalanceRequest(
           base,
           managementKey,
@@ -215,28 +266,32 @@ export function OfficialBalancePanel({
             version: previous.version,
             adapter: selectedAdapter,
             endpoint,
-            privateTargets: isBillingProfile
-              ? []
-              : edit.permits !== undefined
-                ? edit.permits
-                    .split(',')
-                    .map((ip) => ip.trim())
-                    .filter(Boolean)
-                : (previous.privateTargets ?? []),
+            privateTargets:
+              isBillingProfile || isWeb
+                ? []
+                : edit.permits !== undefined
+                  ? edit.permits
+                      .split(',')
+                      .map((ip) => ip.trim())
+                      .filter(Boolean)
+                  : (previous.privateTargets ?? []),
             timeoutMs: previous.timeoutMs ?? 15000,
-            secret: isAliyun
-              ? hasAliyunSecret
-                ? JSON.stringify(aliyunSecret)
-                : ''
-              : isVolcengine
-                ? hasVolcengineSecret
-                  ? JSON.stringify(volcengineSecret)
+            secret: isWeb
+              ? ''
+              : isAliyun
+                ? hasAliyunSecret
+                  ? JSON.stringify(aliyunSecret)
                   : ''
-                : edit.secret,
-            clearSecret: edit.clear,
+                : isVolcengine
+                  ? hasVolcengineSecret
+                    ? JSON.stringify(volcengineSecret)
+                    : ''
+                  : edit.secret,
+            clearSecret: isWeb ? false : edit.clear,
             ...(isNewAPI ? { newAPI: contract } : {}),
             ...(isVolcengine ? { volcengine } : {}),
             ...(isAliyun ? { aliyun } : {}),
+            ...(isWeb ? { web, endpoint: endpoints.layso_billing_web_v1 } : {}),
           },
           abort.signal
         );
@@ -255,21 +310,23 @@ export function OfficialBalancePanel({
         );
         if (current.current === context && !abort.signal.aborted) {
           setView({ context, data: value });
-          setEditor({
-            context,
-            adapter: undefined as OfficialBalanceAdapter | undefined,
-            secret: '',
-            endpoint: '',
-            permits: undefined as string | undefined,
-            clear: false,
-            newAPI: undefined as NewAPIConfig | undefined,
-            volcengine: undefined as VolcengineBalanceProfile | undefined,
-            volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
-            aliyun: undefined as AliyunBalanceProfile | undefined,
-            aliyunSecret: undefined as AliyunBillingCredentials | undefined,
-          });
+          if (action === 'save' || readbackRequired || !previous)
+            setEditor({
+              context,
+              adapter: undefined as OfficialBalanceAdapter | undefined,
+              secret: '',
+              endpoint: '',
+              permits: undefined as string | undefined,
+              clear: false,
+              newAPI: undefined as NewAPIConfig | undefined,
+              volcengine: undefined as VolcengineBalanceProfile | undefined,
+              volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
+              aliyun: undefined as AliyunBalanceProfile | undefined,
+              aliyunSecret: undefined as AliyunBillingCredentials | undefined,
+              web: undefined as WebBalanceSource | undefined,
+            });
         }
-      } else {
+      } else if (previous) {
         let job = await officialBalanceRequest<BalanceJob>(
           base,
           managementKey,
@@ -295,16 +352,26 @@ export function OfficialBalancePanel({
         if (current.current === context && !abort.signal.aborted)
           setView({ context, data: job.status });
       }
-    } catch {
+    } catch (error) {
+      const identityRejected =
+        error instanceof OfficialBalanceRequestError && [401, 403, 409].includes(error.status);
       if (current.current === context && !abort.signal.aborted)
         setView({
           context,
-          data:
-            action === 'query' && previous.lastSuccess ? { ...previous, stale: true } : previous,
+          data: identityRejected
+            ? undefined
+            : saved && previous && (isWeb || previous.web)
+              ? { ...previous, lastSuccess: undefined, attempt: undefined }
+              : previous?.lastSuccess
+                ? { ...previous, stale: true }
+                : previous,
           readbackRequired: saved,
-          error: saved
-            ? '余额来源已保存，但回读失败；请重试回读后再操作。'
-            : 'balance_request_failed_reload_identity',
+          baselineRequired: baselineRequired || action === 'reload' || identityRejected,
+          error: identityRejected
+            ? `${saved ? '余额来源已保存；' : ''}identity_unavailable · 管理身份或来源版本已失效，请重试回读。`
+            : saved
+              ? '余额来源已保存，但回读失败；请重试回读后再操作。'
+              : 'balance_request_failed_reload_identity',
         });
     }
   };
@@ -320,11 +387,11 @@ export function OfficialBalancePanel({
       ) : (
         <>
           <p role="status">
-            {data?.state ?? 'loading'}
+            {data?.state ?? (baselineRequired ? 'identity_unavailable' : 'loading')}
             {data?.stale ? ' · stale' : ''}
           </p>
           {view.context === context && view.error && <p role="alert">{view.error}</p>}
-          {readbackRequired && (
+          {(readbackRequired || baselineRequired) && (
             <button type="button" disabled={busy} onClick={() => void run('reload')}>
               重试回读
             </button>
@@ -332,8 +399,11 @@ export function OfficialBalancePanel({
           {data && (
             <>
               <p>
-                查询凭据：{data.configured ? 'configured' : 'needs_configuration'} · 服务端加密保存
+                {data.adapter === 'layso_billing_web_v1' ? '网页来源' : '查询凭据'}：
+                {data.configured ? 'configured' : 'needs_configuration'} ·{' '}
+                {data.adapter === 'layso_billing_web_v1' ? '无需查询密钥' : '服务端加密保存'}
               </p>
+              {data.adapter === 'layso_billing_web_v1' && <WebBalanceObservation status={data} />}
               <p>
                 DeepSeek：账户钱包；DeepInfra：有符号预付净额。NewAPI：仅显式确认的实例协议与原生额度，不表示当前站点已授权可用。
               </p>
@@ -356,6 +426,7 @@ export function OfficialBalancePanel({
                         volcengineSecret: undefined,
                         aliyun: undefined,
                         aliyunSecret: undefined,
+                        web: undefined,
                       });
                   }}
                 >
@@ -372,6 +443,7 @@ export function OfficialBalancePanel({
                   </option>
                   <option value="newapi-user-self-v1">NewAPI · account_wallet · 原生额度</option>
                   <option value="newapi-token-usage-v1">NewAPI · key_remaining · 原生额度</option>
+                  <option value="layso_billing_web_v1">LAYSO · 只读网页账户余额</option>
                 </select>
               </label>
               {compatibleCandidate && (
@@ -393,6 +465,13 @@ export function OfficialBalancePanel({
                   credentials={aliyunSecret}
                   onProfile={(value) => setEditor({ ...edit, aliyun: value })}
                   onCredentials={(value) => setEditor({ ...edit, aliyunSecret: value })}
+                />
+              )}
+              {isWeb && (
+                <WebBalanceFields
+                  source={web}
+                  disabled={!!controlsDisabled}
+                  onChange={(value) => setEditor({ ...edit, web: value })}
                 />
               )}
               {isNewAPI && (
@@ -618,7 +697,7 @@ export function OfficialBalancePanel({
                   operator_asserted_contract_not_live_verified
                 </p>
               )}
-              {!isBillingProfile && (
+              {!isBillingProfile && !isWeb && (
                 <label>
                   只读查询密钥
                   <input
@@ -631,28 +710,32 @@ export function OfficialBalancePanel({
                   />
                 </label>
               )}
-              <p>空白仅在来源合同未变时保留现有密钥；不要填写 Core 管理密钥。</p>
-              <label>
-                <input
-                  aria-label="明确清除查询密钥"
-                  type="checkbox"
-                  checked={edit.clear}
-                  disabled={controlsDisabled}
-                  onChange={(event) => setEditor({ ...edit, clear: event.target.checked })}
-                />
-                明确清除查询密钥
-              </label>
+              {!isWeb && (
+                <>
+                  <p>空白仅在来源合同未变时保留现有密钥；不要填写 Core 管理密钥。</p>
+                  <label>
+                    <input
+                      aria-label="明确清除查询密钥"
+                      type="checkbox"
+                      checked={edit.clear}
+                      disabled={controlsDisabled}
+                      onChange={(event) => setEditor({ ...edit, clear: event.target.checked })}
+                    />
+                    明确清除查询密钥
+                  </label>
+                </>
+              )}
               <label>
                 查询 HTTPS 地址
                 <input
                   aria-label="查询 HTTPS 地址"
                   value={endpoint}
-                  readOnly={isBillingProfile}
+                  readOnly={isBillingProfile || isWeb}
                   disabled={controlsDisabled}
                   onChange={(event) => setEditor({ ...edit, endpoint: event.target.value })}
                 />
               </label>
-              {!isBillingProfile && (
+              {!isBillingProfile && !isWeb && (
                 <label>
                   明确允许的私网 IP（逐项精确授权，逗号分隔）
                   <input
@@ -672,6 +755,7 @@ export function OfficialBalancePanel({
                   (isNewAPI && !!conversion && !conversion.confirmed) ||
                   incompleteVolcengine ||
                   incompleteAliyun ||
+                  incompleteWeb ||
                   (edit.clear &&
                     (isAliyun
                       ? hasAliyunSecret
@@ -683,6 +767,11 @@ export function OfficialBalancePanel({
               >
                 保存余额来源
               </button>
+              {!readbackRequired && !baselineRequired && (
+                <button type="button" disabled={busy} onClick={() => void run('reload')}>
+                  刷新观测
+                </button>
+              )}
               <button
                 type="button"
                 disabled={controlsDisabled || !data.configured || !data.managerDirectQuery}
@@ -692,17 +781,17 @@ export function OfficialBalancePanel({
               </button>
               {data.attempt && (
                 <p>
-                  最近尝试：{data.attempt.queryStatus} ·{' '}
-                  {new Date(data.attempt.observedAtMs).toISOString()}
+                  最近尝试：{data.attempt.queryStatus} · {observedTime(data.attempt.observedAtMs)}
+                  {data.attempt.errorCode ? ` · ${data.attempt.errorCode}` : ''}
                 </p>
               )}
               {data.lastSuccess && (
                 <>
                   <p>
-                    最近成功：{new Date(data.lastSuccess.observedAtMs).toISOString()} ·
+                    最近成功：{observedTime(data.lastSuccess.observedAtMs)} ·
                     {data.lastSuccess.semantic} · 来源 {data.endpoint}
                   </p>
-                  {data.lastSuccess.nativeQuota ? (
+                  {data.adapter === 'layso_billing_web_v1' ? null : data.lastSuccess.nativeQuota ? (
                     <>
                       <p>
                         原生额度（不是货币）：

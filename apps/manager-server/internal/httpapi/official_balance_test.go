@@ -148,6 +148,7 @@ type officialFixture struct {
 	delay        atomic.Int64
 	coreSnapshot atomic.Value
 	coreCaps     atomic.Value
+	coreBindings atomic.Value
 	coreDelay    atomic.Int64
 }
 
@@ -162,6 +163,7 @@ func newOfficialFixture(t *testing.T, adapters ...string) *officialFixture {
 	f.response.Store(goodWallet)
 	f.coreSnapshot.Store(testSnapshotJSON)
 	f.coreCaps.Store(testCapsJSON)
+	f.coreBindings.Store(`{"bindings":[]}`)
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if delay := f.coreDelay.Load(); delay > 0 {
 			select {
@@ -172,6 +174,10 @@ func newOfficialFixture(t *testing.T, adapters ...string) *officialFixture {
 		}
 		if r.URL.Path == "/v8/management/resource-capabilities" {
 			fmt.Fprint(w, f.coreCaps.Load())
+			return
+		}
+		if r.URL.Path == "/v8/management/resource-bindings" {
+			fmt.Fprint(w, f.coreBindings.Load())
 			return
 		}
 		fmt.Fprint(w, f.coreSnapshot.Load())

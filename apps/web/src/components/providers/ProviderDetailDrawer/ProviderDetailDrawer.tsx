@@ -256,6 +256,7 @@ export function ProviderDetailDrawer({
           'ark.cn-beijing.volces.com',
           'dashscope.aliyuncs.com',
           'token-plan.cn-beijing.maas.aliyuncs.com',
+          'layso.ai',
         ].includes(endpoint.hostname);
     } catch {
       /* Unknown protocols remain explicitly unsupported. */

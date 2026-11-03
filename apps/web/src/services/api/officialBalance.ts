@@ -10,7 +10,18 @@ export type OfficialBalanceAdapter =
   | 'volcengine-account-balance-v2022-01-01'
   | 'aliyun-prepaid-cash-v2017-12-14'
   | 'newapi-user-self-v1'
-  | 'newapi-token-usage-v1';
+  | 'newapi-token-usage-v1'
+  | 'layso_billing_web_v1';
+export interface WebBalanceSource {
+  site: 'layso';
+  accountId: string;
+  tenantId: string;
+  role: string;
+  executionUser: string;
+  browser: { family: 'microsoft-edge'; profile: 'Profile 1'; instanceId: string };
+  currency: 'USD';
+  parsingRule: string;
+}
 export interface VolcengineBalanceProfile {
   accountID: string;
   currency: string;
@@ -44,6 +55,13 @@ export interface NewAPIConversionProfile {
 }
 
 export interface BalanceObservation {
+  webEvidence?: {
+    authority: string;
+    identityHash: string;
+    proofHash: string;
+    parsingRule: string;
+    verification: string;
+  };
   aliyunAccount?: {
     accountID: string;
     identityType: 'Account' | 'RAMUser';
@@ -70,11 +88,14 @@ export interface BalanceObservation {
   currency?: string;
   errorCode?: string;
   queryStatus: string;
-  observedAtMs: number;
+  observedAtMs?: number;
   available?: boolean;
   balances?: { currency: string; total: string; granted: string; toppedUp: string }[];
 }
 export interface OfficialBalanceStatus extends BalanceBinding {
+  web?: WebBalanceSource;
+  reason?: string;
+  webSourceAuthority?: string;
   aliyun?: AliyunBalanceProfile;
   volcengine?: VolcengineBalanceProfile;
   newAPI?: NewAPIConfig;
@@ -98,6 +119,13 @@ export interface BalanceJob {
   status?: OfficialBalanceStatus;
 }
 
+export class OfficialBalanceRequestError extends Error {
+  constructor(readonly status: number) {
+    super(status === 409 ? 'identity_or_configuration_changed' : 'balance_request_failed');
+    this.name = 'OfficialBalanceRequestError';
+  }
+}
+
 // Only explicit query credentials are submitted, never inferred/exported Core keys.
 // Generic errors deliberately exclude request bodies, upstream text and secrets.
 export async function officialBalanceRequest<T>(
@@ -119,9 +147,6 @@ export async function officialBalanceRequest<T>(
       redirect: 'error',
     }
   );
-  if (!response.ok)
-    throw new Error(
-      response.status === 409 ? 'identity_or_configuration_changed' : 'balance_request_failed'
-    );
+  if (!response.ok) throw new OfficialBalanceRequestError(response.status);
   return response.json() as Promise<T>;
 }
