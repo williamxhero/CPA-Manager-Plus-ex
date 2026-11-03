@@ -137,4 +137,25 @@ func TestCredentialEvidenceAcceptsConfiguredQwenCLIProvenance(t *testing.T) {
 	if decision.Action != "recover" || decision.Reason != "quota_windows_positive" {
 		t.Fatalf("configured Qwen CLI evidence was rejected: %+v", decision)
 	}
+	for _, tc := range []struct {
+		protocol, account, timestamp string
+	}{
+		{"qwen-coding-plan-cli", "configured_cli_profile", "upstream_http_date"},
+		{"opencode-go-usage", "configured_cli_profile", "local_cli_acquisition_time"},
+		{"opencode-go-usage", "selected_key_subscription", "local_cli_acquisition_time"},
+	} {
+		badStatus := status
+		badStatus.Protocol = tc.protocol
+		badStatus.AccountProvenance = tc.account
+		var badCore cq.CoreObservation
+		if err := json.Unmarshal([]byte(badStatus.Attempt.WindowsJSON), &badCore); err != nil {
+			t.Fatal(err)
+		}
+		badCore.Protocol, badCore.AccountProvenance, badCore.TimestampProvenance = tc.protocol, tc.account, tc.timestamp
+		raw, _ := json.Marshal(badCore)
+		badStatus.Attempt.WindowsJSON = string(raw)
+		if got := policy.ValidateCredentialEvidence(badStatus, now); got.Action != "none" {
+			t.Fatalf("cross-protocol provenance was accepted: %+v", got)
+		}
+	}
 }
