@@ -26,6 +26,7 @@ const status = {
   effective: false,
   generation: 0,
   bindingCurrent: true,
+  source: 'default_off',
   locked: true,
   manualDisabled: false,
   ownPaused: false,
@@ -91,6 +92,7 @@ it('explicit enable uses the current generation and never shows a pending write 
     view = create(<ProviderMoneyPanel {...props} />);
   });
   expect(button('启用资金自动保护').props.disabled).toBeFalsy();
+  expect(text()).toContain('首次默认关闭');
   await act(async () => {
     button('启用资金自动保护').props.onClick();
   });

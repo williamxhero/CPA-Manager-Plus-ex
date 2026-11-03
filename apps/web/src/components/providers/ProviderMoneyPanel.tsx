@@ -173,6 +173,7 @@ export function ProviderMoneyPanel({
       {data && (
         <>
           <p>{data.enabled ? '已启用' : data.ownPaused ? '已关闭 · 保留历史暂停' : '已关闭'}</p>
+          <p>设置来源：{data.source === 'explicit' ? '管理员显式设置' : data.source === 'default_off' ? '首次默认关闭' : '未知'}</p>
           <p>
             {data.effective ? '策略可执行' : '策略未就绪'} ·{' '}
             {data.applied ? (data.ownPaused ? '已确认暂停' : '已确认恢复') : '门禁结果未确认'}

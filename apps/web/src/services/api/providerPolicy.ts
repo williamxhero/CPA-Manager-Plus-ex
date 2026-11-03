@@ -5,6 +5,7 @@ export interface ProviderPolicyStatus extends BalanceBinding {
   enabled: boolean;
   effective: boolean;
   generation: number;
+  source: string;
   bindingCurrent: boolean;
   locked: boolean;
   manualDisabled: boolean;
