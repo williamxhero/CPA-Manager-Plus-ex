@@ -242,6 +242,7 @@ func Migrate(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS full_refresh_schedule (id TEXT PRIMARY KEY, next_due_ms INTEGER NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS official_balance_jobs (id TEXT PRIMARY KEY, source_id TEXT NOT NULL, document TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS official_balance_sources (id TEXT PRIMARY KEY, version INTEGER NOT NULL, config TEXT NOT NULL, secret_ref TEXT NOT NULL, secret_cipher TEXT NOT NULL, attempt TEXT NOT NULL DEFAULT '', last_success TEXT NOT NULL DEFAULT '')`,
+		`CREATE TABLE IF NOT EXISTS official_balance_web_enrollments (source_id TEXT PRIMARY KEY, revision INTEGER NOT NULL, source_version INTEGER NOT NULL, authority TEXT NOT NULL, proof_reference TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS credential_quota_sources (id TEXT PRIMARY KEY, version INTEGER NOT NULL, source TEXT NOT NULL, attempt TEXT NOT NULL DEFAULT '', last_success TEXT NOT NULL DEFAULT '')`,
 		`CREATE TABLE IF NOT EXISTS credential_quota_jobs (id TEXT PRIMARY KEY, source_id TEXT NOT NULL, document TEXT NOT NULL)`,
 		`pragma journal_mode = WAL`,
