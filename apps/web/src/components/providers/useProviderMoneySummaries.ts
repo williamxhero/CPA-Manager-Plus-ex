@@ -89,4 +89,3 @@ export function useProviderMoneySummaries(rows: ProviderRow[], config?: Provider
   }, [context, bindings, base, managementKey, disabled, revision]);
   return view.context === context ? view.rows : {};
 }
-
