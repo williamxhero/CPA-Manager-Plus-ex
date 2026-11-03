@@ -193,7 +193,7 @@ func (s *Service) observe(ctx context.Context, event fr.CompletedObservation) (o
 		return nil
 	}
 	authorize := func(ctx context.Context) error {
-		if err := s.Store.ValidateProviderMoney(ctx, row, lease, time.Now().UnixMilli()); err != nil {
+		if err := s.Store.ValidateProviderMoney(ctx, row, lease, time.Now().UnixMilli(), proof.fences); err != nil {
 			return err
 		}
 		inventory := s.Identity.Inventory(ctx, true)
@@ -213,7 +213,10 @@ func (s *Service) observe(ctx context.Context, event fr.CompletedObservation) (o
 				return ErrUnavailable
 			}
 		}
-		return ctx.Err()
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return s.Store.ValidateProviderMoney(ctx, row, lease, time.Now().UnixMilli(), proof.fences)
 	}
 	_, err = s.monetary.ApplyMonetary(ctx, gateBinding, proof.SourceVersion, action, evidence, authorize)
 	return err

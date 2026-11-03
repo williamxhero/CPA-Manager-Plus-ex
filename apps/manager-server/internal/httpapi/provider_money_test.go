@@ -54,7 +54,7 @@ func TestProviderMoneyExactThresholdAndOffRetainsPause(t *testing.T) {
 	f.awaitMoneyPaused(true)
 	for _, low := range []string{"0.0500", "0.1", "-0.0001"} {
 		total.Store(low)
-		f.refreshMoney("FUNDING-SYNTHETIC-A1", 1)
+		f.awaitMoneyEvaluation(f.refreshMoney("FUNDING-SYNTHETIC-A1", 1))
 		f.awaitMoneyPaused(true)
 		if f.operations.Load() != 1 {
 			t.Fatal("low values oscillated the gate")
@@ -184,6 +184,9 @@ func TestProviderMoneyRejectedEvidenceIsVisibleWithoutGateSideEffects(t *testing
 	paused := f.ledger()
 	for _, invalid := range []string{"", "NaN", "Infinity"} {
 		t.Run("invalid_"+invalid, func(t *testing.T) {
+			parent := f.t
+			f.t = t
+			defer func() { f.t = parent }()
 			total.Store(invalid)
 			job := f.refreshMoney("FUNDING-SYNTHETIC-A1", 1)
 			evaluation := f.awaitMoneyEvaluation(job)
@@ -232,7 +235,7 @@ func TestProviderMoneyNewLowEvidencePausesOnlyOwnProviderAndPersists(t *testing.
 	f.currentSources()
 	f.enableMoney(true)
 	before := f.ledger()
-	f.refreshMoney("FUNDING-SYNTHETIC-A1", 1)
+	f.awaitMoneyEvaluation(f.refreshMoney("FUNDING-SYNTHETIC-A1", 1))
 	f.unchanged(before) // sibling's pre-enable cached low is not new evidence
 	f.refreshMoney("FUNDING-SYNTHETIC-A2", 1)
 	state := f.awaitMoneyPaused(true)
@@ -301,6 +304,65 @@ func TestProviderMoneyCachedHighCannotClearReenabledHistoricalPause(t *testing.T
 	f.awaitMoneyPaused(false)
 	if f.operations.Load() != 2 {
 		t.Fatal("new post-enable high did not clear exactly once")
+	}
+}
+
+func TestProviderMoneyFinalSourceClosingRejectsReplacementDuringOtherRead(t *testing.T) {
+	f := newProviderFundingFixture(t)
+	f.currentSources()
+	proof := f.api("POST", fundingProofPath, f.proofRequest(), 200)
+	firstID := proof["sources"].([]any)[0].(map[string]any)["memberIds"].([]any)[0].(string)
+	firstKey := ""
+	for key, binding := range f.members {
+		if binding.Targets[0].ResourceID == firstID {
+			firstKey = key
+		}
+	}
+	if firstKey == "" {
+		t.Fatal("first proof member missing")
+	}
+	f.enableMoney(true)
+	f.awaitMoneyEvaluation(f.refreshMoney("FUNDING-SYNTHETIC-A1", 1))
+	before := f.ledger()
+	entered, release := make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	var once sync.Once
+	defer once.Do(func() { close(release) })
+	// External time is paused at the second source in the final authorization:
+	// one trigger check, five funding checks, two checks per authorization.
+	f.manager.AppContext().ProviderPolicyService.Clock = func() time.Time {
+		if calls.Add(1) == 10 {
+			close(entered)
+			<-release
+		}
+		return time.Now()
+	}
+	job := f.refreshMoney("FUNDING-SYNTHETIC-A2", 1)
+	select {
+	case <-entered:
+	case <-time.After(20 * time.Second):
+		t.Fatal("final source interleaving not reached")
+	}
+	f.api("PUT", balancePath, ob.Update{Config: ob.Config{Binding: f.members[firstKey], Version: 1, Adapter: "deepseek", Endpoint: "https://api.deepseek.com/user/balance", PrivateTargets: []string{"127.0.0.1"}}, Secret: firstKey}, 200)
+	once.Do(func() { close(release) })
+	evaluation := f.awaitMoneyEvaluation(job)
+	if evaluation["state"] != "rejected" {
+		t.Errorf("superseded monetary source was not rejected: %+v", evaluation)
+	}
+	f.unchanged(before)
+	// A command proven unsent must not poison later policy generations.
+	f.awaitMoneyEvaluation(f.refreshMoney(firstKey, 2))
+	f.enableMoney(true)
+	for _, key := range []string{"FUNDING-SYNTHETIC-A1", "FUNDING-SYNTHETIC-A2"} {
+		version := int64(1)
+		if key == firstKey {
+			version = 2
+		}
+		f.awaitMoneyEvaluation(f.refreshMoney(key, version))
+	}
+	f.awaitMoneyPaused(true)
+	if f.operations.Load() != 1 {
+		t.Fatal("known non-dispatch was replayed or blocked new evidence")
 	}
 }
 

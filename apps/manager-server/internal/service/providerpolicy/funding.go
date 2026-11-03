@@ -12,6 +12,7 @@ import (
 	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
 	pg "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providergate"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
 
 type FundingSource struct {
@@ -34,6 +35,7 @@ type FundingProof struct {
 	VerifiedAtMS  int64           `json:"verifiedAtMs"`
 	Sources       []FundingSource `json:"sources"`
 	inventory     *rc.Negotiated
+	fences        []store.OfficialBalanceFence
 }
 
 func currentFunding(source ob.Status, binding ob.Binding, now time.Time) bool {
@@ -95,6 +97,7 @@ func (s *Service) proveFunding(ctx context.Context, requested Binding, only stri
 			return FundingProof{}, ErrUnavailable
 		}
 		last := current.LastSuccess
+		out.fences = append(out.fences, s.Balance.EvidenceFence(saved.Binding, current.Version, last.QueryID))
 		out.Sources = append(out.Sources, FundingSource{[]string{id}, current.Version, last.QueryID, last.ObservedAtMS, last.Balances, true, true})
 	}
 	closing := s.Identity.Inventory(ctx, true)
@@ -103,6 +106,9 @@ func (s *Service) proveFunding(ctx context.Context, requested Binding, only stri
 	// Close after ALL source reads, not merely after the key challenge.
 	if err != nil || !reflect.DeepEqual(b, current) || !s.Identity.SameInventoryConnection(opening, closing) || ctx.Err() != nil {
 		return FundingProof{}, ErrIdentity
+	}
+	if err := s.Store.ValidateOfficialBalanceFences(ctx, out.fences); err != nil {
+		return FundingProof{}, ErrUnavailable
 	}
 	out.inventory = closing
 	sort.Slice(out.Sources, func(i, j int) bool { return out.Sources[i].MemberIDs[0] < out.Sources[j].MemberIDs[0] })

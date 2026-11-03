@@ -162,6 +162,12 @@ func key(b Binding) string {
 	h := sha256.Sum256(raw)
 	return hex.EncodeToString(h[:])
 }
+
+// EvidenceFence derives only private storage identity; authorization still
+// requires current host evidence and an atomic store closing check.
+func (s *Service) EvidenceFence(b Binding, version int64, queryID string) store.OfficialBalanceFence {
+	return store.OfficialBalanceFence{SourceID: key(b), Version: version, QueryID: queryID}
+}
 func (s *Service) verify(ctx context.Context, b Binding) bool {
 	n := s.Identity.Inventory(ctx)
 	return verifyInventory(n, b)

@@ -39,9 +39,10 @@ func (s *Service) Monetary() *Service {
 }
 
 type document struct {
-	Operation   operation `json:"operation"`
-	Receipt     result    `json:"receipt"`
-	UpdatedAtMS int64     `json:"updatedAtMs"`
+	Operation          operation `json:"operation"`
+	Receipt            result    `json:"receipt"`
+	UpdatedAtMS        int64     `json:"updatedAtMs"`
+	CanceledBeforeSend bool      `json:"canceledBeforeSend,omitempty"`
 }
 
 type proof struct {
@@ -233,7 +234,11 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 		op := out.doc.Operation
 		out.status.Action, out.status.State, out.status.Reason = op.Action, "pending", "operation_outcome_unverified"
 		receipt := out.doc.Receipt
-		if sameInstance(op.Scope, b.Scope) && receipt.OpID == "" {
+		if out.doc.CanceledBeforeSend {
+			out.settled = true
+			out.status.State, out.status.Reason = "discarded", "authority_lost_before_send"
+		}
+		if !out.doc.CanceledBeforeSend && sameInstance(op.Scope, b.Scope) && receipt.OpID == "" {
 			// An immutable operation missing after its CAS revision advanced
 			// cannot commit later. A bare 404 at the same revision is unknown.
 			err := link.request(ctx, "GET", "operations/"+op.OpID, nil, &receipt)
@@ -335,6 +340,13 @@ func (s *Service) send(ctx context.Context, out prepared, action, evidence strin
 	}
 	if authorize != nil {
 		if err := authorize(ctx); err != nil {
+			// The ONLY RPC has not started. Known non-dispatch permits new
+			// evidence to progress; unknown transport outcomes stay pending.
+			doc.CanceledBeforeSend = true
+			raw, _ := json.Marshal(doc)
+			finish, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			_ = s.store.CompleteProviderGate(finish, record, string(raw))
 			return Status{}, err
 		}
 	}

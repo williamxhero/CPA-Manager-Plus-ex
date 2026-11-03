@@ -184,13 +184,13 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 				if !out.Enabled && gate.OwnPaused {
 					out.State, out.Reason = "historical_pause", "explicit_recovery_required"
 				}
-				if out.Enabled && (gate.Generation == 0 || gate.Applied) && gate.SourceVersion == saved.SourceVersion && s.sourcesCurrent(ctx, b, saved) {
+				if out.Enabled && (gate.Generation == 0 || gate.Applied || gate.State == "discarded") && gate.SourceVersion == saved.SourceVersion && s.sourcesCurrent(ctx, b, saved) {
 					out.Effective, out.Locked, out.State, out.Reason = true, false, "enabled", "awaiting_new_success"
 					if gate.OwnPaused {
 						out.State, out.Reason = "paused", "current_provider_gate_confirmed"
 					}
 				}
-				if out.Enabled && gate.Generation > 0 && !gate.Applied {
+				if out.Enabled && gate.Generation > 0 && !gate.Applied && gate.State != "discarded" {
 					out.Reason = "operation_outcome_unverified"
 				}
 			}

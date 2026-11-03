@@ -48,6 +48,11 @@ full route/source/CAS authority independently. Applied status requires its real
 durable receipt and ledger. Pending/rejected commands are unavailable, never
 optimistic success. Public `evaluation` reports the latest sanitized per-query
 pending/evaluated/rejected outcome, generation and consumption without secrets.
+Both the public funding proof and final send close all source versions and
+successful attempt IDs in one SQLite snapshot after network reads; a source
+replaced while another is checked cannot authorize a write. A journal known
+to have failed authorization before its sole RPC is marked unsent, so future
+new evidence can progress; a transport-unknown outcome remains pending.
 Downstream proof work has a separate maximum20s inline callback budget, uses
 the existing four query slots and is canceled/waited at coordinator shutdown.
 
