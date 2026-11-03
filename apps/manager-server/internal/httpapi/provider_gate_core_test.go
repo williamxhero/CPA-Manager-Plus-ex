@@ -34,18 +34,21 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
 )
 
-// This is an opt-in isolated ordinary Core process, not a simulated gate ACK.
-func TestProviderGateActualCorePublicPersistenceAndIsolation(t *testing.T) {
-	binary := os.Getenv("PROVIDER82_CORE_BINARY")
+// All provider fixtures use the same ordinary-artifact qualification. A digest
+// pin alone cannot turn a tagged, unrelated, or unbound build into acceptance.
+func providerCoreArtifact(t *testing.T) (binary, digest, revision string) {
+	t.Helper()
+	binary = os.Getenv("PROVIDER82_CORE_BINARY")
 	if binary == "" {
-		t.Skip("requires a locally built isolated Core artifact and SHA256")
+		t.Skip("requires a digest-pinned ordinary isolated Core")
 	}
 	raw, err := os.ReadFile(binary)
 	if err != nil {
 		t.Fatal(err)
 	}
-	digest := sha256.Sum256(raw)
-	if hex.EncodeToString(digest[:]) != os.Getenv("PROVIDER82_CORE_SHA256") {
+	sum := sha256.Sum256(raw)
+	digest = hex.EncodeToString(sum[:])
+	if digest != os.Getenv("PROVIDER82_CORE_SHA256") {
 		t.Fatal("Core artifact SHA256 mismatch")
 	}
 	info, err := buildinfo.ReadFile(binary)
@@ -56,10 +59,16 @@ func TestProviderGateActualCorePublicPersistenceAndIsolation(t *testing.T) {
 	for _, setting := range info.Settings {
 		settings[setting.Key] = setting.Value
 	}
-	expectedRevision := os.Getenv("PROVIDER82_CORE_REVISION")
-	if expectedRevision == "" || info.Path != "github.com/router-for-me/CLIProxyAPI/v8/cmd/server" || settings["vcs.revision"] != expectedRevision || settings["vcs.modified"] != "false" || settings["-tags"] != "" || settings["-buildmode"] != "exe" {
+	revision = os.Getenv("PROVIDER82_CORE_REVISION")
+	if revision == "" || info.Path != "github.com/router-for-me/CLIProxyAPI/v8/cmd/server" || settings["vcs.revision"] != revision || settings["vcs.modified"] != "false" || settings["-tags"] != "" || settings["-buildmode"] != "exe" {
 		t.Fatal("ordinary Core artifact lacks the required clean source/module/build metadata")
 	}
+	return binary, digest, revision
+}
+
+// This is an opt-in isolated ordinary Core process, not a simulated gate ACK.
+func TestProviderGateActualCorePublicPersistenceAndIsolation(t *testing.T) {
+	binary, digest, expectedRevision := providerCoreArtifact(t)
 	var mu sync.Mutex
 	sends := map[string]int{}
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +102,7 @@ func TestProviderGateActualCorePublicPersistenceAndIsolation(t *testing.T) {
 	if err := os.MkdirAll(logs, 0700); err != nil {
 		t.Fatal(err)
 	}
-	stopCore := startProviderGateCore(t, binary, configPath, dir, logs, "initial", deny.URL, hex.EncodeToString(digest[:]), expectedRevision)
+	stopCore := startProviderGateCore(t, binary, configPath, dir, logs, "initial", deny.URL, digest, expectedRevision)
 	defer func() { stopCore() }()
 	coreBase := fmt.Sprintf("http://127.0.0.1:%d", port)
 	var proofMode, operationCalls atomic.Int32
@@ -427,7 +436,7 @@ func TestProviderGateActualCorePublicPersistenceAndIsolation(t *testing.T) {
 	}
 	t.Run("current_pause_survives_actual_core_restart", func(t *testing.T) {
 		stopCore()
-		stopCore = startProviderGateCore(t, binary, configPath, dir, logs, "restarted", deny.URL, hex.EncodeToString(digest[:]), expectedRevision)
+		stopCore = startProviderGateCore(t, binary, configPath, dir, logs, "restarted", deny.URL, digest, expectedRevision)
 		waitReady()
 		api("GET", path, nil, 409)
 		current := api("GET", "/usage-service/resource-capabilities?inventory=1&bindings=1", nil, 200)

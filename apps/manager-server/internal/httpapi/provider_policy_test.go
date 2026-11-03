@@ -2,16 +2,12 @@ package httpapi
 
 import (
 	"context"
-	"crypto/sha256"
-	"debug/buildinfo"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -101,29 +97,7 @@ func TestProviderPolicyPublicDefaultOffAndDurableIntent(t *testing.T) {
 
 func moneyPolicyCore(t *testing.T) string {
 	t.Helper()
-	binary := os.Getenv("PROVIDER82_CORE_BINARY")
-	if binary == "" {
-		t.Skip("requires pinned ordinary isolated Core")
-	}
-	data, err := os.ReadFile(binary)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sum := sha256.Sum256(data)
-	if hex.EncodeToString(sum[:]) != os.Getenv("PROVIDER82_CORE_SHA256") {
-		t.Fatal("Core digest mismatch")
-	}
-	info, err := buildinfo.ReadFile(binary)
-	if err != nil {
-		t.Fatal(err)
-	}
-	settings := map[string]string{}
-	for _, item := range info.Settings {
-		settings[item.Key] = item.Value
-	}
-	if settings["vcs.revision"] != os.Getenv("PROVIDER82_CORE_REVISION") || settings["vcs.modified"] != "false" || settings["-tags"] != "" || settings["-buildmode"] != "exe" {
-		t.Fatal("ordinary clean source identity required")
-	}
+	binary, digest, revision := providerCoreArtifact(t)
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "auth"), 0700); err != nil {
 		t.Fatal(err)
@@ -144,28 +118,15 @@ func moneyPolicyCore(t *testing.T) string {
 		w.WriteHeader(502)
 	}))
 	t.Cleanup(deny.Close)
-	log, err := os.Create(filepath.Join(dir, "core.log"))
-	if err != nil {
+	logs := os.Getenv("PROVIDER82_PROCESS_LOG_DIR")
+	if logs == "" {
+		logs = t.TempDir()
+	}
+	logs = filepath.Join(logs, t.Name())
+	if err := os.MkdirAll(logs, 0700); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(binary, "-config", path, "-local-model")
-	cmd.Dir, cmd.Stdout, cmd.Stderr = dir, log, log
-	for _, key := range []string{"PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "COMSPEC"} {
-		if value := os.Getenv(key); value != "" {
-			cmd.Env = append(cmd.Env, key+"="+value)
-		}
-	}
-	cmd.Env = append(cmd.Env, "HOME="+dir, "USERPROFILE="+dir, "APPDATA="+dir, "LOCALAPPDATA="+dir, "HTTP_PROXY="+deny.URL, "HTTPS_PROXY="+deny.URL, "NO_PROXY=127.0.0.1,localhost")
-	if err := cmd.Start(); err != nil {
-		_ = log.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-		err := cmd.Wait()
-		_ = log.Close()
-		t.Logf("owned ordinary Core pid=%d deliberately killed and waited: %v", cmd.Process.Pid, err)
-	})
+	t.Cleanup(startProviderGateCore(t, binary, path, dir, logs, "policy", deny.URL, digest, revision))
 	base := fmt.Sprintf("http://127.0.0.1:%d", port)
 	client := &http.Client{Timeout: time.Second}
 	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); {

@@ -3,9 +3,6 @@ package httpapi
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"debug/buildinfo"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -108,31 +105,7 @@ func (f *providerFundingFixture) ledger() map[string]any {
 
 func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 	t.Helper()
-	binary := os.Getenv("PROVIDER82_CORE_BINARY")
-	if binary == "" {
-		t.Skip("requires a digest-pinned ordinary isolated Core")
-	}
-	raw, err := os.ReadFile(binary)
-	if err != nil {
-		t.Fatal(err)
-	}
-	digest := sha256.Sum256(raw)
-	hexDigest := hex.EncodeToString(digest[:])
-	if hexDigest != os.Getenv("PROVIDER82_CORE_SHA256") {
-		t.Fatal("Core SHA256 mismatch")
-	}
-	info, err := buildinfo.ReadFile(binary)
-	if err != nil {
-		t.Fatal(err)
-	}
-	settings := map[string]string{}
-	for _, s := range info.Settings {
-		settings[s.Key] = s.Value
-	}
-	revision := os.Getenv("PROVIDER82_CORE_REVISION")
-	if revision == "" || info.Path != "github.com/router-for-me/CLIProxyAPI/v8/cmd/server" || settings["vcs.revision"] != revision || settings["vcs.modified"] != "false" || settings["-tags"] != "" || settings["-buildmode"] != "exe" {
-		t.Fatal("ordinary clean Core build metadata required")
-	}
+	binary, hexDigest, revision := providerCoreArtifact(t)
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "auth"), 0700); err != nil {
 		t.Fatal(err)
