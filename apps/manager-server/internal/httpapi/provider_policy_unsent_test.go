@@ -39,8 +39,7 @@ func TestProviderPolicySeededUnsentDecisionRetiresAcrossOFFAndReenable(t *testin
 		t.Fatalf("seeded durable crash fixture did not survive SQLite reopen: %+v", state)
 	}
 	f.update(false)
-	f.reconcile()
-	f.reconcile()
+	f.retire(oldJob.ID)
 	f.assertNoPending()
 	state := f.status()
 	if state.Enabled || state.Locked || state.Generation != generation+1 || state.Owner != owner || state.OwnPaused {
@@ -48,7 +47,6 @@ func TestProviderPolicySeededUnsentDecisionRetiresAcrossOFFAndReenable(t *testin
 	}
 	assertPolicyUnsentNoGateMutation(t, f, gateBefore, revisionBefore)
 	f.update(true)
-	f.reconcile()
 	f.assertNoPending()
 	if f.state.Generation != generation+2 || f.state.Owner != owner || !f.state.Enabled || f.state.OwnPaused {
 		t.Fatal("new ON generation failed or reused the old generation's successful low")
@@ -77,8 +75,7 @@ func TestProviderPolicySeededUnsentDecisionRetiresAfterQueryReplacement(t *testi
 	if replacement.Version != 2 || replacement.LastSuccess != nil || replacement.Attempt != nil {
 		t.Fatalf("query replacement retained v1 observations instead of requiring a new success: %+v", replacement)
 	}
-	f.reconcile()
-	f.reconcile()
+	f.retire(oldJob.ID)
 	f.assertNoPending()
 	state := f.status()
 	if !state.Enabled || state.Locked || state.Generation != generation || state.Owner != owner || state.OwnPaused {
@@ -164,8 +161,7 @@ func TestProviderPolicyUnacceptedOldBootJournalRetiresAfterActualCoreRestart(t *
 	if err != nil || !recovered.Settled || recovered.State != "rejected" || recovered.Applied {
 		t.Fatalf("obsolete journal reconciliation was blocking or claimed applied: %+v err=%v", recovered, err)
 	}
-	f.reconcile()
-	f.reconcile()
+	f.retire(oldJob.ID)
 	f.assertNoPending()
 	state = f.status()
 	if !state.Enabled || state.Locked || state.State != "observing" || state.Applied || state.OwnPaused || state.Generation != intentGeneration || state.Owner != owner {

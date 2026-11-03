@@ -481,13 +481,23 @@ func (f *policyUnsentFixture) monetaryGate() pg.Status {
 	return status
 }
 
-func (f *policyUnsentFixture) reconcile() {
+// A completion can precede its seeded Pending in the durable frontier. The
+// first real lifecycle pass may report ErrUnavailable for that event while
+// still retiring the obsolete decision later in the SAME pass. Let real Run
+// drain both; a single Reconcile result is not a completion barrier. Join before
+// authenticated assertions or a subsequent intent/source replacement.
+func (f *policyUnsentFixture) retire(attemptID string) {
 	f.t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	if err := f.manager.AppContext().ProviderPolicyService.Reconcile(ctx); err != nil {
-		f.t.Fatalf("real policy reconciliation failed: %v", err)
+	if f.stopPolicy != nil {
+		f.t.Fatal("retirement fixture requires a quiescent runtime before starting its owned lifecycle")
 	}
+	f.startRuntime()
+	awaitProviderPolicyIdle(f.t, ctx, f.db, f.state.SubjectID, attemptID)
+	f.stopPolicy()
+	f.stopPolicy = nil
+	f.runPolicy = false // Reopen must remain quiescent until the next explicit Run.
 }
 
 func (f *policyUnsentFixture) coreRequest(method, path string, raw []byte, want int, out any) {
@@ -551,8 +561,11 @@ func (f *policyUnsentFixture) assertNoPending() {
 }
 
 // awaitApplied observes the owned Run; it never performs reconciliation itself.
-// A whole phase has one bounded budget for public status, actual Core ledger,
-// and read-only durable-state inspection. Source acquisition is outside it.
+// A whole phase retains one 20s budget. Poll only the durable inbox/Pending,
+// then audit public status and the actual Core ledger ONCE after it drains.
+// Polling status runs its own expensive authenticated proof chain, competing
+// with the very worker being observed and exhausting its dispatch budget.
+// Source acquisition is outside this phase.
 func (f *policyUnsentFixture) awaitApplied(phase, attemptID string, wantPaused bool, wantRevision uint64, original pp.Status) {
 	f.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -567,88 +580,83 @@ func (f *policyUnsentFixture) awaitApplied(phase, attemptID string, wantPaused b
 		f.t.Fatalf("phase=%s missing exact current-generation capture: %+v err=%v", phase, capture, err)
 	}
 	started := time.Now()
-	reads := 0
+	record, reads := awaitProviderPolicyIdle(f.t, ctx, f.db, original.SubjectID, attemptID)
+	if record.Generation != original.Generation {
+		f.t.Fatalf("phase=%s runtime changed durable intent generation: got=%d want=%d", phase, record.Generation, original.Generation)
+	}
 	var state pp.Status
-	var revision uint64
-	for {
-		reads++
-		req := httptest.NewRequest(http.MethodGet, "/usage-service/provider-policy?providerId="+url.QueryEscape(original.ProviderID), nil).WithContext(ctx)
-		req.Header.Set("Authorization", "Bearer "+testutil.AdminKey)
-		response := httptest.NewRecorder()
-		f.manager.Handler().ServeHTTP(response, req)
-		for _, secret := range []string{"MONEY-SYNTHETIC-INFERENCE", "MONEY-CORE-MANAGEMENT"} {
-			if bytes.Contains(response.Body.Bytes(), []byte(secret)) {
-				f.t.Fatalf("phase=%s public status leaked controlled credentials", phase)
-			}
-		}
-		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &state) != nil {
-			f.t.Fatalf("phase=%s actual public status unavailable: HTTP %d body=%s", phase, response.Code, response.Body.String())
-		}
-		f.state = state
-		if state.Generation != original.Generation || state.SubjectID != original.SubjectID || state.Owner != original.Owner || state.ManualDisabled != original.ManualDisabled || !reflect.DeepEqual(state.Binding, original.Binding) {
-			f.t.Fatalf("phase=%s runtime changed current generation, identity, owner, binding or manual state: %+v", phase, state)
-		}
-		coreReq, err := http.NewRequestWithContext(ctx, http.MethodGet, f.core.base+"/v8/management/inference-gates", nil)
-		if err != nil {
-			f.t.Fatal(err)
-		}
-		coreReq.Header.Set("Authorization", "Bearer MONEY-CORE-MANAGEMENT")
-		coreResponse, err := client.Do(coreReq)
-		if err != nil {
-			f.t.Fatalf("phase=%s actual Core ledger: %v", phase, err)
-		}
-		raw, err := io.ReadAll(coreResponse.Body)
-		_ = coreResponse.Body.Close()
-		var ledger struct {
-			GateRevision uint64   `json:"gateRevision"`
-			Ready        bool     `json:"ready"`
-			Scope        rc.Scope `json:"scope"`
-		}
-		if err != nil || coreResponse.StatusCode != http.StatusOK || json.Unmarshal(raw, &ledger) != nil || !ledger.Ready || ledger.Scope != original.Scope {
-			f.t.Fatalf("phase=%s actual Core ledger unavailable/invalid: HTTP %d err=%v body=%s", phase, coreResponse.StatusCode, err, raw)
-		}
-		revision = ledger.GateRevision
-		if revision > wantRevision {
-			f.t.Fatalf("phase=%s extra actual Core mutation: revision=%d want=%d", phase, revision, wantRevision)
-		}
-		record, err := f.db.ProviderPolicy(ctx, original.SubjectID)
-		if err != nil {
-			f.t.Fatal(err)
-		}
-		var saved struct{ Pending json.RawMessage }
-		if json.Unmarshal([]byte(record.Document), &saved) != nil || record.Generation != original.Generation {
-			f.t.Fatalf("phase=%s invalid/current-generation durable policy lost", phase)
-		}
-		pending := len(saved.Pending) != 0 && string(saved.Pending) != "null"
-		events, err := f.db.ProviderPolicyEvents(ctx)
-		if err != nil {
-			f.t.Fatal(err)
-		}
-		for _, event := range events {
-			pending = pending || event.ID == attemptID
-		}
-		sourceCurrent := false
-		for _, funding := range state.Funding {
-			if funding.QueryID == attemptID && funding.KeyMatched && funding.Fresh && funding.Query.Version == f.version && reflect.DeepEqual(funding.Query.Binding, ob.Binding{Scope: original.Scope, Targets: original.Targets}) {
-				sourceCurrent = true
-			}
-		}
-		wantState := "observing"
-		if wantPaused {
-			wantState = "paused"
-		}
-		if ctx.Err() == nil && !pending && sourceCurrent && state.Enabled && state.BindingCurrent && !state.Locked && state.OwnPaused == wantPaused && state.Applied && state.State == wantState && revision == wantRevision {
-			f.t.Logf("actual Run phase=%s attempt=%s elapsed=%s reads=%d generation=%d state=%s CoreRevision=%d queries=%d", phase, attemptID, time.Since(started), reads, state.Generation, state.State, revision, f.queries.Load())
-			return
-		}
-		timer := time.NewTimer(100 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			f.t.Fatalf("actual Run phase=%s exhausted 20s: state=%+v CoreRevision=%d want=%d pending=%t sourceCurrent=%t queries=%d", phase, state, revision, wantRevision, pending, sourceCurrent, f.queries.Load())
-		case <-timer.C:
+	req := httptest.NewRequest(http.MethodGet, "/usage-service/provider-policy?providerId="+url.QueryEscape(original.ProviderID), nil).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+testutil.AdminKey)
+	response := httptest.NewRecorder()
+	f.manager.Handler().ServeHTTP(response, req)
+	for _, secret := range []string{"MONEY-SYNTHETIC-INFERENCE", "MONEY-CORE-MANAGEMENT"} {
+		if bytes.Contains(response.Body.Bytes(), []byte(secret)) {
+			f.t.Fatalf("phase=%s public status leaked controlled credentials", phase)
 		}
 	}
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &state) != nil {
+		f.t.Fatalf("phase=%s actual public status unavailable: HTTP %d body=%s", phase, response.Code, response.Body.String())
+	}
+	f.state = state
+	if state.Generation != original.Generation || state.SubjectID != original.SubjectID || state.Owner != original.Owner || state.ManualDisabled != original.ManualDisabled || !reflect.DeepEqual(state.Binding, original.Binding) {
+		f.t.Fatalf("phase=%s runtime changed current generation, identity, owner, binding or manual state: %+v", phase, state)
+	}
+	if ctx.Err() != nil {
+		f.t.Fatalf("phase=%s public audit exhausted the unchanged 20s lifecycle barrier: %v", phase, ctx.Err())
+	}
+	coreReq, err := http.NewRequestWithContext(ctx, http.MethodGet, f.core.base+"/v8/management/inference-gates", nil)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	coreReq.Header.Set("Authorization", "Bearer MONEY-CORE-MANAGEMENT")
+	coreResponse, err := client.Do(coreReq)
+	if err != nil {
+		f.t.Fatalf("phase=%s actual Core ledger: %v", phase, err)
+	}
+	raw, err := io.ReadAll(coreResponse.Body)
+	_ = coreResponse.Body.Close()
+	var ledger struct {
+		GateRevision uint64   `json:"gateRevision"`
+		Ready        bool     `json:"ready"`
+		Scope        rc.Scope `json:"scope"`
+	}
+	if err != nil || coreResponse.StatusCode != http.StatusOK || json.Unmarshal(raw, &ledger) != nil || !ledger.Ready || ledger.Scope != original.Scope {
+		f.t.Fatalf("phase=%s actual Core ledger unavailable/invalid: HTTP %d err=%v body=%s", phase, coreResponse.StatusCode, err, raw)
+	}
+	revision := ledger.GateRevision
+	if revision > wantRevision {
+		f.t.Fatalf("phase=%s extra actual Core mutation: revision=%d want=%d", phase, revision, wantRevision)
+	}
+	record, err = f.db.ProviderPolicy(ctx, original.SubjectID)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	var saved struct{ Pending json.RawMessage }
+	if json.Unmarshal([]byte(record.Document), &saved) != nil || record.Generation != original.Generation {
+		f.t.Fatalf("phase=%s invalid/current-generation durable policy lost", phase)
+	}
+	pending := len(saved.Pending) != 0 && string(saved.Pending) != "null"
+	events, err := f.db.ProviderPolicyEvents(ctx)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	for _, event := range events {
+		pending = pending || event.ID == attemptID
+	}
+	sourceCurrent := false
+	for _, funding := range state.Funding {
+		if funding.QueryID == attemptID && funding.KeyMatched && funding.Fresh && funding.Query.Version == f.version && reflect.DeepEqual(funding.Query.Binding, ob.Binding{Scope: original.Scope, Targets: original.Targets}) {
+			sourceCurrent = true
+		}
+	}
+	wantState := "observing"
+	if wantPaused {
+		wantState = "paused"
+	}
+	if ctx.Err() != nil || pending || !sourceCurrent || !state.Enabled || !state.BindingCurrent || state.Locked || state.OwnPaused != wantPaused || !state.Applied || state.State != wantState || revision != wantRevision {
+		f.t.Fatalf("actual Run phase=%s failed after durable barrier: state=%+v CoreRevision=%d want=%d pending=%t sourceCurrent=%t queries=%d err=%v", phase, state, revision, wantRevision, pending, sourceCurrent, f.queries.Load(), ctx.Err())
+	}
+	f.t.Logf("actual Run phase=%s attempt=%s elapsed=%s durableReads=%d publicAudits=1 ledgerAudits=1 generation=%d state=%s CoreRevision=%d queries=%d", phase, attemptID, time.Since(started), reads, state.Generation, state.State, revision, f.queries.Load())
 }
 
 // A dropped POST response need not reach ReverseProxy.ModifyResponse even when
@@ -705,9 +713,9 @@ func (f *policyUnsentFixture) assertExactReceipts(before uint64, actions ...stri
 
 func (f *policyUnsentFixture) assertFreshPauseAndRecovery(oldAttempt string, before uint64) {
 	f.t.Helper()
-	f.startRuntime()
 	original := f.status()
 	queriesBefore := f.queries.Load()
+	f.startRuntime() // Initial proof/status reads are finished before live work.
 	low := f.query("0.05")
 	if low.ID == oldAttempt {
 		f.t.Fatal("fresh query reused superseded attempt")

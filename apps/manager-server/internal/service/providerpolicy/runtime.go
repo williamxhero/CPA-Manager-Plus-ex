@@ -12,6 +12,7 @@ import (
 	fr "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
 	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
 	pg "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providergate"
+	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
 
@@ -251,7 +252,7 @@ func (s *Service) reconcilePending(ctx context.Context, r store.ProviderPolicyRe
 			if err := s.Store.CheckCredentialPolicyLease(ctx, lease, time.Now().UnixMilli()); err != nil {
 				return err
 			}
-			_, err = s.gate.Reconcile(ctx, pg.Binding(b))
+			_, err = s.gate.ReconcileEvidence(ctx, pg.Binding(b), s.currentEvidence(r, view.sources, lease))
 			return err
 		}
 		return nil
@@ -259,8 +260,41 @@ func (s *Service) reconcilePending(ctx context.Context, r store.ProviderPolicyRe
 	if err := s.Store.CheckCredentialPolicyLease(ctx, lease, time.Now().UnixMilli()); err != nil {
 		return err
 	}
-	_, err = s.gate.UpdateEvidence(ctx, pg.Update{Binding: pg.Binding(b), Version: 1, ExpectedGeneration: &d.GateGeneration, SourceVersion: d.SourceVersion, Action: d.Action}, d.Evidence)
+	_, err = s.gate.UpdateEvidence(ctx, pg.Update{Binding: pg.Binding(b), Version: 1, ExpectedGeneration: &d.GateGeneration, SourceVersion: d.SourceVersion, Action: d.Action}, d.Evidence, s.currentEvidence(r, view.sources, lease))
 	return err
+}
+
+// Re-read only local authority after gate preparation's last remote read.
+// The authenticated inventory is the gate's current, closed envelope; source
+// versions and actual observation IDs may have changed independently of it.
+// No network proof is cached and no source failure can turn into a recovery.
+func (s *Service) currentEvidence(record store.ProviderPolicyRecord, sources []FundingStatus, lease store.CredentialPolicyLease) pg.EvidenceGuard {
+	return func(ctx context.Context, inventory *rc.Negotiated) error {
+		if err := s.Store.CheckCredentialPolicyLease(ctx, lease, time.Now().UnixMilli()); err != nil {
+			return err
+		}
+		current, err := s.Store.ProviderPolicy(ctx, record.ID)
+		if err != nil {
+			return err
+		}
+		if current.Generation != record.Generation || current.Document != record.Document {
+			return ErrUnavailable
+		}
+		for _, source := range sources {
+			status, err := s.official.InventoryStatus(ctx, source.Query.Binding, inventory)
+			if err != nil || !status.Configured || status.Version != source.Query.Version {
+				return ErrUnavailable
+			}
+			if !source.KeyMatched {
+				continue
+			}
+			low, high := monetary(status, time.Now())
+			if status.LastSuccess == nil && source.QueryID != "" || status.LastSuccess != nil && status.LastSuccess.QueryID != source.QueryID || low != source.low || high != source.high {
+				return ErrUnavailable
+			}
+		}
+		return nil
+	}
 }
 
 func (s *Service) consume(ctx context.Context, event completion, lease store.CredentialPolicyLease) error {

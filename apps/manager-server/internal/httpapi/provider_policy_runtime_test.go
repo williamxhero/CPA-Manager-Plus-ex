@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"sync"
@@ -115,6 +116,60 @@ func awaitProviderPolicyCondition(t *testing.T, description string, check func()
 	}
 }
 
+// Wait for BOTH the exact source event and its durable decision to drain. A
+// source notification is not consumption, nor is a missing Pending sufficient:
+// the worker may not have read the event yet. Poll SQLite only; public policy
+// status runs a fresh authenticated inventory/key-match/ledger proof itself and
+// must not compete with the actual worker's bounded proof/dispatch chain.
+func awaitProviderPolicyIdle(t *testing.T, ctx context.Context, db *store.Store, subject, attemptID string) (store.ProviderPolicyRecord, int) {
+	t.Helper()
+	capture, err := db.ProviderPolicyCapture(ctx, subject, attemptID)
+	if err != nil || capture.Seq <= 0 || capture.Generation <= 0 {
+		t.Fatalf("missing exact durable source capture %s: %+v err=%v", attemptID, capture, err)
+	}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	var saved struct{ Pending json.RawMessage }
+	var eventPending bool
+	for reads := 1; ; reads++ {
+		if ctx.Err() != nil {
+			t.Fatalf("actual Run did not drain attempt=%s: eventPending=%t pending=%s err=%v", attemptID, eventPending, saved.Pending, ctx.Err())
+		}
+		// Read unpublished completed captures before the inbox, so absence from
+		// done=0 cannot mistake persistence-before-notification for consumption.
+		unfinished, err := db.ProviderPolicyUnfinishedCaptures(ctx)
+		if err != nil {
+			t.Fatalf("read actual unfinished captures for %s: %v", attemptID, err)
+		}
+		events, err := db.ProviderPolicyEvents(ctx)
+		if err != nil {
+			t.Fatalf("read actual policy inbox for %s: %v", attemptID, err)
+		}
+		eventPending = false
+		for _, c := range unfinished {
+			eventPending = eventPending || c.AttemptID == attemptID
+		}
+		for _, e := range events {
+			eventPending = eventPending || e.ID == attemptID
+		}
+		record, err := db.ProviderPolicy(ctx, subject)
+		if err != nil || record.Generation <= 0 {
+			t.Fatalf("read actual durable policy for %s: %+v err=%v", attemptID, record, err)
+		}
+		saved.Pending = nil
+		if err := json.Unmarshal([]byte(record.Document), &saved); err != nil {
+			t.Fatalf("decode actual durable policy for %s: %v", attemptID, err)
+		}
+		if !eventPending && (len(saved.Pending) == 0 || string(saved.Pending) == "null") {
+			return record, reads
+		}
+		select {
+		case <-ctx.Done():
+		case <-ticker.C:
+		}
+	}
+}
+
 type policyHeldOperation struct {
 	ctx     context.Context
 	started time.Time
@@ -133,7 +188,9 @@ func (b *policyOperationBarrier) unblock() { b.once.Do(func() { close(b.release)
 // budget. Only the independently owned real Run may finish it. No manual
 // Reconcile, resave, extra query, fabricated proof or ACK can rescue this test.
 func TestProviderPolicyActualCoreCompletionEscapesCallbackBudget(t *testing.T) {
-	f := newPolicyUnsentFixture(t)
+	// Finish initial public source/status validation before starting Run, so
+	// the fixture's own authenticated reads cannot consume its dispatch budget.
+	f := newPolicyUnsentFixture(t, false)
 	original := f.status()
 	before := f.revision()
 	barrier := &policyOperationBarrier{arrived: make(chan policyHeldOperation, 1), release: make(chan struct{})}
@@ -148,6 +205,7 @@ func TestProviderPolicyActualCoreCompletionEscapesCallbackBudget(t *testing.T) {
 	f.manager.AppContext().FullRefreshService.Subscribe(func(ctx context.Context, event fr.CompletedObservation) {
 		callbacks <- callbackObservation{ctx: ctx, event: event, err: ctx.Err()}
 	})
+	f.startRuntime()       // Already running when the real source publishes/wakes it.
 	low := f.query("0.05") // Returns after real source persistence/notification only.
 	var callback callbackObservation
 	select {
@@ -172,6 +230,10 @@ func TestProviderPolicyActualCoreCompletionEscapesCallbackBudget(t *testing.T) {
 	if afterDeadline := deadline.Add(100 * time.Millisecond); afterDeadline.After(releaseAt) {
 		releaseAt = afterDeadline
 	}
+	// Audit while the runtime is held at the bridge, INSIDE the mandatory hold
+	// interval. Do not spend another authenticated GET after that interval and
+	// steal the remaining lifecycle budget immediately before releasing POST.
+	heldRevision := f.revision()
 	timer := time.NewTimer(time.Until(releaseAt))
 	defer timer.Stop()
 	select {
@@ -183,7 +245,7 @@ func TestProviderPolicyActualCoreCompletionEscapesCallbackBudget(t *testing.T) {
 		t.Fatal("did not prove an active Core exchange beyond the cancelled/expired callback budget")
 	}
 	attempted, forwarded, accepted := f.wire.snapshot()
-	if len(attempted) != 1 || len(forwarded) != 0 || len(accepted) != 0 || f.revision() != before || f.queries.Load() != 1 {
+	if len(attempted) != 1 || len(forwarded) != 0 || len(accepted) != 0 || heldRevision != before || f.queries.Load() != 1 {
 		t.Fatal("held operation was forwarded, retried, accepted, or reacquired before release")
 	}
 	barrier.unblock()

@@ -59,11 +59,27 @@ can recover an accepted operation whose response was lost.
 
 A retry which could first-apply an unaccepted command must revalidate current
 policy generation, exact runtime/source binding and current monetary evidence.
-An old high clear cannot first-commit after newer low, failed, expired or
-reconfigured source evidence. Genuine unresolved external outcomes remain
+An old high clear is refused when newer low, failed, expired or reconfigured
+source evidence is durable before its final local pre-send validation.
+Genuine unresolved external outcomes remain
 pending, not fabricated success. A provably unattempted or definitively obsolete
 missing operation can retire its local decision under CAS without removing any
 owned pause; the decision journal retains its original evidence and outcome.
+
+Both initial monetary dispatch and immutable replay require a local evidence
+guard AFTER the final authenticated remote preparation read. It checks the
+lease, exact intent generation/document, current source versions, successful
+observation identities and freshly recomputed monetary validity against the
+closed issued inventory. A new journal also receives a second check immediately
+before POST; failure preserves its immutable unknown state, never an invented
+receipt. Confirming an already accepted receipt does not require old money to
+remain fresh. Manual gate paths do not acquire monetary authority through this
+guard. There is no additional network proof or persisted proof cache.
+
+This closes changes during the remote preparation chain. It does not serialize
+a later source publication with a command already sent to Core or cancel an
+already admitted exchange. Unknown-state terminal recovery and any stronger
+cross-service ordering guarantee remain separately identified boundaries.
 
 Provider-local unavailability does not veto unrelated refresh admission or
 independent policies. Pending decisions and source completions share one durable

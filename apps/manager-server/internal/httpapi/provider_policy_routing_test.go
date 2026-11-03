@@ -22,7 +22,10 @@ import (
 // returns 502 to CONNECT without dialing, resolving, tunneling, or completing
 // inference. A post-recovery CONNECT proves admission, NOT a completed answer.
 func TestProviderPolicyActualCoreRoutingPauseAndFreshRecovery(t *testing.T) {
-	f := newPolicyUnsentFixture(t)
+	// Initial source/status/model reads precede Run. Once the completion is
+	// durable, only the worker may spend authenticated Core proof/dispatch I/O
+	// until the read-only durable barrier in awaitApplied has drained it.
+	f := newPolicyUnsentFixture(t, false)
 	original := f.status()
 	if !original.Enabled || original.OwnPaused || original.ManualDisabled || !original.BindingCurrent || original.Locked {
 		t.Fatalf("requires an enabled, actually issued, manually enabled clean provider: %+v", original)
@@ -97,6 +100,7 @@ func TestProviderPolicyActualCoreRoutingPauseAndFreshRecovery(t *testing.T) {
 	// There is intentionally no pre-pause failed inference: that optional
 	// sample could introduce an independent transport/credential cooldown.
 	// The identical post-clear request below is the counter's positive control.
+	f.startRuntime()
 	low := f.query("0.05")
 	f.awaitApplied("routing-low-pause", low.ID, true, revisionBefore+1, original)
 	paused := f.status()

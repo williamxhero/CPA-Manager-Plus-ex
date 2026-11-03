@@ -283,19 +283,24 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	if s.monetary {
 		return Status{}, ErrInput
 	}
-	return s.update(ctx, q, "")
+	return s.update(ctx, q, "", nil)
 }
+
+// EvidenceGuard revalidates local monetary authority after the final remote
+// preparation read. It must not perform another network proof: that would
+// reopen the source-change window it closes. Manual operations do not use it.
+type EvidenceGuard func(context.Context, *rc.Negotiated) error
 
 // UpdateEvidence accepts only an internal decision digest; HTTP consumers can
 // neither select this namespace nor manufacture automatic evidence.
-func (s *Service) UpdateEvidence(ctx context.Context, q Update, evidence string) (Status, error) {
-	if !s.monetary || !validDigest(evidence) {
+func (s *Service) UpdateEvidence(ctx context.Context, q Update, evidence string, current EvidenceGuard) (Status, error) {
+	if !s.monetary || !validDigest(evidence) || current == nil {
 		return Status{}, ErrInput
 	}
-	return s.update(ctx, q, evidence)
+	return s.update(ctx, q, evidence, current)
 }
 
-func (s *Service) update(ctx context.Context, q Update, evidence string) (Status, error) {
+func (s *Service) update(ctx context.Context, q Update, evidence string, current EvidenceGuard) (Status, error) {
 	if q.Version != 1 || q.ExpectedGeneration == nil || *q.ExpectedGeneration < 0 || *q.ExpectedGeneration >= 9007199254740991 || !validDigest(q.SourceVersion) || q.Action != "pause" && q.Action != "clear" {
 		return Status{}, ErrInput
 	}
@@ -311,6 +316,11 @@ func (s *Service) update(ctx context.Context, q Update, evidence string) (Status
 	}
 	if out.record.Generation > 0 && !out.settled {
 		return Status{}, ErrUnavailable
+	}
+	if current != nil {
+		if err := current(ctx, out.inventory); err != nil {
+			return Status{}, err
+		}
 	}
 	opID := uuid.NewString()
 	op := operation{groupBinding: coreGroup(out.status.Binding), Version: 1, OpID: opID, ExpectedGateRevision: out.ledger.GateRevision, SourceVersion: q.SourceVersion, Subject: "provider", Owner: out.status.Owner, Action: q.Action, Reason: "operator_provider_pause", EvidenceID: "manual/" + opID}
@@ -329,6 +339,13 @@ func (s *Service) update(ctx context.Context, q Update, evidence string) (Status
 	record := store.ProviderGateRecord{ID: out.record.ID, Generation: out.record.Generation + 1, Document: string(raw)}
 	if err := s.store.SaveProviderGate(ctx, record, out.record.Generation); err != nil {
 		return Status{}, err
+	}
+	if current != nil {
+		if err := current(ctx, out.inventory); err != nil {
+			// Keep the immutable journal conservative even though this caller
+			// did not send it. Do not mark an unknown command applied/settled.
+			return Status{}, err
+		}
 	}
 	// Even a transport error leaves the attempted immutable command durable.
 	// A later status read can confirm its outcome from the current Core ledger.

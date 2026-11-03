@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,6 +20,8 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/security"
 	fr "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
+	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
+	pp "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providerpolicy"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
 )
@@ -33,13 +36,56 @@ func TestProviderPolicyRejectsSupersededClearAfterUnacceptedPOST(t *testing.T) {
 		t.Run(mode, func(t *testing.T) { providerPolicyRecoveryCase(t, mode) })
 	}
 }
+
+func TestProviderPolicyRevalidatesMoneyAfterDispatchPreparation(t *testing.T) {
+	providerPolicyRecoveryCase(t, "contrary_during_prepare")
+}
+
+func TestProviderPolicyRevalidatesSourceAfterDispatchPreparation(t *testing.T) {
+	providerPolicyRecoveryCase(t, "source_replaced_during_prepare")
+}
+
+func TestProviderPolicyRevalidatesFailureAfterDispatchPreparation(t *testing.T) {
+	providerPolicyRecoveryCase(t, "failure_during_prepare")
+}
+
 func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	core := moneyPolicyCore(t)
 	target, _ := url.Parse(core)
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	var hideReceipts, dropACK, rejectBeforeForward atomic.Bool
 	var operations atomic.Int64
+	rejected := make(chan struct{}, 8)
+	var db *store.Store
+	var armPreparation, matchedPendingClear atomic.Bool
+	preparationHeld := make(chan context.Context, 1)
+	preparationResumed, releasePreparation := make(chan bool, 1), make(chan struct{}, 1)
+	defer close(releasePreparation)
+	pendingClear := func() bool {
+		if db == nil {
+			return false
+		}
+		policies, err := db.ProviderPolicies(context.Background())
+		if err != nil {
+			t.Error(err)
+			return false
+		}
+		for _, policy := range policies {
+			var document struct{ Pending *struct{ Action string } }
+			if err := json.Unmarshal([]byte(policy.Document), &document); err != nil {
+				t.Error(err)
+				return false
+			}
+			if document.Pending != nil && document.Pending.Action == "clear" {
+				return true
+			}
+		}
+		return false
+	}
 	proxy.ModifyResponse = func(r *http.Response) error {
+		if armPreparation.Load() && r.StatusCode == http.StatusOK && r.Request.Method == "POST" && r.Request.URL.Path == "/v8/management/inference-gates/providers/key-match" && pendingClear() {
+			matchedPendingClear.Store(true)
+		}
 		if r.Request.Method == "POST" && r.Request.URL.Path == "/v8/management/inference-gates/operations" {
 			operations.Add(1)
 			if dropACK.CompareAndSwap(true, false) {
@@ -53,7 +99,25 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 		return nil
 	}
 	bridge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The pending clear's last funding challenge has finished. The next
+		// ledger read belongs to dispatch preparation, after money was checked
+		// but before the immutable command is journaled/sent. Hold only this
+		// exchange; concurrent source acquisition remains real and available.
+		if r.Method == "GET" && r.URL.Path == "/v8/management/inference-gates" && matchedPendingClear.CompareAndSwap(true, false) && armPreparation.CompareAndSwap(true, false) {
+			preparationHeld <- r.Context()
+			select {
+			case <-releasePreparation:
+				preparationResumed <- r.Context().Err() == nil
+			case <-r.Context().Done():
+				preparationResumed <- false
+				return
+			}
+		}
 		if rejectBeforeForward.Load() && r.Method == "POST" && r.URL.Path == "/v8/management/inference-gates/operations" {
+			select {
+			case rejected <- struct{}{}:
+			default:
+			}
 			w.WriteHeader(503)
 			return
 		}
@@ -69,7 +133,7 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := store.Open(cfg.DBPath, protector)
+	db, err = store.Open(cfg.DBPath, protector)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +207,6 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 		manager.AppContext().FullRefreshService.Subscribe(func(_ context.Context, e fr.CompletedObservation) { completed <- e.AttemptID })
 	}
 	subscribe()
-	stopPolicy = startProviderPolicyRuntime(t, manager)
 	update := func(enabled bool) {
 		t.Helper()
 		state = api("PUT", "/usage-service/provider-policy", map[string]any{"scope": state["scope"], "targets": state["targets"], "providerId": id, "expectedGeneration": state["generation"], "enabled": enabled}, 200)
@@ -178,13 +241,14 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 		}
 	}
 	update(true)
+	stopPolicy = startProviderPolicyRuntime(t, manager)
 	hideReceipts.Store(true)
 	dropACK.Store(true)
 	await(start())
 	awaitProviderPolicyCondition(t, "actual Run did not expose the lost-ACK pending pause", func() bool {
-		state = api("GET", path, nil, 200)
-		return operations.Load() == 1 && state["ownPaused"] == true && state["applied"] != true && state["state"] == "pending"
+		return operations.Load() == 1
 	})
+	state = api("GET", path, nil, 200)
 	if operations.Load() != 1 || state["ownPaused"] != true || state["applied"] == true || state["state"] != "pending" {
 		t.Fatalf("lost ACK was optimistic or lost actual pause: %+v calls=%d", state, operations.Load())
 	}
@@ -207,7 +271,17 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	subscribe()
 	hideReceipts.Store(false)
 	stopPolicy = startProviderPolicyRuntime(t, manager)
-	reconcile()
+	awaitProviderPolicyCondition(t, "restarted runtime did not confirm the original immutable operation", func() bool {
+		r, err := db.ProviderPolicy(context.Background(), state["subjectId"].(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var document struct{ Pending json.RawMessage }
+		if err := json.Unmarshal([]byte(r.Document), &document); err != nil {
+			t.Fatal(err)
+		}
+		return len(document.Pending) == 0
+	})
 	state = api("GET", path, nil, 200)
 	if state["ownPaused"] != true || state["applied"] != true || operations.Load() != 1 {
 		t.Fatal("restart failed to confirm original operation without duplicate")
@@ -223,12 +297,102 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	}
 	if contrary != "" {
 		response.Store("1.00")
+		if strings.HasSuffix(contrary, "during_prepare") {
+			// Bind this barrier to ONE explicit real recovery pass. No live
+			// worker may cancel/retry and turn an expired hold into a false PASS.
+			stopPolicy()
+			stopPolicy = nil
+			inventory := manager.AppContext().ResourceCapabilityService.Inventory(context.Background(), true)
+			var sourceBinding ob.Binding
+			raw, _ := json.Marshal(query)
+			if err := json.Unmarshal(raw, &sourceBinding); err != nil {
+				t.Fatal(err)
+			}
+			armPreparation.Store(true)
+			await(start())
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			done := make(chan error, 1)
+			finished := make(chan struct{})
+			go func() {
+				defer close(finished)
+				done <- manager.AppContext().ProviderPolicyService.Reconcile(ctx)
+			}()
+			defer func() { cancel(); <-finished }() // Join before SQLite cleanup, also on failure.
+			var heldContext context.Context
+			select {
+			case heldContext = <-preparationHeld:
+			case err := <-done:
+				t.Fatalf("single real preparation ended before its controlled boundary: %v", err)
+			case <-time.After(20 * time.Second):
+				t.Fatal("real pending-clear dispatch preparation did not reach its controlled ledger read")
+			}
+			contraryAttempt := ""
+			switch contrary {
+			case "source_replaced_during_prepare":
+				query["version"] = 1
+				query["secret"] = "MONEY-NONMATCHING-QUERY-REPLACEMENT"
+				api("PUT", balancePath, query, 200)
+			case "failure_during_prepare":
+				response.Store("NULL")
+				contraryAttempt = start()
+				await(contraryAttempt)
+			default:
+				response.Store("-0.05")
+				contraryAttempt = start()
+				await(contraryAttempt)
+			}
+			// Actual contrary observation/config is durable before resuming.
+			current, err := manager.AppContext().OfficialBalanceService.InventoryStatus(context.Background(), sourceBinding, inventory)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if contrary == "source_replaced_during_prepare" {
+				if current.Version != 2 || current.LastSuccess != nil {
+					t.Fatal("replacement source/version was not durable at the boundary")
+				}
+			} else if current.Attempt == nil || current.Attempt.QueryID != contraryAttempt || contrary == "failure_during_prepare" && current.Attempt.QueryStatus == "success" || contrary != "failure_during_prepare" && (current.LastSuccess == nil || current.LastSuccess.QueryID != contraryAttempt || current.LastSuccess.QueryStatus != "success") {
+				t.Fatal("exact contrary source attempt/status was not durable at the boundary")
+			}
+			if ctx.Err() != nil || heldContext.Err() != nil {
+				t.Fatal("preparation expired before contrary publication/release; not guard acceptance")
+			}
+			releasePreparation <- struct{}{}
+			if !<-preparationResumed {
+				t.Fatal("controlled exchange resumed through cancellation, not a live preparation")
+			}
+			select {
+			case err := <-done:
+				if ctx.Err() != nil {
+					t.Fatal("preparation pass expired instead of validating the contrary source")
+				}
+				if operations.Load() == 1 && !errors.Is(err, pp.ErrUnavailable) {
+					t.Fatalf("pass ended without an explicit policy evidence refusal: %v", err)
+				}
+			case <-ctx.Done():
+				t.Fatal("single preparation pass did not finish within its real lifecycle budget")
+			}
+			state = api("GET", path, nil, 200)
+			if operations.Load() != 1 || state["ownPaused"] != true {
+				t.Fatalf("dispatch used money superseded during preparation: calls=%d state=%+v", operations.Load(), state)
+			}
+			return
+		}
 		rejectBeforeForward.Store(true)
 		await(start())
-		awaitProviderPolicyCondition(t, "actual Run did not persist the before-forward clear", func() bool {
-			state = api("GET", path, nil, 200)
-			return state["state"] == "pending" && state["ownPaused"] == true
-		})
+		// A pending journal is not proof that a POST was attempted. Establish
+		// the actual non-forwarding refusal, then cancel/join the worker so no
+		// first attempt remains in flight while the retry precondition changes.
+		select {
+		case <-rejected:
+		case <-time.After(20 * time.Second):
+			t.Fatal("actual runtime never reached the controlled before-forward refusal")
+		}
+		stopPolicy()
+		stopPolicy = nil
+		state = api("GET", path, nil, 200)
+		if state["state"] != "pending" || state["ownPaused"] != true {
+			t.Fatal("refused clear lost its durable pending journal/actual pause")
+		}
 		if operations.Load() != 1 {
 			t.Fatal("controlled rejected clear reached Core")
 		}
@@ -240,8 +404,9 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 			query["secret"] = "MONEY-NONMATCHING-QUERY-REPLACEMENT"
 			api("PUT", balancePath, query, 200)
 		}
-		// Keep the transport refusal until contrary success/source replacement
-		// is durable. A live worker must not commit the old clear in that gap.
+		// Keep the refusal until contrary evidence/source replacement is durable.
+		// Deliberately invoke the real recovery entry point with no concurrent
+		// worker: this is the stale retry under test, not a rescue of live Run.
 		rejectBeforeForward.Store(false)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		_ = manager.AppContext().ProviderPolicyService.Reconcile(ctx)
@@ -279,11 +444,16 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 		t.Fatal("late ON completion resumed after OFF")
 	}
 	update(true)
+	// Exercise stale-generation recovery without racing an already running
+	// recovery entry point for the same mutex/lease and budget.
+	stopPolicy()
+	stopPolicy = nil
 	reconcile()
 	state = api("GET", path, nil, 200)
 	if state["ownPaused"] != true || operations.Load() != 1 {
 		t.Fatal("re-enabling consumed an old generation's success")
 	}
+	stopPolicy = startProviderPolicyRuntime(t, manager)
 	fresh := start()
 	await(fresh)
 	awaitProviderPolicyEvent(t, db, fresh)
