@@ -219,7 +219,7 @@ func TestProviderRecoveryMainPreservesManualDisable(t *testing.T) {
 	state := f.api("GET", f.policyPath(), nil, 200)
 	request := recoveryRequest(state)
 	raw := []byte(`{"name":"funding-a","value":{"disabled":true}}`)
-	req, _ := http.NewRequest("PATCH", f.base+"/v8/management/openai-compatibility", bytes.NewReader(raw))
+	req, _ := http.NewRequest("PATCH", f.base+"/v0/management/openai-compatibility", bytes.NewReader(raw))
 	req.Header.Set("Authorization", "Bearer controlled-core-key")
 	req.Header.Set("Content-Type", "application/json")
 	res, err := http.DefaultClient.Do(req)
