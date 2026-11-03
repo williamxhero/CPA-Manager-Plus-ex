@@ -42,6 +42,7 @@ export function ProviderMoneyPanel({
   const current = useRef(context);
   const serial = useRef(0);
   const active = useRef<AbortController | null>(null);
+  const [confirmation, setConfirmation] = useState<typeof context | null>(null);
   const [view, setView] = useState<{
     context: typeof context;
     data?: ProviderPolicyStatus;
@@ -95,13 +96,22 @@ export function ProviderMoneyPanel({
     };
   }, [context, usable, issued, base, managementKey, providerId]);
 
-  const request = async (enabled?: boolean) => {
+  const request = async (enabled?: boolean | 'recover') => {
     if (
       current.current !== context ||
       !usable ||
       !issued ||
       active.current ||
       (enabled !== undefined && (!visible.data || !visible.verified))
+    )
+      return;
+    if (
+      enabled === 'recover' &&
+      (confirmation !== context ||
+        !visible.data?.recoveryAvailable ||
+        visible.data.enabled ||
+        !visible.data.coordination?.generation ||
+        !visible.data.coordination.sourceVersion)
     )
       return;
     const controller = new AbortController();
@@ -114,6 +124,16 @@ export function ProviderMoneyPanel({
     try {
       let data: ProviderPolicyStatus;
       if (enabled !== undefined && visible.data) {
+        const mutation =
+          enabled === 'recover'
+            ? {
+                action: 'recover' as const,
+                expectedGeneration: visible.data.generation,
+                expectedGateGeneration: visible.data.coordination!.generation!,
+                sourceVersion: visible.data.coordination!.sourceVersion!,
+              }
+            : { enabled, expectedGeneration: visible.data.generation };
+        setConfirmation(null);
         try {
           data = await providerPolicyRequest(
             base,
@@ -121,7 +141,7 @@ export function ProviderMoneyPanel({
             issued,
             providerId,
             controller.signal,
-            { enabled, expectedGeneration: visible.data.generation }
+            mutation
           );
         } catch {
           if (!valid()) return;
@@ -173,7 +193,18 @@ export function ProviderMoneyPanel({
       {data && (
         <>
           <p>{data.enabled ? '已启用' : data.ownPaused ? '已关闭 · 保留历史暂停' : '已关闭'}</p>
-          <p>设置来源：{data.source === 'explicit' ? '管理员显式设置' : data.source === 'default_off' ? '首次默认关闭' : '未知'}</p>
+          {data.state === 'recovered_off' && data.applied && (
+            <p>已显式恢复本策略暂停，策略保持关闭</p>
+          )}
+          {data.state === 'recovery_pending' && <p>恢复结果未确认，请刷新等待协调；不会自动重发</p>}
+          <p>
+            设置来源：
+            {data.source === 'explicit'
+              ? '管理员显式设置'
+              : data.source === 'default_off'
+                ? '首次默认关闭'
+                : '未知'}
+          </p>
           <p>
             {data.effective ? '策略可执行' : '策略未就绪'} ·{' '}
             {data.applied ? (data.ownPaused ? '已确认暂停' : '已确认恢复') : '门禁结果未确认'}
@@ -222,6 +253,35 @@ export function ProviderMoneyPanel({
       >
         {data?.enabled ? '关闭资金自动保护' : '启用资金自动保护'}
       </button>
+      {data && !data.enabled && (data.ownPaused || data.state === 'recovery_pending') && (
+        <>
+          {' '}
+          <button
+            type="button"
+            disabled={!usable || !visible.verified || visible.busy || !data.recoveryAvailable}
+            onClick={() => setConfirmation(context)}
+          >
+            恢复本策略历史暂停
+          </button>
+          {confirmation === context && (
+            <div role="alertdialog" aria-label="确认恢复本策略暂停">
+              <p>仅清除本策略拥有的历史暂停，策略保持关闭。人工关闭和其他策略限制将保留。</p>
+              <button
+                type="button"
+                disabled={visible.busy || !visible.verified || !data.recoveryAvailable}
+                onClick={() => {
+                  void request('recover');
+                }}
+              >
+                确认仅恢复本策略暂停
+              </button>{' '}
+              <button type="button" onClick={() => setConfirmation(null)}>
+                取消恢复
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }

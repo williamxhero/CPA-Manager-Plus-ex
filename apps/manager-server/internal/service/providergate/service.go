@@ -228,6 +228,7 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 			return out, ErrUnavailable
 		}
 		op := out.doc.Operation
+		out.status.OperationReason = op.Reason
 		out.status.UpdatedAtMS = out.doc.UpdatedAtMS
 		out.status.ReceiptPersisted = validReceipt(op, out.doc.Receipt)
 		out.status.Action, out.status.State, out.status.Reason = op.Action, "pending", "operation_outcome_unverified"
@@ -329,7 +330,7 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	if out.record.Generation > 0 && !out.settled {
 		return Status{}, ErrUnavailable
 	}
-	return s.send(ctx, out, q.Action, "", nil)
+	return s.send(ctx, out, q.Action, "", "", nil)
 }
 
 // ApplyMonetary accepts only host-derived evidence and a final authorization
@@ -348,10 +349,31 @@ func (s *Service) ApplyMonetary(ctx context.Context, b Binding, sourceVersion, a
 	if out.record.Generation > 0 && !out.settled {
 		return Status{}, ErrUnavailable
 	}
-	return s.send(ctx, out, action, evidence, authorize)
+	return s.send(ctx, out, action, evidence, "", authorize)
 }
 
-func (s *Service) send(ctx context.Context, out prepared, action, evidence string, authorize func(context.Context) error) (Status, error) {
+const ExplicitRecoveryReason = "operator_provider_balance_resume"
+
+// RecoverMonetary is an explicit OFF-state override. Its caller must fence the
+// saved OFF intent; neither owner nor action may be chosen by an HTTP client.
+func (s *Service) RecoverMonetary(ctx context.Context, b Binding, generation int64, sourceVersion, evidence string, authorize func(context.Context) error) (Status, error) {
+	if !s.monetary || authorize == nil || generation <= 0 || !validDigest(sourceVersion) || !validDigest(evidence) {
+		return Status{}, ErrInput
+	}
+	out, err := s.prepare(ctx, b)
+	if err != nil {
+		return Status{}, err
+	}
+	if out.record.Generation != generation {
+		return Status{}, store.ErrProviderGateConflict
+	}
+	if !out.settled || !out.status.Applied || !out.status.OwnPaused || !out.status.ReceiptPersisted || out.status.SourceVersion != sourceVersion {
+		return Status{}, ErrUnavailable
+	}
+	return s.send(ctx, out, "clear", evidence, ExplicitRecoveryReason, authorize)
+}
+
+func (s *Service) send(ctx context.Context, out prepared, action, evidence, explicitReason string, authorize func(context.Context) error) (Status, error) {
 	opID := uuid.NewString()
 	reason := "operator_provider_pause"
 	if action == "clear" {
@@ -364,6 +386,9 @@ func (s *Service) send(ctx context.Context, out prepared, action, evidence strin
 		}
 	} else {
 		evidence = "manual/" + opID
+	}
+	if explicitReason != "" {
+		reason = explicitReason
 	}
 	if authorize != nil {
 		if err := authorize(ctx); err != nil {

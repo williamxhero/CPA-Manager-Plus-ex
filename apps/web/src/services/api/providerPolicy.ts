@@ -14,7 +14,13 @@ export interface ProviderPolicyStatus extends BalanceBinding {
   state: string;
   reason: string;
   updatedAtMs: number;
-  coordination?: { receiptPersisted: boolean; state: string };
+  recoveryAvailable?: boolean;
+  coordination?: {
+    receiptPersisted: boolean;
+    state: string;
+    generation?: number;
+    sourceVersion?: string;
+  };
   sources: OfficialBalanceStatus[];
 }
 
@@ -46,14 +52,33 @@ export async function providerPolicyRequest(
   binding: BalanceBinding,
   providerId: string,
   signal: AbortSignal,
-  update?: { enabled: boolean; expectedGeneration: number }
+  update?:
+    | { enabled: boolean; expectedGeneration: number }
+    | {
+        action: 'recover';
+        expectedGeneration: number;
+        expectedGateGeneration: number;
+        sourceVersion: string;
+      }
 ): Promise<ProviderPolicyStatus> {
+  const recovery = update && 'action' in update;
+  const body = recovery
+    ? {
+        ...binding,
+        providerId,
+        expectedGeneration: update.expectedGeneration,
+        expectedGateGeneration: update.expectedGateGeneration,
+        sourceVersion: update.sourceVersion,
+      }
+    : update
+      ? { ...binding, providerId, ...update }
+      : undefined;
   const response = await fetch(
-    `${base.replace(/\/$/, '')}/usage-service/provider-policy${update ? '' : `?providerId=${encodeURIComponent(providerId)}`}`,
+    `${base.replace(/\/$/, '')}/usage-service/provider-policy${recovery ? '/recover' : update ? '' : `?providerId=${encodeURIComponent(providerId)}`}`,
     {
-      method: update ? 'PUT' : 'GET',
+      method: recovery ? 'POST' : update ? 'PUT' : 'GET',
       headers: { Authorization: `Bearer ${managementKey}`, 'Content-Type': 'application/json' },
-      body: update ? JSON.stringify({ ...binding, providerId, ...update }) : undefined,
+      body: body ? JSON.stringify(body) : undefined,
       signal,
       cache: 'no-store',
       redirect: 'error',

@@ -49,20 +49,21 @@ type Status struct {
 	Sources      []ob.Status                    `json:"sources"`
 	Evaluation   *store.ProviderMoneyEvaluation `json:"evaluation,omitempty"`
 	Binding
-	SubjectID      string `json:"subjectId"`
-	Enabled        bool   `json:"enabled"`
-	Effective      bool   `json:"effective"`
-	Generation     int64  `json:"generation"`
-	Owner          string `json:"owner"`
-	Source         string `json:"source"`
-	UpdatedAtMS    int64  `json:"updatedAtMs"`
-	BindingCurrent bool   `json:"bindingCurrent"`
-	Locked         bool   `json:"locked"`
-	ManualDisabled bool   `json:"manualDisabled"`
-	OwnPaused      bool   `json:"ownPaused"`
-	Applied        bool   `json:"applied"`
-	State          string `json:"state"`
-	Reason         string `json:"reason"`
+	SubjectID         string `json:"subjectId"`
+	Enabled           bool   `json:"enabled"`
+	Effective         bool   `json:"effective"`
+	Generation        int64  `json:"generation"`
+	Owner             string `json:"owner"`
+	Source            string `json:"source"`
+	UpdatedAtMS       int64  `json:"updatedAtMs"`
+	BindingCurrent    bool   `json:"bindingCurrent"`
+	Locked            bool   `json:"locked"`
+	ManualDisabled    bool   `json:"manualDisabled"`
+	OwnPaused         bool   `json:"ownPaused"`
+	Applied           bool   `json:"applied"`
+	RecoveryAvailable bool   `json:"recoveryAvailable"`
+	State             string `json:"state"`
+	Reason            string `json:"reason"`
 }
 
 type Service struct {
@@ -195,6 +196,14 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 				out.OwnPaused, out.Applied = gate.OwnPaused, gate.Applied
 				if !out.Enabled && gate.OwnPaused {
 					out.State, out.Reason = "historical_pause", "explicit_recovery_required"
+					out.RecoveryAvailable = gate.Applied && gate.ReceiptPersisted && gate.Generation > 0
+				}
+				if !out.Enabled && gate.OperationReason == pg.ExplicitRecoveryReason {
+					if gate.Applied && !gate.OwnPaused {
+						out.State, out.Reason = "recovered_off", "explicit_recovery_confirmed"
+					} else if !gate.Applied && gate.State != "discarded" {
+						out.State, out.Reason = "recovery_pending", "operation_outcome_unverified"
+					}
 				}
 				if out.Enabled && (gate.Generation == 0 || gate.Applied || gate.State == "discarded") && gate.SourceVersion == saved.SourceVersion && s.sourcesCurrent(ctx, b, saved) {
 					out.Effective, out.Locked, out.State, out.Reason = true, false, "enabled", "awaiting_new_success"
