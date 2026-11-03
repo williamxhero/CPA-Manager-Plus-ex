@@ -485,7 +485,7 @@ func valid(r CoreObservation, s Source) bool {
 	if r.QueryStatus != "success" {
 		return !r.RecoveryEligible
 	}
-	if (r.TimestampProvenance != "upstream_http_date" && r.TimestampProvenance != "local_cli_acquisition_time") || r.ReceivedAtMS < r.ObservedAtMS-60000 || r.ReceivedAtMS > time.Now().Add(time.Minute).UnixMilli() {
+	if !validProvenance(r.Protocol, r.AccountProvenance, r.TimestampProvenance) || r.ReceivedAtMS < r.ObservedAtMS-60000 || r.ReceivedAtMS > time.Now().Add(time.Minute).UnixMilli() {
 		return false
 	}
 	if r.ObservedAtMS <= 0 || time.Since(time.UnixMilli(r.ObservedAtMS)) > 5*time.Minute || time.Until(time.UnixMilli(r.ObservedAtMS)) > time.Minute || len(r.Windows) == 0 {
@@ -535,6 +535,19 @@ func valid(r CoreObservation, s Source) bool {
 		return false
 	}
 	return true
+}
+
+func validProvenance(protocol, account, timestamp string) bool {
+	switch protocol {
+	case "codex-oauth-wham":
+		return account == "selected_oauth_account" && timestamp == "upstream_http_date"
+	case "opencode-go-usage":
+		return account == "selected_key_subscription" && timestamp == "upstream_http_date"
+	case "qwen-coding-plan-cli":
+		return account == "configured_cli_profile" && timestamp == "local_cli_acquisition_time"
+	default:
+		return false
+	}
 }
 func (s *Service) Job(ctx context.Context, id string) (Job, error) {
 	if _, err := uuid.Parse(id); err != nil {

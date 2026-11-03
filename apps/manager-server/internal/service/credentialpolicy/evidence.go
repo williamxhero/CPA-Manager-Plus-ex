@@ -31,6 +31,19 @@ func noEvidence(reason string) EvidenceDecision {
 	return EvidenceDecision{Action: "none", Reason: reason}
 }
 
+func validProvenance(protocol, account, timestamp string) bool {
+	switch protocol {
+	case "codex-oauth-wham":
+		return account == "selected_oauth_account" && timestamp == "upstream_http_date"
+	case "opencode-go-usage":
+		return account == "selected_key_subscription" && timestamp == "upstream_http_date"
+	case "qwen-coding-plan-cli":
+		return account == "configured_cli_profile" && timestamp == "local_cli_acquisition_time"
+	default:
+		return false
+	}
+}
+
 func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecision {
 	if status.Stale || status.State != "ready" || status.CredentialQuery.State != "available" || status.Attempt == nil || status.LastSuccess == nil || status.Attempt.QueryStatus != "success" || status.LastSuccess.QueryID != status.Attempt.QueryID {
 		return noEvidence("fresh_authoritative_evidence_required")
@@ -47,10 +60,10 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 	if len(obs.WindowsJSON) > 2<<20 || json.Unmarshal([]byte(obs.WindowsJSON), &core) != nil || json.Unmarshal(obs.Binding, &binding) != nil || !reflect.DeepEqual(binding, status.Binding) || !reflect.DeepEqual(core.Binding, status.Binding) || core.SourceVersion != status.SourceVersion || core.Protocol != status.Protocol || core.AccountProvenance != status.AccountProvenance {
 		return noEvidence("source_authority_changed")
 	}
-	if core.ProtocolVersion != 1 || core.QueryStatus != "success" || !core.Complete || len(core.Windows) == 0 || len(core.Windows) > 128 || core.TimestampProvenance != "upstream_http_date" && core.TimestampProvenance != "local_cli_acquisition_time" || obs.ObservedAtMS != core.ObservedAtMS || core.ObservedAtMS <= 0 || core.ObservedAtMS > now.Add(time.Minute).UnixMilli() || core.ObservedAtMS < now.Add(-5*time.Minute).UnixMilli() || core.ReceivedAtMS < core.ObservedAtMS-60000 || core.ReceivedAtMS > now.Add(time.Minute).UnixMilli() {
+	if core.ProtocolVersion != 1 || core.QueryStatus != "success" || !core.Complete || len(core.Windows) == 0 || len(core.Windows) > 128 || obs.ObservedAtMS != core.ObservedAtMS || core.ObservedAtMS <= 0 || core.ObservedAtMS > now.Add(time.Minute).UnixMilli() || core.ObservedAtMS < now.Add(-5*time.Minute).UnixMilli() || core.ReceivedAtMS < core.ObservedAtMS-60000 || core.ReceivedAtMS > now.Add(time.Minute).UnixMilli() {
 		return noEvidence("fresh_authoritative_evidence_required")
 	}
-	if core.Protocol == "codex-oauth-wham" && core.AccountProvenance != "selected_oauth_account" || core.Protocol == "opencode-go-usage" && core.AccountProvenance != "selected_key_subscription" || core.Protocol == "qwen-coding-plan-cli" && core.AccountProvenance != "configured_cli_profile" || core.Protocol != "codex-oauth-wham" && core.Protocol != "opencode-go-usage" && core.Protocol != "qwen-coding-plan-cli" {
+	if !validProvenance(core.Protocol, core.AccountProvenance, core.TimestampProvenance) {
 		return noEvidence("account_authority_unverified")
 	}
 	groups := map[string]map[string]bool{}
