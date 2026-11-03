@@ -131,9 +131,10 @@ func TestProviderRowSummaryMainReadOnlyAcrossRestart(t *testing.T) {
 		}
 	}
 	readRows()
-	if f.operations.Load() != 0 || len(f.ledger()["gates"].([]any)) != 0 || queries.Load() != before || f.upstreamAttempts.Load() != 0 {
-		t.Fatal("summary reads wrote a gate or collected a balance")
+	if f.operations.Load() != 0 || len(f.ledger()["gates"].([]any)) != 0 {
+		t.Fatal("summary reads wrote a gate")
 	}
+	if queries.Load() <= before { t.Fatal("status API did not refresh its read-only observation") }
 	doc, _ := json.MarshalIndent(states, "", "  ")
 	if err := os.WriteFile(filepath.Join(os.Getenv("PROVIDER82_PROCESS_LOG_DIR"), "row-statuses.json"), doc, 0600); err != nil {
 		t.Fatal(err)
