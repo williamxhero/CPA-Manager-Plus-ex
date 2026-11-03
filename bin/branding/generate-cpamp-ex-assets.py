@@ -53,6 +53,7 @@ Targets written (all paths relative to the repo root):
 import argparse
 import base64
 import io
+import math
 import os
 import re
 import struct
@@ -106,6 +107,47 @@ MSRV_DIR = "apps/manager-server/internal/httpapi/web"
 INDEX_REL = "apps/web/index.html"
 FAVICON_SVG_REL = f"{BRAND_DIR}/favicon.svg"
 
+# Published M68 baseline: these assets may not silently disappear from a source.
+# Additional assets still follow the existing category/layout validation.
+REQUIRED_BRAND_ASSETS = (
+    "cpamp-app-icon.svg",
+    "cpamp-logo-horizontal-black.svg",
+    "cpamp-logo-horizontal-color.svg",
+    "cpamp-logo-horizontal-on-dark.svg",
+    "cpamp-logo-horizontal-white.svg",
+    "cpamp-logo-vertical-color.svg",
+    "cpamp-logo-vertical-on-dark.svg",
+    "cpamp-symbol-black.svg",
+    "cpamp-symbol-color.svg",
+    "cpamp-symbol-white.svg",
+    "cpamp-wordmark-black.svg",
+    "cpamp-wordmark-color.svg",
+    "cpamp-wordmark-on-dark.svg",
+    "cpamp-wordmark-white.svg",
+    "favicon.svg",
+    "cpamp-logo-horizontal-color-240.png",
+    "cpamp-logo-horizontal-color-480.png",
+    "cpamp-logo-horizontal-color-960.png",
+    "cpamp-logo-horizontal-on-dark-240.png",
+    "cpamp-logo-horizontal-on-dark-480.png",
+    "cpamp-logo-horizontal-on-dark-960.png",
+    "cpamp-logo-vertical-color-100.png",
+    "cpamp-logo-vertical-color-200.png",
+    "cpamp-logo-vertical-color-400.png",
+    "cpamp-logo-vertical-on-dark-100.png",
+    "cpamp-logo-vertical-on-dark-200.png",
+    "cpamp-logo-vertical-on-dark-400.png",
+    "cpamp-symbol-color.png",
+    "cpamp-wordmark-color.png",
+    "cpamp-wordmark-on-dark.png",
+)
+REQUIRED_SOURCE_PATHS = tuple(f"{BRAND_DIR}/{name}" for name in REQUIRED_BRAND_ASSETS) + (
+    FAVICON_REL, APPLE_REL, INDEX_REL,
+)
+REQUIRED_OUTPUT_PATHS = REQUIRED_SOURCE_PATHS + (
+    f"{MSRV_DIR}/favicon.ico", f"{MSRV_DIR}/apple-touch-icon.png",
+)
+
 ASSET_LAYOUTS = {
     "horizontal": {
         "canvas": (12, 8, 1002, 302),
@@ -123,13 +165,29 @@ ASSET_LAYOUTS = {
 }
 
 
+def validate_layout(category, layout):
+    # A lockup/wordmark cannot silently opt out of protecting its letters.
+    # Symbol-only layouts legitimately have no text region.
+    if category in ("horizontal", "vertical", "wordmark"):
+        text = layout.get("text")
+        if (
+            not isinstance(text, (tuple, list))
+            or len(text) != 4
+            or not all(isinstance(value, (int, float)) and math.isfinite(value) for value in text)
+            or text[2] <= 0
+            or text[3] <= 0
+        ):
+            raise ValueError(f"missing or invalid protected text bounds for {category}")
+    return layout
+
+
 def asset_layout(name):
     if name == "favicon.svg":
-        return ASSET_LAYOUTS["symbol"]
+        return validate_layout("symbol", ASSET_LAYOUTS["symbol"])
     for category, layout in ASSET_LAYOUTS.items():
         prefix = f"cpamp-logo-{category}" if category in ("horizontal", "vertical") else f"cpamp-{category}"
         if name.startswith(prefix + "-") or name == prefix + ".svg":
-            return layout
+            return validate_layout(category, layout)
     raise ValueError(f"missing brand layout: {name}")
 
 
@@ -355,6 +413,11 @@ def build_outputs(repo, reader):
     """Return {relative_path: bytes} for every generated asset."""
     outputs = {}
 
+    # Read every required input from the selected pristine source, never from
+    # existing outputs. Missing files must fail even in --check mode.
+    for rel in REQUIRED_SOURCE_PATHS:
+        reader.bytes(rel)
+
     # 1. Brand SVGs from pristine, unbadged sources.
     svg_names = [n for n in reader.listdir(BRAND_DIR) if n.endswith(".svg")]
     for name in svg_names:
@@ -403,6 +466,9 @@ def build_outputs(repo, reader):
         html, ico_data, apple_data, outputs[FAVICON_SVG_REL]
     ).encode("utf-8")
 
+    missing = sorted(set(REQUIRED_OUTPUT_PATHS) - outputs.keys())
+    if missing:
+        raise ValueError(f"missing required brand outputs: {', '.join(missing)}")
     return outputs
 
 
@@ -421,7 +487,7 @@ def main(argv=None):
     except subprocess.CalledProcessError as exc:
         sys.stderr.write(f"git source read failed (ref {args.source_ref}): {exc}\n")
         return 2
-    except (ValueError, ET.ParseError) as exc:
+    except (ValueError, ET.ParseError, OSError) as exc:
         sys.stderr.write(f"invalid brand source or layout: {exc}\n")
         return 2
 

@@ -133,6 +133,77 @@ const EX_CHIP_H = EX_GLYPH_H + 2 * EX_PIXEL_PAD; // 7
 const brandSvgFiles = readdirSync(brandDir).filter((name) => name.endsWith('.svg'));
 const brandPngFiles = readdirSync(brandDir).filter((name) => name.endsWith('.png'));
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+// Published M68 baseline names; extra classified assets may not replace these.
+const requiredBrandSvgFiles = [
+  'cpamp-app-icon.svg',
+  'cpamp-logo-horizontal-black.svg',
+  'cpamp-logo-horizontal-color.svg',
+  'cpamp-logo-horizontal-on-dark.svg',
+  'cpamp-logo-horizontal-white.svg',
+  'cpamp-logo-vertical-color.svg',
+  'cpamp-logo-vertical-on-dark.svg',
+  'cpamp-symbol-black.svg',
+  'cpamp-symbol-color.svg',
+  'cpamp-symbol-white.svg',
+  'cpamp-wordmark-black.svg',
+  'cpamp-wordmark-color.svg',
+  'cpamp-wordmark-on-dark.svg',
+  'cpamp-wordmark-white.svg',
+  'favicon.svg',
+];
+const requiredBrandPngFiles = [
+  'cpamp-logo-horizontal-color-240.png',
+  'cpamp-logo-horizontal-color-480.png',
+  'cpamp-logo-horizontal-color-960.png',
+  'cpamp-logo-horizontal-on-dark-240.png',
+  'cpamp-logo-horizontal-on-dark-480.png',
+  'cpamp-logo-horizontal-on-dark-960.png',
+  'cpamp-logo-vertical-color-100.png',
+  'cpamp-logo-vertical-color-200.png',
+  'cpamp-logo-vertical-color-400.png',
+  'cpamp-logo-vertical-on-dark-100.png',
+  'cpamp-logo-vertical-on-dark-200.png',
+  'cpamp-logo-vertical-on-dark-400.png',
+  'cpamp-symbol-color.png',
+  'cpamp-wordmark-color.png',
+  'cpamp-wordmark-on-dark.png',
+];
+// Git-blob SHA-256 at d680c9d0b7deeba8d54b4c81849d63e8135b1221.
+// Normalize only SVG checkout CRLFs; preserve lone CRs and byte-exact PNGs.
+// Static literals keep source archives verifiable without Git history.
+const providerIconHashes = {
+  'antigravity.svg': '85c2caf68a95d71cb810f4225ae338861fedbd2bc21b160883df94f0065f4d7f',
+  'claude.svg': 'a3101f3047a119aa11825ad9369510f0c472428c8c52d420e31bc62db44a8364',
+  'codex.svg': 'e98c06def82d8d5c33d84a3589c85bec21ca652695bb8e6c60d2b7d238b8885e',
+  'deepseek.svg': 'deba5f98a5c1796e20fcac3149bcd7eb8a32f0bdd04d048819400b1f28bd1439',
+  'devin-dark.svg': '3254924b008c93287601afee2d20cc4afbcbea038872f941face3099b1db70d6',
+  'devin.svg': 'a924e172895a638b1e104ab784054f7220437d172cdff3bf08c94ef696a64ad4',
+  'gemini.svg': 'd7161ea5a85c51d996bb7611c665e9b531db5a4092d4978ed4d6ddf6c043257d',
+  'glm.svg': '8174e65ff71647d5c705c920c953a82bd723d9e3e42887bdd4ffc9dfe51207a0',
+  'grok-dark.svg': '1d4625472528090d3b4f788136cbd10468a9bf494193eb1e92d67e7d011b42cf',
+  'grok.svg': '9175fc90c22655160231976c849f25a03b888d7cc0e04c5f1b987b659bb07c95',
+  'iflow.svg': '7450cab608ce761bfe5d5f5c95c124788e1ef7f1741f7ca3f4b3dbf71e28abcd',
+  'kimi-dark.svg': 'f95bbaca97a975b2154c729c5128fed366fa076cc606aa505c4b78fcbe9ebc33',
+  'kimi-light.svg': '952b010de7104acdb62ac2238453bef628ca72b3753151ca05d74c7815c70647',
+  'meta.svg': 'e688b9947034e5a1a6e43435da3cd5eeb0d1102290679903dc96c6d43447a99b',
+  'minimax.svg': '553256ae1bb6ea442649b8229a4a2e6e5a7e2008404ebd8788b06343fb5c7c1c',
+  'openai-dark.svg': '6f256aa9fa2c5ec28869a78cc904ab6026728fdfdcb7254d1f877fd348736386',
+  'openai-light.svg': '443edb601fc09f41e1fb091421f971f56ab244a52b34de4d4af28b43c6000433',
+  'opencode-dark.png': '20c8b4794f4c988ab335a519980415ba94ea3442b5a794b920c5408be295bc53',
+  'opencode-light.png': '0181fe611c6cd686f7d06333087b93fd8bd4a9dd54dd1df5a3fc6b3c86147f3c',
+  'qwen.svg': '0aa9e2cc95b36f0243cbf384043ae80a2e32542e9260ded335dd59de5e625cb5',
+  'vertex.svg': 'd6a643fad5de9e513bba05af22b685572e5e06b92c3e5495b7ecf56666ff79c0',
+};
+const iconsDir = path.resolve(repoRoot, 'apps/web/src/assets/icons');
+const assertProviderIconUnchanged = (name, data) => {
+  const bytes = name.endsWith('.svg')
+    ? Buffer.from(data.toString('utf8').replaceAll('\r\n', '\n'), 'utf8')
+    : data;
+  expect(sha256(bytes), `third-party provider bytes changed: ${name}`).toBe(providerIconHashes[name]);
+  expect(data.includes(PNG_MARKER)).toBe(false);
+  expect(data.toString('utf8').includes(SVG_MARKER)).toBe(false);
+};
+
 // Pristine 419c65fc pixel/wordmark fingerprints keep source archives testable without Git history.
 const pristineHashes = {
   'cpamp-logo-horizontal-color-240.png':
@@ -171,6 +242,8 @@ describe('CPAMP EX fork branding', () => {
   it('enumerates the full CPAMP brand asset set (svg + png)', () => {
     expect(brandSvgFiles.length).toBeGreaterThanOrEqual(15);
     expect(brandPngFiles.length).toBeGreaterThanOrEqual(15);
+    expect(brandSvgFiles).toEqual(expect.arrayContaining(requiredBrandSvgFiles));
+    expect(brandPngFiles).toEqual(expect.arrayContaining(requiredBrandPngFiles));
   });
 
   it.each(brandSvgFiles.filter((name) => name.includes('-logo-')))(
@@ -276,14 +349,52 @@ describe('CPAMP EX fork branding', () => {
   });
 
   it('never stamps an EX marker onto third-party provider icons', () => {
-    const iconsDir = path.resolve(repoRoot, 'apps/web/src/assets/icons');
     for (const name of readdirSync(iconsDir)) {
-      if (name.startsWith('opencode-')) continue; // provider asset, still must be untouched
-      const data = read(path.join(iconsDir, name));
-      expect(data.includes(PNG_MARKER)).toBe(false);
-      expect(data.toString('utf8').includes(SVG_MARKER)).toBe(false);
+      assertProviderIconUnchanged(name, read(path.join(iconsDir, name)));
     }
   });
+
+  it('covers every third-party provider asset with a fixed byte baseline', () => {
+    expect(readdirSync(iconsDir).sort()).toEqual(Object.keys(providerIconHashes).sort());
+  });
+
+  it('accepts a CRLF checkout of a third-party SVG without changing its content', () => {
+    const name = 'antigravity.svg';
+    const lf = read(path.join(iconsDir, name)).toString('utf8').replaceAll('\r\n', '\n');
+    const crlf = Buffer.from(lf.replaceAll('\n', '\r\n'), 'utf8');
+    expect(crlf.includes(Buffer.from('\r\n'))).toBe(true);
+    expect(sha256(crlf)).not.toBe(providerIconHashes[name]);
+    expect(() => assertProviderIconUnchanged(name, crlf)).not.toThrow();
+  });
+
+  it('rejects a lone CR inside a third-party SVG attribute value', () => {
+    const name = 'antigravity.svg';
+    const original = read(path.join(iconsDir, name)).toString('utf8').replaceAll('\r\n', '\n');
+    expect(original).toContain('fill="#3789F9"');
+    const changed = Buffer.from(original.replace('fill="#3789F9"', `fill="#3${CR}789F9"`), 'utf8');
+    expect(changed.toString('utf8')).toContain(`fill="#3${CR}789F9"`);
+    expect(sha256(changed)).toBe('7e8364b33f2fccf254f6af87b77f92edd5c679a35a8182853471ebba33ab1e97');
+    expect(() => assertProviderIconUnchanged(name, changed)).toThrow();
+  });
+
+  it.each(['opencode-dark.png', 'opencode-light.png'])(
+    'keeps byte-exact PNG protection when carriage-return bytes change in %s',
+    (name) => {
+      const original = read(path.join(iconsDir, name));
+      const changed = Buffer.concat([original.subarray(0, 4), Buffer.from(CR), original.subarray(4)]);
+      expect(() => assertProviderIconUnchanged(name, changed)).toThrow();
+    }
+  );
+
+  it.each(Object.keys(providerIconHashes))(
+    'rejects a non-EX byte change to third-party provider %s',
+    (name) => {
+      // In-memory corruption only: never mutate the actual provider asset.
+      const changed = Buffer.from(read(path.join(iconsDir, name)));
+      changed[0] ^= 1;
+      expect(() => assertProviderIconUnchanged(name, changed)).toThrow();
+    }
+  );
 
   it('uses the badged sidebar symbol without adding a second visual EX', () => {
     const layout = read(
