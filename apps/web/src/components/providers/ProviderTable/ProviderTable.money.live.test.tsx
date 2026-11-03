@@ -5,7 +5,11 @@ import { ProviderTable } from './ProviderTable';
 import { buildProviderRows } from './rowData';
 import type { ProviderPolicyStatus } from '@/services/api/providerPolicy';
 
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (s: string) => s }) }));
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (s: string) => ({
+  'ai_providers.money_summary_aria': '资金实时状态摘要', 'ai_providers.money_summary_explicit': '显式设置',
+  'ai_providers.money_summary_stale': '陈旧', 'ai_providers.money_summary_last_success': 'lastSuccess：{{time}}',
+  'ai_providers.money_summary_amount_unknown': '金额未知', 'ai_providers.money_summary_default_off': '默认关闭',
+} as Record<string, string>)[s] ?? s }) }));
 const fixture = process.env.PROVIDER82_ROWS_LIVE_UI;
 it.skipIf(!fixture)('renders every issued row through real fetch to ordinary main and preserves A/B amount isolation', async () => {
   const f: { base: string; managementKey: string; states: ProviderPolicyStatus[] } = JSON.parse(fs.readFileSync(fixture!, 'utf8'));

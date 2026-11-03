@@ -5,7 +5,33 @@ import { buildProviderRows } from './rowData';
 import type { BalanceBinding } from '@/services/api/officialBalance';
 import { providerPolicyRequest } from '@/services/api/providerPolicy';
 
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (s: string) => s }) }));
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (s: string) => ({
+  'ai_providers.money_summary_aria': '资金实时状态摘要',
+  'ai_providers.money_summary_pending': '正在核验 · 上次状态未确认',
+  'ai_providers.money_summary_failed': '读取失败 · 上次状态未确认',
+  'ai_providers.money_summary_unknown': '资金状态未知',
+  'ai_providers.money_summary_enabled': '策略已启用',
+  'ai_providers.money_summary_disabled': '策略已关闭',
+  'ai_providers.money_summary_explicit': '显式设置',
+  'ai_providers.money_summary_default_off': '默认关闭',
+  'ai_providers.money_summary_locked': '已锁定',
+  'ai_providers.money_summary_unlocked': '未锁定',
+  'ai_providers.money_summary_effective': '可执行',
+  'ai_providers.money_summary_not_ready': '策略未就绪',
+  'ai_providers.money_summary_own_paused': '本策略已确认暂停',
+  'ai_providers.money_summary_own_recovered': '本策略已确认恢复',
+  'ai_providers.money_summary_unconfirmed': '门禁结果未确认',
+  'ai_providers.money_summary_manual_disabled': '人工关闭',
+  'ai_providers.money_summary_manual_open': '无人工关闭',
+  'ai_providers.money_summary_updated': '更新时间：2023-11-14T22:13:20.000Z',
+  'ai_providers.money_summary_source': '来源：{{id}}',
+  'ai_providers.money_summary_stale': '陈旧',
+  'ai_providers.money_summary_current': '当前',
+  'ai_providers.money_summary_freshness_unknown': '新鲜度未知',
+  'ai_providers.money_summary_last_success': 'lastSuccess：2023-11-14T22:13:20.000Z',
+  'ai_providers.money_summary_amount_unknown': '金额未知',
+  'ai_providers.money_summary_source_unverified': '来源未验证',
+} as Record<string, string>)[s] ?? s }) }));
 const binding = (id: string): BalanceBinding => ({
   scope: { instance_id: 'instance', instance_incarnation: 'incarnation', boot_epoch: 'boot', snapshot_revision: 1 },
   targets: [id, `${id}-key`].map(resource_id => ({ resource_id, incarnation: 'v1', identity_version: 1, credential_version: 1, config_version: 1, membership_version: 1 })),
@@ -56,6 +82,7 @@ it('retains values while refreshing, marks failed reads unverified, and replaces
   mode = 'pending';
   await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
   expect(text()).toContain('USD 0.0500');
+  expect(text()).toContain('上次状态未确认');
   mode = 'fail';
   await act(async () => { release(Response.error()); });
   expect(text()).toContain('USD 0.0500');

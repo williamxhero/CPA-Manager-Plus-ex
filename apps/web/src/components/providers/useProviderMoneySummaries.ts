@@ -46,6 +46,7 @@ export function useProviderMoneySummaries(rows: ProviderRow[], config?: Provider
     let timer: ReturnType<typeof setTimeout> | undefined;
     const active = new Set<AbortController>();
     const sweep = async () => {
+      if (mounted) setView(previous => ({ context, rows: Object.fromEntries(bindings.map(row => [row.key, { ...(previous.context === context ? previous.rows[row.key] : {}), pending: true, failed: false }])) }));
       let index = 0;
       const worker = async () => {
         while (mounted && index < bindings.length) {
