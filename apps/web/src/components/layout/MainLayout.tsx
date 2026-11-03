@@ -41,6 +41,7 @@ import {
   useVisualEffectsStore,
 } from '@/stores';
 import { pluginsApi } from '@/services/api';
+import { useSidebarVisibility } from '@/hooks/useSidebarVisibility';
 import {
   collectPluginResourceNavEntries,
   isPluginManagementNavVisible,
@@ -253,7 +254,6 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const language = useLanguageStore((state) => state.language);
   const setLanguage = useLanguageStore((state) => state.setLanguage);
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem(STORAGE_KEY_SIDEBAR) === 'true';
@@ -261,6 +261,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
       return false;
     }
   });
+  const { sidebarOpen, setSidebarOpen, showSidebarLabels } = useSidebarVisibility(sidebarCollapsed);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [visualEffectsMenuOpen, setVisualEffectsMenuOpen] = useState(false);
@@ -274,7 +275,6 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const fullBrandName = 'CPA Manager Plus';
   const isLogsPage = routePathname.startsWith('/logs');
   const isPluginResourcePage = routePathname.startsWith('/plugin-pages');
-  const showSidebarLabels = !sidebarCollapsed || sidebarOpen;
   const configPluginsEnabled = config?.pluginsEnabled;
   const pluginControlMenuVisible = isPluginManagementNavVisible({
     supportsPlugin,
