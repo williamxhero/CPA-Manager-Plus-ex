@@ -42,8 +42,10 @@ type Status struct {
 	Ready         bool   `json:"ready"`
 	OwnPaused     bool   `json:"ownPaused"`
 	Applied       bool   `json:"applied"`
+	Settled       bool   `json:"settled"`
 	State         string `json:"state"`
 	Reason        string `json:"reason"`
+	EvidenceID    string `json:"evidenceId,omitempty"`
 }
 
 type operation struct {

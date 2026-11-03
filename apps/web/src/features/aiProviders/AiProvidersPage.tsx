@@ -9,6 +9,7 @@ import {
   OpenAIEditDrawer,
   PROVIDER_KIND_LABELS,
   ProviderDetailDrawer,
+  type ProviderPolicyConnection,
   ProviderHealthCheckDrawer,
   ProviderTable,
   ProviderToolbar,
@@ -74,6 +75,8 @@ export function AiProvidersPage() {
   const hasMounted = useRef(false);
   const [loading, setLoading] = useState(() => !isCacheValid());
   const [error, setError] = useState('');
+  const [providerPolicyRevision, setProviderPolicyRevision] = useState(0);
+  const handleProviderPolicyChanged = useCallback(() => setProviderPolicyRevision((value) => value + 1), []);
   const { status: resourceProtection, forProvider, refresh: refreshResourceProtection } =
     useResourceProtection(
       { ...featureAvailability, checking: featureAvailability.checking || loading },
@@ -83,6 +86,13 @@ export function AiProvidersPage() {
   const [geminiKeys, setGeminiKeys] = useState<GeminiKeyConfig[]>(
     () => config?.geminiApiKeys || []
   );
+  const providerPolicyConnection: ProviderPolicyConnection = {
+    base: featureAvailability.managerServiceBase,
+    managementKey: balanceManagementKey,
+    disabled: !featureAvailability.managerServiceAvailable,
+    revision: providerPolicyRevision,
+    onChanged: handleProviderPolicyChanged,
+  };
   const [interactionsKeys, setInteractionsKeys] = useState<GeminiKeyConfig[]>(
     () => config?.interactionsApiKeys || []
   );
@@ -1639,6 +1649,7 @@ export function AiProvidersPage() {
             <ProviderTable
               resourceProtection={resourceProtection}
               resourceProtectionForRow={(row) => forProvider(row, rows)}
+              providerPolicyConnection={providerPolicyConnection}
               rows={pagedRows}
               loading={loading}
               actionsDisabled={actionsDisabled}
@@ -1705,7 +1716,8 @@ export function AiProvidersPage() {
       </div>
 
       <ProviderDetailDrawer
-        officialBalance={{ base: featureAvailability.managerServiceBase, managementKey: balanceManagementKey, binding: detailRow ? forProvider(detailRow).binding : undefined, disabled: !featureAvailability.managerServiceAvailable }}
+        officialBalance={{ base: featureAvailability.managerServiceBase, managementKey: balanceManagementKey, binding: detailRow ? forProvider(detailRow, rows).binding : undefined, disabled: !featureAvailability.managerServiceAvailable }}
+        providerPolicy={providerPolicyConnection}
         row={detailRow}
         open={detailRowKey !== null}
         usageByProvider={usageByProvider}

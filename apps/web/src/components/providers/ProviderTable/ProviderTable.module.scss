@@ -75,7 +75,6 @@ $table-columns: 92px minmax(132px, 0.72fr) minmax(180px, 1fr) 96px 72px minmax(2
 // 停用行：仅信息单元格降透明度，开关与操作保持可交互的视觉权重
 .rowDisabled {
   .cellType,
-  .cellIdentity,
   .cellUrl,
   .cellPriority,
   .cellModels,

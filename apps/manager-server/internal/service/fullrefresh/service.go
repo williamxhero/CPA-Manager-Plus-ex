@@ -148,6 +148,28 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 		}
 		out.Sources = append(out.Sources, SourceStatus{WalletProof: verifiedWallet(status), RetryNotBeforeMS: retry, QueryCapable: status.Configured && status.DirectQuery, ID: sourceID(Official, out.Scope, targets), Request: SourceRequest{Kind: Official, Official: &ob.Query{Binding: b, Version: status.Version}}, Targets: targets, State: state, Reason: reason, ManualDisabled: disabled, Attempt: status.Attempt, LastSuccess: status.LastSuccess, Stale: status.Stale})
 	}
+	// Explicit per-member monetary sources are independent authorized queries.
+	// A group's query credential cannot stand in for its other runtime keys.
+	for _, row := range n.Snapshot.Resources {
+		if row.Kind != "credential" || row.ParentID == "" || row.Identity != "valid" || row.Readiness != "ready" || len(row.SourceBindings) != 0 {
+			continue
+		}
+		b := ob.Binding{Scope: out.Scope, Targets: []rc.Target{row.Target}}
+		status, err := s.Official.InventoryStatus(ctx, b, n)
+		if err != nil {
+			return Inventory{}, ErrUnavailable
+		}
+		if !status.Configured {
+			continue
+		}
+		q := ob.Query{Binding: b, Version: status.Version}
+		retry, err := s.Official.NextRetry(ctx, q)
+		if err != nil {
+			return Inventory{}, err
+		}
+		out.Sources = append(out.Sources, SourceStatus{WalletProof: verifiedWallet(status), RetryNotBeforeMS: retry, QueryCapable: status.DirectQuery, ID: sourceID(Official, out.Scope, b.Targets), Request: SourceRequest{Kind: Official, Official: &q}, Targets: b.Targets, State: status.State, ManualDisabled: row.Manual.Disabled, Attempt: status.Attempt, LastSuccess: status.LastSuccess, Stale: status.Stale})
+		covered[row.ResourceID] = true
+	}
 	if n.CredentialQuery.State == "available" {
 		statuses, err := s.Credential.InventoryStatuses(ctx, n)
 		if err != nil {

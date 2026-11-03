@@ -227,6 +227,10 @@ func Migrate(db *sql.DB) error {
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS provider_policies (id TEXT PRIMARY KEY, generation INTEGER NOT NULL CHECK(generation>0), document TEXT NOT NULL CHECK(json_valid(document)))`,
 		`CREATE TABLE IF NOT EXISTS provider_policy_history (id TEXT NOT NULL, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), PRIMARY KEY(id,generation))`,
+		`CREATE TABLE IF NOT EXISTS provider_policy_captures (seq INTEGER PRIMARY KEY AUTOINCREMENT, subject_id TEXT NOT NULL, attempt_id TEXT NOT NULL, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), UNIQUE(subject_id,attempt_id))`,
+		`CREATE TABLE IF NOT EXISTS provider_policy_events (id TEXT PRIMARY KEY, document TEXT NOT NULL CHECK(json_valid(document)), done INTEGER NOT NULL DEFAULT 0)`,
+		`CREATE TABLE IF NOT EXISTS provider_policy_attempts (id TEXT PRIMARY KEY, position INTEGER NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS provider_policy_decisions (id TEXT PRIMARY KEY, subject_id TEXT NOT NULL, document TEXT NOT NULL, outcome TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS provider_gate_identity (singleton INTEGER PRIMARY KEY CHECK(singleton=1), installation_id TEXT NOT NULL UNIQUE)`,
 		`CREATE TABLE IF NOT EXISTS provider_gate_operations (id TEXT PRIMARY KEY, generation INTEGER NOT NULL CHECK(generation>0), document TEXT NOT NULL CHECK(json_valid(document)))`,
 		`CREATE TABLE IF NOT EXISTS provider_gate_history (id TEXT NOT NULL, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), PRIMARY KEY(id,generation))`,

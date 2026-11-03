@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/icons';
 import { ResourceProtectionIndicator } from '@/features/resourceProtection/ResourceProtectionIndicator';
 import type { ResourceProtectionCapability, ResourceProtectionEvidence } from '@/features/resourceProtection/resourceProtection';
+import { ProviderPolicyControl, type ProviderPolicyConnection } from '../ProviderPolicyControl';
 import { ProviderStatusBar } from '../ProviderStatusBar';
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from './kindMeta';
 import type { ProviderRow } from './rowData';
@@ -28,6 +29,7 @@ interface ProviderTableProps {
   rows: ProviderRow[];
   resourceProtection?: ResourceProtectionCapability;
   resourceProtectionForRow?: (row: ProviderRow) => ResourceProtectionEvidence;
+  providerPolicyConnection?: ProviderPolicyConnection;
   loading: boolean;
   actionsDisabled: boolean;
   toggleDisabled: boolean;
@@ -165,6 +167,7 @@ export function ProviderTable({
   rows,
   resourceProtection,
   resourceProtectionForRow,
+  providerPolicyConnection,
   loading,
   actionsDisabled,
   toggleDisabled,
@@ -246,15 +249,22 @@ export function ProviderTable({
 
             <div className={styles.cellIdentity} role="cell">
               <div className={styles.identityMain}>
-                <ResourceProtectionIndicator {...(resourceProtectionForRow?.(row) ?? {status: resourceProtection})} />
-                <span className={styles.identityLabel} title={row.label}>
-                  {row.label}
-                </span>
-                {row.kind === 'openai' && (
-                  <span className={styles.identityMeta}>
-                    {t('ai_providers.openai_keys_count')}: {row.keyCount}
+                <ProviderPolicyControl
+                  row={row}
+                  connection={providerPolicyConnection}
+                  binding={resourceProtectionForRow?.(row)?.binding}
+                  compact
+                >
+                  <ResourceProtectionIndicator {...(resourceProtectionForRow?.(row) ?? {status: resourceProtection})} />
+                  <span className={styles.identityLabel} title={row.label}>
+                    {row.label}
                   </span>
-                )}
+                  {row.kind === 'openai' && (
+                    <span className={styles.identityMeta}>
+                      {t('ai_providers.openai_keys_count')}: {row.keyCount}
+                    </span>
+                  )}
+                </ProviderPolicyControl>
               </div>
             </div>
 

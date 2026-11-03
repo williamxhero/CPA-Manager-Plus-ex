@@ -1,0 +1,162 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  width: 100%;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.heading > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.indicator {
+  flex: 0 0 auto;
+  min-width: 25px;
+  min-height: 28px;
+  padding: 1px 5px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.indicator[data-state='paused'],
+.indicator[data-state='unavailable'],
+.indicator[data-state='pending'] {
+  border-color: color-mix(in srgb, var(--warning-color) 55%, var(--border-subtle));
+}
+
+.indicator[aria-checked='true'] {
+  border-color: color-mix(in srgb, var(--success-color) 60%, var(--border-subtle));
+}
+
+.indicator:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.details {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px 7px;
+  min-width: 0;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.technical {
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.technical summary {
+  cursor: pointer;
+  padding-block: 3px;
+}
+
+.technical > span {
+  display: block;
+  margin-block: 3px;
+}
+
+.indicator:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.readStatus {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  padding: 2px 0;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.readStatus:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.details span {
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: var(--danger-color);
+}
+
+.funding {
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  cursor: auto;
+}
+
+.funding summary {
+  cursor: pointer;
+  padding-block: 3px;
+}
+
+.fundingSource {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-block: 7px;
+}
+
+.unavailable {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  font-size: 12px;
+}
+
+.drawer .indicator {
+  align-self: flex-start;
+  font-size: 12px;
+}
+
+@media (max-width: 600px) {
+  .indicator,
+  .readStatus,
+  .funding summary {
+    min-height: 44px;
+    padding-block: 10px;
+  }
+
+  .technical summary {
+    min-height: 44px;
+    padding-block: 10px;
+  }
+}

@@ -3,6 +3,8 @@ export { OpenAIKeyTestStatusIndicator } from './OpenAIKeyTestStatusIndicator';
 export * from './ProviderTable';
 export { ProviderToolbar } from './ProviderToolbar';
 export { ProviderDetailDrawer } from './ProviderDetailDrawer';
+export { ProviderPolicyControl } from './ProviderPolicyControl';
+export type { ProviderPolicyConnection, ProviderPolicyControlProps } from './ProviderPolicyControl';
 export { ProviderHealthCheckDrawer } from './ProviderHealthCheckDrawer';
 export { CoolingPolicySelect } from './CoolingPolicySelect';
 export type {

@@ -14,6 +14,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	fr "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
+	mc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/managerconfig"
+	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
+	pg "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providergate"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
@@ -36,26 +40,28 @@ type Update struct {
 }
 type intent struct {
 	Binding
-	Enabled     bool   `json:"enabled"`
-	Owner       string `json:"owner"`
-	UpdatedAtMS int64  `json:"updatedAtMs"`
+	Enabled     bool      `json:"enabled"`
+	Owner       string    `json:"owner"`
+	UpdatedAtMS int64     `json:"updatedAtMs"`
+	Pending     *decision `json:"pending,omitempty"`
 }
 type Status struct {
 	Binding
-	SubjectID      string `json:"subjectId"`
-	Enabled        bool   `json:"enabled"`
-	Effective      bool   `json:"effective"`
-	Generation     int64  `json:"generation"`
-	Owner          string `json:"owner"`
-	Source         string `json:"source"`
-	UpdatedAtMS    int64  `json:"updatedAtMs"`
-	BindingCurrent bool   `json:"bindingCurrent"`
-	Locked         bool   `json:"locked"`
-	ManualDisabled bool   `json:"manualDisabled"`
-	OwnPaused      bool   `json:"ownPaused"`
-	Applied        bool   `json:"applied"`
-	State          string `json:"state"`
-	Reason         string `json:"reason"`
+	SubjectID      string          `json:"subjectId"`
+	Enabled        bool            `json:"enabled"`
+	Effective      bool            `json:"effective"`
+	Generation     int64           `json:"generation"`
+	Owner          string          `json:"owner"`
+	Source         string          `json:"source"`
+	UpdatedAtMS    int64           `json:"updatedAtMs"`
+	BindingCurrent bool            `json:"bindingCurrent"`
+	Locked         bool            `json:"locked"`
+	ManualDisabled bool            `json:"manualDisabled"`
+	OwnPaused      bool            `json:"ownPaused"`
+	Applied        bool            `json:"applied"`
+	State          string          `json:"state"`
+	Reason         string          `json:"reason"`
+	Funding        []FundingStatus `json:"funding"`
 }
 
 type Service struct {
@@ -63,10 +69,61 @@ type Service struct {
 	Identity *rc.Service
 	mu       sync.Mutex
 	holder   string
+	gate     *pg.Service
+	official *ob.Service
 }
 
-func New(st *store.Store, identity *rc.Service) *Service {
-	return &Service{Store: st, Identity: identity, holder: uuid.NewString()}
+func New(st *store.Store, identity *rc.Service, connection *mc.Service, official *ob.Service) *Service {
+	return &Service{Store: st, Identity: identity, holder: uuid.NewString(), gate: pg.NewMonetary(st, connection, identity), official: official}
+}
+
+func (s *Service) BindCoordinator(coordinator *fr.Service) {
+	coordinator.SubscribeStarted(s.capture)
+	coordinator.Subscribe(s.completed)
+	coordinator.SubscribeScheduleCycle(func(ctx context.Context) error {
+		// Monetary-source failure is scoped to that policy and cannot stop
+		// unrelated official/credential refresh admission. Pending work stays
+		// durable and is retried on the next independent lifecycle cycle.
+		// Reserve the majority of the caller's cycle for actual inventory and
+		// source acquisition, including when another lifecycle holds our lock.
+		budget := 5 * time.Second
+		if deadline, ok := ctx.Deadline(); ok {
+			if remaining := time.Until(deadline) / 3; remaining < budget {
+				budget = remaining
+			}
+		}
+		if budget > 0 {
+			attempt, cancel := context.WithTimeout(ctx, budget)
+			defer cancel()
+			_ = s.Reconcile(attempt)
+		}
+		return nil
+	})
+}
+
+func (s *Service) lock(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.mu.TryLock() {
+		return nil
+	}
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if s.mu.TryLock() {
+				if err := ctx.Err(); err != nil {
+					s.mu.Unlock()
+					return err
+				}
+				return nil
+			}
+		}
+	}
 }
 
 func canonical(b Binding) Binding {
@@ -133,11 +190,12 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	installation, err := s.Store.CredentialPolicyInstallation(ctx)
+	installation, err := s.Store.ProviderGateInstallation(ctx)
 	if err != nil {
 		return Status{}, err
 	}
 	out := Status{Binding: b, SubjectID: subject(b), Owner: OwnerNamespace + installation, Source: "default_off", BindingCurrent: true, Locked: true, ManualDisabled: disabled, State: "off", Reason: "funding_coverage_unverified"}
+	var pending *decision
 	r, err := s.Store.ProviderPolicy(ctx, out.SubjectID)
 	if err != nil {
 		return Status{}, err
@@ -152,12 +210,50 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 		out.UpdatedAtMS = saved.UpdatedAtMS
 		out.Source = "explicit"
 		out.BindingCurrent = sameAuthority(saved.Binding, b)
+		pending = saved.Pending
 		if out.Enabled {
 			out.State = "unavailable"
 		}
 		if !out.BindingCurrent {
 			out.Reason = "provider_authority_changed"
 		}
+	}
+	view, gateErr := s.funding(ctx, b)
+	if gateErr != nil {
+		out.Reason = "provider_gate_or_source_unavailable"
+		return out, nil
+	}
+	out.Funding = view.sources
+	out.Locked = !view.covered
+	out.OwnPaused = view.gate.OwnPaused
+	out.Applied = view.gate.Applied
+	if !out.BindingCurrent {
+		out.Locked = true
+		out.Reason = "provider_authority_changed"
+		return out, nil
+	}
+	if view.covered {
+		out.Reason = "awaiting_new_successful_balance"
+	}
+	if out.Enabled && out.BindingCurrent && view.covered {
+		out.Effective = true
+		out.State = "observing"
+		if view.gate.OwnPaused {
+			out.State = "paused"
+		}
+		if view.gate.State == "pending" {
+			out.State = "pending"
+			out.Reason = "operation_outcome_unverified"
+		}
+	}
+	if !out.Enabled && out.OwnPaused {
+		out.Reason = "policy_off_retains_owned_pause"
+	}
+	if pending != nil && !(view.gate.Applied && view.gate.EvidenceID == "balance/"+pending.Evidence && view.gate.Action == pending.Action) {
+		out.State = "pending"
+		out.Reason = "operation_outcome_unverified"
+		out.Effective = false
+		out.Locked = true
 	}
 	return out, nil
 }
@@ -166,8 +262,15 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	if q.Enabled == nil || q.ExpectedGeneration == nil || *q.ExpectedGeneration < 0 || *q.ExpectedGeneration >= 9007199254740991 {
 		return Status{}, ErrInput
 	}
-	s.mu.Lock()
+	// Every operation's context expires before the 30-second lease. This also
+	// fences an in-progress Core exchange if a slow source exhausts the budget.
+	ctx, cancelBudget := context.WithTimeout(ctx, 15*time.Second)
+	defer cancelBudget()
+	if err := s.lock(ctx); err != nil {
+		return Status{}, err
+	}
 	defer s.mu.Unlock()
+
 	lease, err := s.Store.AcquireCredentialPolicyLease(ctx, s.holder, time.Now().UnixMilli(), 30000)
 	if err != nil {
 		return Status{}, err
@@ -189,14 +292,22 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	}
 	// ON requires a current actual gate plus independently proven funding
 	// coverage. Never silently turn a configured label into monetary authority.
-	if *q.Enabled {
+	if *q.Enabled && (state.Locked || !state.BindingCurrent) {
 		return Status{}, ErrUnavailable
 	}
 	previous, err := s.Store.ProviderPolicy(ctx, state.SubjectID)
 	if err != nil {
 		return Status{}, err
 	}
-	doc, _ := json.Marshal(intent{Binding: state.Binding, Enabled: *q.Enabled, Owner: state.Owner, UpdatedAtMS: time.Now().UnixMilli()})
+	nextIntent := intent{Binding: state.Binding, Enabled: *q.Enabled, Owner: state.Owner, UpdatedAtMS: time.Now().UnixMilli()}
+	if previous.Generation > 0 {
+		var old intent
+		if json.Unmarshal([]byte(previous.Document), &old) != nil {
+			return Status{}, ErrUnavailable
+		}
+		nextIntent.Pending = old.Pending
+	}
+	doc, _ := json.Marshal(nextIntent)
 	next := store.ProviderPolicyRecord{ID: state.SubjectID, Generation: state.Generation + 1, Document: string(doc)}
 	if err := s.Store.SaveProviderPolicy(ctx, next, previous, lease, time.Now().UnixMilli()); err != nil {
 		return Status{}, err

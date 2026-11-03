@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,7 +100,7 @@ func TestProviderPolicyPublicDefaultOffAndDurableIntent(t *testing.T) {
 	testutil.RequireStatus(t, testutil.Request(t, h, "GET", "/usage-service/provider-policy?providerId=not-issued", "", testutil.AdminKey), 409)
 }
 
-func moneyPolicyCore(t *testing.T) string {
+func moneyPolicyCore(t *testing.T, memberCount ...int) string {
 	t.Helper()
 	binary := os.Getenv("PROVIDER82_CORE_BINARY")
 	if binary == "" {
@@ -134,7 +135,22 @@ func moneyPolicyCore(t *testing.T) string {
 	}
 	port := l.Addr().(*net.TCPAddr).Port
 	_ = l.Close()
-	config := fmt.Sprintf("config-version: 8\nserver: {host: 127.0.0.1, port: %d}\nmanagement: {secret-key: MONEY-CORE-MANAGEMENT, disable-control-panel: true, disable-auto-update-panel: true}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\naccess: {api-keys: [MONEY-CLIENT]}\nplugins: {enabled: false}\napi-keys:\n  openai-compatibility:\n    - name: money-provider\n      base-url: https://api.deepseek.com/v1\n      models: [{name: controlled-model}]\n      keys: [{api-key: MONEY-SYNTHETIC-INFERENCE}]\n", port, filepath.ToSlash(filepath.Join(dir, "auth")))
+	keys := []string{"{api-key: MONEY-SYNTHETIC-INFERENCE}"}
+	if len(memberCount) > 0 && memberCount[0] == 2 {
+		keys = append(keys, "{api-key: MONEY-SYNTHETIC-INFERENCE-2}")
+	}
+	config := fmt.Sprintf("config-version: 8\nserver: {host: 127.0.0.1, port: %d}\nmanagement: {secret-key: MONEY-CORE-MANAGEMENT, disable-control-panel: true, disable-auto-update-panel: true}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\naccess: {api-keys: [MONEY-CLIENT]}\nplugins: {enabled: false}\napi-keys:\n  openai-compatibility:\n    - name: money-provider\n      base-url: https://api.deepseek.com/v1\n      models: [{name: controlled-model}]\n      keys: [%s]\n", port, filepath.ToSlash(filepath.Join(dir, "auth")), strings.Join(keys, ","))
+	if len(memberCount) > 1 && memberCount[1] == 2 {
+		config += "    - name: isolated-money-provider-b\n      base-url: https://api.deepseek.com/v1\n      models: [{name: controlled-model-b}]\n      keys: [{api-key: MONEY-SYNTHETIC-INFERENCE-B}]\n"
+	}
+	if len(memberCount) == 3 {
+		if memberCount[0] != 1 || memberCount[1] != 1 || memberCount[2] != 1 {
+			t.Fatal("three-provider scheduler fixture requires one real member per group")
+		}
+		for _, suffix := range []string{"b", "c"} {
+			config += fmt.Sprintf("    - name: isolated-money-provider-%s\n      base-url: https://api.deepseek.com/v1\n      models: [{name: controlled-model-%s}]\n      keys: [{api-key: MONEY-SYNTHETIC-INFERENCE-%s}]\n", suffix, suffix, strings.ToUpper(suffix))
+		}
+	}
 	path := filepath.Join(dir, "config.yaml")
 	if err := os.WriteFile(path, []byte(config), 0600); err != nil {
 		t.Fatal(err)

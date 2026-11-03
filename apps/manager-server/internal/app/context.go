@@ -207,7 +207,7 @@ func fromExisting(
 	}
 	credentialQuotaService := credentialquotasvc.New(st, identityService, credentialquotasvc.WithBudget(managementBudget))
 	out := &Context{
-		ProviderPolicyService:   providerpolicysvc.New(st, identityService),
+		ProviderPolicyService:   providerpolicysvc.New(st, identityService, managerConfigService, officialBalanceService),
 		ProviderGateService:     providergatesvc.New(st, managerConfigService, identityService),
 		CredentialPolicyService: credentialpolicysvc.New(st, credentialQuotaService, managerConfigService),
 		ManagementQueryBudget:   managementBudget,
@@ -257,6 +257,7 @@ func fromExisting(
 	out.CodexInspectionService.LegacyQuotaGuard = legacyGuard
 	// Fresh services bind once at startup; source admission remains in76.
 	coordinator := out.FullRefreshService.(*fullrefreshsvc.Service)
+	out.ProviderPolicyService.BindCoordinator(coordinator)
 	_ = out.CredentialPolicyService.BindCoordinator(coordinator)
 	out.FullRefreshService = &credentialpolicysvc.CoordinatedService{Service: coordinator, Policy: out.CredentialPolicyService}
 	return out

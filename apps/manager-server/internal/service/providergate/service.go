@@ -25,10 +25,19 @@ type Service struct {
 	store      *store.Store
 	connection *mc.Service
 	identity   *rc.Service
+	monetary   bool
 }
 
 func New(st *store.Store, connection *mc.Service, identity *rc.Service) *Service {
-	return &Service{st, connection, identity}
+	return &Service{store: st, connection: connection, identity: identity}
+}
+
+// NewMonetary shares routing validation and receipt handling, but owns a
+// separate journal and Core namespace. It is not exposed by the manual API.
+func NewMonetary(st *store.Store, connection *mc.Service, identity *rc.Service) *Service {
+	s := New(st, connection, identity)
+	s.monetary = true
+	return s
 }
 
 type document struct {
@@ -133,12 +142,14 @@ func (p proof) valid(b Binding, expected map[string]rc.Target, inv *rc.Negotiate
 }
 
 type prepared struct {
-	status  Status
-	record  store.ProviderGateRecord
-	doc     document
-	core    session
-	ledger  ledger
-	settled bool
+	status    Status
+	record    store.ProviderGateRecord
+	doc       document
+	core      session
+	ledger    ledger
+	settled   bool
+	proof     proof
+	inventory *rc.Negotiated
 }
 
 func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
@@ -195,9 +206,16 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 		return out, err
 	}
 	raw, _ := json.Marshal([]string{b.Scope.InstanceID, b.Scope.InstanceIncarnation, b.ProviderID})
+	ownerNamespace := "cpa-manager.provider-gate.v1/"
+	if s.monetary {
+		ownerNamespace = "cpa-manager.provider-balance.v1/"
+		raw, _ = json.Marshal([]string{ownerNamespace, b.Scope.InstanceID, b.Scope.InstanceIncarnation, b.ProviderID})
+	}
 	digest := sha256.Sum256(raw)
 	id := hex.EncodeToString(digest[:])
-	out.status = Status{Binding: b, SubjectID: id, Owner: "cpa-manager.provider-gate.v1/" + installation, SourceVersion: p.SourceVersion, Ready: true, State: "unpaused"}
+	out.status = Status{Binding: b, SubjectID: id, Owner: ownerNamespace + installation, SourceVersion: p.SourceVersion, Ready: true, State: "unpaused"}
+	out.proof = p
+	out.inventory = inv
 	// The latest command's outcome and the current restriction are independent.
 	// A rejected/pending clear must not hide an existing verified own pause.
 	for _, gate := range out.ledger.Gates {
@@ -215,15 +233,24 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 			return out, ErrUnavailable
 		}
 		op := out.doc.Operation
+		out.status.EvidenceID = op.EvidenceID
 		out.status.Action, out.status.State, out.status.Reason = op.Action, "pending", "operation_outcome_unverified"
 		receipt := out.doc.Receipt
 		if sameInstance(op.Scope, b.Scope) && receipt.OpID == "" {
 			// An immutable operation missing after its CAS revision advanced
 			// cannot commit later. A bare 404 at the same revision is unknown.
 			err := link.request(ctx, "GET", "operations/"+op.OpID, nil, &receipt)
-			if errors.Is(err, errOperationMissing) && out.ledger.GateRevision > op.ExpectedGateRevision {
-				out.settled = true
-				out.status.State, out.status.Reason = "rejected", "operation_cas_expired"
+			if errors.Is(err, errOperationMissing) {
+				if out.ledger.GateRevision > op.ExpectedGateRevision {
+					out.settled = true
+					out.status.State, out.status.Reason = "rejected", "operation_cas_expired"
+				} else if !reflect.DeepEqual(op.groupBinding, coreGroup(b)) || op.SourceVersion != p.SourceVersion {
+					// Core first checks durable opId receipts. An actual 404
+					// plus an obsolete exact binding proves this unknown old
+					// command cannot first-commit under the current authority.
+					out.settled = true
+					out.status.State, out.status.Reason = "rejected", "operation_binding_obsolete"
+				}
 			}
 		}
 		out.settled = out.settled || sameInstance(op.Scope, b.Scope) && validReceipt(op, receipt)
@@ -238,6 +265,7 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 			}
 		}
 	}
+	out.status.Settled = out.record.Generation == 0 || out.settled
 	closing := s.identity.Inventory(ctx, true)
 	if _, err := members(b, closing); err != nil || !s.identity.SameInventoryConnection(inv, closing) || !link.current(ctx) {
 		return prepared{}, ErrIdentity
@@ -252,6 +280,22 @@ func (s *Service) Status(ctx context.Context, b Binding) (Status, error) {
 }
 
 func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
+	if s.monetary {
+		return Status{}, ErrInput
+	}
+	return s.update(ctx, q, "")
+}
+
+// UpdateEvidence accepts only an internal decision digest; HTTP consumers can
+// neither select this namespace nor manufacture automatic evidence.
+func (s *Service) UpdateEvidence(ctx context.Context, q Update, evidence string) (Status, error) {
+	if !s.monetary || !validDigest(evidence) {
+		return Status{}, ErrInput
+	}
+	return s.update(ctx, q, evidence)
+}
+
+func (s *Service) update(ctx context.Context, q Update, evidence string) (Status, error) {
 	if q.Version != 1 || q.ExpectedGeneration == nil || *q.ExpectedGeneration < 0 || *q.ExpectedGeneration >= 9007199254740991 || !validDigest(q.SourceVersion) || q.Action != "pause" && q.Action != "clear" {
 		return Status{}, ErrInput
 	}
@@ -272,6 +316,13 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	op := operation{groupBinding: coreGroup(out.status.Binding), Version: 1, OpID: opID, ExpectedGateRevision: out.ledger.GateRevision, SourceVersion: q.SourceVersion, Subject: "provider", Owner: out.status.Owner, Action: q.Action, Reason: "operator_provider_pause", EvidenceID: "manual/" + opID}
 	if q.Action == "clear" {
 		op.Reason = "operator_provider_resume"
+	}
+	if s.monetary {
+		op.EvidenceID = "balance/" + evidence
+		op.Reason = "balance_low"
+		if q.Action == "clear" {
+			op.Reason = "balance_recovered"
+		}
 	}
 	doc := document{Operation: op, UpdatedAtMS: time.Now().UnixMilli()}
 	raw, _ := json.Marshal(doc)

@@ -20,9 +20,11 @@ import { getProviderKindIcon, PROVIDER_KIND_LABELS } from '../ProviderTable/kind
 import { coolingPolicyFromOverride, type CoolingPolicy } from '@/types';
 import type { ProviderRow } from '../ProviderTable/rowData';
 import styles from './ProviderDetailDrawer.module.scss';
+import { ProviderPolicyControl, type ProviderPolicyConnection } from '../ProviderPolicyControl';
 
 interface ProviderDetailDrawerProps {
   officialBalance?: OfficialBalancePanelProps;
+  providerPolicy?: ProviderPolicyConnection;
   row: ProviderRow | null;
   open: boolean;
   usageByProvider: ProviderRecentUsageMap;
@@ -55,6 +57,7 @@ function FieldRow({ label, value }: FieldRowProps) {
 
 export function ProviderDetailDrawer({
   officialBalance,
+  providerPolicy,
   row,
   open,
   usageByProvider,
@@ -275,6 +278,17 @@ export function ProviderDetailDrawer({
             compatibleCandidate={compatibleCandidate}
             adapter={balanceAdapter}
           />
+        )}
+        {providerPolicy && row && (
+          <section className={styles.section}>
+            <h4 className={styles.sectionTitle}>{t('provider_policy.title')}</h4>
+            <ProviderPolicyControl
+              row={row}
+              connection={providerPolicy}
+              binding={officialBalance?.binding}
+              disabled={!open}
+            />
+          </section>
         )}
         <section className={styles.section}>
           {!row.enabled && (
