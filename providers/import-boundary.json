@@ -151,9 +151,16 @@
         "owner": "SPEC5-A",
         "note": "协调者默认（comment 6080913010）：Qwen 只作一次性目录导入，不虚构 upstream 或 subtree remote；出现真实上游同步需求时另立 SPEC。权威快照为 williamxhero/qwen-cliproxyapi 默认分支 claude/qwen-provider。SPEC5-C 实际导入 williamxhero/qwen-cliproxyapi main@595320999cb5b17a7e7754e70ce740f9b578c212（main 领先默认分支 claude/qwen-provider 4 个提交）。"
       },
+      "consumerSnapshot": {
+        "repository": "williamxhero/CPA-Qwen",
+        "commit": "76413510fe5add216968d6b5967cc5c3f7aa9113",
+        "receipt": "CPA_QWEN_SOURCE.json",
+        "verifier": "scripts/verify-manager-snapshot.py",
+        "policy": "Complete canonical commit/tree/file hashes; read-only verification before Go; no local maintenance or receipt enrollment."
+      },
       "cli": {
         "path": "cmd/bailian-quota",
-        "buildCommand": "go build -o bin/bailian-quota.exe ./cmd/bailian-quota"
+        "buildCommand": "node bin/release/build-providers.mjs --skip-dll"
       },
       "attributionNote": "Qwen 组件改编自 massiveits/opencode-go-cliproxyapi（MIT，Copyright (c) 2026 massiveits）；providers/qwen/NOTICE.md 必须随导入原样保留。",
       "license": {
@@ -211,20 +218,56 @@
         "provider": "qwen",
         "kind": "plugin-c-shared",
         "workdir": "providers/qwen",
-        "output": "providers/qwen/bin/qwen-cliproxyapi-windows-amd64.dll",
-        "build": "CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o bin/qwen-cliproxyapi-windows-amd64.dll .",
-        "env": { "CGO_ENABLED": "1", "GOOS": "windows", "GOARCH": "amd64" },
-        "args": ["build", "-buildmode=c-shared", "-o", "bin/qwen-cliproxyapi-windows-amd64.dll", "."]
+        "output": "bin/tmp/provider-build/qwen/qwen-cliproxyapi-windows-amd64.dll",
+        "build": "CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o ../../bin/tmp/provider-build/qwen/qwen-cliproxyapi-windows-amd64.dll .",
+        "env": {
+          "CGO_ENABLED": "1",
+          "GOOS": "windows",
+          "GOARCH": "amd64"
+        },
+        "args": [
+          "build",
+          "-buildmode=c-shared",
+          "-o",
+          "../../bin/tmp/provider-build/qwen/qwen-cliproxyapi-windows-amd64.dll",
+          "."
+        ]
+      },
+      {
+        "id": "qwen-compat-plugin",
+        "provider": "qwen",
+        "kind": "plugin-c-shared",
+        "workdir": "providers/qwen",
+        "output": "bin/tmp/provider-build/qwen/aliyun-bss-quota.dll",
+        "build": "CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o ../../bin/tmp/provider-build/qwen/aliyun-bss-quota.dll ./cmd/aliyun-bss-quota-plugin",
+        "env": {
+          "CGO_ENABLED": "1",
+          "GOOS": "windows",
+          "GOARCH": "amd64"
+        },
+        "args": [
+          "build",
+          "-buildmode=c-shared",
+          "-o",
+          "../../bin/tmp/provider-build/qwen/aliyun-bss-quota.dll",
+          "./cmd/aliyun-bss-quota-plugin"
+        ],
+        "deploymentPolicy": "candidate-only; never enabled or deployed by provider build"
       },
       {
         "id": "qwen-cli",
         "provider": "qwen",
         "kind": "cli",
         "workdir": "providers/qwen",
-        "output": "providers/qwen/bin/bailian-quota.exe",
-        "build": "go build -o bin/bailian-quota.exe ./cmd/bailian-quota",
+        "output": "bin/tmp/provider-build/qwen/bailian-quota.exe",
+        "build": "go build -o ../../bin/tmp/provider-build/qwen/bailian-quota.exe ./cmd/bailian-quota",
         "env": {},
-        "args": ["build", "-o", "bin/bailian-quota.exe", "./cmd/bailian-quota"]
+        "args": [
+          "build",
+          "-o",
+          "../../bin/tmp/provider-build/qwen/bailian-quota.exe",
+          "./cmd/bailian-quota"
+        ]
       }
     ],
     "moduleBoundary": "每个 provider 保持独立 go.mod（module opencode-go-cliproxyapi / qwen-cliproxyapi），不并入 apps/manager-server module。",
@@ -247,8 +290,8 @@
       "buildScript": "bin/release/build-providers.mjs",
       "goVersionMatrix": ["1.26.x", "1.27.x"],
       "osMatrix": ["ubuntu-latest", "windows-latest"],
-      "dllBuildPolicy": "CI 不强制编译 c-shared DLL：若宿主无可用的 C 工具链（mingw-w64，amd64 需 x86_64-w64-mingw32-gcc），build-providers.mjs 跳过 DLL 并打印本地构建命令与安装提示；Qwen CLI 产物始终构建。真实本地构建命令见本接口 artifacts[].build（在对应 workdir 内执行）。",
-      "providerTestCommand": "在各自 module 目录执行 `go test ./...`（run-provider-go.mjs 从仓库根逐一进入 providers/<id> 运行）。Go 多模块下仓库根不支持单一的 `go test ./providers/...` 通配（providers/ 自身不是 module），故以每 module 命令作为统一入口。"
+      "dllBuildPolicy": "来源快照校验及显式 compatible Core source 均为必需门禁。通过后，若无 Windows C 工具链则跳过 DLL 并打印统一入口重试命令；skip 不是三产物验收。Qwen 三产物输出到快照外 bin/tmp/provider-build/qwen。artifacts[].args/build 仅为模板，生产调用必须经统一入口及外部 modfile。",
+      "providerTestCommand": "从根运行 run-provider-go.mjs test/vet/build，显式提供 qwen-canonical-source 与 compatible-core-source（或对应环境变量），先校验 receipt，再在每 module 以外部 modfile 绑定选定 Core；不支持根 go test ./providers/...。"
     }
   }
 }

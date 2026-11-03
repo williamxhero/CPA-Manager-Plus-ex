@@ -3,6 +3,7 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -91,5 +92,29 @@ func TestExecutorRecordsCredentialConflictWithoutValues(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("debug log did not record key and URL conflict flags")
+	}
+}
+
+func TestAuthAndDispatchDebugOnlyRecordsMetadata(t *testing.T) {
+	secret := "synthetic-debug-untrusted-field"
+	m := NewManager(nil)
+	m.cfg = providerConfig(t)
+	_, _ = m.HandleCall(secret, []byte(secret))
+	req := pluginapi.AuthParseRequest{Provider: ProviderID, FileName: secret, RawJSON: mustJSON(map[string]string{"type": "qwen", "id": secret, "label": secret, "api_key": "synthetic-selected-key", "base_url": "https://example.test/v1"})}
+	raw, err := m.HandleCall(pluginabi.MethodAuthParse, mustJSON(req))
+	if err != nil || !decodeEnv(t, raw).OK {
+		t.Fatal("parse did not reach seam")
+	}
+	_, err = (authProvider{cfg: m.cfg}).RefreshAuth(context.Background(), pluginapi.AuthRefreshRequest{AuthProvider: ProviderID, AuthID: secret, Attributes: map[string]string{"api_key": "synthetic-selected-key", secret: secret}, Metadata: map[string]any{secret: secret}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = m.HandleCall(pluginabi.MethodPluginRegister, mustJSON(lifecycleRequest{ConfigYAML: []byte("api-keys: [" + secret)}))
+	log, err := os.ReadFile(filepath.Join(filepath.Dir(os.Args[0]), "qwen-debug.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(log), secret) || strings.Contains(string(log), "synthetic-selected-key") {
+		t.Fatal("debug trace exposed untrusted auth, method or config values")
 	}
 }

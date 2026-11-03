@@ -27,6 +27,11 @@ func ParseResponses(source string, responses map[string]json.RawMessage, observe
 		return Result{}, err
 	}
 	result.Windows = append(result.Windows, month)
+	var account string
+	if source == "bsk" && json.Unmarshal(responses["account"], &account) == nil && account == "主账号" {
+		// A rendered console role is informational, never selected-key authority.
+		result.Notes = append(result.Notes, "控制台账户类型：主账号（不是 API Key 归属证明）")
+	}
 	if subscription, err := rpcData(responses["subscription"]); err == nil {
 		result.Plan = findText(subscription, []string{"planName", "packageName", "instanceName", "commodityName", "specificationName", "productName"})
 		if result.Plan == "" {
@@ -67,6 +72,14 @@ func ParseResponses(source string, responses map[string]json.RawMessage, observe
 	} else {
 		result.Notes = append(result.Notes, "Optional add-on details unavailable.")
 	}
+	// The reset-card endpoint returns a list, not a quota object. Its genuine
+	// empty list is zero cards; missing/null/errors must not invent that zero.
+	cardsPayload, cardsErr := rpcPayload(responses["resetCards"])
+	if cards, ok := cardsPayload.([]any); cardsErr == nil && ok {
+		result.Metrics = append(result.Metrics, Metric{Key: "reset_cards", Label: "重置卡数量", Value: float64(len(cards)), Unit: "count", Format: "number"})
+	} else {
+		result.Notes = append(result.Notes, "Optional reset-card details unavailable.")
+	}
 	if _, err := rpcData(responses["coding"]); err != nil {
 		result.Notes = append(result.Notes, "Optional Coding Plan details unavailable; Token Plan usage is unaffected.")
 	} else {
@@ -103,6 +116,20 @@ func parseWindow(data map[string]any, name, percentageKey, resetKey string) (Win
 }
 
 func rpcData(raw json.RawMessage) (map[string]any, error) {
+	payload, err := rpcPayload(raw)
+	if err != nil {
+		return nil, err
+	}
+	data, ok := payload.(map[string]any)
+	if !ok {
+		return nil, failure("invalid_response", "console RPC returned no object data")
+	}
+	return data, nil
+}
+
+// Only reset cards accept a list. Primary usage and Coding Plan retain the
+// object-only contract enforced by rpcData, with the same envelope validation.
+func rpcPayload(raw json.RawMessage) (any, error) {
 	if len(raw) == 0 {
 		return nil, failure("invalid_response", "console RPC returned no response")
 	}
@@ -126,13 +153,19 @@ func rpcData(raw json.RawMessage) (map[string]any, error) {
 	if code := scalarText(root["code"]); code != "" && code != "200" && code != "SUCCESS" {
 		return nil, failure("rpc_error", "console RPC reported an error")
 	}
-	if success, present := root["successResponse"].(bool); present && !success {
+	if rejectedRPCFlag(root, "successResponse", true) || badRPCStatus(root, "httpStatusCode") {
 		return nil, failure("rpc_error", "console RPC reported an error")
 	}
 	outer, _ := root["data"].(map[string]any)
+	if rejectedRPCFlag(outer, "success", true) || badRPCStatus(outer, "httpStatus") {
+		return nil, failure("rpc_error", "console gateway reported an error")
+	}
 	v2, _ := outer["DataV2"].(map[string]any)
 	if v2 == nil {
 		return nil, failure("invalid_response", "console RPC is missing DataV2")
+	}
+	if rejectedRPCFlag(v2, "success", true) || badRPCStatus(v2, "httpStatus") {
+		return nil, failure("rpc_error", "console gateway reported an error")
 	}
 	gatewaySuccess, confirmed := v2["success"].(bool)
 	if !confirmed {
@@ -147,21 +180,44 @@ func rpcData(raw json.RawMessage) (map[string]any, error) {
 	if code := scalarText(outer["errorCode"]); code != "" {
 		return nil, failure("rpc_error", "console gateway reported an error")
 	}
+	if raw, present := v2["ret"]; present {
+		statuses, ok := raw.([]any)
+		if !ok || len(statuses) == 0 {
+			return nil, failure("rpc_error", "console gateway returned invalid statuses")
+		}
+		for _, value := range statuses {
+			status, ok := value.(string)
+			code, _, _ := strings.Cut(status, "::")
+			if !ok || code != "SUCCESS" {
+				return nil, failure("rpc_error", "console gateway reported an error")
+			}
+		}
+	}
 	business, _ := v2["data"].(map[string]any)
 	if business == nil {
 		return nil, failure("invalid_response", "console RPC is missing its business response")
 	}
-	if success, present := business["success"].(bool); present && !success {
+	if rejectedRPCFlag(business, "success", true) || rejectedRPCFlag(business, "failed", false) {
 		return nil, failure("rpc_error", "console business RPC reported an error")
 	}
 	if code := scalarText(business["code"]); code != "" && code != "SUCCESS" && code != "200" {
 		return nil, failure("rpc_error", "console business RPC reported an error")
 	}
-	data, _ := business["data"].(map[string]any)
+	data := business["data"]
 	if data == nil {
-		return nil, failure("invalid_response", "console RPC returned no object data")
+		return nil, failure("invalid_response", "console RPC returned no data")
 	}
 	return data, nil
+}
+
+func rejectedRPCFlag(object map[string]any, key string, want bool) bool {
+	value, present := object[key]
+	return present && value != want
+}
+
+func badRPCStatus(object map[string]any, key string) bool {
+	value, present := object[key]
+	return present && scalarText(value) != "200"
 }
 
 func hasLoginError(value any) bool {
@@ -184,6 +240,11 @@ func hasLoginError(value any) bool {
 		}
 	case string:
 		text := strings.ToLower(v)
+		for _, code := range []string{"fail_sys_session_expired", "fail_sys_token_exoired", "fail_sys_token_expired"} {
+			if strings.Contains(text, code) {
+				return true
+			}
+		}
 		return strings.Contains(text, "consoleneedlogin") || strings.Contains(text, "notlogin") || strings.Contains(text, "needlogin") || strings.Contains(text, "nologin") || strings.Contains(text, "未登录") || strings.Contains(text, "请先登录")
 	}
 	return false

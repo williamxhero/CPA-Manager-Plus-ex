@@ -13,6 +13,10 @@ import (
 
 const quotaFixture = `{"source":"bsk","plan":"Token Plan 个人版 Standard","planStatus":"生效中","observedAt":"2026-10-08T00:00:00+08:00","windows":[{"window":"1month","usedPercent":100.0,"resetTime":"2026-10-18T00:00:00+08:00"}],"metrics":[{"key":"balance_available","label":"余额","value":0,"unit":"CNY","currency":"CNY","format":"currency"}],"notes":[]}`
 
+// Component helper protocol, derived from the pinned official three-window
+// counts; unlike quotaFixture this is not the obsolete Token Plan contract.
+const codingFixture = `{"protocol":"qwen-coding-plan-v1","product":"coding-plan","queryStatus":"success","authorityStatus":"needs_configuration","reason":"account_authority_unverified","observedAt":"2026-11-02T12:00:00Z","instanceType":"pro","windows":[{"window":"5h","unit":"requests","used":"38","total":"100","remaining":"62","resetTime":"2026-08-06T07:06:40Z"},{"window":"week","unit":"requests","used":"500","total":"1000","remaining":"500","resetTime":"2026-08-07T10:53:20Z"},{"window":"billing_month","unit":"requests","used":"950","total":"1000","remaining":"50","resetTime":"2026-08-08T14:40:00Z"}]}`
+
 // This subprocess is the command stub; no shell or platform-specific executable
 // is needed. It is entered only when the parent's argument slice requests it.
 func TestQuotaCommandHelper(t *testing.T) {
@@ -26,6 +30,23 @@ func TestQuotaCommandHelper(t *testing.T) {
 		return
 	}
 	switch mode {
+	case "coding":
+		fmt.Print(codingFixture)
+	case "coding-nonzero":
+		fmt.Print(codingFixture)
+		os.Exit(3)
+	case "forged":
+		fmt.Print(strings.Replace(codingFixture, `"authorityStatus":"needs_configuration"`, `"authorityStatus":"verified"`, 1))
+	case "hand-account":
+		fmt.Print(strings.Replace(codingFixture, `"product":"coding-plan"`, `"product":"coding-plan","account":"user-entered-account","verified":true`, 1))
+	case "login":
+		fmt.Print(`{"success":true,"data":{"accountId":"login-account","verified":true}}`)
+	case "invalid-unit":
+		fmt.Print(strings.Replace(codingFixture, `"unit":"requests"`, `"unit":"tokens"`, 1))
+	case "null-count":
+		fmt.Print(strings.Replace(codingFixture, `"used":"38"`, `"used":null`, 1))
+	case "wrong-remaining":
+		fmt.Print(strings.Replace(codingFixture, `"remaining":"62"`, `"remaining":"100"`, 1))
 	case "success":
 		fmt.Print(quotaFixture)
 	case "period":
@@ -43,6 +64,16 @@ func TestQuotaCommandHelper(t *testing.T) {
 	case "garbage":
 		fmt.Print("CLI garbage diagnostic")
 		os.Exit(0)
+	case "encoded-message":
+		fmt.Print(`{"message":"ConsoleNeedLogin: FixtureAlpha%2Bopaque%2Fvalue"}`)
+	case "encoded-garbage":
+		fmt.Print("ConsoleNeedLogin: FixtureAlpha%252bopaque%252Fvalue")
+	case "invalid-with-stderr":
+		fmt.Print(`{}`)
+		fmt.Fprint(os.Stderr, "ConsoleNeedLogin: helper requires login")
+	case "coding-with-stderr":
+		fmt.Print(codingFixture)
+		fmt.Fprint(os.Stderr, "ordinary helper warning")
 	case "empty":
 		fmt.Print(`{"source":"bsk","windows":[],"metrics":[]}`)
 	case "timeout":
@@ -71,7 +102,7 @@ func commandManager(t *testing.T, mode string) *Manager {
 	m := NewManager(nil)
 	m.cfg = providerConfig(t)
 	m.cfg.Command = executable
-	m.cfg.CommandArgs = []string{"-test.run=^TestQuotaCommandHelper$", "--", "--quota-stub", mode}
+	m.cfg.CommandArgs = []string{"-test.run=^TestQuotaCommandHelper$", "--", "--quota-stub", mode, "--protocol", "qwen-coding-plan-v1", "--source", "coding-plan", "--bl-path", "synthetic-bl", "--cache-file", "synthetic-cache"}
 	m.cfg.CommandTimeout = 3 * time.Second
 	return m
 }
@@ -79,7 +110,30 @@ func quotaRequest() pluginapi.QuotaFetchRequest {
 	return pluginapi.QuotaFetchRequest{Provider: ProviderID, Attributes: map[string]string{"api_key": "dummy-selected-key"}}
 }
 
-func TestQuotaCommandSuccessFrozenContractAndArgumentSlice(t *testing.T) {
+func TestQuotaDecodeFailuresKeepSafeCLIDiagnostics(t *testing.T) {
+	for _, mode := range []string{"encoded-message", "encoded-garbage", "invalid-with-stderr"} {
+		t.Run(mode, func(t *testing.T) {
+			m := commandManager(t, mode)
+			m.cfg.APIKeys = nil
+			req := quotaRequest()
+			req.Attributes["api_key"] = "FixtureAlpha+opaque/value"
+			_, err := m.FetchQuota(context.Background(), req)
+			if err == nil || strings.Contains(err.Error(), "FixtureAlpha") || !strings.Contains(err.Error(), "ConsoleNeedLogin") {
+				t.Fatalf("unsafe or lost CLI diagnostic: %v", err)
+			}
+		})
+	}
+}
+
+func TestQuotaValidContractAllowsStderrWarning(t *testing.T) {
+	m := commandManager(t, "coding-with-stderr")
+	result, err := m.FetchQuota(context.Background(), quotaRequest())
+	if err != nil || len(result.Groups) != 1 || len(result.Groups[0].Buckets) != 3 {
+		t.Fatalf("valid stdout rejected because of stderr: %#v %v", result, err)
+	}
+}
+
+func TestQuotaCommandLegacyContractRejectedAndArgumentSlice(t *testing.T) {
 	for _, mode := range []string{"success", "args"} {
 		t.Run(mode, func(t *testing.T) {
 			m := commandManager(t, mode)
@@ -87,17 +141,14 @@ func TestQuotaCommandSuccessFrozenContractAndArgumentSlice(t *testing.T) {
 				m.cfg.CommandArgs = append(m.cfg.CommandArgs, "space ; & argument")
 			}
 			result, err := m.FetchQuota(context.Background(), quotaRequest())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if result.Subscription.Plan != "Token Plan 个人版 Standard" || len(result.Groups) != 1 || result.Groups[0].DisplayName != m.cfg.DisplayName || result.Groups[0].Buckets[0].Window != "1month" || result.Groups[0].Buckets[0].RemainingFraction != 0 || result.Groups[0].Buckets[0].ResetTime != "2026-10-18T00:00:00+08:00" || len(result.Summary) != 1 || result.Summary[0].Currency != "CNY" || result.Summary[0].Value != 0 {
-				t.Fatalf("mapping mismatch: %#v", result)
+			if err == nil || !strings.Contains(err.Error(), "coding_plan_helper_protocol_required") || result.Subscription != nil || len(result.Groups) != 0 || len(result.Summary) != 0 {
+				t.Fatalf("obsolete monthly/money contract became credential quota: %#v %v", result, err)
 			}
 		})
 	}
 }
 func TestQuotaCommandFailuresReturnOwnCLIText(t *testing.T) {
-	tests := map[string]string{"failure": "ConsoleNeedLogin: CLI says login required", "zero-error": "ConsoleNeedLogin: CLI says login required", "garbage": "CLI garbage diagnostic", "stderr": "CLI stderr diagnostic", "empty": "no windows or metrics"}
+	tests := map[string]string{"failure": "ConsoleNeedLogin: CLI says login required", "zero-error": "ConsoleNeedLogin: CLI says login required", "garbage": "CLI garbage diagnostic", "stderr": "CLI stderr diagnostic", "empty": "coding_plan_helper_protocol_required"}
 	for mode, want := range tests {
 		t.Run(mode, func(t *testing.T) {
 			m := commandManager(t, mode)
@@ -145,15 +196,23 @@ func TestQuotaCommandSecretRedaction(t *testing.T) {
 		t.Fatal("lost CLI's own error")
 	}
 }
-func TestQuotaMappingClampsPercentAndAllowsMetricsOnly(t *testing.T) {
+func TestQuotaMappingRejectsOutOfRangeAndAllowsMetricsOnly(t *testing.T) {
 	for _, sample := range []struct {
 		percent   float64
 		remaining float64
-	}{{-20, 1}, {25, 0.75}, {150, 0}} {
+	}{{0, 1}, {25, 0.75}, {100, 0}} {
 		result, err := normalizeQuota([]byte(fmt.Sprintf(`{"windows":[{"window":"5h","usedPercent":%g}]}`, sample.percent)), "Qwen")
 		if err != nil || result.Groups[0].Buckets[0].RemainingFraction != sample.remaining {
-			t.Fatalf("clamp failed: %#v %v", result, err)
+			t.Fatalf("valid mapping failed: %#v %v", result, err)
 		}
+	}
+	for _, percent := range []float64{-20, -0.000001, 100.000001, 150} {
+		t.Run(fmt.Sprintf("reject_%g", percent), func(t *testing.T) {
+			result, err := normalizeQuota([]byte(fmt.Sprintf(`{"windows":[{"window":"5h","usedPercent":%g}]}`, percent)), "Qwen")
+			if err == nil || len(result.Groups) != 0 || len(result.Summary) != 0 {
+				t.Fatalf("out-of-range percentage silently clamped: %#v %v", result, err)
+			}
+		})
 	}
 	result, err := normalizeQuota([]byte(`{"metrics":[{"key":"balance","label":"Balance","value":0,"format":"number"}]}`), "Qwen")
 	if err != nil || len(result.Groups) != 0 || len(result.Summary) != 1 {

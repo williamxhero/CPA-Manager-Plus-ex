@@ -31,7 +31,7 @@ const (
 
 // githubRepoURL satisfies the host's validPlugin gate (host.go
 // validPlugin rejects empty Metadata.GitHubRepository).
-const githubRepoURL = "https://github.com/williamxhero/qwen-cliproxyapi"
+const githubRepoURL = "https://github.com/williamxhero/CPA-Qwen"
 
 // registerRefreshTimeout bounds ONLY the synchronous initial/reconfigure
 // refreshOnce so a slow catalog cannot block host startup/reconfigure for a
@@ -148,7 +148,10 @@ func (m *Manager) HandleCall(method string, request []byte) (resp []byte, err er
 		if name == "" {
 			name = config.DefaultDisplayName
 		}
-		return okEnvelope(pluginapi.QuotaDescribeResponse{SupportedProviders: []string{ProviderID}, DisplayName: name}), nil
+		return okEnvelope(struct {
+			pluginapi.QuotaDescribeResponse
+			ScopedInferenceHTTP bool `json:"inference_scoped_http"`
+		}{pluginapi.QuotaDescribeResponse{SupportedProviders: []string{ProviderID}, DisplayName: name}, true}), nil
 	case pluginabi.MethodQuotaFetch:
 		var req pluginapi.QuotaFetchRequest
 		if json.Unmarshal(request, &req) != nil {
@@ -216,6 +219,7 @@ func pluginConfigFields() []pluginapi.ConfigField {
 		{Name: "command", Type: pluginapi.ConfigFieldTypeString, Description: "Required quota executable path; executed directly without a shell."},
 		{Name: "command-args", Type: pluginapi.ConfigFieldTypeArray, Description: "Argument slice; default [--json]."},
 		{Name: "command-timeout", Type: pluginapi.ConfigFieldTypeString, Description: "Hard command deadline; default 90s."},
+		{Name: "quota-resource-bindings", Type: pluginapi.ConfigFieldTypeArray, Description: "Explicit CPA resource target bindings enrolled for this Coding Plan CLI/cache source; each entry requires resource-id, identity-version, credential-version, config-version and membership-version."},
 		{Name: "display-name", Type: pluginapi.ConfigFieldTypeString, Description: "Quota group display name."},
 	}
 }
@@ -260,7 +264,7 @@ func (m *Manager) handleLifecycle(request []byte) ([]byte, error) {
 	}
 	m.lifeMu.Lock()
 	defer m.lifeMu.Unlock()
-	debugTrace("lifecycle config_loaded key_count=%d prefix_enabled=%t prefix_bytes=%d", len(cfg.APIKeys), cfg.ModelPrefix.Enabled, len(cfg.ModelPrefix.Value))
+	debugTrace("lifecycle config_loaded key_count=%d prefix_enabled=%t prefix_present=%t", len(cfg.APIKeys), cfg.ModelPrefix.Enabled, cfg.ModelPrefix.Value != "")
 	ctx, cancel := context.WithTimeout(context.Background(), registerRefreshTimeout)
 	defer cancel()
 	if err := m.materializeAuthRecords(ctx, cfg); err != nil {
@@ -365,14 +369,19 @@ func (m *Manager) materializeAuthRecords(ctx context.Context, cfg config.Config)
 		if _, ok := existing[name]; ok {
 			continue
 		}
-		// Filenames remain stable across labels and config ordering.
+		// Filenames remain stable across labels and config ordering. base_url is
+		// persisted so the record is self-describing: a management client that
+		// reads the file, saves the form and re-reads it must see the same value.
+		credentialKey := key.Value
 		record, err := json.Marshal(struct {
-			Type   string `json:"type"`
-			ID     string `json:"id"`
-			Label  string `json:"label"`
-			APIKey string `json:"api_key"`
+			Type    string `json:"type"`
+			ID      string `json:"id"`
+			Label   string `json:"label"`
+			APIKey  string `json:"api_key"`
+			BaseURL string `json:"base_url,omitempty"`
 		}{
-			Type: "qwen", ID: id, Label: accountLabel(cfg, key.Value, "", i), APIKey: key.Value,
+			Type: "qwen", ID: id, Label: accountLabel(cfg, credentialKey, "", i), APIKey: credentialKey,
+			BaseURL: cfg.BaseURL,
 		})
 		if err != nil {
 			return fmt.Errorf("build auth record")

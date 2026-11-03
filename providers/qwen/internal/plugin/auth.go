@@ -117,9 +117,9 @@ func (p authProvider) RefreshAuth(_ context.Context, req pluginapi.AuthRefreshRe
 	return pluginapi.AuthRefreshResponse{Auth: pluginapi.AuthData{Provider: req.AuthProvider, ID: req.AuthID, StorageJSON: req.StorageJSON, Metadata: req.Metadata, Attributes: attributes}}, nil
 }
 
-// credentialIndexSeed binds quota ownership to key + effective endpoint, not
-// filename, label or disabled state. The host gives auth_index_seed precedence
-// over file paths; only the digest crosses this identity boundary.
+// credentialIndexSeed is a key/endpoint locator, not account ownership or
+// enrollment evidence. Filename, label and disabled state are presentation only.
+// The host prefers this opaque digest to a legacy file-path index.
 func credentialIndexSeed(key, baseURL string, cfg config.Config) (string, error) {
 	if baseURL == "" {
 		baseURL = cfg.BaseURL

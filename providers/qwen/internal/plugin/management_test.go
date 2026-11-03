@@ -112,18 +112,28 @@ func managementUsage(t *testing.T, m *Manager, body string) (pluginapi.Managemen
 	return resp, result.Cards
 }
 
+func assertLegacyQuotaCardUnbound(t *testing.T, card quotaCard) {
+	t.Helper()
+	if card.QueryStatus != "success" || card.AuthorityStatus != "needs_configuration" || card.Error == nil || !strings.Contains(*card.Error, "account_authority_unverified") {
+		t.Errorf("legacy query acquired credential authority: %#v", card)
+	}
+	if len(card.Windows) != 0 || len(card.Metrics) != 0 || card.Plan != "" || card.PlanStatus != "" || card.PlanStart != "" || card.PlanEnd != "" || card.DaysLeft != nil || card.ObservedAt != "" {
+		t.Errorf("account reading was attributed to a legacy credential card: %#v", card)
+	}
+}
+
 func TestManagementQuotaUsageSuccessAndSelectedHostIndex(t *testing.T) {
-	m := managementCommandManager(t, "success")
+	m := managementCommandManager(t, "coding")
 	resp, cards := managementUsage(t, m, `{}`)
 	if resp.StatusCode != 200 || len(cards) != len(m.cfg.APIKeys) || resp.Headers.Get("Content-Type") != "application/json" {
 		t.Fatalf("wrong cards: %s", resp.Body)
 	}
 	card := cards[0]
-	if card.AuthIndex != "host-index-0" || card.Label != accountLabel(m.cfg, m.cfg.APIKeys[0].Value, "Host label", 0) || card.Plan != "Token Plan 个人版 Standard" || card.PlanStatus != "生效中" || card.ObservedAt != "2026-10-08T00:00:00+08:00" || card.Error != nil {
+	if card.AuthIndex != "host-index-0" || card.Label != accountLabel(m.cfg, m.cfg.APIKeys[0].Value, "Host label", 0) || card.QueryStatus != "success" || card.AuthorityStatus != "needs_configuration" || card.Error == nil || !strings.Contains(*card.Error, "account_authority_unverified") {
 		t.Fatalf("wrong card: %#v", card)
 	}
-	if len(card.Windows) != 1 || card.Windows[0].UsedPercent != 100 || card.Windows[0].RemainingPercent != 0 || card.Windows[0].ResetTime != "2026-10-18T00:00:00+08:00" || card.Windows[0].ResetsInDays == nil || len(card.Metrics) != 1 {
-		t.Fatalf("wrong reading: %#v", card)
+	if len(card.Windows) != 0 || len(card.Metrics) != 0 || card.Plan != "" || card.ObservedAt != "" {
+		t.Fatalf("account query was attributed to selected key: %#v", card)
 	}
 	if card.PlanEnd != "" || card.DaysLeft != nil {
 		t.Fatal("invented subscription period")
@@ -132,6 +142,7 @@ func TestManagementQuotaUsageSuccessAndSelectedHostIndex(t *testing.T) {
 	if resp.StatusCode != 200 || len(cards) != 1 || cards[0].AuthIndex != "host-index-0" {
 		t.Fatalf("selection failed: %s", resp.Body)
 	}
+	assertLegacyQuotaCardUnbound(t, cards[0])
 	for _, key := range m.cfg.APIKeys {
 		if strings.Contains(string(resp.Body), key.Value) {
 			t.Fatal("key leaked")
@@ -140,29 +151,23 @@ func TestManagementQuotaUsageSuccessAndSelectedHostIndex(t *testing.T) {
 }
 
 func TestManagementQuotaUsageCLIPlanPeriodAndMetricsOnly(t *testing.T) {
-	m := managementCommandManager(t, "period")
-	before := time.Now()
-	resp, cards := managementUsage(t, m, `{}`)
-	after := time.Now()
-	if resp.StatusCode != 200 || len(cards) == 0 {
-		t.Fatalf("missing period card: %s", resp.Body)
-	}
-	card := cards[0]
-	if card.PlanStart != "2026-09-17T18:11:24+08:00" || card.PlanEnd != "2027-09-18T00:00:00+08:00" || card.DaysLeft == nil || card.Error != nil {
-		t.Fatalf("missing CLI period: %s", resp.Body)
-	}
-	if *card.DaysLeft != *daysUntil(card.PlanEnd, before) && *card.DaysLeft != *daysUntil(card.PlanEnd, after) {
-		t.Fatal("did not recompute current remaining days")
-	}
-	m = managementCommandManager(t, "metrics-only")
-	resp, cards = managementUsage(t, m, `{}`)
-	if resp.StatusCode != 200 || len(cards) == 0 || cards[0].Error != nil || len(cards[0].Windows) != 0 || len(cards[0].Metrics) != 1 {
-		t.Fatalf("metrics-only reading fabricated windows: %s", resp.Body)
+	// Old Token Plan subscription periods and cash-like metrics no longer
+	// satisfy the Coding Plan credential contract. Keep both regressions.
+	for _, mode := range []string{"period", "metrics-only"} {
+		m := managementCommandManager(t, mode)
+		resp, cards := managementUsage(t, m, `{}`)
+		if resp.StatusCode != 200 || len(cards) == 0 {
+			t.Fatalf("missing error card: %s", resp.Body)
+		}
+		card := cards[0]
+		if card.Error == nil || !strings.Contains(*card.Error, "coding_plan_helper_protocol_required") || card.PlanStart != "" || card.PlanEnd != "" || card.DaysLeft != nil || len(card.Windows) != 0 || len(card.Metrics) != 0 {
+			t.Fatalf("legacy product fabricated a Coding Plan reading: %s", resp.Body)
+		}
 	}
 }
 
 func TestManagementQuotaUsageFailuresAreCardsNotFakeReadings(t *testing.T) {
-	for mode, want := range map[string]string{"failure": "ConsoleNeedLogin: CLI says login required", "zero-error": "ConsoleNeedLogin: CLI says login required", "empty": "no windows or metrics", "garbage": "CLI garbage diagnostic"} {
+	for mode, want := range map[string]string{"failure": "ConsoleNeedLogin: CLI says login required", "zero-error": "ConsoleNeedLogin: CLI says login required", "empty": "coding_plan_helper_protocol_required", "garbage": "CLI garbage diagnostic"} {
 		t.Run(mode, func(t *testing.T) {
 			m := managementCommandManager(t, mode)
 			resp, cards := managementUsage(t, m, `{}`)
@@ -304,21 +309,45 @@ func TestManagementNoSecretsInFailuresAndSuccessFields(t *testing.T) {
 	}
 }
 
-func TestManagementQuotaUsageMultipleOwnedCredentials(t *testing.T) {
-	m := managementCommandManager(t, "success")
-	m.cfg.APIKeys = append(m.cfg.APIKeys, config.APIKey{Value: "dummy-second-key", Name: "Second Qwen"})
-	entries := []pluginapi.HostAuthFileEntry{}
-	for i, key := range m.cfg.APIKeys {
-		digest := sha256.Sum256([]byte(key.Value))
-		entries = append(entries, pluginapi.HostAuthFileEntry{Type: ProviderID, Name: "qwen-key-" + hex.EncodeToString(digest[:]) + ".json", AuthIndex: fmt.Sprintf("index-%d", i)})
-	}
-	m.bridge = NewHostBridge(func(string, []byte) ([]byte, error) { return hostOK(hostAuthListResponse{Files: entries}), nil })
-	resp, cards := managementUsage(t, m, `{}`)
-	if resp.StatusCode != 200 || len(cards) != 2 || cards[1].Label != "Second Qwen" || cards[1].Plan != cards[0].Plan {
-		t.Fatalf("lost owned credentials: %s", resp.Body)
-	}
-	resp, cards = managementUsage(t, m, `{"auth_index":"index-1"}`)
-	if resp.StatusCode != 200 || len(cards) != 1 || cards[0].Label != "Second Qwen" {
-		t.Fatalf("wrong selection: %s", resp.Body)
+func TestManagementLegacyQuotaBulkAndSingleNeverAttributeCLIReading(t *testing.T) {
+	for _, transport := range []string{"live-cli", "cache-only"} {
+		t.Run(transport, func(t *testing.T) {
+			m := managementCommandManager(t, "coding")
+			if transport == "cache-only" {
+				m.cfg.CommandArgs = []string{
+					"-test.run=^TestCLIQuotaFixtureProcess$", "--", "--cli-quota-fixture", "cache",
+					"--source=coding-plan", "--protocol=qwen-coding-plan-v1", "--cache-only=true",
+					"--cache-file=C:/synthetic cache/coding quota.json", "--max-age", "45m",
+				}
+			}
+			m.cfg.APIKeys = append(m.cfg.APIKeys, config.APIKey{Value: "dummy-second-key", Name: "Second Qwen"})
+			entries := []pluginapi.HostAuthFileEntry{}
+			for i, key := range m.cfg.APIKeys {
+				digest := sha256.Sum256([]byte(key.Value))
+				entries = append(entries, pluginapi.HostAuthFileEntry{Type: ProviderID, Name: "qwen-key-" + hex.EncodeToString(digest[:]) + ".json", AuthIndex: fmt.Sprintf("index-%d", i)})
+			}
+			m.bridge = NewHostBridge(func(string, []byte) ([]byte, error) { return hostOK(hostAuthListResponse{Files: entries}), nil })
+			for _, selection := range []struct {
+				name, body string
+				indexes    []string
+			}{
+				{"bulk", `{}`, []string{"index-0", "index-1"}},
+				{"single-first", `{"auth_index":"index-0"}`, []string{"index-0"}},
+				{"single-second", `{"auth_index":"index-1"}`, []string{"index-1"}},
+			} {
+				t.Run(selection.name, func(t *testing.T) {
+					resp, cards := managementUsage(t, m, selection.body)
+					if resp.StatusCode != 200 || len(cards) != len(selection.indexes) {
+						t.Fatalf("lost selected credentials: %s", resp.Body)
+					}
+					for i, card := range cards {
+						if card.AuthIndex != selection.indexes[i] || card.AuthIndex == "index-1" && card.Label != "Second Qwen" {
+							t.Fatalf("wrong selection: %s", resp.Body)
+						}
+						assertLegacyQuotaCardUnbound(t, card)
+					}
+				})
+			}
+		})
 	}
 }

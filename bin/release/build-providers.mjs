@@ -3,7 +3,7 @@
 // Provider CLI artifacts always build. c-shared DLL artifacts need a Windows
 // C toolchain (cgo): on Windows a mingw-w64 `gcc` on PATH, cross-compiling
 // from Linux/macOS a `x86_64-w64-mingw32-gcc`. CI runners ship neither, so the
-// DLL builds are SKIPPED there with the exact local build command printed (CI
+// DLL builds are SKIPPED there with the gated local build command printed (CI
 // never force-compiles the DLLs). A skipped DLL build is not a failure; a
 // build that was attempted and failed is.
 //
@@ -11,10 +11,13 @@
 //   node bin/release/build-providers.mjs            # CLI always, DLL when toolchain present
 //   node bin/release/build-providers.mjs --skip-dll # never attempt DLL builds
 //   node bin/release/build-providers.mjs --json     # machine-readable summary
+// All forms require explicit canonical Qwen and compatible Core source paths;
+// see providers/README.md. Outputs must not contaminate the Qwen snapshot.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createProviderGoContext, verifyQwenSnapshot } from './run-provider-go.mjs';
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const MANIFEST_PATH = 'providers/import-boundary.json';
@@ -61,42 +64,57 @@ export const buildProviders = ({
   skipDll = false,
   mkdir = mkdirSync,
   logger = console,
+  qwenCanonicalSource,
+  verifySnapshot = verifyQwenSnapshot,
+  compatibleCoreSource,
 } = {}) => {
+  verifySnapshot({ root, qwenCanonicalSource });
   const artifacts = loadArtifacts(root);
-  const toolchain = skipDll ? null : findDllToolchain({ platform, probe });
-  const results = [];
+  const context = createProviderGoContext({ root, compatibleCoreSource, qwenCanonicalSource, goBin, run });
+  try {
+    const toolchain = skipDll ? null : findDllToolchain({ platform, probe });
+    const results = [];
 
-  for (const artifact of artifacts) {
-    const workdir = path.join(root, artifact.workdir);
-    const outputDir = path.dirname(path.join(root, artifact.output));
-    const entry = { id: artifact.id, kind: artifact.kind, output: artifact.output, status: 'built' };
+    for (const artifact of artifacts) {
+      const workdir = path.join(root, artifact.workdir);
+      const outputDir = path.dirname(path.join(root, artifact.output));
+      const entry = { id: artifact.id, kind: artifact.kind, output: artifact.output, status: 'built' };
 
-    if (artifact.kind === 'plugin-c-shared' && !toolchain) {
-      entry.status = 'skipped';
-      entry.reason = 'no Windows C toolchain (mingw-w64) available';
-      entry.localBuildCommand = `cd ${artifact.workdir} && ${artifact.build}`;
-      logger.log(
-        `[providers] skip ${artifact.id} (${entry.reason}); local build:\n    ${entry.localBuildCommand}`
-      );
-      results.push(entry);
-      continue;
+      if (artifact.kind === 'plugin-c-shared' && !toolchain) {
+        entry.status = 'skipped';
+        entry.reason = 'no Windows C toolchain (mingw-w64) available';
+        const canonical = qwenCanonicalSource || process.env.CPA_QWEN_CANONICAL_SOURCE;
+        const core = compatibleCoreSource || process.env.CPA_COMPATIBLE_CORE_SOURCE;
+        entry.localBuildCommand = `node bin/release/build-providers.mjs --qwen-canonical-source ${JSON.stringify(canonical)} --compatible-core-source ${JSON.stringify(core)}`;
+        logger.log(
+          `[providers] skip ${artifact.id} (${entry.reason}); local build:\n    ${entry.localBuildCommand}`
+        );
+        results.push(entry);
+        continue;
+      }
+
+      try {
+        context.assertBoundary();
+        mkdir(outputDir, { recursive: true });
+        const flags = context.forModule(artifact.workdir);
+        const args = [artifact.args[0], ...flags, ...artifact.args.slice(1)];
+        logger.log(`[providers] build ${artifact.id}: ${[goBin, ...args].join(' ')}`);
+        context.assertBoundary();
+        run(goBin, args, {
+          cwd: workdir,
+          env: { ...context.env, ...(artifact.env ?? {}), ...(artifact.kind === 'plugin-c-shared' ? { CC: toolchain } : {}) },
+        });
+        results.push(entry);
+      } catch {
+        entry.status = 'failed';
+        results.push(entry);
+      }
     }
 
-    try {
-      mkdir(outputDir, { recursive: true });
-      logger.log(`[providers] build ${artifact.id}: ${artifact.build}`);
-      run(goBin, artifact.args, {
-        cwd: workdir,
-        env: { ...process.env, ...(artifact.env ?? {}) },
-      });
-      results.push(entry);
-    } catch {
-      entry.status = 'failed';
-      results.push(entry);
-    }
+    return { results, toolchain };
+  } finally {
+    context.cleanup();
   }
-
-  return { results, toolchain };
 };
 
 export const formatBuildSummary = ({ results, toolchain }) => {
@@ -115,14 +133,30 @@ export const formatBuildSummary = ({ results, toolchain }) => {
 const runCli = () => {
   const argv = process.argv.slice(2);
   const known = new Set(['--skip-dll', '--json']);
-  const unknown = argv.filter((argument) => !known.has(argument));
+  let qwenCanonicalSource;
+  let compatibleCoreSource;
+  const unknown = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--qwen-canonical-source' && argv[i + 1] && !argv[i + 1].startsWith('--')) {
+      qwenCanonicalSource = argv[++i];
+    } else if (argv[i] === '--compatible-core-source' && argv[i + 1] && !argv[i + 1].startsWith('--')) {
+      compatibleCoreSource = argv[++i];
+    } else if (!known.has(argv[i])) unknown.push(argv[i]);
+  }
   if (unknown.length > 0) {
     console.error(`Unknown arguments: ${unknown.join(', ')}`);
     process.exitCode = 1;
     return;
   }
 
-  const summary = buildProviders({ skipDll: argv.includes('--skip-dll') });
+  let summary;
+  try {
+    summary = buildProviders({ skipDll: argv.includes('--skip-dll'), qwenCanonicalSource, compatibleCoreSource });
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+    return;
+  }
 
   if (argv.includes('--json')) {
     console.log(JSON.stringify(summary, null, 2));

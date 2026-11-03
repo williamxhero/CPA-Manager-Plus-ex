@@ -31,6 +31,27 @@ source repository. Existing build evidence is never overwritten.
 
 The script creates clean detached local Git clones. Each plugin uses an external
 Go modfile with its SDK replacement fixed to the exact selected Core clone.
+After all five clones exist, but before **any Go/npm compilation**, the pinned
+independent CPA-Qwen verifier checks the Manager clone's complete
+`providers/qwen/CPA_QWEN_SOURCE.json` and snapshot against that Qwen clone.
+Repository, commit, tree and every file hash must match; missing/extra/changed
+files, links/junctions/reparse points and stale/missing receipts fail closed.
+No snapshot sync, receipt enrollment or provenance fabrication happens in a build.
+`qwen-snapshot-verification.log` retains the verifier output. A successful gate
+records the real receipt SHA-256 and canonical identity/files in `build-result.json`.
+The preflight-only source-ref check does not execute this snapshot gate and is
+not a build/snapshot acceptance result.
+
+Qwen builds three products from the selected **independent CPA-Qwen pin**:
+`qwen-cliproxyapi.dll`, `aliyun-bss-quota.dll` and the sole `bailian-quota.exe`.
+All live under `artifacts/CPA-Qwen/`, outside the source snapshots. The compatibility
+DLL is hashed under `candidate-manifest.json`'s `candidate_only` list with
+`policy: candidate-only` and source/Core identities; it has **no `target`** and is
+not added to the default deployable `files` list. Building it never enables or
+deploys it. No old Aliyun checkout is read. Core must supply the compatible SPEC92
+SDK; both DLLs and Qwen tests/CLI retain the existing external modfile binding to
+the explicitly selected Core pin, rather than published v8.0.0.
+
 Recorded Go build metadata must identify the selected source commit with
 `vcs.modified=false`; DLL metadata must also name that Core replacement.
 `bailian-quota.exe` is a standalone utility, not evidence of a linked Core SDK.
@@ -46,5 +67,8 @@ identify a complete candidate; installed/running identity is a separate gate.
 Source-ref gate tests run with Python's standard library:
 
 ```text
-python tests/windows/test_build_local_stack.py
+python -B tests/windows/test_build_local_stack.py
 ```
+
+These tests use real local Git and the canonical snapshot verifier with synthetic
+Go/Node boundaries. They do not establish real binary compilation or deployment.

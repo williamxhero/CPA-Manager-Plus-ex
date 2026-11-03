@@ -31,7 +31,8 @@ import (
 // ids returned by DoStream are UPSTREAM and never interchangeable (§4).
 type executorRequest struct {
 	pluginapi.ExecutorRequest
-	StreamID string `json:"stream_id,omitempty"`
+	StreamID       string `json:"stream_id,omitempty"`
+	HostCallbackID string `json:"host_callback_id,omitempty"`
 }
 
 // resolvedExecution carries everything both execution paths need after
@@ -102,9 +103,9 @@ func (m *Manager) handleExecute(request []byte) ([]byte, error) {
 	}
 
 	url := catalog.JoinUpstreamURL(res.cfg.BaseURL, res.rec.EndpointPath)
-	debugTrace("executor resolved route=%s url_present=%t key_count=%d", res.rec.Protocol, url != "", len(res.cfg.APIKeys))
+	debugTrace("executor resolved route_present=%t url_present=%t key_count=%d", res.rec.Protocol != "", url != "", len(res.cfg.APIKeys))
 	debugTrace("executor sending non-stream url_present=%t body_len=%d", url != "", len(upstreamBody))
-	ctx, cancel := context.WithTimeout(context.Background(), res.cfg.RequestTimeout)
+	ctx, cancel := context.WithTimeout(context.WithValue(context.Background(), inferenceCallbackContextKey{}, req.HostCallbackID), res.cfg.RequestTimeout)
 	defer cancel()
 	resp, err := m.bridge.Do(ctx, pluginapi.HTTPRequest{
 		Method:  http.MethodPost,
@@ -227,7 +228,7 @@ func (m *Manager) executeStream(req executorRequest) ([]byte, error) {
 
 	url := catalog.JoinUpstreamURL(res.cfg.BaseURL, res.rec.EndpointPath)
 	debugTrace("executor sending stream url_present=%t body_len=%d", url != "", len(upstreamBody))
-	ctx, cancel := context.WithTimeout(context.Background(), res.cfg.RequestTimeout)
+	ctx, cancel := context.WithTimeout(context.WithValue(context.Background(), inferenceCallbackContextKey{}, req.HostCallbackID), res.cfg.RequestTimeout)
 	defer cancel()
 	st, _, id, err := m.bridge.DoStream(ctx, pluginapi.HTTPRequest{
 		Method:  http.MethodPost,

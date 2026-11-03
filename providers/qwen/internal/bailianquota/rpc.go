@@ -24,6 +24,7 @@ func Calls() []Call {
 		{"subscription", "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/subscription", map[string]any{"queryInstanceInfoRequest": map[string]any{"commodityCode": "sfm_tokenplansolo_public_cn"}}},
 		{"addon", "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/addon/summary", map[string]any{"commodityCode": "sfm_tokenplansoloaddon_public_cn"}},
 		{"coding", "zeldaEasy.broadscope-bailian.codingPlan.queryCodingPlanInstanceInfoV2", map[string]any{"queryCodingPlanInstanceInfoRequest": map[string]any{"commodityCode": "sfm_codingplan_public_cn"}}},
+		{"resetCards", "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/reset-card/list", map[string]any{}},
 	}
 }
 
@@ -68,13 +69,14 @@ type HTTPDoer interface {
 
 type Client struct {
 	Run           CommandRunner
+	RunBL         BLCommandRunner
 	HTTP          HTTPDoer
 	Now           func() time.Time
 	cleanupBudget time.Duration
 }
 
 func NewClient() *Client {
-	return &Client{Run: runBSK, HTTP: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Now: time.Now}
+	return &Client{Run: runBSK, RunBL: runBL, HTTP: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Now: time.Now}
 }
 
 func (c *Client) FetchCookie(ctx context.Context, cookie string, check bool) (Result, error) {

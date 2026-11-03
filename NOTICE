@@ -32,3 +32,10 @@ notice; the source trees themselves are imported by SPEC5-B (OpenCode) and SPEC5
    bundles the bailian-quota quota CLI (cmd/bailian-quota) and itself adapts code
    from massiveits/opencode-go-cliproxyapi (MIT, Copyright (c) 2026 massiveits);
    providers/qwen/NOTICE.md must be imported verbatim and kept in place.
+   Current canonical maintenance source: williamxhero/CPA-Qwen. The source name
+   above records the historical first import, not a separate active repository.
+   Manager consumes a complete commit/tree/file-hash snapshot recorded in
+   providers/qwen/CPA_QWEN_SOURCE.json. It includes migrated BSS account-balance,
+   monthly-bill and resource-package capabilities, the quota-only compatibility
+   entry point and the single bailian-quota CLI from that same canonical module.
+   Migration provenance and retained MIT notices are in providers/qwen/NOTICE.md.

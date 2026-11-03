@@ -43,11 +43,14 @@ func NewHostBridge(call RawCaller) *HostBridge {
 }
 
 // hostHTTPReq is the wire shape accepted by host.http.do / do_stream.
+type inferenceCallbackContextKey struct{}
+
 type hostHTTPReq struct {
-	Method  string      `json:"method"`
-	URL     string      `json:"url"`
-	Headers http.Header `json:"headers"`
-	Body    []byte      `json:"body"`
+	HostCallbackID string      `json:"host_callback_id,omitempty"`
+	Method         string      `json:"method"`
+	URL            string      `json:"url"`
+	Headers        http.Header `json:"headers"`
+	Body           []byte      `json:"body"`
 }
 
 type hostAuthListResponse struct {
@@ -288,7 +291,8 @@ func (b *HostBridge) invoke(ctx context.Context, method string, payload any, wha
 // safe for logs (no keys, no response bodies).
 func (b *HostBridge) Do(ctx context.Context, req pluginapi.HTTPRequest) (pluginapi.HTTPResponse, error) {
 	env, err := b.invoke(ctx, pluginabi.MethodHostHTTPDo, hostHTTPReq{
-		Method: req.Method, URL: req.URL, Headers: req.Headers, Body: req.Body,
+		HostCallbackID: inferenceCallbackID(ctx),
+		Method:         req.Method, URL: req.URL, Headers: req.Headers, Body: req.Body,
 	}, "host http do")
 	if err != nil {
 		return pluginapi.HTTPResponse{}, err
@@ -311,7 +315,8 @@ func (b *HostBridge) Do(ctx context.Context, req pluginapi.HTTPRequest) (plugina
 // no registered upstream stream ever leaks regardless of host latency.
 func (b *HostBridge) DoStream(ctx context.Context, req pluginapi.HTTPRequest) (statusCode int, headers http.Header, upstreamStreamID string, err error) {
 	payloadBytes, _ := json.Marshal(hostHTTPReq{
-		Method: req.Method, URL: req.URL, Headers: req.Headers, Body: req.Body,
+		HostCallbackID: inferenceCallbackID(ctx),
+		Method:         req.Method, URL: req.URL, Headers: req.Headers, Body: req.Body,
 	})
 	raw, late, err := b.callWithTimeoutResult(ctx, pluginabi.MethodHostHTTPDoStream, payloadBytes, streamTimeoutGrace, b.closeLateStream)
 	if late {
@@ -438,4 +443,9 @@ func (b *HostBridge) Log(level, message string, fields map[string]any) error {
 	_, err := b.invoke(ctx, pluginabi.MethodHostLog,
 		hostLogReq{Level: level, Message: message, Fields: fields}, "host log")
 	return err
+}
+
+func inferenceCallbackID(ctx context.Context) string {
+	id, _ := ctx.Value(inferenceCallbackContextKey{}).(string)
+	return id
 }

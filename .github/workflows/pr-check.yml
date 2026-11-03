@@ -160,6 +160,14 @@ jobs:
     needs: changes
     if: needs.changes.outputs.providers == 'true'
     runs-on: ${{ matrix.os }}
+    env:
+      CPA_QWEN_CANONICAL_SOURCE: ${{ github.workspace }}/.ci-sources/CPA-Qwen
+      CPA_COMPATIBLE_CORE_SOURCE: ${{ github.workspace }}/.ci-sources/CPA-Core-ex
+      # Receipt hashes bind raw source bytes on both runner OSes, not an
+      # implicit checkout EOL transform. These settings are process-scoped.
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
     strategy:
       fail-fast: false
       matrix:
@@ -173,6 +181,44 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup provider Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.22.1'
+
+      - name: Check provider Python
+        run: python --version
+
+      - name: Read Qwen canonical source pin
+        id: qwen-source
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('providers/import-boundary.json', 'utf8'));
+          const source = manifest.providers.find(provider => provider.id === 'qwen')?.consumerSnapshot;
+          if (source?.repository !== 'williamxhero/CPA-Qwen' || !/^[0-9a-f]{40}$/.test(source.commit ?? '')) {
+            throw new Error('qwen_snapshot_contract_invalid');
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `commit=${source.commit}\n`);
+          NODE
+
+      - name: Checkout pinned CPA-Qwen
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: williamxhero/CPA-Qwen
+          ref: ${{ steps.qwen-source.outputs.commit }}
+          path: .ci-sources/CPA-Qwen
+          persist-credentials: false
+
+      - name: Checkout compatible Core SDK
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: williamxhero/CPA-Core-ex
+          ref: e2f6cc33080ef5c0bbb45c711156520b126d4d6f
+          path: .ci-sources/CPA-Core-ex
+          persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0

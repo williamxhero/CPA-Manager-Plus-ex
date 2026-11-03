@@ -24,6 +24,16 @@ func httpResponse(code int, body string) *http.Response {
 func testClient() *Client { c := NewClient(); c.Now = func() time.Time { return observed }; return c }
 
 func TestRPCRequestAssembly(t *testing.T) {
+	wantCalls := []Call{
+		{"usage", "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage", map[string]any{}},
+		{"subscription", "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/subscription", map[string]any{"queryInstanceInfoRequest": map[string]any{"commodityCode": "sfm_tokenplansolo_public_cn"}}},
+		{"addon", "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/addon/summary", map[string]any{"commodityCode": "sfm_tokenplansoloaddon_public_cn"}},
+		{"coding", "zeldaEasy.broadscope-bailian.codingPlan.queryCodingPlanInstanceInfoV2", map[string]any{"queryCodingPlanInstanceInfoRequest": map[string]any{"commodityCode": "sfm_codingplan_public_cn"}}},
+		{"resetCards", "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/reset-card/list", map[string]any{}},
+	}
+	if !reflect.DeepEqual(Calls(), wantCalls) || ConsoleURL != "https://bailian.console.aliyun.com/cn-beijing/?tab=model#/subscription/token-plan/personal" {
+		t.Fatal("verified Token Plan APIs/commodities or console page changed")
+	}
 	for _, call := range Calls() {
 		t.Run(call.Name, func(t *testing.T) {
 			req, err := NewRPCRequest(context.Background(), call)
@@ -75,6 +85,11 @@ func TestRPCRequestAssembly(t *testing.T) {
 }
 
 func TestRPCAssemblyIsIndependentAndRejectsInvalidInput(t *testing.T) {
+	mutated := Calls()
+	mutated[1].Data["queryInstanceInfoRequest"].(map[string]any)["commodityCode"] = "changed"
+	if Calls()[1].Data["queryInstanceInfoRequest"].(map[string]any)["commodityCode"] != "sfm_tokenplansolo_public_cn" {
+		t.Fatal("Calls shared mutable nested data")
+	}
 	call := Calls()[0]
 	first, _ := NewRPCRequest(context.Background(), call)
 	second, _ := NewRPCRequest(context.Background(), call)
@@ -89,6 +104,16 @@ func TestRPCAssemblyIsIndependentAndRejectsInvalidInput(t *testing.T) {
 	}
 	_, err := NewRPCRequest(nil, call)
 	requireCode(t, err, "invalid_request")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req, err := NewRPCRequest(ctx, call)
+	if err != nil || req.Context() != ctx {
+		t.Fatal("request lost its supplied context", err)
+	}
+	cancel()
+	if req.Context().Err() != context.Canceled {
+		t.Fatal("request ignored cancellation")
+	}
 }
 
 func TestCookieFetchUsesSameRequestsAndOptionalErrorsAreNonfatal(t *testing.T) {
@@ -108,7 +133,7 @@ func TestCookieFetchUsesSameRequestsAndOptionalErrorsAreNonfatal(t *testing.T) {
 		return httpResponse(500, `Cookie=private`), nil
 	})
 	result, err := client.FetchCookie(context.Background(), "session=synthetic", false)
-	if err != nil || calls != 4 || result.Plan != "Token Plan 个人版 Standard" || len(result.Windows) != 1 {
+	if err != nil || calls != 5 || result.Plan != "Token Plan 个人版 Standard" || len(result.Windows) != 1 {
 		t.Fatalf("%+v %v calls=%d", result, err, calls)
 	}
 }

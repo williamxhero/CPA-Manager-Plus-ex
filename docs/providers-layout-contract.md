@@ -1,5 +1,29 @@
 # CPAMP 单仓 providers 布局、许可证与导入边界契约（SPEC5-A）
 
+## 当前 Qwen 消费规则（Qwen #8，覆盖下方历史接口）
+
+本文件其余 SPEC5-A 文字保留首次导入时的决策背景，不表示插件仍未导入。
+其中旧 Qwen 仓库/分支、`providers/qwen/bin` 输出及直接 `go build` 命令已被覆盖，
+**不能作为当前构建或同步指南**。
+
+- 唯一规范维护源为 `williamxhero/CPA-Qwen`；Manager 的 `providers/qwen` 是完整只读
+  消费快照。当前来源 commit、tree、逐文件哈希以 `providers/import-boundary.json`
+  和快照 `CPA_QWEN_SOURCE.json` 为准，不在快照内独立修复或生成产物。
+- BSS 余额/月消费/资源包及 quota-only 兼容入口已在同一规范 Qwen module 中维护；
+  不再从旧 Aliyun 库构建。原 `aliyun-bss-quota` 运行时标识保留，并非第二维护源。
+- build/test/vet 必须使用统一入口，显式提供 canonical Qwen 与兼容 Core SDK 路径，
+  在任何 Go 调用前验证完整来源。SDK 由快照外 modfile 绑定；不得回退旧 published SDK
+  或修改快照的 `go.mod/go.sum`。具体参数见 `providers/README.md`。
+- Qwen DLL、兼容 DLL、唯一 CLI 均输出到快照外的
+  `bin/tmp/provider-build/qwen/`。兼容 DLL 只是候选产物，不默认启用或部署。
+- CI 从 manifest 读取完整 Qwen pin，并 checkout 固定兼容 Core；源码发布前，
+  本地测试不能替代远端 CI 通过。完整栈的显式五组件 pin 与候选规则见
+  `ops/windows/BUILD-LOCAL-STACK.md`。
+- 更新先在规范 Qwen 源实施、审查并提交，再由独立同步流程核对完整快照并登记
+  receipt；构建不得同步/enroll 或修改 receipt。历史来源和许可证不得删除。
+
+## 原始 SPEC5-A 合同背景
+
 - 状态：契约已定义，校验脚本与测试已落地；**插件源码尚未导入**（`providers/opencode-go`
   与 `providers/qwen` 分别由 SPEC5-B、SPEC5-C 落地）。
 - 关联：Issue #5、现状调查 comment 6080840163、协调者默认选择 comment 6080913010。

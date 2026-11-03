@@ -95,7 +95,7 @@ func TestAuthParseCredentialURLAndLabelSurviveRefresh(t *testing.T) {
 }
 
 func TestQuotaPageIncludesPanelCredential(t *testing.T) {
-	m := managementCommandManager(t, "success")
+	m := managementCommandManager(t, "coding")
 	original := m.bridge
 	entries, err := original.AuthList(context.Background())
 	if err != nil {
@@ -104,7 +104,8 @@ func TestQuotaPageIncludesPanelCredential(t *testing.T) {
 	entries = append(entries, pluginapi.HostAuthFileEntry{Provider: "qwen", ID: "panel-id", Label: "Panel", AuthIndex: "panel-index"})
 	m.bridge = NewHostBridge(func(string, []byte) ([]byte, error) { return hostOK(hostAuthListResponse{Files: entries}), nil })
 	resp, cards := managementUsage(t, m, `{"auth_index":"panel-index"}`)
-	if resp.StatusCode != 200 || len(cards) != 1 || cards[0].Label != "Panel" || cards[0].Error != nil {
-		t.Fatalf("panel credential missing quota: %s", resp.Body)
+	if resp.StatusCode != 200 || len(cards) != 1 || cards[0].Label != "Panel" || cards[0].AuthIndex != "panel-index" {
+		t.Fatalf("panel credential lost or unbound console quota attributed to it: %s", resp.Body)
 	}
+	assertLegacyQuotaCardUnbound(t, cards[0])
 }

@@ -29,6 +29,21 @@ TARGETS = {
     "CPA-Qwen/qwen-cliproxyapi.dll": ["CPA-Core/plugins/windows/amd64/qwen-cliproxyapi.dll"],
     "CPA-Qwen/bailian-quota.exe": ["CPA-Core/tools/bailian-quota.exe"],
 }
+CANDIDATE_ONLY = ("CPA-Qwen/aliyun-bss-quota.dll",)
+
+
+def verify_qwen_snapshot(checkouts, sources, output):
+    canonical = checkouts["CPA-Qwen"]
+    snapshot = checkouts["CPA-Manager-Plus-ex"] / "providers/qwen"
+    with (output / "qwen-snapshot-verification.log").open("w", encoding="utf-8") as log:
+        subprocess.run([sys.executable, "-B", str(canonical / "scripts/verify-manager-snapshot.py"),
+                        "--canonical-source", str(canonical), "--snapshot", str(snapshot)],
+                       stdout=log, stderr=subprocess.STDOUT, check=True)
+    path = snapshot / "CPA_QWEN_SOURCE.json"
+    receipt = json.loads(path.read_text(encoding="utf-8"))
+    if receipt["canonical"]["repository"] != "williamxhero/CPA-Qwen" or receipt["canonical"]["commit"] != sources["sources"]["CPA-Qwen"]["head"]:
+        raise ValueError("qwen_snapshot_source_mismatch")
+    return dict(canonical=receipt["canonical"], receipt_sha256=sha256(path))
 
 
 def git(repo, *args):
@@ -92,6 +107,10 @@ def build(args, sources):
         if git(checkout, "rev-parse", "HEAD") != item["head"] or git(checkout, "status", "--porcelain"):
             raise ValueError("snapshot_not_clean:" + name)
         checkouts[name] = checkout
+    # Fail closed before Go, npm or any other component can compile. Never enroll
+    # or synthesize provenance for the Manager copy during a build.
+    receipt["qwen_snapshot"] = verify_qwen_snapshot(checkouts, sources, output)
+    write_json(output / "build-result.json", receipt)
     stamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     files = []
     for name in NAMES:
@@ -126,6 +145,8 @@ def build(args, sources):
                      "-ldflags=-s -w", "-o", dest / (plugin + ".dll"), "."])
                 run(["go", "test", *mod_flags, "./..."])
                 if name == "CPA-Qwen":
+                    run(["go", "build", *mod_flags, "-buildvcs=true", "-trimpath", "-buildmode=c-shared",
+                         "-ldflags=-s -w", "-o", dest / "aliyun-bss-quota.dll", "./cmd/aliyun-bss-quota-plugin"])
                     run(["go", "build", *mod_flags, "-buildvcs=true", "-trimpath", "-ldflags=-s -w",
                          "-o", dest / "bailian-quota.exe", "./cmd/bailian-quota"])
             elif name == "CPA-Core-ex":
@@ -182,7 +203,13 @@ def build(args, sources):
             files.append(dict(relative=relative, target=target, sha256=sha256(candidate),
                               source_head=sources["sources"][name]["head"],
                               sdk_revision=sources["sdk_revision"] if candidate.suffix == ".dll" else None))
-    write_json(output / "candidate-manifest.json", dict(schema=1, files=files,
+    candidate_only = []
+    for relative in CANDIDATE_ONLY:
+        candidate_only.append(dict(relative=relative, policy="candidate-only",
+                                   sha256=sha256(output / "artifacts" / relative),
+                                   source_head=sources["sources"]["CPA-Qwen"]["head"],
+                                   sdk_revision=sources["sdk_revision"]))
+    write_json(output / "candidate-manifest.json", dict(schema=1, files=files, candidate_only=candidate_only,
                build_result=str(output / "build-result.json"), sdk_revision=sources["sdk_revision"]))
     # Acceptance is the final published marker, never a promise that a later
     # manifest write will succeed. Any publication failure retains accepted=false.

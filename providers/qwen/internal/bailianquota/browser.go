@@ -51,8 +51,10 @@ func SelectBrowser(raw []byte, requested string) (string, error) {
 		return "", failure("invalid_response", "bsk returned an invalid browser list")
 	}
 	if requested == "" {
-		if len(browsers) > 0 && browsers[0].ID != "" && !browsers[0].Unresponsive {
-			return browsers[0].ID, nil
+		for _, browser := range browsers {
+			if browser.ID != "" && !browser.Unresponsive {
+				return browser.ID, nil
+			}
 		}
 		return "", failure("no_browser", "no browser connected; open the browser with its bsk extension")
 	}
@@ -226,6 +228,7 @@ out[req.name]=await response.json();
 }catch(e){if(req.name==="usage")return {error:"console_error"};}
 finally{clearTimeout(timer);}
 }
+if(text().includes("主账号"))out.account="主账号";
 return out;
 })()`, nil
 }

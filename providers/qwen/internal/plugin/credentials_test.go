@@ -240,6 +240,36 @@ func TestLoginStartManualFormMetadata(t *testing.T) {
 	}
 }
 
+func TestExecutorCredentialBaseURLPrecedenceAndFallback(t *testing.T) {
+	for name, storage := range map[string]string{"credential": `{"base_url":"https://credential.test/v1"}`, "legacy": `{"type":"qwen"}`} {
+		t.Run(name, func(t *testing.T) {
+			m, f := newExecutorManager(t, func(method string, payload []byte) ([]byte, error) {
+				if method == pluginabi.MethodHostHTTPDo {
+					return hostOK(pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(`{"id":"test","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)}), nil
+				}
+				return hostOK(map[string]any{}), nil
+			})
+			var req executorRequest
+			_ = json.Unmarshal(executionBody("openai", `{"messages":[{"role":"user","content":"hi"}]}`, false), &req)
+			req.StorageJSON = []byte(storage)
+			raw, _ := m.HandleCall(pluginabi.MethodExecutorExecute, mustJSON(req))
+			if !decodeEnv(t, raw).OK {
+				t.Fatalf("execution failed: %s", raw)
+			}
+			calls := f.callsOf(pluginabi.MethodHostHTTPDo)
+			var upstream pluginapi.HTTPRequest
+			_ = json.Unmarshal(calls[0].payload, &upstream)
+			want := m.cfg.BaseURL + "/chat/completions"
+			if name == "credential" {
+				want = "https://credential.test/v1/chat/completions"
+			}
+			if upstream.URL != want {
+				t.Fatalf("URL %s want %s", upstream.URL, want)
+			}
+		})
+	}
+}
+
 func TestExecutorUsesCurrentStorageCredential(t *testing.T) {
 	for _, stream := range []bool{false, true} {
 		for _, tc := range []struct {
@@ -290,35 +320,5 @@ func TestExecutorUsesCurrentStorageCredential(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func TestExecutorCredentialBaseURLPrecedenceAndFallback(t *testing.T) {
-	for name, storage := range map[string]string{"credential": `{"base_url":"https://credential.test/v1"}`, "legacy": `{"type":"qwen"}`} {
-		t.Run(name, func(t *testing.T) {
-			m, f := newExecutorManager(t, func(method string, payload []byte) ([]byte, error) {
-				if method == pluginabi.MethodHostHTTPDo {
-					return hostOK(pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(`{"id":"test","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)}), nil
-				}
-				return hostOK(map[string]any{}), nil
-			})
-			var req executorRequest
-			_ = json.Unmarshal(executionBody("openai", `{"messages":[{"role":"user","content":"hi"}]}`, false), &req)
-			req.StorageJSON = []byte(storage)
-			raw, _ := m.HandleCall(pluginabi.MethodExecutorExecute, mustJSON(req))
-			if !decodeEnv(t, raw).OK {
-				t.Fatalf("execution failed: %s", raw)
-			}
-			calls := f.callsOf(pluginabi.MethodHostHTTPDo)
-			var upstream pluginapi.HTTPRequest
-			_ = json.Unmarshal(calls[0].payload, &upstream)
-			want := m.cfg.BaseURL + "/chat/completions"
-			if name == "credential" {
-				want = "https://credential.test/v1/chat/completions"
-			}
-			if upstream.URL != want {
-				t.Fatalf("URL %s want %s", upstream.URL, want)
-			}
-		})
 	}
 }

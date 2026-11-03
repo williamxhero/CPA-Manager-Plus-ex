@@ -58,3 +58,33 @@ SOFTWARE.
 
 New work is MIT licensed, Copyright (c) 2026 williamxhero. See `LICENSE`.
 Dependency licenses remain with their respective owners.
+
+## Aliyun quota consolidation (SPEC #8, 2026-11-03 development)
+
+Legacy source: `williamxhero/CPA-Aliyun-Quota`, historical HEAD
+`25fcdfe21577a742377c51b909b2d5627b5e5f3f`; preceding commits
+`c0e252b`, `933102d`, `588d765`. These names identify migration provenance,
+not a required checkout, dependency, current runtime installation or deletion.
+The pre-migration tree has no tracked `LICENSE` file; this notice does not invent
+a separate upstream license or remove the existing MIT attribution above.
+
+- `internal/bss/`: signed RPC client, signing vectors, balance/bill/package
+  parsers and baseline tests migrated from the legacy `internal/bss/`, with
+  additional network, missing-value and completeness protection.
+- `internal/aliyunconfig/`, `internal/aliyunplugin/` and
+  `cmd/aliyun-bss-quota-plugin/`: configuration, quota-only lifecycle/host bridge,
+  command/BSS mapping and native glue adapted from legacy `internal/config/`,
+  `internal/plugin/` and `main.go`, preserving runtime ID `aliyun-bss-quota`.
+- `internal/quotawire/`: shared bounded CLI execution, diagnostic redaction and
+  strict window/metric normalization; reused by the native Qwen command adapter
+  and compatibility quota-only adapter.
+- `internal/bailianquota/` and `cmd/bailian-quota/` remain the single canonical
+  console implementation and CLI. Legacy bailian behavior/tests are reviewed for
+  absorption here, not copied as another package/CLI.
+- `scripts/build-artifacts.py` and migration documentation provide one-module,
+  three-product candidate builds without the legacy checkout. Build success is
+  not deployment or permission to delete the legacy repository.
+
+The earlier reference statement about no existing legacy CLI describes the
+original implementation date, not the later legacy tree being consolidated.
+No real browser storage, cookies, tokens or account credentials are copied.

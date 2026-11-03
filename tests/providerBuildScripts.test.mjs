@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import {
   ALLOWED_SUBCOMMANDS,
@@ -9,6 +9,7 @@ import {
   loadProviderModules,
   repoRoot,
   runProviderGo,
+  verifyQwenSnapshot,
 } from '../bin/release/run-provider-go.mjs';
 import {
   buildProviders,
@@ -23,6 +24,12 @@ const manifest = JSON.parse(
 );
 
 const silentLogger = { log: () => {} };
+const verifiedQwenSnapshot = () => {};
+mkdirSync(path.join(repoRoot, 'bin/tmp'), { recursive: true });
+const compatibleCoreSource = mkdtempSync(path.join(repoRoot, 'bin/tmp/provider-sdk-test-'));
+mkdirSync(path.join(compatibleCoreSource, 'sdk/pluginapi'), { recursive: true });
+writeFileSync(path.join(compatibleCoreSource, 'go.mod'), 'module github.com/router-for-me/CLIProxyAPI/v8\n');
+afterAll(() => rmSync(compatibleCoreSource, { recursive: true, force: true }));
 
 describe('provider Go runner (SPEC5-D)', () => {
   it('discovers every provider module that carries a go.mod', () => {
@@ -38,17 +45,20 @@ describe('provider Go runner (SPEC5-D)', () => {
     const calls = [];
     const run = (command, args, { cwd }) => calls.push({ command, args, cwd });
 
-    const results = runProviderGo({ subcommand: 'test', run, logger: silentLogger });
+    const results = runProviderGo({ subcommand: 'test', run, logger: silentLogger, verifySnapshot: verifiedQwenSnapshot, compatibleCoreSource });
 
     expect(results.every((result) => result.ok)).toBe(true);
-    expect(calls).toHaveLength(2);
-    expect(calls.map((call) => path.relative(repoRoot, call.cwd).replace(/\\/g, '/'))).toEqual([
+    expect(calls).toHaveLength(4);
+    const tests = calls.filter((call) => call.args[0] === 'test');
+    expect(tests.map((call) => path.relative(repoRoot, call.cwd).replace(/\\/g, '/'))).toEqual([
       'providers/opencode-go',
       'providers/qwen',
     ]);
-    for (const call of calls) {
+    for (const call of tests) {
       expect(call.command).toBe('go');
-      expect(call.args).toEqual(['test', './...']);
+      expect(call.args).toContain('-mod=mod');
+      expect(call.args.some((arg) => arg.startsWith('-modfile='))).toBe(true);
+      expect(call.args.at(-1)).toBe('./...');
     }
   });
 
@@ -56,9 +66,16 @@ describe('provider Go runner (SPEC5-D)', () => {
     const calls = [];
     const run = (_command, args) => calls.push(args);
 
-    runProviderGo({ subcommand: 'test', extraArgs: ['-run', 'TestFoo'], run, logger: silentLogger });
+    runProviderGo({
+      subcommand: 'test',
+      extraArgs: ['-run', 'TestFoo'],
+      run,
+      logger: silentLogger,
+      verifySnapshot: verifiedQwenSnapshot,
+      compatibleCoreSource,
+    });
 
-    expect(calls.every((args) => args.join(' ').includes('test ./... -run TestFoo'))).toBe(true);
+    expect(calls.filter((args) => args[0] === 'test').every((args) => args.slice(-3).join(' ') === './... -run TestFoo')).toBe(true);
   });
 
   it('attempts every module and reports failures without short-circuiting', () => {
@@ -68,17 +85,31 @@ describe('provider Go runner (SPEC5-D)', () => {
       if (seen === 1) throw new Error('boom');
     };
 
-    const results = runProviderGo({ subcommand: 'test', run, logger: silentLogger });
+    const results = runProviderGo({ subcommand: 'test', run, logger: silentLogger, verifySnapshot: verifiedQwenSnapshot, compatibleCoreSource });
 
-    expect(seen).toBe(2);
+    expect(seen).toBe(3);
     expect(results.map((result) => result.ok)).toEqual([false, true]);
   });
 
   it('rejects an unsupported go subcommand', () => {
-    expect(() => runProviderGo({ subcommand: 'run', run: () => {}, logger: silentLogger })).toThrow(
+    expect(() => runProviderGo({ subcommand: 'run', run: () => {}, logger: silentLogger, verifySnapshot: verifiedQwenSnapshot })).toThrow(
       /unsupported go subcommand/
     );
     expect(ALLOWED_SUBCOMMANDS).toEqual(['test', 'vet', 'build']);
+  });
+
+  it('fails closed before any Go command when the Qwen consumer receipt is not verified', () => {
+    const calls = [];
+    expect(() => runProviderGo({
+      subcommand: 'test',
+      run: (...args) => calls.push(args),
+      logger: silentLogger,
+      qwenCanonicalSource: 'D:/independent/CPA-Qwen',
+      verifySnapshot: () => {
+        throw new Error('qwen_snapshot_mismatch:missing CPA_QWEN_SOURCE.json');
+      },
+    })).toThrow(/qwen_snapshot_mismatch/);
+    expect(calls).toHaveLength(0);
   });
 
   it('summarises per-module results', () => {
@@ -94,6 +125,22 @@ describe('provider Go runner (SPEC5-D)', () => {
     expect(summary).toContain('ok   opencode-go');
     expect(summary).toContain('FAIL qwen');
   });
+
+  it('requires an explicit compatible Core source before any Go call', () => {
+    const calls = [];
+    expect(() => runProviderGo({ compatibleCoreSource: '', verifySnapshot: verifiedQwenSnapshot, run: (...args) => calls.push(args) })).toThrow(/compatible_core_source_required/);
+    expect(() => buildProviders({ compatibleCoreSource: '', verifySnapshot: verifiedQwenSnapshot, run: () => calls.push('go'), probe: () => calls.push('probe') })).toThrow(/compatible_core_source_required/);
+    expect(() => buildProviders({ compatibleCoreSource: path.join(compatibleCoreSource, 'missing'), verifySnapshot: verifiedQwenSnapshot, run: () => calls.push('go'), probe: () => calls.push('probe') })).toThrow(/compatible_core_source_invalid/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('does not allow forwarded Go flags to replace the selected source binding', () => {
+    const calls = [];
+    for (const flag of ['-modfile=other.mod', '--modfile=other.mod', '-mod=vendor', '--mod=vendor', '-overlay=other.json', '-C', '-o', '--o=other.exe']) {
+      expect(() => runProviderGo({ extraArgs: [flag], verifySnapshot: verifiedQwenSnapshot, run: () => calls.push('go') })).toThrow(/source_override_forbidden/);
+    }
+    expect(calls).toEqual([]);
+  });
 });
 
 describe('provider artifact builder (SPEC5-D)', () => {
@@ -103,6 +150,7 @@ describe('provider artifact builder (SPEC5-D)', () => {
     expect(artifacts.map((artifact) => artifact.id).sort()).toEqual([
       'opencode-go-plugin',
       'qwen-cli',
+      'qwen-compat-plugin',
       'qwen-plugin',
     ]);
 
@@ -110,6 +158,16 @@ describe('provider artifact builder (SPEC5-D)', () => {
     expect(cli.kind).toBe('cli');
     expect(cli.env).toEqual({});
     expect(cli.args).toContain('./cmd/bailian-quota');
+
+    const compat = artifacts.find((artifact) => artifact.id === 'qwen-compat-plugin');
+    expect(compat.kind).toBe('plugin-c-shared');
+    expect(compat.args).toEqual([
+      'build',
+      '-buildmode=c-shared',
+      '-o',
+      '../../bin/tmp/provider-build/qwen/aliyun-bss-quota.dll',
+      './cmd/aliyun-bss-quota-plugin',
+    ]);
 
     for (const artifact of artifacts.filter((entry) => entry.kind === 'plugin-c-shared')) {
       expect(artifact.env).toEqual({ CGO_ENABLED: '1', GOOS: 'windows', GOARCH: 'amd64' });
@@ -128,6 +186,8 @@ describe('provider artifact builder (SPEC5-D)', () => {
       run,
       mkdir: () => {},
       logger: silentLogger,
+      verifySnapshot: verifiedQwenSnapshot,
+      compatibleCoreSource,
     });
 
     expect(toolchain).toBeNull();
@@ -135,15 +195,15 @@ describe('provider artifact builder (SPEC5-D)', () => {
     const byId = Object.fromEntries(results.map((result) => [result.id, result]));
     expect(byId['opencode-go-plugin'].status).toBe('skipped');
     expect(byId['qwen-plugin'].status).toBe('skipped');
-    expect(byId['qwen-plugin'].localBuildCommand).toContain(
-      'go build -buildmode=c-shared -o bin/qwen-cliproxyapi-windows-amd64.dll .'
-    );
+    expect(byId['qwen-plugin'].localBuildCommand).toContain('node bin/release/build-providers.mjs --qwen-canonical-source');
+    expect(byId['qwen-plugin'].localBuildCommand).toContain('--compatible-core-source');
+    expect(byId['qwen-compat-plugin'].status).toBe('skipped');
     expect(byId['qwen-cli'].status).toBe('built');
 
     // Only the CLI was actually built.
-    expect(calls).toHaveLength(1);
-    expect(calls[0].args).toContain('./cmd/bailian-quota');
-    expect(calls[0].env.GOOS).not.toBe('windows');
+    expect(calls).toHaveLength(2);
+    expect(calls[1].args).toContain('./cmd/bailian-quota');
+    expect(calls[1].env.GOOS).not.toBe('windows');
   });
 
   it('builds the DLLs with the windows cgo environment when a toolchain is available', () => {
@@ -156,11 +216,13 @@ describe('provider artifact builder (SPEC5-D)', () => {
       run,
       mkdir: () => {},
       logger: silentLogger,
+      verifySnapshot: verifiedQwenSnapshot,
+      compatibleCoreSource,
     });
 
     expect(toolchain).toBe('x86_64-w64-mingw32-gcc');
     expect(results.every((result) => result.status === 'built')).toBe(true);
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(6);
 
     const dllCall = calls.find((call) => call.args.includes('-buildmode=c-shared'));
     expect(dllCall.env).toMatchObject({ CGO_ENABLED: '1', GOOS: 'windows', GOARCH: 'amd64' });
@@ -173,6 +235,8 @@ describe('provider artifact builder (SPEC5-D)', () => {
       skipDll: true,
       mkdir: () => {},
       logger: silentLogger,
+      verifySnapshot: verifiedQwenSnapshot,
+      compatibleCoreSource,
     });
 
     expect(toolchain).toBeNull();
@@ -191,6 +255,8 @@ describe('provider artifact builder (SPEC5-D)', () => {
       run,
       mkdir: () => {},
       logger: silentLogger,
+      verifySnapshot: verifiedQwenSnapshot,
+      compatibleCoreSource,
     });
 
     expect(results.some((result) => result.status === 'failed')).toBe(true);
@@ -199,6 +265,16 @@ describe('provider artifact builder (SPEC5-D)', () => {
   it('exposes platform-appropriate toolchain candidates', () => {
     expect(dllToolchainCandidates('win32')).toContain('gcc');
     expect(dllToolchainCandidates('linux')).toEqual(['x86_64-w64-mingw32-gcc']);
+  });
+
+  it('does not probe a compiler or create output when provenance fails, even with --skip-dll', () => {
+    const calls = [];
+    expect(() => buildProviders({ skipDll: true, probe: () => calls.push('probe'), mkdir: () => calls.push('mkdir'), run: () => calls.push('go'), verifySnapshot: () => { throw new Error('receipt rejected'); } })).toThrow(/receipt rejected/);
+    expect(calls).toEqual([]);
+  });
+
+  it('requires an explicit canonical source in the production verifier', () => {
+    expect(() => verifyQwenSnapshot({ qwenCanonicalSource: '' })).toThrow(/qwen_canonical_source_required/);
   });
 
   it('summarises the build outcome', () => {

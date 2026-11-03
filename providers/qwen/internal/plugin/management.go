@@ -118,17 +118,28 @@ func (m *Manager) HandleManagement(ctx context.Context, req pluginapi.Management
 		cards = selected
 	}
 	if len(cards) > 0 {
-		// Console quota is account-scoped. One invocation gives every configured
-		// credential the same account reading; API keys never enter CLI argv.
-		raw, refreshErr := fetchCommandQuota(ctx, cfg, "")
-		now := time.Now()
+		// One read-only query can report its parsing status, but cannot attribute
+		// account-scoped counts to any of these keys without ownership evidence.
+		reading, refreshErr := fetchCommandQuota(ctx, cfg, "")
+		if refreshErr == nil && codingPlanCLIArgs(cfg.CommandArgs) {
+			_, refreshErr = normalizeCodingPlanQuota(reading, cfg.DisplayName)
+		}
 		for i := range cards {
 			if refreshErr != nil {
+				cards[i].AuthorityStatus = "needs_configuration"
+				cards[i].QueryStatus = "failed"
 				message := refreshErr.Error()
 				cards[i].Error = &message
 				continue
 			}
-			populateQuotaCard(&cards[i], raw, cfg, now)
+			// This deprecated management view has no Core resource binding or
+			// receipt context, so an account-scoped CLI result cannot be
+			// attributed to any selected key. Keep the query status visible but
+			// fail closed instead of distributing the same windows to every card.
+			cards[i].QueryStatus = "success"
+			cards[i].AuthorityStatus = "needs_configuration"
+			message := "needs_configuration: account_authority_unverified"
+			cards[i].Error = &message
 		}
 	}
 	return quotaJSON(http.StatusOK, struct {
@@ -145,17 +156,19 @@ type quotaWindow struct {
 }
 
 type quotaCard struct {
-	AuthIndex  string                  `json:"auth_index"`
-	Label      string                  `json:"label"`
-	Plan       string                  `json:"plan,omitempty"`
-	PlanStatus string                  `json:"planStatus,omitempty"`
-	PlanStart  string                  `json:"planStart,omitempty"`
-	PlanEnd    string                  `json:"planEnd,omitempty"`
-	DaysLeft   *int                    `json:"daysLeft,omitempty"`
-	ObservedAt string                  `json:"observedAt,omitempty"`
-	Windows    []quotaWindow           `json:"windows"`
-	Metrics    []pluginapi.QuotaMetric `json:"metrics"`
-	Error      *string                 `json:"error"`
+	QueryStatus     string                  `json:"queryStatus"`
+	AuthorityStatus string                  `json:"authorityStatus"`
+	AuthIndex       string                  `json:"auth_index"`
+	Label           string                  `json:"label"`
+	Plan            string                  `json:"plan,omitempty"`
+	PlanStatus      string                  `json:"planStatus,omitempty"`
+	PlanStart       string                  `json:"planStart,omitempty"`
+	PlanEnd         string                  `json:"planEnd,omitempty"`
+	DaysLeft        *int                    `json:"daysLeft,omitempty"`
+	ObservedAt      string                  `json:"observedAt,omitempty"`
+	Windows         []quotaWindow           `json:"windows"`
+	Metrics         []pluginapi.QuotaMetric `json:"metrics"`
+	Error           *string                 `json:"error"`
 }
 
 func (m *Manager) quotaCredentials(ctx context.Context, cfg config.Config) ([]quotaCard, error) {

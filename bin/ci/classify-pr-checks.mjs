@@ -92,6 +92,8 @@ const PROVIDER_TRIGGER_FILES = new Set([
   'bin/release/sync-opencode-subtree.sh',
   'tests/providerImportBoundary.test.mjs',
   'tests/providerBuildScripts.test.mjs',
+  'tests/providerSnapshotReceipt.test.mjs',
+  'tests/providerBuildWorkflow.test.mjs',
 ]);
 
 const triggersProviders = (filePath) =>
