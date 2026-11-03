@@ -87,6 +87,8 @@ func TestProviderPolicyOfficialMoneyPauseAndFreshRecovery(t *testing.T) {
 		fmt.Fprintf(w, `{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":%q,"granted_balance":"0","topped_up_balance":%q}]}`, money.Load().(string), money.Load().(string))
 	}))
 	manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(network)
+	stopPolicy := startProviderPolicyRuntime(t, manager)
+	defer shutdownProviderPolicyManager(t, manager, stopPolicy)
 	enable := map[string]any{"scope": state["scope"], "targets": state["targets"], "providerId": id, "expectedGeneration": 0, "enabled": true}
 	state = api("PUT", "/usage-service/provider-policy", enable, 200)
 	if state["enabled"] != true || state["ownPaused"] == true {
@@ -98,6 +100,7 @@ func TestProviderPolicyOfficialMoneyPauseAndFreshRecovery(t *testing.T) {
 		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); {
 			j := api("GET", balancePath+"?job="+job["id"].(string), nil, 200)
 			if j["state"] == "complete" { // Completion subscriber runs after durable publication.
+				awaitProviderPolicyEvent(t, db, job["id"].(string))
 				for until := time.Now().Add(5 * time.Second); time.Now().Before(until); {
 					s := api("GET", path, nil, 200)
 					if s["ownPaused"] == wantPaused && (s["state"] == "paused" || s["state"] == "observing") {

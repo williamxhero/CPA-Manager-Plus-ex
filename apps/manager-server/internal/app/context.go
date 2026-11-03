@@ -259,6 +259,6 @@ func fromExisting(
 	coordinator := out.FullRefreshService.(*fullrefreshsvc.Service)
 	out.ProviderPolicyService.BindCoordinator(coordinator)
 	_ = out.CredentialPolicyService.BindCoordinator(coordinator)
-	out.FullRefreshService = &credentialpolicysvc.CoordinatedService{Service: coordinator, Policy: out.CredentialPolicyService}
+	out.FullRefreshService = &credentialpolicysvc.CoordinatedService{Service: coordinator, Policy: out.CredentialPolicyService, Background: []func(context.Context) error{out.ProviderPolicyService.Run}}
 	return out
 }

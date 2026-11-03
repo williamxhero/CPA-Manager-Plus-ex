@@ -68,13 +68,16 @@ type Service struct {
 	Store    *store.Store
 	Identity *rc.Service
 	mu       sync.Mutex
+	runMu    sync.Mutex
+	running  bool
+	wake     chan struct{}
 	holder   string
 	gate     *pg.Service
 	official *ob.Service
 }
 
 func New(st *store.Store, identity *rc.Service, connection *mc.Service, official *ob.Service) *Service {
-	return &Service{Store: st, Identity: identity, holder: uuid.NewString(), gate: pg.NewMonetary(st, connection, identity), official: official}
+	return &Service{Store: st, Identity: identity, holder: uuid.NewString(), gate: pg.NewMonetary(st, connection, identity), official: official, wake: make(chan struct{}, 1)}
 }
 
 func (s *Service) BindCoordinator(coordinator *fr.Service) {

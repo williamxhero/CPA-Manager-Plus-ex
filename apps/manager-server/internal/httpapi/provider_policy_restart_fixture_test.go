@@ -7,7 +7,6 @@ import (
 	"debug/buildinfo"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -170,6 +169,7 @@ func (c *policyUnsentCore) restart() {
 type policyUnsentWire struct {
 	rejectOperations  atomic.Bool
 	rejectEligibility atomic.Bool
+	holdOperation     atomic.Pointer[policyOperationBarrier]
 	mu                sync.Mutex
 	attempted         [][]byte
 	forwarded         [][]byte
@@ -183,25 +183,30 @@ func (w *policyUnsentWire) snapshot() (attempted, forwarded [][]byte, accepted [
 }
 
 type policyUnsentFixture struct {
-	t         *testing.T
-	core      *policyUnsentCore
-	wire      *policyUnsentWire
-	bridge    *httptest.Server
-	cfg       config.Config
-	protector *security.Protector
-	db        *store.Store
-	manager   *Server
-	network   balance.NetworkOptions
-	amount    atomic.Value
-	queries   atomic.Int64
-	completed chan string
-	state     pp.Status
-	version   int64
+	t          *testing.T
+	core       *policyUnsentCore
+	wire       *policyUnsentWire
+	bridge     *httptest.Server
+	cfg        config.Config
+	protector  *security.Protector
+	db         *store.Store
+	manager    *Server
+	network    balance.NetworkOptions
+	amount     atomic.Value
+	queries    atomic.Int64
+	completed  chan string
+	state      pp.Status
+	version    int64
+	runPolicy  bool
+	stopPolicy func()
 }
 
-func newPolicyUnsentFixture(t *testing.T) *policyUnsentFixture {
+func newPolicyUnsentFixture(t *testing.T, runPolicy ...bool) *policyUnsentFixture {
 	t.Helper()
-	f := &policyUnsentFixture{t: t, core: newPolicyUnsentCore(t), wire: &policyUnsentWire{}, cfg: testutil.NewConfig(t)}
+	f := &policyUnsentFixture{t: t, core: newPolicyUnsentCore(t), wire: &policyUnsentWire{}, cfg: testutil.NewConfig(t), runPolicy: true}
+	if len(runPolicy) != 0 {
+		f.runPolicy = runPolicy[0]
+	}
 	target, err := url.Parse(f.core.base)
 	if err != nil {
 		t.Fatal(err)
@@ -251,15 +256,23 @@ func newPolicyUnsentFixture(t *testing.T) *policyUnsentFixture {
 			blocked := f.wire.rejectOperations.Load()
 			f.wire.mu.Lock()
 			f.wire.attempted = append(f.wire.attempted, raw)
-			if !blocked {
-				f.wire.forwarded = append(f.wire.forwarded, raw)
-			}
 			f.wire.mu.Unlock()
 			if blocked {
 				// This branch NEVER invokes the reverse proxy: not accepted-lost-ACK.
 				w.WriteHeader(http.StatusServiceUnavailable)
 				return
 			}
+			if barrier := f.wire.holdOperation.Swap(nil); barrier != nil {
+				barrier.arrived <- policyHeldOperation{ctx: r.Context(), started: time.Now()}
+				select {
+				case <-r.Context().Done():
+					return
+				case <-barrier.release:
+				}
+			}
+			f.wire.mu.Lock()
+			f.wire.forwarded = append(f.wire.forwarded, raw)
+			f.wire.mu.Unlock()
 		}
 		proxy.ServeHTTP(w, r)
 	}))
@@ -309,17 +322,25 @@ func (f *policyUnsentFixture) openManager() {
 	f.completed = make(chan string, 16)
 	completed := f.completed
 	f.manager.AppContext().FullRefreshService.Subscribe(func(_ context.Context, event fr.CompletedObservation) {
-		completed <- event.AttemptID // Subscribed LAST: policy completion already returned.
+		completed <- event.AttemptID // LAST observes persistence, not asynchronous consumption.
 	})
+	if f.runPolicy {
+		f.startRuntime()
+	}
+}
+
+func (f *policyUnsentFixture) startRuntime() {
+	f.t.Helper()
+	f.runPolicy = true
+	if f.stopPolicy == nil {
+		f.stopPolicy = startProviderPolicyRuntime(f.t, f.manager)
+	}
 }
 
 func (f *policyUnsentFixture) closeManager() {
 	if f.manager != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		if err := f.manager.AppContext().FullRefreshService.Shutdown(ctx); err != nil {
-			f.t.Error(err)
-		}
-		cancel()
+		shutdownProviderPolicyManager(f.t, f.manager, f.stopPolicy)
+		f.stopPolicy = nil
 		f.manager = nil
 	}
 	if f.db != nil {
@@ -529,148 +550,179 @@ func (f *policyUnsentFixture) assertNoPending() {
 	}
 }
 
-func (f *policyUnsentFixture) assertFreshPauseAndRecovery(oldAttempt string, before uint64) {
+// awaitApplied observes the owned Run; it never performs reconciliation itself.
+// A whole phase has one bounded budget for public status, actual Core ledger,
+// and read-only durable-state inspection. Source acquisition is outside it.
+func (f *policyUnsentFixture) awaitApplied(phase, attemptID string, wantPaused bool, wantRevision uint64, original pp.Status) {
 	f.t.Helper()
-	started := time.Now()
-	queriesBefore := f.queries.Load()
-	state := f.state
-	var lastErr error
-	var revision uint64
-	attempts, unavailable := 0, 0
-	fail := func(phase, reason string) {
-		f.t.Helper()
-		_, forwarded, accepted := f.wire.snapshot()
-		f.t.Fatalf("fresh lifecycle phase=%s reason=%s elapsed=%s attempts=%d ErrUnavailableCount=%d lastReconcileErr=%v lastActualStatus=%+v actualCoreRevision=%d forwarded=%d actualReceipts=%v actualQueries=%d initialQueries=%d", phase, reason, time.Since(started), attempts, unavailable, lastErr, state, revision, len(forwarded), accepted, f.queries.Load(), queriesBefore)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 	transport := &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: time.Second}).DialContext}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return fmt.Errorf("lifecycle evidence redirects refused")
 	}}
-	awaitApplied := func(phase string, wantPaused bool, wantRevision uint64) {
-		f.t.Helper()
-		// Each pause/clear phase owns a fresh 20s budget, shared by its real
-		// Reconcile AND public status/Core ledger reads, never by source queries.
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		defer cancel()
-		phaseStarted := time.Now()
-		for {
-			if err := ctx.Err(); err != nil {
-				fail(phase, "phase 20s deadline: "+err.Error())
-			}
-			attempts++
-			// Real exported lifecycle work; never replay the source query or repair DB state.
-			lastErr = f.manager.AppContext().ProviderPolicyService.Reconcile(ctx)
-			if lastErr != nil {
-				f.t.Logf("fresh lifecycle phase=%s attempt=%d elapsed=%s reconcileErrorType=%T reconcileError=%v", phase, attempts, time.Since(started), lastErr, lastErr)
-				if !errors.Is(lastErr, pp.ErrUnavailable) {
-					fail(phase, "non-retryable reconciliation error")
-				}
-				unavailable++
-			}
-			// Actual public Manager GET, carrying this phase's deadline rather
-			// than f.status()'s independently scoped request context.
-			req := httptest.NewRequest(http.MethodGet, "/usage-service/provider-policy?providerId="+url.QueryEscape(f.state.ProviderID), nil).WithContext(ctx)
-			req.Header.Set("Authorization", "Bearer "+testutil.AdminKey)
-			response := httptest.NewRecorder()
-			f.manager.Handler().ServeHTTP(response, req)
-			for _, secret := range []string{"MONEY-SYNTHETIC-INFERENCE", "MONEY-CORE-MANAGEMENT"} {
-				if bytes.Contains(response.Body.Bytes(), []byte(secret)) {
-					fail(phase, "public status leaked controlled credentials")
-				}
-			}
-			if response.Code != http.StatusOK {
-				fail(phase, fmt.Sprintf("public status HTTP %d: %s", response.Code, response.Body.String()))
-			}
-			if err := json.Unmarshal(response.Body.Bytes(), &state); err != nil {
-				fail(phase, "invalid public status: "+err.Error())
-			}
-			f.state = state
-			// Actual Core ledger on the SAME deadline, not a simulated ACK.
-			coreReq, err := http.NewRequestWithContext(ctx, http.MethodGet, f.core.base+"/v8/management/inference-gates", nil)
-			if err != nil {
-				fail(phase, err.Error())
-			}
-			coreReq.Header.Set("Authorization", "Bearer MONEY-CORE-MANAGEMENT")
-			coreResponse, err := client.Do(coreReq)
-			if err != nil {
-				fail(phase, "actual Core ledger read: "+err.Error())
-			}
-			raw, err := io.ReadAll(coreResponse.Body)
-			_ = coreResponse.Body.Close()
-			var ledger struct {
-				GateRevision uint64   `json:"gateRevision"`
-				Ready        bool     `json:"ready"`
-				Scope        rc.Scope `json:"scope"`
-			}
-			if err != nil || coreResponse.StatusCode != http.StatusOK || json.Unmarshal(raw, &ledger) != nil || !ledger.Ready || ledger.Scope != f.state.Scope {
-				fail(phase, fmt.Sprintf("actual Core ledger unavailable/invalid: status=%d readErr=%v body=%s", coreResponse.StatusCode, err, raw))
-			}
-			revision = ledger.GateRevision
-			f.t.Logf("fresh lifecycle phase=%s attempt=%d phaseElapsed=%s totalElapsed=%s reconcileErr=%v state=%s reason=%q enabled=%t ownPaused=%t applied=%t actualCoreRevision=%d wantRevision=%d actualQueries=%d", phase, attempts, time.Since(phaseStarted), time.Since(started), lastErr, state.State, state.Reason, state.Enabled, state.OwnPaused, state.Applied, revision, wantRevision, f.queries.Load())
-			if err := ctx.Err(); err != nil {
-				fail(phase, "phase 20s deadline after evidence read: "+err.Error())
-			}
-			if revision > wantRevision {
-				fail(phase, "extra actual Core mutation; retry cannot erase duplicate operations")
-			}
-			wantState := "observing"
-			if wantPaused {
-				wantState = "paused"
-			}
-			// ErrUnavailable is only a transient diagnostic, never success.
-			if lastErr == nil && state.Enabled && state.OwnPaused == wantPaused && state.Applied && state.State == wantState && revision == wantRevision {
-				return
-			}
-			timer := time.NewTimer(100 * time.Millisecond)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				fail(phase, "phase 20s deadline awaiting applied state: "+ctx.Err().Error())
-			case <-timer.C:
+	capture, err := f.db.ProviderPolicyCapture(ctx, original.SubjectID, attemptID)
+	if err != nil || capture.Generation != original.Generation {
+		f.t.Fatalf("phase=%s missing exact current-generation capture: %+v err=%v", phase, capture, err)
+	}
+	started := time.Now()
+	reads := 0
+	var state pp.Status
+	var revision uint64
+	for {
+		reads++
+		req := httptest.NewRequest(http.MethodGet, "/usage-service/provider-policy?providerId="+url.QueryEscape(original.ProviderID), nil).WithContext(ctx)
+		req.Header.Set("Authorization", "Bearer "+testutil.AdminKey)
+		response := httptest.NewRecorder()
+		f.manager.Handler().ServeHTTP(response, req)
+		for _, secret := range []string{"MONEY-SYNTHETIC-INFERENCE", "MONEY-CORE-MANAGEMENT"} {
+			if bytes.Contains(response.Body.Bytes(), []byte(secret)) {
+				f.t.Fatalf("phase=%s public status leaked controlled credentials", phase)
 			}
 		}
+		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &state) != nil {
+			f.t.Fatalf("phase=%s actual public status unavailable: HTTP %d body=%s", phase, response.Code, response.Body.String())
+		}
+		f.state = state
+		if state.Generation != original.Generation || state.SubjectID != original.SubjectID || state.Owner != original.Owner || state.ManualDisabled != original.ManualDisabled || !reflect.DeepEqual(state.Binding, original.Binding) {
+			f.t.Fatalf("phase=%s runtime changed current generation, identity, owner, binding or manual state: %+v", phase, state)
+		}
+		coreReq, err := http.NewRequestWithContext(ctx, http.MethodGet, f.core.base+"/v8/management/inference-gates", nil)
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		coreReq.Header.Set("Authorization", "Bearer MONEY-CORE-MANAGEMENT")
+		coreResponse, err := client.Do(coreReq)
+		if err != nil {
+			f.t.Fatalf("phase=%s actual Core ledger: %v", phase, err)
+		}
+		raw, err := io.ReadAll(coreResponse.Body)
+		_ = coreResponse.Body.Close()
+		var ledger struct {
+			GateRevision uint64   `json:"gateRevision"`
+			Ready        bool     `json:"ready"`
+			Scope        rc.Scope `json:"scope"`
+		}
+		if err != nil || coreResponse.StatusCode != http.StatusOK || json.Unmarshal(raw, &ledger) != nil || !ledger.Ready || ledger.Scope != original.Scope {
+			f.t.Fatalf("phase=%s actual Core ledger unavailable/invalid: HTTP %d err=%v body=%s", phase, coreResponse.StatusCode, err, raw)
+		}
+		revision = ledger.GateRevision
+		if revision > wantRevision {
+			f.t.Fatalf("phase=%s extra actual Core mutation: revision=%d want=%d", phase, revision, wantRevision)
+		}
+		record, err := f.db.ProviderPolicy(ctx, original.SubjectID)
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		var saved struct{ Pending json.RawMessage }
+		if json.Unmarshal([]byte(record.Document), &saved) != nil || record.Generation != original.Generation {
+			f.t.Fatalf("phase=%s invalid/current-generation durable policy lost", phase)
+		}
+		pending := len(saved.Pending) != 0 && string(saved.Pending) != "null"
+		events, err := f.db.ProviderPolicyEvents(ctx)
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		for _, event := range events {
+			pending = pending || event.ID == attemptID
+		}
+		sourceCurrent := false
+		for _, funding := range state.Funding {
+			if funding.QueryID == attemptID && funding.KeyMatched && funding.Fresh && funding.Query.Version == f.version && reflect.DeepEqual(funding.Query.Binding, ob.Binding{Scope: original.Scope, Targets: original.Targets}) {
+				sourceCurrent = true
+			}
+		}
+		wantState := "observing"
+		if wantPaused {
+			wantState = "paused"
+		}
+		if ctx.Err() == nil && !pending && sourceCurrent && state.Enabled && state.BindingCurrent && !state.Locked && state.OwnPaused == wantPaused && state.Applied && state.State == wantState && revision == wantRevision {
+			f.t.Logf("actual Run phase=%s attempt=%s elapsed=%s reads=%d generation=%d state=%s CoreRevision=%d queries=%d", phase, attemptID, time.Since(started), reads, state.Generation, state.State, revision, f.queries.Load())
+			return
+		}
+		timer := time.NewTimer(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			f.t.Fatalf("actual Run phase=%s exhausted 20s: state=%+v CoreRevision=%d want=%d pending=%t sourceCurrent=%t queries=%d", phase, state, revision, wantRevision, pending, sourceCurrent, f.queries.Load())
+		case <-timer.C:
+		}
 	}
-	// Source queries are OUTSIDE the two polling budgets. Each f.query keeps
-	// its original independent 15s completion wait and API/transport limits;
-	// post-phase audit helpers likewise retain their original independent reads.
+}
+
+// A dropped POST response need not reach ReverseProxy.ModifyResponse even when
+// Core durably applied it. Audit the actual Core receipt for EVERY unique exact
+// forwarded command instead; never synthesize acceptance from a revision alone.
+func (f *policyUnsentFixture) assertExactReceipts(before uint64, actions ...string) []string {
+	f.t.Helper()
+	_, forwarded, _ := f.wire.snapshot()
+	if len(forwarded) != len(actions) {
+		f.t.Fatalf("requires exactly %d forwarded operations, got %d", len(actions), len(forwarded))
+	}
+	ids := make([]string, 0, len(actions))
+	seen := map[string]bool{}
+	currentSource := f.monetaryGate().SourceVersion // Real current runtime proof, not a label.
+	for i, raw := range forwarded {
+		var operation struct {
+			Scope                rc.Scope    `json:"scope"`
+			Targets              []rc.Target `json:"targets"`
+			OpID                 string      `json:"opId"`
+			Owner                string      `json:"owner"`
+			Action               string      `json:"action"`
+			SourceVersion        string      `json:"sourceVersion"`
+			EvidenceID           string      `json:"evidenceId"`
+			ExpectedGateRevision uint64      `json:"expectedGateRevision"`
+		}
+		if json.Unmarshal(raw, &operation) != nil || operation.OpID == "" || seen[operation.OpID] || operation.Action != actions[i] || operation.Owner != f.state.Owner || operation.Scope != f.state.Scope || !reflect.DeepEqual(operation.Targets, f.state.Targets) || operation.ExpectedGateRevision != before+uint64(i) || !strings.HasPrefix(operation.EvidenceID, "balance/") {
+			f.t.Fatalf("invalid/duplicate actual %s command or stale revision/authority: %+v", actions[i], operation)
+		}
+		digest, err := hex.DecodeString(operation.SourceVersion)
+		if err != nil || len(digest) != sha256.Size || operation.SourceVersion != currentSource {
+			f.t.Fatal("actual monetary operation lacks an exact current runtime source digest")
+		}
+		var receipt struct {
+			Version         int    `json:"version"`
+			OpID            string `json:"opId"`
+			Status          string `json:"status"`
+			GateRevision    uint64 `json:"gateRevision"`
+			DurableRevision uint64 `json:"durableRevision"`
+			AppliedRevision uint64 `json:"appliedRevision"`
+			Durable         bool   `json:"durable"`
+			Applied         bool   `json:"applied"`
+			Error           string `json:"error"`
+		}
+		f.coreRequest(http.MethodGet, policyUnsentOperationsPath+"/"+url.PathEscape(operation.OpID), nil, http.StatusOK, &receipt)
+		want := before + uint64(i) + 1
+		if receipt.Version != 1 || receipt.OpID != operation.OpID || receipt.Status != "applied" || !receipt.Durable || !receipt.Applied || receipt.Error != "" || receipt.GateRevision != want || receipt.DurableRevision != want || receipt.AppliedRevision != want {
+			f.t.Fatalf("actual Core durable receipt does not confirm exact %s operation/revision: %+v", actions[i], receipt)
+		}
+		seen[operation.OpID] = true
+		ids = append(ids, receipt.OpID)
+	}
+	return ids
+}
+
+func (f *policyUnsentFixture) assertFreshPauseAndRecovery(oldAttempt string, before uint64) {
+	f.t.Helper()
+	f.startRuntime()
+	original := f.status()
+	queriesBefore := f.queries.Load()
 	low := f.query("0.05")
 	if low.ID == oldAttempt {
 		f.t.Fatal("fresh query reused superseded attempt")
 	}
-	awaitApplied("fresh-low-pause", true, before+1)
+	f.awaitApplied("fresh-low-pause", low.ID, true, before+1, original)
 	f.assertNoPending()
-	state = f.status()
-	if !state.Enabled || !state.OwnPaused || !state.Applied || state.State != "paused" || f.revision() != before+1 {
-		f.t.Fatalf("new successful query did not produce exactly one actual monetary pause: %+v", state)
-	}
 	high := f.query("1.00")
 	if high.ID == low.ID || high.ID == oldAttempt {
 		f.t.Fatal("fresh recovery reused prior attempt")
 	}
-	awaitApplied("fresh-high-clear", false, before+2)
+	f.awaitApplied("fresh-high-clear", high.ID, false, before+2, original)
 	f.assertNoPending()
-	state = f.status()
-	if !state.Enabled || state.OwnPaused || !state.Applied || state.State != "observing" || f.revision() != before+2 {
-		f.t.Fatalf("new successful high query did not clear exactly once: %+v", state)
+	ids := f.assertExactReceipts(before, "pause", "clear")
+	if f.queries.Load() != queriesBefore+2 || f.revision() != before+2 {
+		f.t.Fatalf("actual Run repeated/skipped a query or mutated extra revisions: initialQueries=%d actualQueries=%d", queriesBefore, f.queries.Load())
 	}
-	_, forwarded, accepted := f.wire.snapshot()
-	if len(forwarded) != 2 || len(accepted) != 2 || accepted[0] == accepted[1] {
-		f.t.Fatalf("fresh lifecycle requires two distinct actual Core receipts, forwarded=%d accepted=%v", len(forwarded), accepted)
-	}
-	for _, raw := range forwarded {
-		var operation struct {
-			Scope rc.Scope `json:"scope"`
-		}
-		if err := json.Unmarshal(raw, &operation); err != nil || !reflect.DeepEqual(operation.Scope, f.state.Scope) {
-			f.t.Fatal("fresh monetary command did not use the current issued boot/scope")
-		}
-	}
-	if strings.Contains(fmt.Sprint(state), "MONEY-SYNTHETIC-INFERENCE") {
-		f.t.Fatal("policy receipt leaked query credentials")
-	}
-	if f.queries.Load() != queriesBefore+2 {
-		f.t.Fatalf("lifecycle retries repeated/skipped a query: initial=%d actual=%d", queriesBefore, f.queries.Load())
-	}
-	f.t.Logf("fresh lifecycle FINAL lowAttempt=%s highAttempt=%s actualStatus=%+v actualCoreRevision=%d actualReceipts=%v actualQueries=%d attempts=%d ErrUnavailableCount=%d elapsed=%s; bounded recovery evidence, not proof of the earlier parallel failure's root cause", low.ID, high.ID, state, revision, accepted, f.queries.Load(), attempts, unavailable, time.Since(started))
+	f.t.Logf("fresh actual Run FINAL low=%s high=%s generation=%d currentQueryVersion=%d CoreRevision=%d exactActualReceipts=%v actualQueries=%d; no rescue Reconcile or repeated source acquisition", low.ID, high.ID, f.state.Generation, f.version, before+2, ids, f.queries.Load())
 }

@@ -91,7 +91,10 @@ func (s *Service) completed(ctx context.Context, event fr.CompletedObservation) 
 	if s.Store.PutProviderPolicyEvent(ctx, event.AttemptID, string(doc)) != nil {
 		return
 	}
-	_ = s.Reconcile(ctx)
+	// The coordinator shares a five-second notification budget across all
+	// observers. Persist and wake only: authenticated proof/dispatch belongs to
+	// the independently bounded runtime, not to a source completion callback.
+	s.wakeWorker()
 }
 
 // Reconcile is scheduler/lifecycle work, never a side effect of a status GET.
@@ -147,7 +150,12 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		if err := s.Store.MarkProviderPolicyAttempt(ctx, item.Kind+"/"+item.ID, lease, time.Now().UnixMilli()); err != nil {
 			return err
 		}
-		attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
+		// A full current-key proof and dispatch may require several authenticated
+		// Core reads. Do not restart that chain at a fixed five-second deadline:
+		// under ordinary management latency it would never reach the gate POST.
+		// The caller's 15-second lifecycle budget (or the scheduler's smaller
+		// reserved child budget) still bounds all I/O and lock/lease ownership.
+		attempt, cancel := context.WithCancel(ctx)
 		var e error
 		if item.Kind == "policy" {
 			var saved intent

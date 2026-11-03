@@ -98,7 +98,7 @@ func TestProviderPolicyActualCoreRoutingPauseAndFreshRecovery(t *testing.T) {
 	// sample could introduce an independent transport/credential cooldown.
 	// The identical post-clear request below is the counter's positive control.
 	low := f.query("0.05")
-	f.reconcile()
+	f.awaitApplied("routing-low-pause", low.ID, true, revisionBefore+1, original)
 	paused := f.status()
 	checkIdentity(paused)
 	if paused.State != "paused" || !paused.Applied || !paused.OwnPaused || f.revision() != revisionBefore+1 {
@@ -136,13 +136,14 @@ func TestProviderPolicyActualCoreRoutingPauseAndFreshRecovery(t *testing.T) {
 	if high.ID == low.ID || f.queries.Load() != 2 {
 		t.Fatal("recovery must use a distinct actual successful official query")
 	}
-	f.reconcile()
+	f.awaitApplied("routing-fresh-clear", high.ID, false, revisionBefore+2, original)
 	recovered := f.status()
 	checkIdentity(recovered)
 	if recovered.State != "observing" || !recovered.Applied || recovered.OwnPaused || f.revision() != revisionBefore+2 {
 		t.Fatalf("fresh high query did not clear this monetary owner exactly once: %+v", recovered)
 	}
-	_, forwarded, accepted := f.wire.snapshot()
+	_, forwarded, _ := f.wire.snapshot()
+	accepted := f.assertExactReceipts(revisionBefore, "pause", "clear")
 	if len(forwarded) != 2 || len(accepted) != 2 || accepted[0] == accepted[1] {
 		t.Fatalf("pause/clear require two distinct real Core durable/applied receipts: forwarded=%d accepted=%v", len(forwarded), accepted)
 	}

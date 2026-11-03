@@ -107,6 +107,9 @@ func TestProviderPolicySchedulerSlowPendingStillAdmitsPeriodicRound(t *testing.T
 		defer cancel()
 		if err := coordinator.Shutdown(ctx); err != nil {
 			t.Error(err)
+			if err := coordinator.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
 		}
 	}()
 	api := func(method, path string, query, out any, want int) {
@@ -197,6 +200,12 @@ func TestProviderPolicySchedulerSlowPendingStillAdmitsPeriodicRound(t *testing.T
 		case <-time.After(10 * time.Second):
 			t.Fatal("actual source completion did not finish")
 		}
+		// This fixture intentionally owns the bare #76 scheduler below, not a
+		// second provider worker. Prepare each rejected baseline through one
+		// exported lifecycle pass now that callbacks only persist and wake.
+		attempt, stopAttempt := context.WithTimeout(context.Background(), 15*time.Second)
+		_ = app.ProviderPolicyService.Reconcile(attempt)
+		stopAttempt()
 		var state pp.Status
 		api("GET", "/usage-service/provider-policy?providerId="+policies[i].ProviderID, nil, &state, 200)
 		if !state.Enabled || state.State != "pending" || state.OwnPaused || state.Applied {
@@ -239,6 +248,10 @@ func TestProviderPolicySchedulerSlowPendingStillAdmitsPeriodicRound(t *testing.T
 			}
 		case <-time.After(10 * time.Second):
 			t.Error("public scheduler did not cancel and join")
+			// Never close temporary SQLite while the owned Run is still live.
+			if err := <-done; err != nil {
+				t.Error(err)
+			}
 		}
 	}()
 	// The old observer consumes all 15s across three pending sources. The

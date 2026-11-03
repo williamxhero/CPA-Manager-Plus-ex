@@ -69,13 +69,7 @@ func TestProviderPolicyPendingADoesNotStarveProviderB(t *testing.T) {
 		t.Fatal(err)
 	}
 	manager := New(cfg, db, collector.NewManager(cfg, db))
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := manager.AppContext().FullRefreshService.Shutdown(ctx); err != nil {
-			t.Error(err)
-		}
-	}()
+	defer shutdownProviderPolicyManager(t, manager, nil)
 	api := func(method, path string, query any, want int) map[string]any {
 		t.Helper()
 		body := ""
@@ -126,6 +120,8 @@ func TestProviderPolicyPendingADoesNotStarveProviderB(t *testing.T) {
 		fmt.Fprint(w, `{"is_available":true,"balance_infos":[{"currency":"USD","total_balance":"0.05","granted_balance":"0","topped_up_balance":"0.05"}]}`)
 	}))
 	manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(network)
+	stopPolicy := startProviderPolicyRuntime(t, manager)
+	defer stopPolicy() // Registered after DB/coordinator defers: worker joins first.
 	completed := make(chan string, 4)
 	manager.AppContext().FullRefreshService.Subscribe(func(_ context.Context, e fr.CompletedObservation) { completed <- e.AttemptID })
 	for _, state := range states {
@@ -139,11 +135,12 @@ func TestProviderPolicyPendingADoesNotStarveProviderB(t *testing.T) {
 			t.Fatal("completion did not return")
 		}
 	}
-	// This is the production lifecycle coordinator entry, not a side-effecting
-	// GET or private monetary evaluator. A's transport failure remains honest.
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	_ = manager.AppContext().ProviderPolicyService.Reconcile(ctx)
+	// Only actual Run consumes both persisted completions; no rescue Reconcile
+	// or extra acquisition may hide A starving B's independent durable work.
+	awaitProviderPolicyCondition(t, "actual runtime left independent provider B starved", func() bool {
+		b := api("GET", "/usage-service/provider-policy?providerId="+ids[1], nil, 200)
+		return b["ownPaused"] == true && b["applied"] == true
+	})
 	a := api("GET", "/usage-service/provider-policy?providerId="+ids[0], nil, 200)
 	b := api("GET", "/usage-service/provider-policy?providerId="+ids[1], nil, 200)
 	if a["ownPaused"] == true || a["applied"] == true {

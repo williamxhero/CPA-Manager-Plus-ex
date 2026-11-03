@@ -13,10 +13,13 @@ import (
 type CoordinatedService struct {
 	*fr.Service
 	Policy *Service
-	mu     sync.Mutex
-	stop   context.CancelFunc
-	done   chan struct{}
-	closed bool
+	// Background runs additional durable policy workers under this same owned
+	// lifecycle. Register once before Run; none owns another quota scheduler.
+	Background []func(context.Context) error
+	mu         sync.Mutex
+	stop       context.CancelFunc
+	done       chan struct{}
+	closed     bool
 }
 
 func (s *CoordinatedService) Run(ctx context.Context) error {
@@ -35,7 +38,22 @@ func (s *CoordinatedService) Run(ctx context.Context) error {
 	discovery, stopDiscovery := context.WithTimeout(worker, 5*time.Second)
 	_, _ = s.Policy.source(discovery, "") // warms all descriptors; selects no credential
 	stopDiscovery()
-	go func() { defer close(done); _ = s.Policy.Run(worker) }()
+	go func() {
+		defer close(done)
+		var workers sync.WaitGroup
+		run := func(task func(context.Context) error) {
+			if task == nil {
+				return
+			}
+			workers.Add(1)
+			go func() { defer workers.Done(); _ = task(worker) }()
+		}
+		run(s.Policy.Run)
+		for _, task := range s.Background {
+			run(task)
+		}
+		workers.Wait()
+	}()
 	defer func() { cancel(); <-done }()
 	return s.Service.Run(ctx)
 }

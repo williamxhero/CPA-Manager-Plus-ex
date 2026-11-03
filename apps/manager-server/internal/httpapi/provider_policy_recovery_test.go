@@ -78,12 +78,9 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 		t.Fatal(err)
 	}
 	manager := New(cfg, db, collector.NewManager(cfg, db))
+	var stopPolicy func()
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := manager.AppContext().FullRefreshService.Shutdown(ctx); err != nil {
-			t.Error(err)
-		}
+		shutdownProviderPolicyManager(t, manager, stopPolicy)
 		_ = db.Close()
 	})
 	api := func(method, path string, q any, want int) map[string]any {
@@ -146,6 +143,7 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 		manager.AppContext().FullRefreshService.Subscribe(func(_ context.Context, e fr.CompletedObservation) { completed <- e.AttemptID })
 	}
 	subscribe()
+	stopPolicy = startProviderPolicyRuntime(t, manager)
 	update := func(enabled bool) {
 		t.Helper()
 		state = api("PUT", "/usage-service/provider-policy", map[string]any{"scope": state["scope"], "targets": state["targets"], "providerId": id, "expectedGeneration": state["generation"], "enabled": enabled}, 200)
@@ -183,7 +181,10 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	hideReceipts.Store(true)
 	dropACK.Store(true)
 	await(start())
-	state = api("GET", path, nil, 200)
+	awaitProviderPolicyCondition(t, "actual Run did not expose the lost-ACK pending pause", func() bool {
+		state = api("GET", path, nil, 200)
+		return operations.Load() == 1 && state["ownPaused"] == true && state["applied"] != true && state["state"] == "pending"
+	})
 	if operations.Load() != 1 || state["ownPaused"] != true || state["applied"] == true || state["state"] != "pending" {
 		t.Fatalf("lost ACK was optimistic or lost actual pause: %+v calls=%d", state, operations.Load())
 	}
@@ -192,11 +193,8 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	if operations.Load() != 1 {
 		t.Fatal("status GET performed a Core operation")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	if err := manager.AppContext().FullRefreshService.Shutdown(ctx); err != nil {
-		t.Fatal(err)
-	}
-	cancel()
+	shutdownProviderPolicyManager(t, manager, stopPolicy)
+	stopPolicy = nil
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -208,6 +206,7 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(network)
 	subscribe()
 	hideReceipts.Store(false)
+	stopPolicy = startProviderPolicyRuntime(t, manager)
 	reconcile()
 	state = api("GET", path, nil, 200)
 	if state["ownPaused"] != true || state["applied"] != true || operations.Load() != 1 {
@@ -215,7 +214,9 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	}
 	// Missing monetary data must retain the low reading but not renew or clear it.
 	response.Store("NULL")
-	await(start())
+	missing := start()
+	await(missing)
+	awaitProviderPolicyEvent(t, db, missing)
 	state = api("GET", path, nil, 200)
 	if state["ownPaused"] != true || operations.Load() != 1 {
 		t.Fatal("NULL response became a recovery or zero")
@@ -224,10 +225,13 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 		response.Store("1.00")
 		rejectBeforeForward.Store(true)
 		await(start())
+		awaitProviderPolicyCondition(t, "actual Run did not persist the before-forward clear", func() bool {
+			state = api("GET", path, nil, 200)
+			return state["state"] == "pending" && state["ownPaused"] == true
+		})
 		if operations.Load() != 1 {
 			t.Fatal("controlled rejected clear reached Core")
 		}
-		rejectBeforeForward.Store(false)
 		if contrary == "contrary_success" {
 			response.Store("-0.05")
 			await(start())
@@ -236,6 +240,9 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 			query["secret"] = "MONEY-NONMATCHING-QUERY-REPLACEMENT"
 			api("PUT", balancePath, query, 200)
 		}
+		// Keep the transport refusal until contrary success/source replacement
+		// is durable. A live worker must not commit the old clear in that gap.
+		rejectBeforeForward.Store(false)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		_ = manager.AppContext().ProviderPolicyService.Reconcile(ctx)
 		cancel()
@@ -266,6 +273,7 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	close(b.release)
 	held.Store(nil)
 	await(job)
+	awaitProviderPolicyEvent(t, db, job)
 	state = api("GET", path, nil, 200)
 	if state["enabled"] != false || state["ownPaused"] != true || operations.Load() != 1 {
 		t.Fatal("late ON completion resumed after OFF")
@@ -276,8 +284,9 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	if state["ownPaused"] != true || operations.Load() != 1 {
 		t.Fatal("re-enabling consumed an old generation's success")
 	}
-	await(start())
-	reconcile()
+	fresh := start()
+	await(fresh)
+	awaitProviderPolicyEvent(t, db, fresh)
 	state = api("GET", path, nil, 200)
 	if state["ownPaused"] != false || state["applied"] != true || operations.Load() != 2 {
 		t.Fatalf("fresh recovery did not clear only once: %+v calls=%d", state, operations.Load())

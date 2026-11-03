@@ -118,12 +118,34 @@ func TestProviderPolicyCompleteMembersAndSeparateCurrencies(t *testing.T) {
 		fmt.Fprintf(w, `{"is_available":true,"balance_infos":[{"currency":"USD","total_balance":"0.1","granted_balance":"0","topped_up_balance":"0.1"},{"currency":"CNY","total_balance":%q,"granted_balance":"0","topped_up_balance":%q}]}`, amount, amount)
 	}))
 	manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(network)
+	stopPolicy := startProviderPolicyRuntime(t, manager)
+	defer shutdownProviderPolicyManager(t, manager, stopPolicy)
+	completions := make(chan string, 32)
+	manager.AppContext().FullRefreshService.Subscribe(func(_ context.Context, e fr.CompletedObservation) { completions <- e.AttemptID })
+	awaitCompletion := func(id string) {
+		t.Helper()
+		timer := time.NewTimer(15 * time.Second)
+		defer timer.Stop()
+		for {
+			select {
+			case actual := <-completions:
+				if actual == id {
+					return
+				}
+			case <-timer.C:
+				t.Fatal("reordered source completion did not settle")
+				return
+			}
+		}
+	}
 	query := func(binding map[string]any) string {
 		t.Helper()
 		job := api("POST", balancePath, map[string]any{"scope": binding["scope"], "targets": binding["targets"], "version": 1}, 202)
 		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
 			got := api("GET", balancePath+"?job="+job["id"].(string), nil, 200)
 			if got["state"] == "complete" {
+				awaitCompletion(job["id"].(string))
+				awaitProviderPolicyEvent(t, db, job["id"].(string))
 				return job["id"].(string)
 			}
 			time.Sleep(10 * time.Millisecond)
@@ -163,24 +185,6 @@ func TestProviderPolicyCompleteMembersAndSeparateCurrencies(t *testing.T) {
 	if res.StatusCode != 503 {
 		t.Fatalf("money pause did not reject real admission: %d", res.StatusCode)
 	}
-	completions := make(chan string, 32)
-	manager.AppContext().FullRefreshService.Subscribe(func(_ context.Context, e fr.CompletedObservation) { completions <- e.AttemptID })
-	awaitCompletion := func(id string) {
-		t.Helper()
-		timer := time.NewTimer(15 * time.Second)
-		defer timer.Stop()
-		for {
-			select {
-			case actual := <-completions:
-				if actual == id {
-					return
-				}
-			case <-timer.C:
-				t.Fatal("reordered source completion did not settle")
-				return
-			}
-		}
-	}
 	expectPause := func(want bool) {
 		t.Helper()
 		for until := time.Now().Add(10 * time.Second); time.Now().Before(until); {
@@ -209,11 +213,11 @@ func TestProviderPolicyCompleteMembersAndSeparateCurrencies(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("group source never reached barrier")
 		}
-		later := query(member)
-		awaitCompletion(later)
+		query(member)
 		close(b.release)
 		barrier.Store(nil)
 		awaitCompletion(job["id"].(string))
+		awaitProviderPolicyEvent(t, db, job["id"].(string))
 		expectPause(wantPaused)
 	}
 	// Independent source A starts first but completes after B. Global start

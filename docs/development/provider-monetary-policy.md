@@ -75,6 +75,17 @@ durable queue priority. Recovery selects persisted
 terminal jobs, so abandoned running captures cannot hide a later completed job.
 No failed/interrupted job is reclassified as a successful balance read.
 
+Completion callbacks only persist the durable inbox and wake an owned monetary
+worker. They do not perform authenticated Core proof/dispatch inside the refresh
+coordinator's shared five-second notification deadline. The worker has a separate
+15-second pre-lock lifecycle budget, recovers on startup and periodic wakes, and
+is cancelled and joined by the same host lifecycle before SQLite closes. One
+proof/dispatch chain can use the remaining lifecycle budget; durable rotation,
+not a repeatedly expiring five-second chain, provides cross-item fairness.
+After a slow or failed pass, a mandatory five-second post-release backoff cannot
+be bypassed by queued wakes. This leaves the shared lease available to credential
+policy instead of consuming buffered ticks in a provider-only retry loop.
+
 ## Development evidence and remaining boundaries
 
 Public Manager API -> temporary SQLite -> pinned ordinary Core tests use only
