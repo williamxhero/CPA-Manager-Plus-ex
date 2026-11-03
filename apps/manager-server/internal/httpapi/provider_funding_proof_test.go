@@ -306,6 +306,12 @@ func TestProviderFundingProofRejectsConnectionChangeAfterChallenge(t *testing.T)
 // Only external DNS/socket/TLS roots are controlled; real HTTPS validation and
 // the ordinary official balance parser and encrypted persistence still execute.
 func providerFundingProofNetwork(t *testing.T) balance.NetworkOptions {
+	return providerFundingNetwork(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"is_available":true,"balance_infos":[{"currency":"USD","total_balance":"0.0500","granted_balance":"0","topped_up_balance":"0.0500"}]}`)
+	})
+}
+
+func providerFundingNetwork(t *testing.T, respond http.HandlerFunc) balance.NetworkOptions {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -327,7 +333,7 @@ func providerFundingProofNetwork(t *testing.T) balance.NetworkOptions {
 			w.WriteHeader(400)
 			return
 		}
-		fmt.Fprint(w, `{"is_available":true,"balance_infos":[{"currency":"USD","total_balance":"0.0500","granted_balance":"0","topped_up_balance":"0.0500"}]}`)
+		respond(w, r)
 	}))
 	server.TLS = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{{Certificate: [][]byte{der}, PrivateKey: key}}}
 	server.StartTLS()

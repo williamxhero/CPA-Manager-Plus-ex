@@ -41,11 +41,28 @@ type keyMatchResponse struct {
 // VerifyRuntimeKeys validates complete current route coverage before and after
 // independently challenging every member. It never calls the gate write API.
 func (s *Service) VerifyRuntimeKeys(ctx context.Context, b Binding, sign func(RuntimeKeyChallenge) (string, error)) (string, error) {
+	return s.verifyRuntimeKeys(ctx, b, "", sign)
+}
+
+// A recovery proof may authenticate one newly successful routed member while
+// another balance source is unavailable. Route coverage still covers ALL members.
+func (s *Service) VerifyRuntimeMember(ctx context.Context, b Binding, member string, sign func(RuntimeKeyChallenge) (string, error)) (string, error) {
+	if uuid.Validate(member) != nil {
+		return "", ErrInput
+	}
+	return s.verifyRuntimeKeys(ctx, b, member, sign)
+}
+
+func (s *Service) verifyRuntimeKeys(ctx context.Context, b Binding, only string, sign func(RuntimeKeyChallenge) (string, error)) (string, error) {
 	opening, err := s.prepare(ctx, b)
 	if err != nil {
 		return "", err
 	}
+	verified := 0
 	for _, member := range opening.proof.Members {
+		if only != "" && member.Targets[0].ResourceID != only {
+			continue
+		}
 		if err := ctx.Err(); err != nil {
 			return "", ErrUnavailable
 		}
@@ -64,6 +81,10 @@ func (s *Service) VerifyRuntimeKeys(ctx context.Context, b Binding, sign func(Ru
 			response.AuthIndex != q.AuthIndex || response.Nonce != q.Nonce || response.Adapter != q.Adapter {
 			return "", ErrUnavailable
 		}
+		verified++
+	}
+	if verified == 0 || only != "" && verified != 1 {
+		return "", ErrIdentity
 	}
 	closing, err := s.prepare(ctx, b)
 	if err != nil || !reflect.DeepEqual(opening.proof, closing.proof) || !opening.core.current(ctx) || ctx.Err() != nil {

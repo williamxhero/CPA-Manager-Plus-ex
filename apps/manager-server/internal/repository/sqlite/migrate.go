@@ -226,6 +226,9 @@ func Migrate(db *sql.DB) error {
 
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS provider_gate_identity (singleton INTEGER PRIMARY KEY CHECK(singleton=1), installation_id TEXT NOT NULL UNIQUE)`,
+		`CREATE TABLE IF NOT EXISTS provider_money_queries (attempt TEXT PRIMARY KEY, policy_id TEXT NOT NULL, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), consumed TEXT NOT NULL, outcome TEXT NOT NULL DEFAULT 'pending')`,
+		`CREATE INDEX IF NOT EXISTS provider_money_queries_policy ON provider_money_queries(policy_id)`,
+		`CREATE TABLE IF NOT EXISTS provider_money_decisions (evidence TEXT PRIMARY KEY, policy_id TEXT NOT NULL, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)))`,
 		`CREATE TABLE IF NOT EXISTS provider_policies (id TEXT PRIMARY KEY, generation INTEGER NOT NULL CHECK(generation>0), document TEXT NOT NULL CHECK(json_valid(document)))`,
 		`CREATE TABLE IF NOT EXISTS provider_policy_history (id TEXT NOT NULL, generation INTEGER NOT NULL CHECK(generation>0), document TEXT NOT NULL CHECK(json_valid(document)), PRIMARY KEY(id,generation))`,
 		`CREATE TABLE IF NOT EXISTS provider_gate_operations (id TEXT PRIMARY KEY, generation INTEGER NOT NULL CHECK(generation>0), document TEXT NOT NULL CHECK(json_valid(document)))`,

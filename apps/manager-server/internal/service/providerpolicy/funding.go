@@ -33,6 +33,7 @@ type FundingProof struct {
 	SourceVersion string          `json:"sourceVersion"`
 	VerifiedAtMS  int64           `json:"verifiedAtMs"`
 	Sources       []FundingSource `json:"sources"`
+	inventory     *rc.Negotiated
 }
 
 func currentFunding(source ob.Status, binding ob.Binding, now time.Time) bool {
@@ -50,6 +51,10 @@ func currentFunding(source ob.Status, binding ob.Binding, now time.Time) bool {
 }
 
 func (s *Service) ProveFunding(ctx context.Context, requested Binding) (FundingProof, error) {
+	return s.proveFunding(ctx, requested, "")
+}
+
+func (s *Service) proveFunding(ctx context.Context, requested Binding, only string) (FundingProof, error) {
 	if s.Identity == nil || s.Balance == nil || s.Gate == nil || s.Clock == nil {
 		return FundingProof{}, ErrUnavailable
 	}
@@ -59,7 +64,7 @@ func (s *Service) ProveFunding(ctx context.Context, requested Binding) (FundingP
 		return FundingProof{}, ErrIdentity
 	}
 	sources := map[string]ob.Status{}
-	version, err := s.Gate.VerifyRuntimeKeys(ctx, pg.Binding{Scope: b.Scope, Targets: b.Targets, ProviderID: b.ProviderID}, func(q pg.RuntimeKeyChallenge) (string, error) {
+	sign := func(q pg.RuntimeKeyChallenge) (string, error) {
 		binding := ob.Binding{Scope: b.Scope, Targets: []rc.Target{q.Target}}
 		source, err := s.Balance.Status(ctx, binding)
 		if err != nil || !currentFunding(source, binding, s.Clock()) {
@@ -67,11 +72,23 @@ func (s *Service) ProveFunding(ctx context.Context, requested Binding) (FundingP
 		}
 		sources[q.Target.ResourceID] = source
 		return s.Balance.RuntimeKeyDigest(ctx, binding, source.Version, q.Nonce, q.SourceVersion, q.AuthIndex)
-	})
-	if err != nil || len(sources) != len(b.Targets)-1 {
+	}
+	gateBinding := pg.Binding{Scope: b.Scope, Targets: b.Targets, ProviderID: b.ProviderID}
+	version := ""
+	expected := len(b.Targets) - 1
+	if only == "" {
+		version, err = s.Gate.VerifyRuntimeKeys(ctx, gateBinding, sign)
+	} else {
+		expected = 1
+		version, err = s.Gate.VerifyRuntimeMember(ctx, gateBinding, only, sign)
+	}
+	if err != nil || len(sources) != expected {
 		return FundingProof{}, ErrUnavailable
 	}
 	out := FundingProof{Binding: b, Ready: true, Authority: "runtime_key_matched_official_balances", SourceVersion: version, VerifiedAtMS: s.Clock().UnixMilli()}
+	if only != "" {
+		out.Authority = "runtime_key_matched_official_member_balance"
+	}
 	for id, saved := range sources {
 		current, err := s.Balance.Status(ctx, saved.Binding)
 		if err != nil || !currentFunding(current, saved.Binding, s.Clock()) || !reflect.DeepEqual(current, saved) {
@@ -87,6 +104,7 @@ func (s *Service) ProveFunding(ctx context.Context, requested Binding) (FundingP
 	if err != nil || !reflect.DeepEqual(b, current) || !s.Identity.SameInventoryConnection(opening, closing) || ctx.Err() != nil {
 		return FundingProof{}, ErrIdentity
 	}
+	out.inventory = closing
 	sort.Slice(out.Sources, func(i, j int) bool { return out.Sources[i].MemberIDs[0] < out.Sources[j].MemberIDs[0] })
 	return out, nil
 }

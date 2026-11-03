@@ -25,10 +25,17 @@ type Service struct {
 	store      *store.Store
 	connection *mc.Service
 	identity   *rc.Service
+	monetary   bool
 }
 
 func New(st *store.Store, connection *mc.Service, identity *rc.Service) *Service {
-	return &Service{st, connection, identity}
+	return &Service{store: st, connection: connection, identity: identity}
+}
+
+// Monetary isolates both durable journal and Core owner from the public
+// administrative gate. Owner selection is never accepted from an HTTP client.
+func (s *Service) Monetary() *Service {
+	return &Service{store: s.store, connection: s.connection, identity: s.identity, monetary: true}
 }
 
 type document struct {
@@ -192,13 +199,21 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 		return out, ErrUnavailable
 	}
 	installation, err := s.store.ProviderGateInstallation(ctx)
+	namespace := "cpa-manager.provider-gate.v1/"
+	if s.monetary {
+		installation, err = s.store.CredentialPolicyInstallation(ctx)
+		namespace = "cpa-manager.provider-balance.v1/"
+	}
 	if err != nil {
 		return out, err
 	}
 	raw, _ := json.Marshal([]string{b.Scope.InstanceID, b.Scope.InstanceIncarnation, b.ProviderID})
+	if s.monetary {
+		raw = append([]byte(namespace), raw...)
+	}
 	digest := sha256.Sum256(raw)
 	id := hex.EncodeToString(digest[:])
-	out.status = Status{Binding: b, SubjectID: id, Owner: "cpa-manager.provider-gate.v1/" + installation, SourceVersion: p.SourceVersion, Ready: true, State: "unpaused"}
+	out.status = Status{Binding: b, SubjectID: id, Owner: namespace + installation, SourceVersion: p.SourceVersion, Ready: true, State: "unpaused"}
 	// The latest command's outcome and the current restriction are independent.
 	// A rejected/pending clear must not hide an existing verified own pause.
 	for _, gate := range out.ledger.Gates {
@@ -254,7 +269,7 @@ func (s *Service) Status(ctx context.Context, b Binding) (Status, error) {
 }
 
 func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
-	if q.Version != 1 || q.ExpectedGeneration == nil || *q.ExpectedGeneration < 0 || *q.ExpectedGeneration >= 9007199254740991 || !validDigest(q.SourceVersion) || q.Action != "pause" && q.Action != "clear" {
+	if s.monetary || q.Version != 1 || q.ExpectedGeneration == nil || *q.ExpectedGeneration < 0 || *q.ExpectedGeneration >= 9007199254740991 || !validDigest(q.SourceVersion) || q.Action != "pause" && q.Action != "clear" {
 		return Status{}, ErrInput
 	}
 	out, err := s.prepare(ctx, q.Binding)
@@ -270,16 +285,58 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	if out.record.Generation > 0 && !out.settled {
 		return Status{}, ErrUnavailable
 	}
-	opID := uuid.NewString()
-	op := operation{groupBinding: coreGroup(out.status.Binding), Version: 1, OpID: opID, ExpectedGateRevision: out.ledger.GateRevision, SourceVersion: q.SourceVersion, Subject: "provider", Owner: out.status.Owner, Action: q.Action, Reason: "operator_provider_pause", EvidenceID: "manual/" + opID}
-	if q.Action == "clear" {
-		op.Reason = "operator_provider_resume"
+	return s.send(ctx, out, q.Action, "", nil)
+}
+
+// ApplyMonetary accepts only host-derived evidence and a final authorization
+// check under the policy's fenced DB lease. It cannot select another owner.
+func (s *Service) ApplyMonetary(ctx context.Context, b Binding, sourceVersion, action, evidence string, authorize func(context.Context) error) (Status, error) {
+	if !s.monetary || authorize == nil || !validDigest(evidence) || !validDigest(sourceVersion) || action != "pause" && action != "clear" {
+		return Status{}, ErrInput
 	}
+	out, err := s.prepare(ctx, b)
+	if err != nil {
+		return Status{}, err
+	}
+	if out.status.SourceVersion != sourceVersion {
+		return Status{}, ErrIdentity
+	}
+	if out.record.Generation > 0 && !out.settled {
+		return Status{}, ErrUnavailable
+	}
+	return s.send(ctx, out, action, evidence, authorize)
+}
+
+func (s *Service) send(ctx context.Context, out prepared, action, evidence string, authorize func(context.Context) error) (Status, error) {
+	opID := uuid.NewString()
+	reason := "operator_provider_pause"
+	if action == "clear" {
+		reason = "operator_provider_resume"
+	}
+	if s.monetary {
+		reason = "provider_balance_low"
+		if action == "clear" {
+			reason = "provider_balance_recovered"
+		}
+	} else {
+		evidence = "manual/" + opID
+	}
+	if authorize != nil {
+		if err := authorize(ctx); err != nil {
+			return Status{}, err
+		}
+	}
+	op := operation{groupBinding: coreGroup(out.status.Binding), Version: 1, OpID: opID, ExpectedGateRevision: out.ledger.GateRevision, SourceVersion: out.status.SourceVersion, Subject: "provider", Owner: out.status.Owner, Action: action, Reason: reason, EvidenceID: evidence}
 	doc := document{Operation: op, UpdatedAtMS: time.Now().UnixMilli()}
 	raw, _ := json.Marshal(doc)
 	record := store.ProviderGateRecord{ID: out.record.ID, Generation: out.record.Generation + 1, Document: string(raw)}
 	if err := s.store.SaveProviderGate(ctx, record, out.record.Generation); err != nil {
 		return Status{}, err
+	}
+	if authorize != nil {
+		if err := authorize(ctx); err != nil {
+			return Status{}, err
+		}
 	}
 	// Even a transport error leaves the attempted immutable command durable.
 	// A later status read can confirm its outcome from the current Core ledger.

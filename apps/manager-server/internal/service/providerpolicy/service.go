@@ -38,11 +38,14 @@ type Update struct {
 }
 type intent struct {
 	Binding
-	Enabled     bool   `json:"enabled"`
-	Owner       string `json:"owner"`
-	UpdatedAtMS int64  `json:"updatedAtMs"`
+	Enabled       bool             `json:"enabled"`
+	Owner         string           `json:"owner"`
+	UpdatedAtMS   int64            `json:"updatedAtMs"`
+	SourceVersion string           `json:"sourceVersion,omitempty"`
+	Versions      map[string]int64 `json:"versions,omitempty"`
 }
 type Status struct {
+	Evaluation *store.ProviderMoneyEvaluation `json:"evaluation,omitempty"`
 	Binding
 	SubjectID      string `json:"subjectId"`
 	Enabled        bool   `json:"enabled"`
@@ -65,6 +68,7 @@ type Service struct {
 	Identity *rc.Service
 	Balance  *ob.Service
 	Gate     *pg.Service
+	monetary *pg.Service
 	// Clock is a startup dependency. Cached reads never renew source freshness.
 	Clock  func() time.Time
 	mu     sync.Mutex
@@ -72,7 +76,11 @@ type Service struct {
 }
 
 func New(st *store.Store, identity *rc.Service, balance *ob.Service, gate *pg.Service) *Service {
-	return &Service{Store: st, Identity: identity, Balance: balance, Gate: gate, Clock: time.Now, holder: uuid.NewString()}
+	s := &Service{Store: st, Identity: identity, Balance: balance, Gate: gate, Clock: time.Now, holder: uuid.NewString()}
+	if gate != nil {
+		s.monetary = gate.Monetary()
+	}
+	return s
 }
 
 func canonical(b Binding) Binding {
@@ -153,6 +161,10 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 		return Status{}, err
 	}
 	out.Generation = r.Generation
+	out.Evaluation, err = s.Store.ProviderMoneyEvaluation(ctx, out.SubjectID)
+	if err != nil {
+		return Status{}, err
+	}
 	if r.Generation > 0 {
 		var saved intent
 		if json.Unmarshal([]byte(r.Document), &saved) != nil || saved.Owner != out.Owner {
@@ -165,6 +177,24 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 		if out.Enabled {
 			out.State = "unavailable"
 		}
+		if out.BindingCurrent && s.monetary != nil {
+			gate, e := s.monetary.Status(ctx, pg.Binding{Scope: b.Scope, Targets: b.Targets, ProviderID: b.ProviderID})
+			if e == nil {
+				out.OwnPaused, out.Applied = gate.OwnPaused, gate.Applied
+				if !out.Enabled && gate.OwnPaused {
+					out.State, out.Reason = "historical_pause", "explicit_recovery_required"
+				}
+				if out.Enabled && (gate.Generation == 0 || gate.Applied) && gate.SourceVersion == saved.SourceVersion && s.sourcesCurrent(ctx, b, saved) {
+					out.Effective, out.Locked, out.State, out.Reason = true, false, "enabled", "awaiting_new_success"
+					if gate.OwnPaused {
+						out.State, out.Reason = "paused", "current_provider_gate_confirmed"
+					}
+				}
+				if out.Enabled && gate.Generation > 0 && !gate.Applied {
+					out.Reason = "operation_outcome_unverified"
+				}
+			}
+		}
 		if !out.BindingCurrent {
 			out.Reason = "provider_authority_changed"
 		}
@@ -173,6 +203,8 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 }
 
 func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
 	if q.Enabled == nil || q.ExpectedGeneration == nil || *q.ExpectedGeneration < 0 || *q.ExpectedGeneration >= 9007199254740991 {
 		return Status{}, ErrInput
 	}
@@ -197,16 +229,27 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	if state.Generation != *q.ExpectedGeneration {
 		return Status{}, store.ErrProviderPolicyConflict
 	}
-	// ON requires a current actual gate plus independently proven funding
-	// coverage. Never silently turn a configured label into monetary authority.
+	saved := intent{Binding: state.Binding, Enabled: *q.Enabled, Owner: state.Owner, UpdatedAtMS: time.Now().UnixMilli()}
+	// Enabling establishes authority, never consumes cached low balances.
 	if *q.Enabled {
-		return Status{}, ErrUnavailable
+		proof, err := s.ProveFunding(ctx, state.Binding)
+		if err != nil {
+			return Status{}, err
+		}
+		if _, err := classify(proof); err != nil {
+			return Status{}, err
+		}
+		saved.SourceVersion = proof.SourceVersion
+		saved.Versions = map[string]int64{}
+		for _, source := range proof.Sources {
+			saved.Versions[source.MemberIDs[0]] = source.Version
+		}
 	}
 	previous, err := s.Store.ProviderPolicy(ctx, state.SubjectID)
 	if err != nil {
 		return Status{}, err
 	}
-	doc, _ := json.Marshal(intent{Binding: state.Binding, Enabled: *q.Enabled, Owner: state.Owner, UpdatedAtMS: time.Now().UnixMilli()})
+	doc, _ := json.Marshal(saved)
 	next := store.ProviderPolicyRecord{ID: state.SubjectID, Generation: state.Generation + 1, Document: string(doc)}
 	if err := s.Store.SaveProviderPolicy(ctx, next, previous, lease, time.Now().UnixMilli()); err != nil {
 		return Status{}, err

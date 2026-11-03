@@ -53,18 +53,19 @@ func TestProviderFundingMissingProofCannotGateGroup(t *testing.T) {
 }
 
 type providerFundingFixture struct {
-	t           *testing.T
-	manager     *Server
-	db          *store.Store
-	providerID  string
-	base        string
-	members     map[string]ob.Binding
-	operations  atomic.Int32
-	keyMatches  atomic.Int32
-	keyRejected atomic.Int32
-	proofFault  atomic.Int32
-	beforeMatch func()
-	reopen      func()
+	t                *testing.T
+	manager          *Server
+	db               *store.Store
+	providerID       string
+	base             string
+	members          map[string]ob.Binding
+	operations       atomic.Int32
+	keyMatches       atomic.Int32
+	keyRejected      atomic.Int32
+	proofFault       atomic.Int32
+	upstreamAttempts atomic.Int32
+	beforeMatch      func()
+	reopen           func()
 }
 
 func (f *providerFundingFixture) policyPath() string {
@@ -124,11 +125,12 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 	port := l.Addr().(*net.TCPAddr).Port
 	_ = l.Close()
 	configPath := filepath.Join(dir, "config.yaml")
-	config := fmt.Sprintf("config-version: 8\nserver: {host: 127.0.0.1, port: %d}\nmanagement: {secret-key: controlled-core-key, disable-control-panel: true, disable-auto-update-panel: true}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\naccess: {api-keys: [FUNDING-SYNTHETIC-CLIENT]}\nplugins: {enabled: false}\napi-keys:\n  openai-compatibility:\n    - name: funding-a\n      base-url: https://api.deepseek.com/v1\n      models: [{name: controlled-model}]\n      keys: [{api-key: FUNDING-SYNTHETIC-A1}, {api-key: FUNDING-SYNTHETIC-A2}]\n    - name: funding-b\n      base-url: https://api.deepseek.com/v1\n      models: [{name: controlled-model}]\n      keys: [{api-key: FUNDING-SYNTHETIC-B1}]\n", port, filepath.ToSlash(filepath.Join(dir, "auth")))
+	config := fmt.Sprintf("config-version: 8\nserver: {host: 127.0.0.1, port: %d}\nmanagement: {secret-key: controlled-core-key, disable-control-panel: true, disable-auto-update-panel: true}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\naccess: {api-keys: [FUNDING-SYNTHETIC-CLIENT]}\nplugins: {enabled: false}\napi-keys:\n  openai-compatibility:\n    - name: funding-a\n      prefix: a\n      base-url: https://api.deepseek.com/v1\n      models: [{name: controlled-model}]\n      keys: [{api-key: FUNDING-SYNTHETIC-A1}, {api-key: FUNDING-SYNTHETIC-A2}]\n    - name: funding-b\n      prefix: b\n      base-url: https://api.deepseek.com/v1\n      models: [{name: controlled-model}]\n      keys: [{api-key: FUNDING-SYNTHETIC-B1}]\n", port, filepath.ToSlash(filepath.Join(dir, "auth")))
 	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
 		t.Fatal(err)
 	}
-	deny := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(502) }))
+	f := &providerFundingFixture{t: t}
+	deny := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { f.upstreamAttempts.Add(1); w.WriteHeader(502) }))
 	t.Cleanup(deny.Close)
 	logs := os.Getenv("PROVIDER82_PROCESS_LOG_DIR")
 	if logs == "" {
@@ -157,7 +159,7 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	f := &providerFundingFixture{t: t, base: base}
+	f.base = base
 	u, _ := url.Parse(base)
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	proxy.ModifyResponse = func(res *http.Response) error {
@@ -220,7 +222,7 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = f.db.Close() })
+	t.Cleanup(func() { f.shutdown(); _ = f.db.Close() })
 	testutil.EnsureAdminCredential(t, f.db)
 	if err := f.db.SaveManagerConfig(context.Background(), store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: management.URL, ManagementKey: "controlled-core-key"}}); err != nil {
 		t.Fatal(err)
@@ -228,6 +230,7 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 	f.manager = New(cfg, f.db, collector.NewManager(cfg, f.db))
 	f.reopen = func() {
 		f.t.Helper()
+		f.shutdown()
 		if err := f.db.Close(); err != nil {
 			f.t.Fatal(err)
 		}
@@ -284,4 +287,16 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 		t.Fatal("expected both current issued members")
 	}
 	return f
+}
+
+func (f *providerFundingFixture) shutdown() {
+	f.t.Helper()
+	if f.manager == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := f.manager.AppContext().FullRefreshService.Shutdown(ctx); err != nil {
+		f.t.Fatal(err)
+	}
 }

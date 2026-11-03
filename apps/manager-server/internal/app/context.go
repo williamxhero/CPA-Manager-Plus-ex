@@ -259,6 +259,7 @@ func fromExisting(
 	// Fresh services bind once at startup; source admission remains in76.
 	coordinator := out.FullRefreshService.(*fullrefreshsvc.Service)
 	_ = out.CredentialPolicyService.BindCoordinator(coordinator)
+	out.ProviderPolicyService.BindCoordinator(coordinator)
 	out.FullRefreshService = &credentialpolicysvc.CoordinatedService{Service: coordinator, Policy: out.CredentialPolicyService}
 	return out
 }
