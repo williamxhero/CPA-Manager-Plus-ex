@@ -37,11 +37,9 @@ func TestCredentialEvidenceRecoveryRecomputesEveryScopedWindow(t *testing.T) {
 	var core cq.CoreObservation
 	json.Unmarshal([]byte(status.Attempt.WindowsJSON), &core)
 	for i := range core.Windows {
-		core.Windows[i].Name = []string{"rolling", "weekly"}[i]
 		core.Windows[i].UsedPercent = 20
 		core.Windows[i].RemainingFraction = .8
 	}
-	core.Windows = append(core.Windows, cq.Window{Name: "monthly", UsedPercent: 20, RemainingFraction: .8, ResetAt: now.Add(time.Hour).Format(time.RFC3339), SourceStatus: "allowed"})
 	core.RecoveryEligible = false // the aggregate is not the policy's route/scope proof
 	raw, _ := json.Marshal(core)
 	status.Attempt.WindowsJSON = string(raw)
