@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/security"
+	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
@@ -51,13 +53,18 @@ func TestProviderFundingMissingProofCannotGateGroup(t *testing.T) {
 }
 
 type providerFundingFixture struct {
-	t          *testing.T
-	manager    *Server
-	db         *store.Store
-	providerID string
-	base       string
-	operations atomic.Int32
-	reopen     func()
+	t           *testing.T
+	manager     *Server
+	db          *store.Store
+	providerID  string
+	base        string
+	members     map[string]ob.Binding
+	operations  atomic.Int32
+	keyMatches  atomic.Int32
+	keyRejected atomic.Int32
+	proofFault  atomic.Int32
+	beforeMatch func()
+	reopen      func()
 }
 
 func (f *providerFundingFixture) policyPath() string {
@@ -153,9 +160,53 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 	f := &providerFundingFixture{t: t, base: base}
 	u, _ := url.Parse(base)
 	proxy := httputil.NewSingleHostReverseProxy(u)
+	proxy.ModifyResponse = func(res *http.Response) error {
+		path := res.Request.URL.Path
+		if res.StatusCode != 200 || path != "/v8/management/inference-gates/providers/key-match" && path != "/v8/management/inference-gates/providers/eligibility" {
+			return nil
+		}
+		defer res.Body.Close()
+		var body map[string]any
+		decoder := json.NewDecoder(res.Body)
+		decoder.UseNumber()
+		if err := decoder.Decode(&body); err != nil {
+			return err
+		}
+		fault := f.proofFault.Load()
+		if path == "/v8/management/inference-gates/providers/key-match" {
+			f.keyMatches.Add(1)
+			if body["matched"] == false {
+				f.keyRejected.Add(1)
+			}
+			switch fault {
+			case 2:
+				body["nonce"] = "00000000-0000-4000-8000-000000000000"
+			case 3:
+				body["sourceVersion"] = strings.Repeat("0", 64)
+			case 4:
+				body["authority"] = "funding"
+			}
+		} else if fault == 1 {
+			body["members"] = body["members"].([]any)[:1]
+		}
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		res.Body = io.NopCloser(bytes.NewReader(raw))
+		res.ContentLength = int64(len(raw))
+		res.Header.Set("Content-Length", fmt.Sprint(len(raw)))
+		return nil
+	}
 	management := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Fault injection edits JSON, so request its identity representation.
+		// Production management transport and Core compression stay unchanged.
+		r.Header.Set("Accept-Encoding", "identity")
 		if r.Method == "POST" && r.URL.Path == "/v8/management/inference-gates/operations" {
 			f.operations.Add(1)
+		}
+		if r.URL.Path == "/v8/management/inference-gates/providers/key-match" && f.beforeMatch != nil {
+			f.beforeMatch()
 		}
 		proxy.ServeHTTP(w, r)
 	}))
@@ -206,6 +257,31 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 	}
 	if f.providerID == "" {
 		t.Fatal("actual issued funding-a provider missing")
+	}
+	f.members = map[string]ob.Binding{}
+	for _, key := range []string{"FUNDING-SYNTHETIC-A1", "FUNDING-SYNTHETIC-A2"} {
+		start := strings.Index(string(saved), "api-key: "+key)
+		if start < 0 {
+			t.Fatal("native fixture credential missing")
+		}
+		section := string(saved)[start:]
+		marker := strings.Index(section, "resource-id:")
+		if marker < 0 {
+			t.Fatal("migrated member marker missing")
+		}
+		value := strings.TrimSpace(section[marker+len("resource-id:"):])
+		if len(value) < 36 {
+			t.Fatal("migrated member marker truncated")
+		}
+		id := value[:36]
+		for _, row := range envelope.Negotiated.Snapshot.Resources {
+			if row.ResourceID == id && row.ParentID == f.providerID {
+				f.members[key] = ob.Binding{Scope: envelope.Negotiated.Snapshot.Scope, Targets: []rc.Target{row.Target}}
+			}
+		}
+	}
+	if len(f.members) != 2 {
+		t.Fatal("expected both current issued members")
 	}
 	return f
 }

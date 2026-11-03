@@ -206,9 +206,10 @@ func fromExisting(
 		officialBalanceService.WebReader = webReader
 	}
 	credentialQuotaService := credentialquotasvc.New(st, identityService, credentialquotasvc.WithBudget(managementBudget))
+	providerGateService := providergatesvc.New(st, managerConfigService, identityService)
 	out := &Context{
-		ProviderGateService:     providergatesvc.New(st, managerConfigService, identityService),
-		ProviderPolicyService:   providerpolicysvc.New(st, identityService),
+		ProviderGateService:     providerGateService,
+		ProviderPolicyService:   providerpolicysvc.New(st, identityService, officialBalanceService, providerGateService),
 		CredentialPolicyService: credentialpolicysvc.New(st, credentialQuotaService, managerConfigService),
 		ManagementQueryBudget:   managementBudget,
 		FullRefreshService:      fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget), fullrefreshsvc.WithClock(refreshClock)),

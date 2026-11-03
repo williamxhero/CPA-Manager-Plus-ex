@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	ob "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
+	pg "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providergate"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
@@ -61,12 +63,16 @@ type Status struct {
 type Service struct {
 	Store    *store.Store
 	Identity *rc.Service
-	mu       sync.Mutex
-	holder   string
+	Balance  *ob.Service
+	Gate     *pg.Service
+	// Clock is a startup dependency. Cached reads never renew source freshness.
+	Clock  func() time.Time
+	mu     sync.Mutex
+	holder string
 }
 
-func New(st *store.Store, identity *rc.Service) *Service {
-	return &Service{Store: st, Identity: identity, holder: uuid.NewString()}
+func New(st *store.Store, identity *rc.Service, balance *ob.Service, gate *pg.Service) *Service {
+	return &Service{Store: st, Identity: identity, Balance: balance, Gate: gate, Clock: time.Now, holder: uuid.NewString()}
 }
 
 func canonical(b Binding) Binding {

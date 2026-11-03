@@ -57,6 +57,7 @@ func New(appCtx *app.Context) http.Handler {
 	mux := http.NewServeMux()
 	providerPolicyHandler := &providerpolicycontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/provider-policy", providerPolicyHandler.Handle)
+	mux.HandleFunc("/usage-service/provider-funding-proof", providerPolicyHandler.HandleFundingProof)
 	providerGateHandler := &providergatecontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/provider-gate", providerGateHandler.Handle)
 	credentialPolicyHandler := &credentialpolicycontroller.Handler{App: appCtx}

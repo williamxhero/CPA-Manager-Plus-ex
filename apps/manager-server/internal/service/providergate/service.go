@@ -139,6 +139,7 @@ type prepared struct {
 	core    session
 	ledger  ledger
 	settled bool
+	proof   proof
 }
 
 func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
@@ -243,6 +244,7 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 		return prepared{}, ErrIdentity
 	}
 	out.core = link
+	out.proof = p
 	return out, nil
 }
 

@@ -17,6 +17,44 @@ import (
 
 type Handler struct{ App *app.Context }
 
+// HandleFundingProof verifies server-owned source evidence without changing
+// monetary intent, manual state or a Core restriction.
+func (h *Handler) HandleFundingProof(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	middleware.WriteCORS(h.App.Config, w, r)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(204)
+		return
+	}
+	if !middleware.AuthorizePanel(w, r, h.App.AdminAuthService) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		response.MethodNotAllowed(w)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+	var binding svc.Binding
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	if d.Decode(&binding) != nil || d.Decode(new(any)) != io.EOF {
+		response.JSON(w, 400, map[string]string{"error": "invalid_provider_funding_proof"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	proof, err := h.App.ProviderPolicyService.ProveFunding(ctx, binding)
+	if err != nil {
+		code := 503
+		if errors.Is(err, svc.ErrIdentity) {
+			code = 409
+		}
+		response.JSON(w, code, map[string]string{"error": "provider_funding_unverified"})
+		return
+	}
+	response.JSON(w, 200, proof)
+}
+
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	middleware.WriteCORS(h.App.Config, w, r)
