@@ -403,6 +403,8 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 }
 
 func webRequest(c Config) balance.WebRequest {
+	// The complete group is authority; the caller's ordering is not.
+	c.Binding = canonical(c.Binding)
 	raw, _ := json.Marshal(c)
 	h := sha256.Sum256(raw)
 	q := balance.WebRequest{Authority: hex.EncodeToString(h[:])}
