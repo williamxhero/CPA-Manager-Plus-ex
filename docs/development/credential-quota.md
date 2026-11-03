@@ -72,18 +72,29 @@ anonymous legacy callbacks cannot safely inherit quota operation context.
 
 Original OpenCode raw status/completeness is parsed from that SAME response, not
 from its older lossy normalized QuotaBucket. `rate-limited` below 100% remains
-exhausted; missing windows remain partial. Qwen console/key ownership is still
-an external gap: needs_configuration/account_authority_unverified, no automatic
-recovery promise and no console command from this path. Other current sources
-remain explicitly unavailable, never guessed from hostname/provider branding.
+exhausted; missing windows remain partial. Qwen uses the existing explicitly
+configured Coding Plan CLI/cache source, not a new console ownership API. Core
+requires administrator enrollment of the selected resource ID and all four
+target generations, the configured helper/CLI revision, and a successful latest
+attempt receipt matching the exact bounded cache bytes. Only that scoped path
+can emit `qwen-coding-plan-cli` / `configured_cli_profile` observations. This is
+configured local provenance, not independent selected-key/account attestation.
+Unenrolled or stale sources remain needs_configuration; the deprecated plugin
+card view has no scoped authority and must not distribute windows to keys.
+Other current sources remain explicitly unavailable, never guessed from
+hostname/provider branding.
 
 Management budgets are 15s default, 60s hard maximum, four concurrent jobs and
 2MiB responses. TLS validation, entire DNS-answer checking, numeric pinning,
 metadata/transition-IP refusal, no environment proxy and no redirect apply to
 quota I/O only. There is no change to established inference stream timeouts.
-Success timestamps come from validated upstream HTTP Date, with explicit
-`upstream_http_date` provenance; Core receipt time is separate. A missing, old or
-future origin timestamp is not fresh evidence. Partial/missing/expired windows,
+Codex/OpenCode success timestamps come from validated upstream HTTP Date, with
+explicit `upstream_http_date` provenance; Core receipt time is separate. Qwen
+instead preserves the original CLI acquisition timestamp with the distinct
+`local_cli_acquisition_time` provenance and a five-minute Core freshness fence;
+cache reads never reset that timestamp. Its cache is limited to 4MiB and the
+attempt receipt to 16KiB. A missing, old or future source timestamp is not fresh
+evidence. Partial/missing/expired windows,
 429/auth/error/reset-at alone are never positive recovery evidence.
 
 ## Extension owners
