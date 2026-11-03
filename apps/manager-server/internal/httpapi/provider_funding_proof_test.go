@@ -14,7 +14,10 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -209,14 +212,34 @@ func TestProviderFundingProofRejectsSourceChangeDuringChallenge(t *testing.T) {
 	before := f.ledger()
 	request := f.proofRequest()
 	f.api("POST", fundingProofPath, request, 200)
+	b := f.members["FUNDING-SYNTHETIC-A1"]
+	raw, err := json.Marshal(ob.Update{Config: ob.Config{Binding: b, Version: 1, Adapter: "deepseek", Endpoint: "https://api.deepseek.com/user/balance", PrivateTargets: []string{"127.0.0.1"}}, Secret: "FUNDING-SYNTHETIC-A1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated := make(chan int, 1)
 	var once sync.Once
 	f.beforeMatch = func() {
 		once.Do(func() {
-			b := f.members["FUNDING-SYNTHETIC-A1"]
-			f.api("PUT", balancePath, ob.Update{Config: ob.Config{Binding: b, Version: 1, Adapter: "deepseek", Endpoint: "https://api.deepseek.com/user/balance", PrivateTargets: []string{"127.0.0.1"}}, Secret: "FUNDING-SYNTHETIC-A1"}, 200)
+			// This runs on the proxy goroutine: return the outcome to the
+			// test goroutine without invoking testing.Fatal/FailNow here.
+			r := httptest.NewRequest("PUT", balancePath, strings.NewReader(string(raw)))
+			r.Header.Set("Content-Type", "application/json")
+			r.Header.Set("Authorization", "Bearer "+testutil.AdminKey)
+			w := httptest.NewRecorder()
+			f.manager.Handler().ServeHTTP(w, r)
+			updated <- w.Code
 		})
 	}
 	f.api("POST", fundingProofPath, request, 503)
+	select {
+	case status := <-updated:
+		if status != 200 {
+			t.Fatalf("source change fixture failed: status=%d", status)
+		}
+	default:
+		t.Fatal("source change was never injected")
+	}
 	f.unchanged(before)
 }
 
@@ -234,6 +257,49 @@ func TestProviderFundingProofPublicAuthenticationAndBinding(t *testing.T) {
 	targets := request["targets"].([]any)
 	targets[1].(map[string]any)["credential_version"] = float64(999)
 	f.api("POST", fundingProofPath, request, 409)
+	f.unchanged(before)
+}
+
+func TestProviderFundingProofRejectsConnectionChangeAfterChallenge(t *testing.T) {
+	f := newProviderFundingFixture(t)
+	f.currentSources()
+	before := f.ledger()
+	request := f.proofRequest()
+	f.api("POST", fundingProofPath, request, 200)
+	config := f.api("GET", "/usage-service/config", nil, 200)["config"].(map[string]any)
+	// Keep this isolated fixture's monitoring stopped; enabling it would write
+	// Core usage configuration and change scope for an unrelated reason.
+	config["collector"].(map[string]any)["enabled"] = false
+	connection := config["cpaConnection"].(map[string]any)
+	target, err := url.Parse(connection["cpaBaseUrl"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A second saved connection reaches the SAME Core through the original
+	// management boundary. Scope and all issued targets deliberately stay equal.
+	second := httptest.NewServer(httputil.NewSingleHostReverseProxy(target))
+	t.Cleanup(second.Close)
+	calls := 0
+	f.manager.AppContext().ProviderPolicyService.Clock = func() time.Time {
+		calls++
+		// The first two calls validate the member observations; the third
+		// timestamps the result AFTER the complete Core key challenge returns.
+		if calls == 3 {
+			connection["cpaBaseUrl"] = second.URL
+			f.api("PUT", "/usage-service/config", map[string]any{"config": config}, 200)
+		}
+		return time.Now()
+	}
+	f.api("POST", fundingProofPath, request, 409)
+	if calls < 3 {
+		t.Fatal("connection change did not occur after the key challenge")
+	}
+	f.manager.AppContext().ProviderPolicyService.Clock = time.Now
+	if f.api("GET", "/usage-service/config", nil, 200)["config"].(map[string]any)["cpaConnection"].(map[string]any)["cpaBaseUrl"] != second.URL {
+		t.Fatal("public configuration change was not saved")
+	}
+	// A fresh request on the new connection can still prove the same evidence.
+	f.api("POST", fundingProofPath, request, 200)
 	f.unchanged(before)
 }
 

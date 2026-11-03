@@ -108,6 +108,10 @@ func (s *Service) binding(ctx context.Context, id string) (Binding, bool, error)
 		return Binding{}, false, ErrIdentity
 	}
 	n := s.Identity.Inventory(ctx, true)
+	return bindingInventory(n, id)
+}
+
+func bindingInventory(n *rc.Negotiated, id string) (Binding, bool, error) {
 	if n == nil || n.Snapshot == nil || !n.Snapshot.Complete || n.Identity.State != "available" {
 		return Binding{}, false, ErrIdentity
 	}

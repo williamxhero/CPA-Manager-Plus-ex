@@ -227,13 +227,13 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 	}
 	f.manager = New(cfg, f.db, collector.NewManager(cfg, f.db))
 	f.reopen = func() {
-		t.Helper()
+		f.t.Helper()
 		if err := f.db.Close(); err != nil {
-			t.Fatal(err)
+			f.t.Fatal(err)
 		}
 		f.db, err = store.Open(cfg.DBPath, protector)
 		if err != nil {
-			t.Fatal(err)
+			f.t.Fatal(err)
 		}
 		f.manager = New(cfg, f.db, collector.NewManager(cfg, f.db))
 	}

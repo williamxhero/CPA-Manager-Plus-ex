@@ -50,10 +50,11 @@ func currentFunding(source ob.Status, binding ob.Binding, now time.Time) bool {
 }
 
 func (s *Service) ProveFunding(ctx context.Context, requested Binding) (FundingProof, error) {
-	if s.Balance == nil || s.Gate == nil || s.Clock == nil {
+	if s.Identity == nil || s.Balance == nil || s.Gate == nil || s.Clock == nil {
 		return FundingProof{}, ErrUnavailable
 	}
-	b, _, err := s.binding(ctx, requested.ProviderID)
+	opening := s.Identity.Inventory(ctx, true)
+	b, _, err := bindingInventory(opening, requested.ProviderID)
 	if err != nil || !reflect.DeepEqual(canonical(requested), b) {
 		return FundingProof{}, ErrIdentity
 	}
@@ -79,8 +80,11 @@ func (s *Service) ProveFunding(ctx context.Context, requested Binding) (FundingP
 		last := current.LastSuccess
 		out.Sources = append(out.Sources, FundingSource{[]string{id}, current.Version, last.QueryID, last.ObservedAtMS, last.Balances, true, true})
 	}
-	closing, _, err := s.binding(ctx, b.ProviderID)
-	if err != nil || !reflect.DeepEqual(b, closing) || ctx.Err() != nil {
+	closing := s.Identity.Inventory(ctx, true)
+	current, _, err := bindingInventory(closing, b.ProviderID)
+	// Equal Core scope does not authorize crossing a saved connection generation.
+	// Close after ALL source reads, not merely after the key challenge.
+	if err != nil || !reflect.DeepEqual(b, current) || !s.Identity.SameInventoryConnection(opening, closing) || ctx.Err() != nil {
 		return FundingProof{}, ErrIdentity
 	}
 	sort.Slice(out.Sources, func(i, j int) bool { return out.Sources[i].MemberIDs[0] < out.Sources[j].MemberIDs[0] })
