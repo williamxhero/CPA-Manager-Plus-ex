@@ -29,7 +29,7 @@ it.skipIf(!process.env.PROVIDER82_RECOVERY_LIVE_UI)(
       expect(text()).toContain('USD 0.0500');
       await click('恢复本策略历史暂停');
       expect(view.root.findAllByProps({ role: 'alertdialog' })).toHaveLength(1);
-      expect(text()).toContain('人工关闭和其他所有者限制将保留');
+      expect(text()).toContain('人工关闭和其他策略限制将保留');
       await click('确认仅恢复本策略暂停');
       await waitFor(() => text().includes('已显式恢复本策略暂停'));
       expect(text()).toContain('策略保持关闭');
