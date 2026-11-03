@@ -68,8 +68,24 @@ effective/applied/manual state, persisted receipt and exact per-member native
 amounts/lastSuccess/stale through the public management API. Failed reloads keep
 the snapshot and lock writes until authoritative readback; auth/binding changes
 hide the old scope. Ordinary builds exclude fixture DNS/socket/TLS overrides.
-Unknown missing-command disposition, explicit historical-OFF recovery controls,
-all-row live summaries, additional adapter/funding coverage, visual/browser and
+`POST /usage-service/provider-policy/recover` is a separate explicit admin
+override for an OFF historical monetary pause. It requires current complete
+issued binding/routing/connection proof, policy and gate generations and the
+current route source version. It never needs a new high balance or changes
+ON/OFF/manual intent. The fenced OFF row is validated independently of automatic
+money evaluation's mandatory source fences. Only the installation's monetary
+owner is selected server-side; administrative and other owner gates remain.
+The UI requires confirmation tied to the current auth/binding context, policy
+generation, gate generation and source version. Mutation errors cause GET
+readback, never automatic POST retries or optimistic success.
+
+An unknown dispatch stays pending across retries/restarts; only read-only
+receipt reconciliation may confirm it. A journal proven canceled before its
+sole RPC permits a new confirmation and fresh immutable command under restored
+authority. Manual disable can remove Core runtime route authority: recovery
+then fails closed and never enables native configuration to fabricate proof.
+Unknown missing-command disposition, all-row live summaries, additional
+adapter/funding coverage, visual/browser and
 operational acceptance remain unfinished.
 Only the independent worker branch implements this slice; any other candidate
 requires explicit reconciliation before integration. Fixtures are not real

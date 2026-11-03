@@ -64,9 +64,9 @@ func (s *Service) Recover(ctx context.Context, q Recovery) (Status, error) {
 		return Status{}, ErrUnavailable
 	}
 	authorize := func(ctx context.Context) error {
-		// A nil source fence is deliberate: explicit recovery needs the exact
-		// OFF intent/lease, not a new funding observation. It cannot enable ON.
-		if err := s.Store.ValidateProviderMoney(ctx, row, lease, time.Now().UnixMilli(), nil); err != nil {
+		// Explicit recovery fences the exact OFF intent/lease, independently of
+		// automatic evaluation's mandatory fresh source fences.
+		if err := s.Store.ValidateProviderRecovery(ctx, row, lease, time.Now().UnixMilli()); err != nil {
 			return err
 		}
 		closing := s.Identity.Inventory(ctx, true)
@@ -77,7 +77,7 @@ func (s *Service) Recover(ctx context.Context, q Recovery) (Status, error) {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		return s.Store.ValidateProviderMoney(ctx, row, lease, time.Now().UnixMilli(), nil)
+		return s.Store.ValidateProviderRecovery(ctx, row, lease, time.Now().UnixMilli())
 	}
 	raw, _ := json.Marshal(struct {
 		Request Recovery

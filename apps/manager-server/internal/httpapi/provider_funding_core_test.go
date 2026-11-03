@@ -75,6 +75,8 @@ type providerFundingFixture struct {
 	slowReads        atomic.Int32
 	slowActive       atomic.Int32
 	slowCanceled     atomic.Int32
+	inventoryReads   atomic.Int32
+	inventoryFailAt  atomic.Int32
 }
 
 func (f *providerFundingFixture) policyPath() string {
@@ -233,6 +235,10 @@ func newProviderFundingFixture(t *testing.T) *providerFundingFixture {
 		return nil
 	}
 	management := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v8/management/resources" && f.inventoryReads.Add(1) == f.inventoryFailAt.Load() {
+			w.WriteHeader(503)
+			return
+		}
 		if slow := f.slowProvider.Load(); slow != nil && r.Method == "POST" && r.URL.Path == "/v8/management/inference-gates/providers/eligibility" {
 			raw, _ := io.ReadAll(r.Body)
 			r.Body = io.NopCloser(bytes.NewReader(raw))

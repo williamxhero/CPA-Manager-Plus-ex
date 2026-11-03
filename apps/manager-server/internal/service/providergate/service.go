@@ -265,6 +265,11 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 	}
 	out.core = link
 	out.proof = p
+	// Only a proven non-dispatch can replace the latest journal without an
+	// applied receipt. A transport-unknown clear remains permanently non-replayable.
+	op := out.doc.Operation
+	knownUnsentRecovery := out.doc.CanceledBeforeSend && op.Action == "clear" && op.Reason == ExplicitRecoveryReason && sameInstance(op.Scope, b.Scope) && reflect.DeepEqual(op.Targets, b.Targets)
+	out.status.RecoveryAvailable = s.monetary && out.record.Generation > 0 && out.settled && out.status.OwnPaused && (out.status.Applied && out.status.ReceiptPersisted || knownUnsentRecovery)
 	return out, nil
 }
 
@@ -367,7 +372,7 @@ func (s *Service) RecoverMonetary(ctx context.Context, b Binding, generation int
 	if out.record.Generation != generation {
 		return Status{}, store.ErrProviderGateConflict
 	}
-	if !out.settled || !out.status.Applied || !out.status.OwnPaused || !out.status.ReceiptPersisted || out.status.SourceVersion != sourceVersion {
+	if !out.status.RecoveryAvailable || out.status.SourceVersion != sourceVersion {
 		return Status{}, ErrUnavailable
 	}
 	return s.send(ctx, out, "clear", evidence, ExplicitRecoveryReason, authorize)

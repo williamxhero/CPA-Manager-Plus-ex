@@ -196,7 +196,7 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 				out.OwnPaused, out.Applied = gate.OwnPaused, gate.Applied
 				if !out.Enabled && gate.OwnPaused {
 					out.State, out.Reason = "historical_pause", "explicit_recovery_required"
-					out.RecoveryAvailable = gate.Applied && gate.ReceiptPersisted && gate.Generation > 0
+					out.RecoveryAvailable = gate.RecoveryAvailable
 				}
 				if !out.Enabled && gate.OperationReason == pg.ExplicitRecoveryReason {
 					if gate.Applied && !gate.OwnPaused {

@@ -36,17 +36,18 @@ type Status struct {
 	ReceiptPersisted bool  `json:"receiptPersisted"`
 	UpdatedAtMS      int64 `json:"updatedAtMs"`
 	Binding
-	SubjectID       string `json:"subjectId"`
-	Owner           string `json:"owner"`
-	Generation      int64  `json:"generation"`
-	Action          string `json:"action"`
-	OperationReason string `json:"operationReason"`
-	SourceVersion   string `json:"sourceVersion"`
-	Ready           bool   `json:"ready"`
-	OwnPaused       bool   `json:"ownPaused"`
-	Applied         bool   `json:"applied"`
-	State           string `json:"state"`
-	Reason          string `json:"reason"`
+	SubjectID         string `json:"subjectId"`
+	Owner             string `json:"owner"`
+	Generation        int64  `json:"generation"`
+	Action            string `json:"action"`
+	OperationReason   string `json:"operationReason"`
+	RecoveryAvailable bool   `json:"recoveryAvailable"`
+	SourceVersion     string `json:"sourceVersion"`
+	Ready             bool   `json:"ready"`
+	OwnPaused         bool   `json:"ownPaused"`
+	Applied           bool   `json:"applied"`
+	State             string `json:"state"`
+	Reason            string `json:"reason"`
 }
 
 type operation struct {

@@ -42,7 +42,10 @@ export function ProviderMoneyPanel({
   const current = useRef(context);
   const serial = useRef(0);
   const active = useRef<AbortController | null>(null);
-  const [confirmation, setConfirmation] = useState<typeof context | null>(null);
+  const [confirmation, setConfirmation] = useState<{
+    context: typeof context;
+    token: string;
+  } | null>(null);
   const [view, setView] = useState<{
     context: typeof context;
     data?: ProviderPolicyStatus;
@@ -52,6 +55,14 @@ export function ProviderMoneyPanel({
   }>({ context });
   const visible = view.context === context ? view : { context };
   const usable = Boolean(issued && base && managementKey && !disabled);
+  const recoveryToken = JSON.stringify([
+    visible.data?.generation,
+    visible.data?.coordination?.generation,
+    visible.data?.coordination?.sourceVersion,
+  ]);
+  const latestRecovery = useRef({ token: recoveryToken, confirmation });
+  latestRecovery.current = { token: recoveryToken, confirmation };
+  const confirmationCurrent = confirmation?.context === context && confirmation.token === recoveryToken;
 
   useEffect(() => {
     current.current = context;
@@ -96,18 +107,20 @@ export function ProviderMoneyPanel({
     };
   }, [context, usable, issued, base, managementKey, providerId]);
 
-  const request = async (enabled?: boolean | 'recover') => {
+  const request = async (operation?: 'enable' | 'disable' | 'recover') => {
     if (
       current.current !== context ||
       !usable ||
       !issued ||
       active.current ||
-      (enabled !== undefined && (!visible.data || !visible.verified))
+      (operation !== undefined && (!visible.data || !visible.verified))
     )
       return;
     if (
-      enabled === 'recover' &&
-      (confirmation !== context ||
+      operation === 'recover' &&
+      (!confirmationCurrent ||
+        confirmation !== latestRecovery.current.confirmation ||
+        confirmation.token !== latestRecovery.current.token ||
         !visible.data?.recoveryAvailable ||
         visible.data.enabled ||
         !visible.data.coordination?.generation ||
@@ -123,16 +136,16 @@ export function ProviderMoneyPanel({
     let writeFailed = false;
     try {
       let data: ProviderPolicyStatus;
-      if (enabled !== undefined && visible.data) {
+      if (operation !== undefined && visible.data) {
         const mutation =
-          enabled === 'recover'
+          operation === 'recover'
             ? {
                 action: 'recover' as const,
                 expectedGeneration: visible.data.generation,
                 expectedGateGeneration: visible.data.coordination!.generation!,
                 sourceVersion: visible.data.coordination!.sourceVersion!,
               }
-            : { enabled, expectedGeneration: visible.data.generation };
+            : { enabled: operation === 'enable', expectedGeneration: visible.data.generation };
         setConfirmation(null);
         try {
           data = await providerPolicyRequest(
@@ -248,7 +261,7 @@ export function ProviderMoneyPanel({
         type="button"
         disabled={!usable || !data || !visible.verified || visible.busy}
         onClick={() => {
-          void request(!data?.enabled);
+          void request(data?.enabled ? 'disable' : 'enable');
         }}
       >
         {data?.enabled ? '关闭资金自动保护' : '启用资金自动保护'}
@@ -259,11 +272,11 @@ export function ProviderMoneyPanel({
           <button
             type="button"
             disabled={!usable || !visible.verified || visible.busy || !data.recoveryAvailable}
-            onClick={() => setConfirmation(context)}
+            onClick={() => setConfirmation({ context, token: recoveryToken })}
           >
             恢复本策略历史暂停
           </button>
-          {confirmation === context && (
+          {confirmationCurrent && (
             <div role="alertdialog" aria-label="确认恢复本策略暂停">
               <p>仅清除本策略拥有的历史暂停，策略保持关闭。人工关闭和其他策略限制将保留。</p>
               <button

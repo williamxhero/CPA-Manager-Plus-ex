@@ -53,6 +53,91 @@ afterEach(async () => {
   if (view) await act(async () => view?.unmount());
   view = undefined;
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+
+it.each(['generation', 'gateGeneration', 'sourceVersion'])(
+  'requires a new confirmation when the observed %s changes',
+  async (field) => {
+    vi.useFakeTimers();
+    let state = initial;
+    const fetcher = vi.fn(async () => Response.json(state));
+    vi.stubGlobal('fetch', fetcher);
+    await act(async () => { view = create(<ProviderMoneyPanel {...props} />); });
+    await act(async () => { button('恢复本策略历史暂停').props.onClick(); });
+    const oldConfirm = button('确认仅恢复本策略暂停').props.onClick;
+    state = {
+      ...initial,
+      generation: field === 'generation' ? 3 : 2,
+      coordination: {
+        ...initial.coordination,
+        generation: field === 'gateGeneration' ? 2 : 1,
+        sourceVersion: field === 'sourceVersion' ? 'b'.repeat(64) : 'a'.repeat(64),
+      },
+    };
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
+    expect(view!.root.findAllByProps({ role: 'alertdialog' })).toHaveLength(0);
+    await act(async () => { oldConfirm(); });
+    expect(fetcher.mock.calls).toHaveLength(2); // GET only, no stale POST.
+  }
+);
+
+it('reads back unknown recovery without retrying the command', async () => {
+  let written = false;
+  const fetcher = vi.fn(async (_url: string, init: RequestInit) => {
+    if (init.method === 'POST') { written = true; return Response.json({}, { status: 503 }); }
+    return Response.json(written ? {
+      ...initial, applied: false, recoveryAvailable: false, state: 'recovery_pending',
+      coordination: { ...initial.coordination, generation: 2, receiptPersisted: false },
+    } : initial);
+  });
+  vi.stubGlobal('fetch', fetcher);
+  await act(async () => { view = create(<ProviderMoneyPanel {...props} />); });
+  await act(async () => { button('恢复本策略历史暂停').props.onClick(); });
+  await act(async () => { button('确认仅恢复本策略暂停').props.onClick(); });
+  expect(text()).toContain('恢复结果未确认');
+  expect(text()).not.toContain('已显式恢复本策略暂停');
+  expect(button('恢复本策略历史暂停').props.disabled).toBe(true);
+  expect(fetcher.mock.calls.filter((c) => c[1].method === 'POST')).toHaveLength(1);
+  expect(fetcher.mock.calls.filter((c) => c[1].method === 'GET')).toHaveLength(2);
+});
+
+it.each(['managementKey', 'disabled', 'providerId', 'base', 'binding'])(
+  'invalidates confirmation through %s A to B to A, including a retained click',
+  async (field) => {
+    const fetcher = vi.fn(async () => Response.json(initial));
+    vi.stubGlobal('fetch', fetcher);
+    await act(async () => { view = create(<ProviderMoneyPanel {...props} />); });
+    await act(async () => { button('恢复本策略历史暂停').props.onClick(); });
+    const oldConfirm = button('确认仅恢复本策略暂停').props.onClick;
+    const next = { ...props, [field]: field === 'disabled' ? true : field === 'binding' ? {
+      ...binding, scope: { ...binding.scope, boot_epoch: 'new-boot' },
+    } : 'changed' };
+    await act(async () => { view!.update(<ProviderMoneyPanel {...next} />); });
+    await act(async () => { view!.update(<ProviderMoneyPanel {...props} />); });
+    expect(view!.root.findAllByProps({ role: 'alertdialog' })).toHaveLength(0);
+    await act(async () => { oldConfirm(); });
+    expect(fetcher.mock.calls.length).toBe(field === 'disabled' ? 2 : 3);
+  }
+);
+
+it('discards a late recovery response after auth changes and supports cancellation', async () => {
+  let resolve!: (r: Response) => void;
+  const fetcher = vi.fn(async (_url: string, init: RequestInit) => init.method === 'POST'
+    ? new Promise<Response>((r) => { resolve = r; }) : Response.json(initial));
+  vi.stubGlobal('fetch', fetcher);
+  await act(async () => { view = create(<ProviderMoneyPanel {...props} />); });
+  await act(async () => { button('恢复本策略历史暂停').props.onClick(); });
+  await act(async () => { button('取消恢复').props.onClick(); });
+  expect(view!.root.findAllByProps({ role: 'alertdialog' })).toHaveLength(0);
+  expect(fetcher.mock.calls.filter((c) => c[1].method === 'POST')).toHaveLength(0);
+  await act(async () => { button('恢复本策略历史暂停').props.onClick(); });
+  await act(async () => { button('确认仅恢复本策略暂停').props.onClick(); });
+  await act(async () => { view!.update(<ProviderMoneyPanel {...props} managementKey="admin-b" />); });
+  await act(async () => { resolve(Response.json({ ...initial, ownPaused: false, state: 'recovered_off' })); });
+  expect(text()).not.toContain('已显式恢复本策略暂停');
+  expect(text()).toContain('保留历史暂停');
 });
 const text = () => JSON.stringify(view?.toJSON());
 const button = (label: string) =>
