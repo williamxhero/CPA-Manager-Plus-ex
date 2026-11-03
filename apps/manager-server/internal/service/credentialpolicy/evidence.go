@@ -47,10 +47,10 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 	if len(obs.WindowsJSON) > 2<<20 || json.Unmarshal([]byte(obs.WindowsJSON), &core) != nil || json.Unmarshal(obs.Binding, &binding) != nil || !reflect.DeepEqual(binding, status.Binding) || !reflect.DeepEqual(core.Binding, status.Binding) || core.SourceVersion != status.SourceVersion || core.Protocol != status.Protocol || core.AccountProvenance != status.AccountProvenance {
 		return noEvidence("source_authority_changed")
 	}
-	if core.ProtocolVersion != 1 || core.QueryStatus != "success" || !core.Complete || len(core.Windows) == 0 || len(core.Windows) > 128 || core.TimestampProvenance != "upstream_http_date" || obs.ObservedAtMS != core.ObservedAtMS || core.ObservedAtMS <= 0 || core.ObservedAtMS > now.Add(time.Minute).UnixMilli() || core.ObservedAtMS < now.Add(-5*time.Minute).UnixMilli() || core.ReceivedAtMS < core.ObservedAtMS-60000 || core.ReceivedAtMS > now.Add(time.Minute).UnixMilli() {
+	if core.ProtocolVersion != 1 || core.QueryStatus != "success" || !core.Complete || len(core.Windows) == 0 || len(core.Windows) > 128 || core.TimestampProvenance != "upstream_http_date" && core.TimestampProvenance != "local_cli_acquisition_time" || obs.ObservedAtMS != core.ObservedAtMS || core.ObservedAtMS <= 0 || core.ObservedAtMS > now.Add(time.Minute).UnixMilli() || core.ObservedAtMS < now.Add(-5*time.Minute).UnixMilli() || core.ReceivedAtMS < core.ObservedAtMS-60000 || core.ReceivedAtMS > now.Add(time.Minute).UnixMilli() {
 		return noEvidence("fresh_authoritative_evidence_required")
 	}
-	if core.Protocol == "codex-oauth-wham" && core.AccountProvenance != "selected_oauth_account" || core.Protocol == "opencode-go-usage" && core.AccountProvenance != "selected_key_subscription" || core.Protocol != "codex-oauth-wham" && core.Protocol != "opencode-go-usage" {
+	if core.Protocol == "codex-oauth-wham" && core.AccountProvenance != "selected_oauth_account" || core.Protocol == "opencode-go-usage" && core.AccountProvenance != "selected_key_subscription" || core.Protocol == "qwen-coding-plan-cli" && core.AccountProvenance != "configured_cli_profile" || core.Protocol != "codex-oauth-wham" && core.Protocol != "opencode-go-usage" && core.Protocol != "qwen-coding-plan-cli" {
 		return noEvidence("account_authority_unverified")
 	}
 	groups := map[string]map[string]bool{}

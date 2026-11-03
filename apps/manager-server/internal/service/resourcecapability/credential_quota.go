@@ -52,7 +52,7 @@ func validQuotaSourceHeaders(snapshot Snapshot, raw []json.RawMessage) bool {
 			for _, row := range snapshot.Resources {
 				if target == row.Target {
 					found = true
-					if source.State == "ready" && (row.Identity != "valid" || row.Readiness != "ready" || source.Protocol == "codex-oauth-wham" && row.Family != "codex" || source.Protocol == "opencode-go-usage" && row.Family != "opencode-go") {
+					if source.State == "ready" && (row.Identity != "valid" || row.Readiness != "ready" || source.Protocol == "codex-oauth-wham" && row.Family != "codex" || source.Protocol == "opencode-go-usage" && row.Family != "opencode-go" || source.Protocol == "qwen-coding-plan-cli" && row.Family != "qwen") {
 						return false
 					}
 				}
@@ -61,7 +61,7 @@ func validQuotaSourceHeaders(snapshot Snapshot, raw []json.RawMessage) bool {
 				return false
 			}
 		}
-		if source.State == "ready" && (source.AuthIndex == "" || !oneOf(source.Protocol, "codex-oauth-wham", "opencode-go-usage")) {
+		if source.State == "ready" && (source.AuthIndex == "" || !oneOf(source.Protocol, "codex-oauth-wham", "opencode-go-usage", "qwen-coding-plan-cli")) {
 			return false
 		}
 	}

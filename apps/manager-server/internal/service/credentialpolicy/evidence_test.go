@@ -37,9 +37,11 @@ func TestCredentialEvidenceRecoveryRecomputesEveryScopedWindow(t *testing.T) {
 	var core cq.CoreObservation
 	json.Unmarshal([]byte(status.Attempt.WindowsJSON), &core)
 	for i := range core.Windows {
+		core.Windows[i].Name = []string{"rolling", "weekly"}[i]
 		core.Windows[i].UsedPercent = 20
 		core.Windows[i].RemainingFraction = .8
 	}
+	core.Windows = append(core.Windows, cq.Window{Name: "monthly", UsedPercent: 20, RemainingFraction: .8, ResetAt: now.Add(time.Hour).Format(time.RFC3339), SourceStatus: "allowed"})
 	core.RecoveryEligible = false // the aggregate is not the policy's route/scope proof
 	raw, _ := json.Marshal(core)
 	status.Attempt.WindowsJSON = string(raw)
@@ -107,5 +109,34 @@ func TestCredentialEvidenceRejectsFailuresStalenessResetAndModelOnlyProof(t *tes
 				t.Fatalf("invalid evidence caused action %+v", decision)
 			}
 		})
+	}
+}
+
+func TestCredentialEvidenceAcceptsConfiguredQwenCLIProvenance(t *testing.T) {
+	status, now := windowEvidence(t)
+	status.Protocol = "qwen-coding-plan-cli"
+	status.AccountProvenance = "configured_cli_profile"
+	var core cq.CoreObservation
+	if err := json.Unmarshal([]byte(status.Attempt.WindowsJSON), &core); err != nil {
+		t.Fatal(err)
+	}
+	core.Protocol = status.Protocol
+	core.AccountProvenance = status.AccountProvenance
+	core.TimestampProvenance = "local_cli_acquisition_time"
+	core.SourceVersion = status.SourceVersion
+	core.Binding = status.Binding
+	core.RecoveryEligible = true
+	for i := range core.Windows {
+		core.Windows[i].Name = []string{"rolling", "weekly"}[i]
+		core.Windows[i].UsedPercent = 20
+		core.Windows[i].RemainingFraction = .8
+	}
+	core.Windows = append(core.Windows, cq.Window{Name: "monthly", UsedPercent: 20, RemainingFraction: .8, ResetAt: now.Add(time.Hour).Format(time.RFC3339), SourceStatus: "allowed"})
+	raw, _ := json.Marshal(core)
+	status.Attempt.WindowsJSON = string(raw)
+	status.LastSuccess = status.Attempt
+	decision := policy.ValidateCredentialEvidence(status, now)
+	if decision.Action != "recover" || decision.Reason != "quota_windows_positive" {
+		t.Fatalf("configured Qwen CLI evidence was rejected: %+v", decision)
 	}
 }

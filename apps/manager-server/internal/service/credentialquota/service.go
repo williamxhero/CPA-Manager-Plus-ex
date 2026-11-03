@@ -216,12 +216,12 @@ func sourcesFromInventory(n *rc.Negotiated) ([]Source, error) {
 		if !found {
 			return nil, ErrIdentity
 		}
-		if source.State == "ready" && source.Protocol != "codex-oauth-wham" && source.Protocol != "opencode-go-usage" {
+		if source.State == "ready" && source.Protocol != "codex-oauth-wham" && source.Protocol != "opencode-go-usage" && source.Protocol != "qwen-coding-plan-cli" {
 			return nil, ErrIdentity
 		}
 		for _, row := range n.Snapshot.Resources {
 			if row.ResourceID == source.Targets[0].ResourceID && source.State == "ready" {
-				if source.Protocol == "codex-oauth-wham" && row.Family != "codex" || source.Protocol == "opencode-go-usage" && row.Family != "opencode-go" {
+				if source.Protocol == "codex-oauth-wham" && row.Family != "codex" || source.Protocol == "opencode-go-usage" && row.Family != "opencode-go" || source.Protocol == "qwen-coding-plan-cli" && row.Family != "qwen" {
 					return nil, ErrIdentity
 				}
 			}
@@ -485,7 +485,7 @@ func valid(r CoreObservation, s Source) bool {
 	if r.QueryStatus != "success" {
 		return !r.RecoveryEligible
 	}
-	if r.TimestampProvenance != "upstream_http_date" || r.ReceivedAtMS < r.ObservedAtMS-60000 || r.ReceivedAtMS > time.Now().Add(time.Minute).UnixMilli() {
+	if (r.TimestampProvenance != "upstream_http_date" && r.TimestampProvenance != "local_cli_acquisition_time") || r.ReceivedAtMS < r.ObservedAtMS-60000 || r.ReceivedAtMS > time.Now().Add(time.Minute).UnixMilli() {
 		return false
 	}
 	if r.ObservedAtMS <= 0 || time.Since(time.UnixMilli(r.ObservedAtMS)) > 5*time.Minute || time.Until(time.UnixMilli(r.ObservedAtMS)) > time.Minute || len(r.Windows) == 0 {
