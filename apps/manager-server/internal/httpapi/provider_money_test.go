@@ -110,8 +110,18 @@ func TestProviderMoneyNewHighRecoversWithFailedPeerAndKeepsOtherOwner(t *testing
 		f.configureAndRefresh(key, key, 0)
 	}
 	f.enableMoney(true)
-	f.refreshMoney("FUNDING-SYNTHETIC-A1", 1)
-	f.refreshMoney("FUNDING-SYNTHETIC-A2", 1)
+	// Observe each durable completion before issuing another query or expensive
+	// full status polling against the same authenticated Core. This is harness
+	// backpressure; the product callback's 20s authorization budget is unchanged.
+	refreshAndWait := func(key string) map[string]any {
+		t.Helper()
+		job := f.refreshMoney(key, 1)
+		time.Sleep(8 * time.Second)
+		f.awaitMoneyEvaluation(job)
+		return job
+	}
+	refreshAndWait("FUNDING-SYNTHETIC-A1")
+	refreshAndWait("FUNDING-SYNTHETIC-A2")
 	f.awaitMoneyPaused(true)
 	request := f.proofRequest()
 	raw, _ := json.Marshal(request)
@@ -119,12 +129,12 @@ func TestProviderMoneyNewHighRecoversWithFailedPeerAndKeepsOtherOwner(t *testing
 	request["version"], request["sourceVersion"], request["expectedGeneration"], request["action"] = 1, gate["sourceVersion"], gate["generation"], "pause"
 	f.api("PUT", "/usage-service/provider-gate", request, 200)
 	failPeer.Store(true)
-	failed := f.refreshMoney("FUNDING-SYNTHETIC-A2", 1)["status"].(map[string]any)
+	failed := refreshAndWait("FUNDING-SYNTHETIC-A2")["status"].(map[string]any)
 	if failed["stale"] != true || failed["lastSuccess"].(map[string]any)["balances"].([]any)[0].(map[string]any)["total"] != "0.0500" {
 		t.Fatal("failed peer lost its last success")
 	}
 	high.Store(true)
-	f.refreshMoney("FUNDING-SYNTHETIC-A1", 1)
+	refreshAndWait("FUNDING-SYNTHETIC-A1")
 	f.awaitMoneyPaused(false)
 	ledger := f.ledger()
 	gates := ledger["gates"].([]any)
