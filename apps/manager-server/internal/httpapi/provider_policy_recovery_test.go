@@ -242,58 +242,73 @@ func providerPolicyRecoveryCase(t *testing.T, contrary string) {
 	}
 	update(true)
 	stopPolicy = startProviderPolicyRuntime(t, manager)
-	hideReceipts.Store(true)
-	dropACK.Store(true)
-	await(start())
-	awaitProviderPolicyCondition(t, "actual Run did not expose the lost-ACK pending pause", func() bool {
-		return operations.Load() == 1
-	})
-	state = api("GET", path, nil, 200)
-	if operations.Load() != 1 || state["ownPaused"] != true || state["applied"] == true || state["state"] != "pending" {
-		t.Fatalf("lost ACK was optimistic or lost actual pause: %+v calls=%d", state, operations.Load())
-	}
-	// A GET must neither replay the immutable operation nor mint a new one.
-	api("GET", path, nil, 200)
-	if operations.Load() != 1 {
-		t.Fatal("status GET performed a Core operation")
-	}
-	shutdownProviderPolicyManager(t, manager, stopPolicy)
-	stopPolicy = nil
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	db, err = store.Open(cfg.DBPath, protector)
-	if err != nil {
-		t.Fatal(err)
-	}
-	manager = New(cfg, db, collector.NewManager(cfg, db))
-	manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(network)
-	subscribe()
-	hideReceipts.Store(false)
-	stopPolicy = startProviderPolicyRuntime(t, manager)
-	awaitProviderPolicyCondition(t, "restarted runtime did not confirm the original immutable operation", func() bool {
-		r, err := db.ProviderPolicy(context.Background(), state["subjectId"].(string))
+	preparationCase := strings.HasSuffix(contrary, "during_prepare")
+	hideReceipts.Store(!preparationCase)
+	dropACK.Store(!preparationCase)
+	initial := start()
+	await(initial)
+	if preparationCase {
+		// Minimal setup for the preparation race: one real low query and its
+		// confirmed ordinary-Core pause. Lost ACK/restart/NULL behavior has its
+		// own unchanged test below; those faults are not preconditions here.
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		awaitProviderPolicyIdle(t, ctx, db, state["subjectId"].(string), initial)
+		cancel()
+		state = api("GET", path, nil, 200)
+		if operations.Load() != 1 || state["ownPaused"] != true || state["applied"] != true {
+			t.Fatalf("preparation fixture requires one confirmed real automatic pause: calls=%d state=%+v", operations.Load(), state)
+		}
+	} else {
+		awaitProviderPolicyCondition(t, "actual Run did not expose the lost-ACK pending pause", func() bool {
+			return operations.Load() == 1
+		})
+		state = api("GET", path, nil, 200)
+		if operations.Load() != 1 || state["ownPaused"] != true || state["applied"] == true || state["state"] != "pending" {
+			t.Fatalf("lost ACK was optimistic or lost actual pause: %+v calls=%d", state, operations.Load())
+		}
+		// A GET must neither replay the immutable operation nor mint a new one.
+		api("GET", path, nil, 200)
+		if operations.Load() != 1 {
+			t.Fatal("status GET performed a Core operation")
+		}
+		shutdownProviderPolicyManager(t, manager, stopPolicy)
+		stopPolicy = nil
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db, err = store.Open(cfg.DBPath, protector)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var document struct{ Pending json.RawMessage }
-		if err := json.Unmarshal([]byte(r.Document), &document); err != nil {
-			t.Fatal(err)
+		manager = New(cfg, db, collector.NewManager(cfg, db))
+		manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(network)
+		subscribe()
+		hideReceipts.Store(false)
+		stopPolicy = startProviderPolicyRuntime(t, manager)
+		awaitProviderPolicyCondition(t, "restarted runtime did not confirm the original immutable operation", func() bool {
+			r, err := db.ProviderPolicy(context.Background(), state["subjectId"].(string))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var document struct{ Pending json.RawMessage }
+			if err := json.Unmarshal([]byte(r.Document), &document); err != nil {
+				t.Fatal(err)
+			}
+			return len(document.Pending) == 0
+		})
+		state = api("GET", path, nil, 200)
+		if state["ownPaused"] != true || state["applied"] != true || operations.Load() != 1 {
+			t.Fatal("restart failed to confirm original operation without duplicate")
 		}
-		return len(document.Pending) == 0
-	})
-	state = api("GET", path, nil, 200)
-	if state["ownPaused"] != true || state["applied"] != true || operations.Load() != 1 {
-		t.Fatal("restart failed to confirm original operation without duplicate")
-	}
-	// Missing monetary data must retain the low reading but not renew or clear it.
-	response.Store("NULL")
-	missing := start()
-	await(missing)
-	awaitProviderPolicyEvent(t, db, missing)
-	state = api("GET", path, nil, 200)
-	if state["ownPaused"] != true || operations.Load() != 1 {
-		t.Fatal("NULL response became a recovery or zero")
+		// Missing monetary data must retain the low reading but not renew or clear it.
+		response.Store("NULL")
+		missing := start()
+		await(missing)
+		awaitProviderPolicyEvent(t, db, missing)
+		state = api("GET", path, nil, 200)
+		if state["ownPaused"] != true || operations.Load() != 1 {
+			t.Fatal("NULL response became a recovery or zero")
+		}
 	}
 	if contrary != "" {
 		response.Store("1.00")
