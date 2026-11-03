@@ -29,4 +29,3 @@ export function ProviderMoneySummary({ view }: { view?: ProviderMoneyView }) {
     </>}
   </div>;
 }
-
