@@ -19,6 +19,7 @@ import (
 	monitoringcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/monitoring"
 	officialbalancecontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/officialbalance"
 	panelcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/panel"
+	providergatecontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/providergate"
 	providerkeyaliascontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/providerkeyalias"
 	proxycontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/proxy"
 	quotacooldowncontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/quotacooldown"
@@ -53,6 +54,8 @@ func New(appCtx *app.Context) http.Handler {
 	panelHandler := &panelcontroller.Handler{App: appCtx}
 
 	mux := http.NewServeMux()
+	providerGateHandler := &providergatecontroller.Handler{App: appCtx}
+	mux.HandleFunc("/usage-service/provider-gate", providerGateHandler.Handle)
 	credentialPolicyHandler := &credentialpolicycontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/credential-policy", credentialPolicyHandler.Handle)
 	mux.HandleFunc("/usage-service/credential-policy/resume", credentialPolicyHandler.Handle)
