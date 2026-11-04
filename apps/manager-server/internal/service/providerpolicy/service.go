@@ -60,6 +60,8 @@ type Status struct {
 	OwnPaused         bool            `json:"ownPaused"`
 	Applied           bool            `json:"applied"`
 	RecoveryAvailable bool            `json:"recoveryAvailable"`
+	GateGeneration    int64           `json:"gateGeneration,omitempty"`
+	SourceVersion     string          `json:"sourceVersion,omitempty"`
 	State             string          `json:"state"`
 	Reason            string          `json:"reason"`
 	Funding           []FundingStatus `json:"funding"`
@@ -232,6 +234,8 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 	out.OwnPaused = view.gate.OwnPaused
 	out.Applied = view.gate.Applied
 	out.RecoveryAvailable = !out.Enabled && view.gate.RecoveryAvailable
+	out.GateGeneration = view.gate.Generation
+	out.SourceVersion = view.gate.SourceVersion
 	if !out.BindingCurrent {
 		out.Locked = true
 		out.Reason = "provider_authority_changed"

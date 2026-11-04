@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   getProviderPolicy,
+  recoverProviderPolicy,
   saveProviderPolicy,
   ProviderPolicyRequestError,
   validProviderPolicyBinding,
@@ -65,6 +66,10 @@ export function useProviderPolicy({
     disabled,
   ]);
   const [readRevision, setReadRevision] = useState(0);
+  const [confirmation, setConfirmation] = useState<{
+    authority: string;
+    token: string;
+  } | null>(null);
   const ready = !!(context.binding && context.base && context.managementKey && !context.disabled);
   const [view, setView] = useState<{
     context: typeof context;
@@ -77,6 +82,13 @@ export function useProviderPolicy({
   const busy = ready && (view.context !== context || !!view.busy);
   const error = view.context === context ? view.error : undefined;
   const writeLocked = view.context === context && !!view.readOnly;
+  const recoveryToken = JSON.stringify([
+    data?.generation,
+    data?.gateGeneration,
+    data?.sourceVersion,
+  ]);
+  const confirmationCurrent =
+    confirmation?.authority === context.authority && confirmation.token === recoveryToken;
   const current = useRef<typeof context | null>(null);
   const currentData = useRef<ProviderPolicyStatus | undefined>(undefined);
   const currentView = useRef(view);
@@ -329,14 +341,142 @@ export function useProviderPolicy({
   const refresh = () => {
     if (!ready || pending.current || current.current !== context || currentView.current !== view)
       return;
+    setConfirmation(null);
     setReadRevision((value) => value + 1);
   };
+
+  const requestRecoveryConfirmation = () => {
+    if (
+      !ready ||
+      !data ||
+      busy ||
+      writeLocked ||
+      pending.current ||
+      current.current !== context ||
+      !data.recoveryAvailable ||
+      data.enabled ||
+      !data.gateGeneration ||
+      !data.sourceVersion
+    )
+      return;
+    setConfirmation({ authority: context.authority, token: recoveryToken });
+  };
+
+  const cancelRecoveryConfirmation = () => setConfirmation(null);
+
+  const recover = async () => {
+    if (
+      !ready ||
+      !data ||
+      busy ||
+      writeLocked ||
+      pending.current ||
+      current.current !== context ||
+      currentView.current !== view ||
+      currentData.current !== data ||
+      !confirmationCurrent ||
+      !data.recoveryAvailable ||
+      data.enabled ||
+      !data.gateGeneration ||
+      !data.sourceVersion
+    )
+      return;
+    pending.current = true;
+    const operation = ++generation.current;
+    const valid = () => current.current === context && generation.current === operation;
+    abort.current?.abort();
+    const controller = new AbortController();
+    abort.current = controller;
+    setConfirmation(null);
+    setView({ context, data, busy: true, error });
+    let acknowledged: ProviderPolicyStatus | undefined;
+    try {
+      const saved = await recoverProviderPolicy(
+        context.base,
+        context.managementKey,
+        context.binding,
+        data.generation,
+        data.gateGeneration,
+        data.sourceVersion,
+        controller.signal
+      );
+      if (!valid()) return;
+      if (
+        saved.subjectId !== data.subjectId ||
+        saved.owner !== data.owner ||
+        saved.generation < data.generation ||
+        saved.enabled
+      )
+        throw new ProviderPolicyRequestError(409);
+      accept(saved);
+      acknowledged = saved;
+      const next = await getProviderPolicy(
+        context.base,
+        context.managementKey,
+        context.binding,
+        controller.signal
+      );
+      if (!valid()) return;
+      if (!sameSubject(next, saved) || next.generation < saved.generation)
+        throw new ProviderPolicyRequestError(409);
+      accept(next);
+      setView({ context, data: next });
+      connection?.onChanged?.();
+    } catch (failure) {
+      if (!valid()) return;
+      if (failure instanceof ProviderPolicyRequestError && [401, 403].includes(failure.status)) {
+        rejectAuthority(context.authority);
+        return;
+      }
+      if (failure instanceof ProviderPolicyRequestError && failure.status === 409) {
+        setView({ context, busy: true, error: 'conflict' });
+        try {
+          const next = await getProviderPolicy(
+            context.base,
+            context.managementKey,
+            context.binding,
+            controller.signal
+          );
+          if (!valid()) return;
+          accept(next);
+          setView({ context, data: next, error: 'conflict' });
+        } catch {
+          if (valid()) setView({ context, error: 'conflict' });
+        }
+        return;
+      }
+      if (acknowledged) {
+        setView({ context, data: acknowledged, readOnly: true, error: 'reconciliation' });
+      } else {
+        try {
+          const next = await getProviderPolicy(
+            context.base,
+            context.managementKey,
+            context.binding,
+            controller.signal
+          );
+          if (!valid()) return;
+          accept(next);
+          setView({ context, data: next, error: 'unavailable' });
+        } catch {
+          if (valid()) setView({ context, data, error: 'unavailable' });
+        }
+      }
+    } finally {
+      if (valid()) pending.current = false;
+    }
+  };
+
   return {
     data,
     busy,
     error,
     toggle,
     refresh,
+    recover,
+    requestRecoveryConfirmation,
+    cancelRecoveryConfirmation,
+    confirmationCurrent,
     canRead: ready,
     writeLocked,
     locked: !ready || !data || !!(data.locked || !data.bindingCurrent || error),

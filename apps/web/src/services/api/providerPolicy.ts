@@ -28,6 +28,9 @@ export interface ProviderPolicyStatus extends ProviderPolicyBinding {
   manualDisabled: boolean;
   ownPaused: boolean;
   applied: boolean;
+  recoveryAvailable?: boolean;
+  gateGeneration?: number;
+  sourceVersion?: string;
   state: 'off' | 'observing' | 'paused' | 'unavailable' | 'pending';
   reason: string;
   funding?: ProviderPolicyFunding[];
@@ -121,7 +124,13 @@ function readStatus(value: unknown, binding: ProviderPolicyBinding): ProviderPol
     !Number.isSafeInteger(value.generation) ||
     Number(value.generation) < 0 ||
     !Number.isSafeInteger(value.updatedAtMs) ||
-    Number(value.updatedAtMs) < 0
+    Number(value.updatedAtMs) < 0 ||
+    (value.recoveryAvailable !== undefined && typeof value.recoveryAvailable !== 'boolean') ||
+    (value.gateGeneration !== undefined &&
+      (!Number.isSafeInteger(value.gateGeneration) || Number(value.gateGeneration) < 0)) ||
+    (value.sourceVersion !== undefined &&
+      (typeof value.sourceVersion !== 'string' ||
+        !/^[0-9a-f]{64}$/.test(value.sourceVersion)))
   ) {
     throw new ProviderPolicyRequestError(409);
   }
@@ -226,3 +235,32 @@ export const saveProviderPolicy = (
   enabled: boolean,
   signal?: AbortSignal
 ) => request(base, managementKey, binding, signal, { expectedGeneration, enabled });
+
+export async function recoverProviderPolicy(
+  base: string,
+  managementKey: string,
+  binding: ProviderPolicyBinding,
+  expectedGeneration: number,
+  expectedGateGeneration: number,
+  sourceVersion: string,
+  signal?: AbortSignal
+): Promise<ProviderPolicyStatus> {
+  const response = await fetch(
+    `${base.replace(/\/$/, '')}/usage-service/provider-policy/recover`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${managementKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...binding,
+        expectedGeneration,
+        expectedGateGeneration,
+        sourceVersion,
+      }),
+      signal,
+      cache: 'no-store',
+      redirect: 'error',
+    }
+  );
+  if (!response.ok) throw new ProviderPolicyRequestError(response.status);
+  return readStatus(await response.json(), binding);
+}

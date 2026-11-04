@@ -24,8 +24,20 @@ export interface ProviderPolicyControlProps {
 
 export function ProviderPolicyControl(props: ProviderPolicyControlProps) {
   const { t } = useTranslation();
-  const { data, busy, error, locked, toggle, refresh, canRead, writeLocked } =
-    useProviderPolicy(props);
+  const {
+    data,
+    busy,
+    error,
+    locked,
+    toggle,
+    refresh,
+    recover,
+    requestRecoveryConfirmation,
+    cancelRecoveryConfirmation,
+    confirmationCurrent,
+    canRead,
+    writeLocked,
+  } = useProviderPolicy(props);
   const id = useId();
   const state = data?.state ?? 'unavailable';
   const unavailable = !data && !busy;
@@ -134,6 +146,47 @@ export function ProviderPolicyControl(props: ProviderPolicyControlProps) {
                 <span>{t('provider_policy.off_retains_pause')}</span>
               )}
             </details>
+            {!data.enabled && data.ownPaused && (
+              <div className={styles.recovery}>
+                <button
+                  type="button"
+                  disabled={busy || writeLocked || !data.recoveryAvailable}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    requestRecoveryConfirmation();
+                  }}
+                >
+                  {t('provider_policy.recover')}
+                </button>
+                {confirmationCurrent && (
+                  <div role="alertdialog" aria-label={t('provider_policy.recover_confirm_title')}>
+                    <p>{t('provider_policy.recover_confirm_body')}</p>
+                    <button
+                      type="button"
+                      disabled={busy || writeLocked || !data.recoveryAvailable}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void recover();
+                      }}
+                    >
+                      {t('provider_policy.recover_confirm')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        cancelRecoveryConfirmation();
+                      }}
+                    >
+                      {t('provider_policy.recover_cancel')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         ) : null}
       </div>
