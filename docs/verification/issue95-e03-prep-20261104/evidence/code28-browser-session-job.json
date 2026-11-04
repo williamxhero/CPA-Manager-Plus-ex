@@ -1,0 +1,158 @@
+﻿{
+    "joined":  false,
+    "id":  "38a200d9-5e84-4741-8157-b39c35f7e7e7",
+    "deadlineMs":  1793796220366,
+    "state":  "complete",
+    "binding":  {
+                    "scope":  {
+                                  "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                  "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                  "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                  "snapshot_revision":  11
+                              },
+                    "targets":  [
+                                    {
+                                        "resource_id":  "555a9930-5a19-48d9-9ac1-8a7d4624c77b",
+                                        "incarnation":  "bd33a396-f625-4ed9-9ab6-3a0628f70540",
+                                        "identity_version":  1,
+                                        "credential_version":  1,
+                                        "config_version":  1,
+                                        "membership_version":  0
+                                    },
+                                    {
+                                        "resource_id":  "b7bf7bb6-d74b-497c-b8c5-608f746f9158",
+                                        "incarnation":  "4bd987f1-cf9c-4040-b203-77d6c58f1c5c",
+                                        "identity_version":  1,
+                                        "credential_version":  1,
+                                        "config_version":  1,
+                                        "membership_version":  1
+                                    }
+                                ]
+                },
+    "version":  1,
+    "status":  {
+                   "scope":  {
+                                 "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                 "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                 "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                 "snapshot_revision":  11
+                             },
+                   "targets":  [
+                                   {
+                                       "resource_id":  "555a9930-5a19-48d9-9ac1-8a7d4624c77b",
+                                       "incarnation":  "bd33a396-f625-4ed9-9ab6-3a0628f70540",
+                                       "identity_version":  1,
+                                       "credential_version":  1,
+                                       "config_version":  1,
+                                       "membership_version":  0
+                                   },
+                                   {
+                                       "resource_id":  "b7bf7bb6-d74b-497c-b8c5-608f746f9158",
+                                       "incarnation":  "4bd987f1-cf9c-4040-b203-77d6c58f1c5c",
+                                       "identity_version":  1,
+                                       "credential_version":  1,
+                                       "config_version":  1,
+                                       "membership_version":  1
+                                   }
+                               ],
+                   "version":  1,
+                   "adapter":  "newapi-browser-session-v1",
+                   "endpoint":  "https://code28.ccwu.cc/api/user/self",
+                   "timeoutMs":  60000,
+                   "newAPI":  {
+                                  "accountScope":  "code28-user-2822",
+                                  "nativeUnit":  "newapi_quota",
+                                  "protocolConfirmed":  true,
+                                  "instanceVersion":  "code28-live-20261104",
+                                  "auth":  "browser-session-cookie-v1",
+                                  "userID":  "2822"
+                              },
+                   "browserSession":  {
+                                          "origin":  "https://code28.ccwu.cc",
+                                          "dashboardPath":  "/dashboard",
+                                          "browserInstanceId":  "5cfdda27"
+                                      },
+                   "configured":  false,
+                   "state":  "success",
+                   "managerDirectQuery":  true,
+                   "coreQuery":  false,
+                   "coreGate":  false,
+                   "stale":  false,
+                   "attempt":  {
+                                   "nativeQuota":  {
+                                                       "unit":  "newapi_quota",
+                                                       "state":  "finite",
+                                                       "remaining":  "-13156"
+                                                   },
+                                   "binding":  {
+                                                   "scope":  {
+                                                                 "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                                                 "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                                                 "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                                                 "snapshot_revision":  11
+                                                             },
+                                                   "targets":  [
+                                                                   {
+                                                                       "resource_id":  "555a9930-5a19-48d9-9ac1-8a7d4624c77b",
+                                                                       "incarnation":  "bd33a396-f625-4ed9-9ab6-3a0628f70540",
+                                                                       "identity_version":  1,
+                                                                       "credential_version":  1,
+                                                                       "config_version":  1,
+                                                                       "membership_version":  0
+                                                                   },
+                                                                   {
+                                                                       "resource_id":  "b7bf7bb6-d74b-497c-b8c5-608f746f9158",
+                                                                       "incarnation":  "4bd987f1-cf9c-4040-b203-77d6c58f1c5c",
+                                                                       "identity_version":  1,
+                                                                       "credential_version":  1,
+                                                                       "config_version":  1,
+                                                                       "membership_version":  1
+                                                                   }
+                                                               ]
+                                               },
+                                   "queryId":  "38a200d9-5e84-4741-8157-b39c35f7e7e7",
+                                   "capabilityStatus":  "supported",
+                                   "semantic":  "account_wallet",
+                                   "queryStatus":  "success",
+                                   "observedAtMs":  1793796168562
+                               },
+                   "lastSuccess":  {
+                                       "nativeQuota":  {
+                                                           "unit":  "newapi_quota",
+                                                           "state":  "finite",
+                                                           "remaining":  "-13156"
+                                                       },
+                                       "binding":  {
+                                                       "scope":  {
+                                                                     "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                                                     "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                                                     "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                                                     "snapshot_revision":  11
+                                                                 },
+                                                       "targets":  [
+                                                                       {
+                                                                           "resource_id":  "555a9930-5a19-48d9-9ac1-8a7d4624c77b",
+                                                                           "incarnation":  "bd33a396-f625-4ed9-9ab6-3a0628f70540",
+                                                                           "identity_version":  1,
+                                                                           "credential_version":  1,
+                                                                           "config_version":  1,
+                                                                           "membership_version":  0
+                                                                       },
+                                                                       {
+                                                                           "resource_id":  "b7bf7bb6-d74b-497c-b8c5-608f746f9158",
+                                                                           "incarnation":  "4bd987f1-cf9c-4040-b203-77d6c58f1c5c",
+                                                                           "identity_version":  1,
+                                                                           "credential_version":  1,
+                                                                           "config_version":  1,
+                                                                           "membership_version":  1
+                                                                       }
+                                                                   ]
+                                                   },
+                                       "queryId":  "38a200d9-5e84-4741-8157-b39c35f7e7e7",
+                                       "capabilityStatus":  "supported",
+                                       "semantic":  "account_wallet",
+                                       "queryStatus":  "success",
+                                       "observedAtMs":  1793796168562
+                                   }
+               }
+}

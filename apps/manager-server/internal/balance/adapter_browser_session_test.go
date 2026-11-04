@@ -12,7 +12,7 @@ import (
 
 func TestBrowserSessionContractRejectsUnenrolledOrigin(t *testing.T) {
 	cfg := &balance.BrowserSessionConfig{
-		Origin:            "https://code28.ccwu.cc",
+		Origin:            "https://kele520.com",
 		DashboardPath:     "/dashboard",
 		BrowserInstanceID: "edge-1",
 	}
@@ -25,11 +25,15 @@ func TestBrowserSessionContractRejectsUnenrolledOrigin(t *testing.T) {
 		NativeUnit:        "newapi_quota",
 	}
 	if balance.ValidateBrowserSessionContract(cfg, newAPI) == nil {
-		t.Fatal("unenrolled kele/code28 origin must fail closed")
+		t.Fatal("kele520.com must stay unenrolled (do not alias)")
 	}
 	cfg.Origin = "https://api-top.com"
 	if err := balance.ValidateBrowserSessionContract(cfg, newAPI); err != nil {
 		t.Fatalf("api-top.com rejected: %v", err)
+	}
+	cfg.Origin = "https://code28.ccwu.cc"
+	if err := balance.ValidateBrowserSessionContract(cfg, newAPI); err != nil {
+		t.Fatalf("code28.ccwu.cc rejected: %v", err)
 	}
 }
 

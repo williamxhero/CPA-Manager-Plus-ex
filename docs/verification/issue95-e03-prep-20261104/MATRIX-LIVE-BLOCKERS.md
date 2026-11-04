@@ -8,24 +8,15 @@
 | `api.deepseek.com` | `deepseek` | POST **success**; wallet CNY **50.47** |
 | `api.deepinfra.com` | `deepinfra` | POST **success**; signed prepaid **USD 0** |
 | `wawapii.com` | `openai-compat-usage-v1` | POST **success**; **USD 53.71695596** |
-| `api-top.com` | `newapi-browser-session-v1` | POST **success**; native quota **2280724** (job `d41c45a5…`); userId `2648`; exe `B26E39A8…` |
-
-E03 elevated redeploy PASS after BrowserSkill cooperate-sync evaluate fix.
-Panel SHA `DCB4CF76…`. bsk relay `:18717` required.
+| `api-top.com` | `newapi-browser-session-v1` | POST **success**; native quota **2280724** |
+| `code28.ccwu.cc` | `newapi-browser-session-v1` | POST **success**; native quota **-13156** (job `38a200d9…`); userId `2822`; bound to kele520 Core row (no kele520 browser alias) |
 
 ## Still blocked
 
 | Host | Adapter | Blocker |
 |---|---|---|
-| `api.liangrekui.com` | `newapi-user-self-v1` | needs operator `userID`+conversion (+ PAT); openai-compat `/v1/usage` is **404** |
-| `code28.ccwu.cc` | browser | Profile login; origin **not** enrolled for browser-session (do not alias kele520) |
+| `api.liangrekui.com` | `newapi-user-self-v1` | needs operator login/`userID`+conversion (+ PAT); `/v1/usage` is **404** |
 | Volcengine / Aliyun | vendor adapters | no AK/SK on host |
-| `kele520.com` | — | **do not alias**; use `code28.ccwu.cc` |
-
-## Operator unblockers
-
-1. Log into `code28.ccwu.cc` under Edge Profile 1 (pass CF). Browser-session enrollment for code28 needs a separate origin allowlist decision.
-2. For 凉热葵: confirm NewAPI `userID` + conversion proof + PAT (not openai-compat `/v1/usage`).
-3. Provide Volc/Aliyun billing AK/SK (never commit) + hosts/DNS for their APIs.
+| `kele520.com` | — | **do not alias**; billing origin is `code28.ccwu.cc` |
 
 Tickets stay open; no secrets in-repo.

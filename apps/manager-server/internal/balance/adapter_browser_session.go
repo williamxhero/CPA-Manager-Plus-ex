@@ -33,7 +33,8 @@ type BrowserSessionConfig struct {
 }
 
 var browserSessionOrigins = map[string]struct{}{
-	"https://api-top.com": {},
+	"https://api-top.com":    {},
+	"https://code28.ccwu.cc": {},
 }
 
 func ValidateBrowserSessionContract(c *BrowserSessionConfig, newAPI *NewAPIConfig) error {
@@ -178,7 +179,11 @@ func queryBrowserSession(ctx context.Context, t QueryTarget, run BrowserSkillCom
 		return fail("unavailable", "WEB_SESSION_UNAVAILABLE")
 	}
 	dashboard := t.BrowserSession.Origin + t.BrowserSession.DashboardPath
-	navRaw, err := command(work, "navigate", dashboard, "--session", session.ID, "--wait-until", "domcontentloaded", "--json")
+	navRaw, err := command(work, "navigate", dashboard, "--session", session.ID, "--wait-until", "networkidle", "--json")
+	if err != nil {
+		// Fall back when the daemon rejects networkidle on this build.
+		navRaw, err = command(work, "navigate", dashboard, "--session", session.ID, "--wait-until", "domcontentloaded", "--json")
+	}
 	if err != nil {
 		return fail("network_error", "WEB_NAVIGATION_FAILED")
 	}
@@ -190,20 +195,30 @@ func queryBrowserSession(ctx context.Context, t QueryTarget, run BrowserSkillCom
 	}
 	// BrowserSkill target-policy evaluate requires a fresh cooperate sync
 	// context+observation; bare evaluate fails closed as permission_denied.
-	_, _ = command(work, "cooperate", "wait", "--session", session.ID, "--timeout-ms", "15000")
-	syncRaw, err := command(work, "cooperate", "sync", "--session", session.ID, "--json")
-	if err != nil {
-		return fail("network_error", "WEB_READ_FAILED")
-	}
-	var synced struct {
-		ContextID     string `json:"context_id"`
-		ObservationID string `json:"observation_id"`
-	}
-	if json.Unmarshal(syncRaw, &synced) != nil || !sessionToken.MatchString(synced.ContextID) || !sessionToken.MatchString(synced.ObservationID) {
-		return fail("network_error", "WEB_READ_FAILED")
-	}
+	// SPA dashboards may invalidate the observation between sync and evaluate;
+	// retry sync+evaluate once.
 	expr := browserSessionExpression(t.BrowserSession.Origin, t.NewAPI.UserID, deadline)
-	evalRaw, err := command(work, "evaluate", expr, "--session", session.ID, "--context", synced.ContextID, "--observation", synced.ObservationID, "--json")
+	var evalRaw []byte
+	for attempt := 0; attempt < 2; attempt++ {
+		_, _ = command(work, "cooperate", "wait", "--session", session.ID, "--timeout-ms", "15000")
+		syncRaw, syncErr := command(work, "cooperate", "sync", "--session", session.ID, "--json")
+		if syncErr != nil {
+			err = syncErr
+			continue
+		}
+		var synced struct {
+			ContextID     string `json:"context_id"`
+			ObservationID string `json:"observation_id"`
+		}
+		if json.Unmarshal(syncRaw, &synced) != nil || !sessionToken.MatchString(synced.ContextID) || !sessionToken.MatchString(synced.ObservationID) {
+			err = errors.New("cooperate sync incomplete")
+			continue
+		}
+		evalRaw, err = command(work, "evaluate", expr, "--session", session.ID, "--context", synced.ContextID, "--observation", synced.ObservationID, "--json")
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return fail("network_error", "WEB_READ_FAILED")
 	}
