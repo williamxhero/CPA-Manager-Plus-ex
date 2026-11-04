@@ -28,15 +28,16 @@ type Binding struct {
 }
 type Config struct {
 	Binding
-	Version        int64                     `json:"version"`
-	Adapter        string                    `json:"adapter"`
-	Endpoint       string                    `json:"endpoint"`
-	PrivateTargets []string                  `json:"privateTargets,omitempty"`
-	TimeoutMS      int64                     `json:"timeoutMs,omitempty"`
-	NewAPI         *balance.NewAPIConfig     `json:"newAPI,omitempty"`
-	Volcengine     *balance.VolcengineConfig `json:"volcengine,omitempty"`
-	Aliyun         *balance.AliyunConfig     `json:"aliyun,omitempty"`
-	Web            *balance.WebConfig        `json:"web,omitempty"`
+	Version        int64                         `json:"version"`
+	Adapter        string                        `json:"adapter"`
+	Endpoint       string                        `json:"endpoint"`
+	PrivateTargets []string                      `json:"privateTargets,omitempty"`
+	TimeoutMS      int64                         `json:"timeoutMs,omitempty"`
+	NewAPI         *balance.NewAPIConfig         `json:"newAPI,omitempty"`
+	BrowserSession *balance.BrowserSessionConfig `json:"browserSession,omitempty"`
+	Volcengine     *balance.VolcengineConfig     `json:"volcengine,omitempty"`
+	Aliyun         *balance.AliyunConfig         `json:"aliyun,omitempty"`
+	Web            *balance.WebConfig            `json:"web,omitempty"`
 }
 type Update struct {
 	Config
@@ -229,7 +230,7 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	if u.Version < 0 || u.Version >= 9007199254740991 || len(u.Secret) > 8192 || u.ClearSecret && strings.TrimSpace(u.Secret) != "" || u.TimeoutMS < 0 || u.TimeoutMS > 60000 || len(u.PrivateTargets) > 16 {
 		return Status{}, ErrInput
 	}
-	if u.Adapter != "deepseek" && u.Adapter != "deepinfra" && u.Adapter != balance.NewAPIUserSelfV1 && u.Adapter != balance.NewAPITokenUsageV1 && u.Adapter != balance.VolcengineAccountBalanceV20220101 && u.Adapter != balance.AliyunPrepaidCashV20171214 && u.Adapter != balance.LaysoBillingWebV1 {
+	if u.Adapter != "deepseek" && u.Adapter != "deepinfra" && u.Adapter != balance.OpenAICompatUsageV1 && u.Adapter != balance.NewAPIUserSelfV1 && u.Adapter != balance.NewAPITokenUsageV1 && u.Adapter != balance.NewAPIBrowserSessionV1 && u.Adapter != balance.VolcengineAccountBalanceV20220101 && u.Adapter != balance.AliyunPrepaidCashV20171214 && u.Adapter != balance.LaysoBillingWebV1 {
 		return Status{}, ErrInput
 	}
 	if u.Adapter == balance.LaysoBillingWebV1 {
@@ -265,11 +266,20 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	} else if u.Volcengine != nil {
 		return Status{}, ErrInput
 	}
+	if u.Adapter == balance.NewAPIBrowserSessionV1 {
+		if balance.ValidateBrowserSessionContract(u.BrowserSession, u.NewAPI) != nil || strings.TrimSpace(u.Secret) != "" {
+			return Status{}, ErrInput
+		}
+		u.Endpoint = u.BrowserSession.Origin + balance.NewAPIBrowserSessionPath
+		u.ClearSecret = true
+	} else if u.BrowserSession != nil {
+		return Status{}, ErrInput
+	}
 	if u.Adapter == balance.NewAPIUserSelfV1 || u.Adapter == balance.NewAPITokenUsageV1 {
 		if balance.ValidateNewAPIContract(u.Adapter, u.NewAPI) != nil {
 			return Status{}, ErrInput
 		}
-	} else if u.NewAPI != nil {
+	} else if u.Adapter != balance.NewAPIBrowserSessionV1 && u.NewAPI != nil {
 		return Status{}, ErrInput
 	}
 	if u.Endpoint == "" && u.Adapter == "deepseek" {
@@ -384,7 +394,7 @@ func (s *Service) readRecord(ctx context.Context, b Binding, r store.OfficialBal
 			out.State = "ready"
 		}
 	} else {
-		out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra" || out.Adapter == balance.VolcengineAccountBalanceV20220101 && balance.ValidateVolcengineContract(out.Volcengine) == nil || out.Adapter == balance.AliyunPrepaidCashV20171214 && balance.ValidateAliyunContract(out.Aliyun) == nil || ((out.Adapter == balance.NewAPIUserSelfV1 || out.Adapter == balance.NewAPITokenUsageV1) && balance.ValidateNewAPIContract(out.Adapter, out.NewAPI) == nil)
+		out.DirectQuery = out.Adapter == "deepseek" || out.Adapter == "deepinfra" || out.Adapter == balance.OpenAICompatUsageV1 || out.Adapter == balance.VolcengineAccountBalanceV20220101 && balance.ValidateVolcengineContract(out.Volcengine) == nil || out.Adapter == balance.AliyunPrepaidCashV20171214 && balance.ValidateAliyunContract(out.Aliyun) == nil || ((out.Adapter == balance.NewAPIUserSelfV1 || out.Adapter == balance.NewAPITokenUsageV1) && balance.ValidateNewAPIContract(out.Adapter, out.NewAPI) == nil) || (out.Adapter == balance.NewAPIBrowserSessionV1 && balance.ValidateBrowserSessionContract(out.BrowserSession, out.NewAPI) == nil)
 		if !out.DirectQuery {
 			out.State = "unsupported"
 		} else if r.Configured {

@@ -15,9 +15,9 @@
 
 | conter 站点 | base | 方法 | CPA 冻结 host | CPA 落点 |
 |---|---|---|---|---|
-| WawAPI | `https://wawapii.com` | `openai_new_api` → `/v1/usage`，字段 `balance`，divisor 1 | `wawapii.com` | #74：需确认是否走 NewAPI 合同或独立 usage 语义（非 `/api/user/self`） |
-| Top-API | `https://api-top.com` | `browser_session` → `/dashboard` + `/api/user/self` + user_id | `api-top.com` | #74 会话连接器（登录态同站只读）；展示 ×7 仅 UI |
-| 可乐AI | `https://code28.ccwu.cc`（**非** kele520） | 同上 browser_session | 清单有 `kele520.com` | **主机不一致**：须按 CPA 当前实例核验，不能把 code28 配置直接当 kele520 |
+| WawAPI | `https://wawapii.com` | `openai_new_api` → `/v1/usage`，字段 `balance`，divisor 1 | `wawapii.com` | **已落** `openai-compat-usage-v1`：`GET /v1/usage` → 精确 USD `account_wallet`（非 NewAPI quota / 非 ×7） |
+| Top-API | `https://api-top.com` | `browser_session` → `/dashboard` + `/api/user/self` + user_id | `api-top.com` | **已落** `newapi-browser-session-v1`：同站会话只读原生 `newapi_quota`（不导出 cookie；×7 不进观测） |
+| 可乐AI | `https://code28.ccwu.cc`（**非** kele520） | 同上 browser_session | 清单有 `kele520.com` | **主机不一致**：origin 未 enrollment；禁止把 code28 当 kele520 |
 | 凉热葵 | `https://api.liangrekui.com` | `openai_new_api` → `/api/user/self` + `New-Api-User`，`data.quota`/500000 | `api.liangrekui.com` | #74 已有 `newapi-user-self-v1` 路径；转换须显式 operator 合同 |
 | DeepInfra | `https://api.deepinfra.com` | `deepinfra_billing` checklist | `api.deepinfra.com` | #73 已交付 signed prepaid（原生 USD；×7 不进观测） |
 | （无） | — | — | `api.layso.ai` | #97 只读 `/billing` 页；不猜 DOM；不走 NewAPI |

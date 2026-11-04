@@ -30,8 +30,10 @@ func TestBalanceIntegrationCapabilityAndFailureContract(t *testing.T) {
 		"volcengine-account-balance-v2022-01-01": "account_wallet",
 		"deepseek":                               "account_wallet",
 		"deepinfra":                              "signed_prepaid_net",
+		"openai-compat-usage-v1":                 "account_wallet",
 		"newapi-user-self-v1":                    "account_wallet",
 		"newapi-token-usage-v1":                  "key_remaining",
+		"newapi-browser-session-v1":              "account_wallet",
 	}
 	if err != nil || len(caps) != len(expectedScopes) {
 		t.Fatalf("capabilities: %+v %v", caps, err)

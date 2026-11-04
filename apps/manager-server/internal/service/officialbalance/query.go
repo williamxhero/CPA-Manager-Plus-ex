@@ -170,7 +170,7 @@ func (s *Service) run(job Job, st Status, flight, id string) {
 				webCancel()
 			}
 		} else {
-			obs, err = s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI, Volcengine: st.Volcengine, Aliyun: st.Aliyun}, resolver{s.Store, id, st.Version})
+			obs, err = s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI, BrowserSession: st.BrowserSession, Volcengine: st.Volcengine, Aliyun: st.Aliyun}, resolver{s.Store, id, st.Version})
 		}
 	}
 	// Revalidate full Core scope/versions, even after failures; no cached authority.

@@ -300,14 +300,16 @@ export function ProviderDetailDrawer({
       const endpoint = new URL(row.baseUrl);
       balanceSupported =
         endpoint.protocol === 'https:' &&
-        ['api.deepseek.com', 'api.deepinfra.com'].includes(endpoint.hostname);
+        ['api.deepseek.com', 'api.deepinfra.com', 'wawapii.com'].includes(endpoint.hostname);
       if (endpoint.hostname === 'api.deepinfra.com') balanceAdapter = 'deepinfra';
+      if (endpoint.hostname === 'wawapii.com') balanceAdapter = 'openai-compat-usage-v1';
       // Current candidates expose a MANUAL contract editor only. No protocol, endpoint,
       // account, permission or quota conversion is inferred from this domain.
       compatibleCandidate =
         endpoint.protocol === 'https:' &&
         [
           'api.liangrekui.com',
+          'api-top.com',
           'ark.cn-beijing.volces.com',
           'dashscope.aliyuncs.com',
           'token-plan.cn-beijing.maas.aliyuncs.com',

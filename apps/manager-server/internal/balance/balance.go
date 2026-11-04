@@ -32,10 +32,11 @@ type QueryTarget struct {
 	// Credential reference (opaque, resolved by host)
 	CredentialRef string
 	// Account scope (user ID, account ID, or empty for key-level)
-	AccountScope string
-	NewAPI       *NewAPIConfig
-	Volcengine   *VolcengineConfig
-	Aliyun       *AliyunConfig
+	AccountScope   string
+	NewAPI         *NewAPIConfig
+	BrowserSession *BrowserSessionConfig
+	Volcengine     *VolcengineConfig
+	Aliyun         *AliyunConfig
 	// Currency/unit info for interpretation
 	Currency       string
 	UnitMultiplier string // decimal string

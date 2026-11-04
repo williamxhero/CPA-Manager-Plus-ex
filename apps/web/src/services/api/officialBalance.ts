@@ -7,11 +7,18 @@ export interface BalanceBinding {
 export type OfficialBalanceAdapter =
   | 'deepseek'
   | 'deepinfra'
+  | 'openai-compat-usage-v1'
   | 'volcengine-account-balance-v2022-01-01'
   | 'aliyun-prepaid-cash-v2017-12-14'
   | 'newapi-user-self-v1'
   | 'newapi-token-usage-v1'
+  | 'newapi-browser-session-v1'
   | 'layso_billing_web_v1';
+export interface BrowserSessionConfig {
+  origin: string;
+  dashboardPath: '/dashboard';
+  browserInstanceId: string;
+}
 export interface WebBalanceSource {
   site: 'layso';
   accountId: string;
@@ -99,6 +106,7 @@ export interface OfficialBalanceStatus extends BalanceBinding {
   aliyun?: AliyunBalanceProfile;
   volcengine?: VolcengineBalanceProfile;
   newAPI?: NewAPIConfig;
+  browserSession?: BrowserSessionConfig;
   version: number;
   adapter: string;
   endpoint: string;

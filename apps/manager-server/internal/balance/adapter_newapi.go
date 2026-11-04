@@ -317,6 +317,10 @@ func ValidateNewAPIContract(adapter string, c *NewAPIConfig) error {
 		if c.UserID != "" || c.Auth != NewAPIInferenceKeyReadOnlyV1 {
 			return bad
 		}
+	case NewAPIBrowserSessionV1:
+		if strings.TrimSpace(c.AccountScope) == "" || !newAPIUserID.MatchString(c.UserID) || c.Auth != NewAPIBrowserSessionAuthV1 {
+			return bad
+		}
 	default:
 		return bad
 	}

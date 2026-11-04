@@ -34,10 +34,12 @@ func ValidateAdapterSource(adapter, endpoint string, permits []string) error {
 		path = "/user/balance"
 	case "deepinfra":
 		path = "/payment/checklist"
-	case NewAPIUserSelfV1:
+	case NewAPIUserSelfV1, NewAPIBrowserSessionV1:
 		path = "/api/user/self"
 	case NewAPITokenUsageV1:
 		path = "/api/usage/token/"
+	case OpenAICompatUsageV1:
+		path = OpenAICompatUsagePath
 	default:
 		return errors.New("invalid adapter")
 	}

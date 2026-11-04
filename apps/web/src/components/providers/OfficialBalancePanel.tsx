@@ -8,6 +8,7 @@ import {
   type OfficialBalanceAdapter,
   type NewAPIConfig,
   type NewAPIConversionProfile,
+  type BrowserSessionConfig,
   type VolcengineBalanceProfile,
   type AliyunBalanceProfile,
   type WebBalanceSource,
@@ -22,19 +23,23 @@ import { WebBalanceFields, WebBalanceObservation } from './WebBalanceFields';
 const endpoints: Record<OfficialBalanceAdapter, string> = {
   deepseek: 'https://api.deepseek.com/user/balance',
   deepinfra: 'https://api.deepinfra.com/payment/checklist',
+  'openai-compat-usage-v1': 'https://wawapii.com/v1/usage',
   'volcengine-account-balance-v2022-01-01': 'https://billing.volcengineapi.com/',
   'aliyun-prepaid-cash-v2017-12-14': 'https://business.aliyuncs.com/',
   'newapi-user-self-v1': '',
   'newapi-token-usage-v1': '',
+  'newapi-browser-session-v1': 'https://api-top.com/api/user/self',
   layso_billing_web_v1: 'https://layso.ai/billing',
 };
 const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =>
   value === 'deepseek' ||
   value === 'deepinfra' ||
+  value === 'openai-compat-usage-v1' ||
   value === 'volcengine-account-balance-v2022-01-01' ||
   value === 'aliyun-prepaid-cash-v2017-12-14' ||
   value === 'newapi-user-self-v1' ||
   value === 'newapi-token-usage-v1' ||
+  value === 'newapi-browser-session-v1' ||
   value === 'layso_billing_web_v1';
 const observedTime = (ms: number | undefined): string =>
   typeof ms === 'number' && Number.isFinite(ms) && ms > 0 && !Number.isNaN(new Date(ms).getTime())
@@ -45,7 +50,16 @@ const nativeContract = (adapter: string): NewAPIConfig => ({
   instanceVersion: '',
   nativeUnit: 'newapi_quota',
   auth:
-    adapter === 'newapi-token-usage-v1' ? 'inference-key-readonly-v1' : 'user-pat-with-user-id-v1',
+    adapter === 'newapi-token-usage-v1'
+      ? 'inference-key-readonly-v1'
+      : adapter === 'newapi-browser-session-v1'
+        ? 'browser-session-cookie-v1'
+        : 'user-pat-with-user-id-v1',
+});
+const emptyBrowserSession = (): BrowserSessionConfig => ({
+  origin: 'https://api-top.com',
+  dashboardPath: '/dashboard',
+  browserInstanceId: '',
 });
 const emptyConversion = (): NewAPIConversionProfile => ({
   confirmed: false,
@@ -108,6 +122,7 @@ export function OfficialBalancePanel({
     permits: undefined as string | undefined,
     clear: false,
     newAPI: undefined as NewAPIConfig | undefined,
+    browserSession: undefined as BrowserSessionConfig | undefined,
     volcengine: undefined as VolcengineBalanceProfile | undefined,
     volcengineSecret: undefined as VolcengineBillingCredentials | undefined,
     aliyun: undefined as AliyunBalanceProfile | undefined,
@@ -138,15 +153,23 @@ export function OfficialBalancePanel({
           aliyun: undefined as AliyunBalanceProfile | undefined,
           aliyunSecret: undefined as AliyunBillingCredentials | undefined,
           web: undefined as WebBalanceSource | undefined,
+          browserSession: undefined as BrowserSessionConfig | undefined,
         };
   const selectedAdapter =
     edit.adapter ?? (isAdapter(data?.adapter) ? data.adapter : compatibleCandidate ? '' : adapter);
   const isNewAPI =
-    selectedAdapter === 'newapi-user-self-v1' || selectedAdapter === 'newapi-token-usage-v1';
+    selectedAdapter === 'newapi-user-self-v1' ||
+    selectedAdapter === 'newapi-token-usage-v1' ||
+    selectedAdapter === 'newapi-browser-session-v1';
+  const isBrowserSession = selectedAdapter === 'newapi-browser-session-v1';
   const isVolcengine = selectedAdapter === 'volcengine-account-balance-v2022-01-01';
   const isAliyun = selectedAdapter === 'aliyun-prepaid-cash-v2017-12-14';
   const isBillingProfile = isVolcengine || isAliyun;
   const isWeb = selectedAdapter === 'layso_billing_web_v1';
+  const browserSession =
+    edit.browserSession ??
+    (data?.adapter === selectedAdapter ? data.browserSession : undefined) ??
+    emptyBrowserSession();
   const web =
     edit.web ?? (data?.adapter === selectedAdapter ? data.web : undefined) ?? emptyWebSource();
   const incompleteWeb =
@@ -276,7 +299,7 @@ export function OfficialBalancePanel({
                       .filter(Boolean)
                   : (previous.privateTargets ?? []),
             timeoutMs: previous.timeoutMs ?? 15000,
-            secret: isWeb
+            secret: isWeb || isBrowserSession
               ? ''
               : isAliyun
                 ? hasAliyunSecret
@@ -287,8 +310,15 @@ export function OfficialBalancePanel({
                     ? JSON.stringify(volcengineSecret)
                     : ''
                   : edit.secret,
-            clearSecret: isWeb ? false : edit.clear,
+            clearSecret: isWeb || isBrowserSession ? true : edit.clear,
             ...(isNewAPI ? { newAPI: contract } : {}),
+            ...(isBrowserSession
+              ? {
+                  browserSession,
+                  endpoint: `${browserSession.origin}/api/user/self`,
+                  privateTargets: [],
+                }
+              : {}),
             ...(isVolcengine ? { volcengine } : {}),
             ...(isAliyun ? { aliyun } : {}),
             ...(isWeb ? { web, endpoint: endpoints.layso_billing_web_v1 } : {}),
@@ -324,6 +354,7 @@ export function OfficialBalancePanel({
               aliyun: undefined as AliyunBalanceProfile | undefined,
               aliyunSecret: undefined as AliyunBillingCredentials | undefined,
               web: undefined as WebBalanceSource | undefined,
+              browserSession: undefined as BrowserSessionConfig | undefined,
             });
         }
       } else if (previous) {
@@ -422,6 +453,7 @@ export function OfficialBalancePanel({
                         secret: '',
                         clear: false,
                         newAPI: undefined,
+                        browserSession: undefined,
                         volcengine: undefined,
                         volcengineSecret: undefined,
                         aliyun: undefined,
@@ -435,6 +467,9 @@ export function OfficialBalancePanel({
                   </option>
                   <option value="deepseek">DeepSeek · account_wallet</option>
                   <option value="deepinfra">DeepInfra · signed_prepaid_net</option>
+                  <option value="openai-compat-usage-v1">
+                    OpenAI 兼容 · GET /v1/usage · account_wallet
+                  </option>
                   <option value="volcengine-account-balance-v2022-01-01">
                     火山引擎 · account_wallet · 独立账务授权
                   </option>
@@ -443,6 +478,9 @@ export function OfficialBalancePanel({
                   </option>
                   <option value="newapi-user-self-v1">NewAPI · account_wallet · 原生额度</option>
                   <option value="newapi-token-usage-v1">NewAPI · key_remaining · 原生额度</option>
+                  <option value="newapi-browser-session-v1">
+                    NewAPI · 浏览器同站会话 · account_wallet
+                  </option>
                   <option value="layso_billing_web_v1">LAYSO · 只读网页账户余额</option>
                 </select>
               </label>
@@ -520,6 +558,10 @@ export function OfficialBalancePanel({
                           </option>
                           <option value="user-pat-v1">已确认的 PAT-only 版本</option>
                         </>
+                      ) : selectedAdapter === 'newapi-browser-session-v1' ? (
+                        <option value="browser-session-cookie-v1">
+                          已登录浏览器同站会话（不导出 Cookie）
+                        </option>
                       ) : (
                         <option value="inference-key-readonly-v1">
                           选定推理 Key 的只读用量协议
@@ -527,7 +569,25 @@ export function OfficialBalancePanel({
                       )}
                     </select>
                   </label>
-                  {selectedAdapter === 'newapi-user-self-v1' && (
+                  {isBrowserSession && (
+                    <label>
+                      BrowserSkill 实例 ID
+                      <input
+                        aria-label="BrowserSkill 实例 ID"
+                        value={browserSession.browserInstanceId}
+                        onChange={(e) =>
+                          setEditor({
+                            ...edit,
+                            browserSession: {
+                              ...browserSession,
+                              browserInstanceId: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                  )}
+                  {(selectedAdapter === 'newapi-user-self-v1' || isBrowserSession) && (
                     <>
                       <label>
                         查询账户范围
@@ -697,7 +757,7 @@ export function OfficialBalancePanel({
                   operator_asserted_contract_not_live_verified
                 </p>
               )}
-              {!isBillingProfile && !isWeb && (
+              {!isBillingProfile && !isWeb && !isBrowserSession && (
                 <label>
                   只读查询密钥
                   <input
@@ -710,7 +770,7 @@ export function OfficialBalancePanel({
                   />
                 </label>
               )}
-              {!isWeb && (
+              {!isWeb && !isBrowserSession && (
                 <>
                   <p>空白仅在来源合同未变时保留现有密钥；不要填写 Core 管理密钥。</p>
                   <label>
@@ -729,13 +789,13 @@ export function OfficialBalancePanel({
                 查询 HTTPS 地址
                 <input
                   aria-label="查询 HTTPS 地址"
-                  value={endpoint}
-                  readOnly={isBillingProfile || isWeb}
+                  value={isBrowserSession ? `${browserSession.origin}/api/user/self` : endpoint}
+                  readOnly={isBillingProfile || isWeb || isBrowserSession}
                   disabled={controlsDisabled}
                   onChange={(event) => setEditor({ ...edit, endpoint: event.target.value })}
                 />
               </label>
-              {!isBillingProfile && !isWeb && (
+              {!isBillingProfile && !isWeb && !isBrowserSession && (
                 <label>
                   明确允许的私网 IP（逐项精确授权，逗号分隔）
                   <input
@@ -753,6 +813,10 @@ export function OfficialBalancePanel({
                   !selectedAdapter ||
                   (isNewAPI && !contract.protocolConfirmed) ||
                   (isNewAPI && !!conversion && !conversion.confirmed) ||
+                  (isBrowserSession &&
+                    (!browserSession.browserInstanceId.trim() ||
+                      !contract.userID?.trim() ||
+                      !contract.accountScope?.trim())) ||
                   incompleteVolcengine ||
                   incompleteAliyun ||
                   incompleteWeb ||
