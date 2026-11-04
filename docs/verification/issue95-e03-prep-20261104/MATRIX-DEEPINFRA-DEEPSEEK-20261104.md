@@ -42,6 +42,15 @@ Exclude these hosts from Clash fake-IP (or give LocalService a resolver that
 returns public A/AAAA), then re-POST. Do not add `198.18.*` to
 `privateTargets`.
 
+Prepared on this host (pending Clash Verge reload — `verge-mihomo` stop was
+Access Denied without elevation):
+
+- `profiles/Merge.yaml` and runtime `clash-verge.yaml` /
+  `dns_config.yaml` now list `api.deepseek.com` / `+.deepseek.com` /
+  `api.deepinfra.com` / `+.deepinfra.com` under `fake-ip-filter`
+- After Verge applies Merge (or elevated mihomo restart), flush DNS and
+  re-POST OfficialBalance; answers must leave `198.18.0.0/15`
+
 ## Non-claims
 
 - Tickets stay open.
