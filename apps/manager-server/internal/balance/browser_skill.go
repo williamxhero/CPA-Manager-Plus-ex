@@ -267,8 +267,16 @@ func (b *BrowserSkill) Query(ctx context.Context, q WebRequest) (out Observation
 		return fail("network_error", "WEB_NAVIGATION_FAILED")
 	}
 	var page WebPage
+	// LAYSO Account balance Credits are aria-hidden in the VOM observe tree
+	// (2026-11-04). That rule reads the same ordinary page via get-html. Other
+	// rules keep observe. Still no evaluate, storage, cookies, or private API.
+	htmlRule := q.Source.ParsingRule == LaysoDashboardModelsRuleV1
 	for i := 0; i < 2; i++ {
-		raw, err = command(work, "observe", "--session", session.ID, "--json", "--max-tokens", "12000")
+		if htmlRule {
+			raw, err = command(work, "get-html", "--session", session.ID, "--json", "--max-bytes", "2097152")
+		} else {
+			raw, err = command(work, "observe", "--session", session.ID, "--json", "--max-tokens", "12000")
+		}
 		if err != nil {
 			return fail("network_error", "WEB_READ_FAILED")
 		}
@@ -326,3 +334,4 @@ func runBrowserSkill(ctx context.Context, args ...string) ([]byte, error) {
 
 // No eval, storage, cookies, private APIs, login, account switching, user-tab
 // borrowing, daemon restart, alternate browser selector or browser backend.
+// LAYSO may use get-html on the fixed ordinary page when observe hides Credits.

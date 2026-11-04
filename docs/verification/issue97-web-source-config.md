@@ -1,4 +1,4 @@
-# Issue #97: web source registration and controlled observation slices
+﻿# Issue #97: web source registration and controlled observation slices
 
 These slices add authenticated registration, a read-only BrowserSkill driver
 boundary, and durable observation readback for a declared LAYSO web balance
@@ -40,7 +40,7 @@ are accepted only when installed in the trusted host registry. That registry is
 empty by default. A real LAYSO rule still requires an observed normal page; no
 DOM selectors or guessed page labels are defined here.
 
-The host fixes `endpoint` to `https://layso.ai/billing`; callers may omit it or
+The host fixes `endpoint` to `https://layso.ai/dashboard/models`; callers may omit it or
 send that exact value. Other URLs, private IP permits, nonempty secrets, mixed API
 contracts, and unknown JSON fields (including scripts/selectors) are rejected.
 Existing API adapters retain their existing HTTPS and SSRF validation path.

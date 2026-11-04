@@ -1,0 +1,5 @@
+*.json
+*.png
+*.txt
+_*.py
+!README.md

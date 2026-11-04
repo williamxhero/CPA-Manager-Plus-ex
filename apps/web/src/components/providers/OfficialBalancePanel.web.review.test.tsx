@@ -1,4 +1,4 @@
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+﻿import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { OfficialBalancePanel } from './OfficialBalancePanel';
 import type { BalanceBinding } from '@/services/api/officialBalance';
@@ -27,7 +27,7 @@ const status = () => ({
   ...binding,
   version: 1,
   adapter: 'layso_billing_web_v1',
-  endpoint: 'https://layso.ai/billing',
+  endpoint: 'https://layso.ai/dashboard/models',
   web: {
     site: 'layso',
     accountId: 'review-account',

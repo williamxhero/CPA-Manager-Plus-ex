@@ -3,7 +3,10 @@ package balance
 import "errors"
 
 const LaysoBillingWebV1 = "layso_billing_web_v1"
-const LaysoBillingPage = "https://layso.ai/billing"
+
+// LaysoBillingPage is the observed logged-in wallet surface (Account balance).
+// /billing is recharge history; /dashboard/usage Total spend is cumulative spend.
+const LaysoBillingPage = "https://layso.ai/dashboard/models"
 
 // WebConfig registers expected read-only source authority. These declarations
 // are not proof of browser/profile mapping, a login, or account/key ownership.

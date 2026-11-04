@@ -29,7 +29,7 @@ const endpoints: Record<OfficialBalanceAdapter, string> = {
   'newapi-user-self-v1': '',
   'newapi-token-usage-v1': '',
   'newapi-browser-session-v1': 'https://api-top.com/api/user/self',
-  layso_billing_web_v1: 'https://layso.ai/billing',
+  layso_billing_web_v1: 'https://layso.ai/dashboard/models',
 };
 const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =>
   value === 'deepseek' ||

@@ -1,4 +1,4 @@
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+﻿import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { OfficialBalancePanel } from './OfficialBalancePanel';
@@ -143,7 +143,7 @@ it.skipIf(!directory)(
       await wait(exact);
       expect(text()).toContain('USD');
       expect(text()).toContain('网页账户余额');
-      expect(text()).toContain('https://layso.ai/billing');
+      expect(text()).toContain('https://layso.ai/dashboard/models');
       expect(text()).toContain(f.config.web.accountId);
       expect(text()).toContain('controlled_fixture');
       expect(text()).not.toContain('平台可用标志');

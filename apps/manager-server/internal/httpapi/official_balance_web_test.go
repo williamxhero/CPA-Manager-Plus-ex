@@ -1,4 +1,4 @@
-package httpapi
+﻿package httpapi
 
 import (
 	"encoding/json"
@@ -43,7 +43,7 @@ func TestOfficialBalanceWebConfigurationPersistsWithoutSecret(t *testing.T) {
 	if registered["configured"] != true || registered["version"] != float64(1) || registered["state"] != "unavailable" || registered["reason"] != "web_source_verification_required" || registered["managerDirectQuery"] != false || registered["coreQuery"] != false || registered["coreGate"] != false {
 		t.Fatalf("registration must persist without granting query or gate authority: %s", rr.Body.String())
 	}
-	if registered["endpoint"] != "https://layso.ai/billing" || !reflect.DeepEqual(registered["web"], webConfiguration(0)["web"]) || registered["attempt"] != nil || registered["lastSuccess"] != nil {
+	if registered["endpoint"] != "https://layso.ai/dashboard/models" || !reflect.DeepEqual(registered["web"], webConfiguration(0)["web"]) || registered["attempt"] != nil || registered["lastSuccess"] != nil {
 		t.Fatalf("lost source contract or invented observation: %s", rr.Body.String())
 	}
 	// Reopen the real temporary SQLite file and reconstruct the public API.
@@ -104,8 +104,8 @@ func TestOfficialBalanceWebRejectsUnsafeConfiguration(t *testing.T) {
 		{"arbitrary-url", func(b map[string]any) { b["endpoint"] = "https://example.com/billing" }},
 		{"http", func(b map[string]any) { b["endpoint"] = "http://layso.ai/billing" }},
 		{"private-api", func(b map[string]any) { b["endpoint"] = "https://layso.ai/api/billing" }},
-		{"url-query", func(b map[string]any) { b["endpoint"] = "https://layso.ai/billing?account=other" }},
-		{"url-fragment", func(b map[string]any) { b["endpoint"] = "https://layso.ai/billing#other" }},
+		{"url-query", func(b map[string]any) { b["endpoint"] = "https://layso.ai/dashboard/models?account=other" }},
+		{"url-fragment", func(b map[string]any) { b["endpoint"] = "https://layso.ai/dashboard/models#other" }},
 		{"url-userinfo", func(b map[string]any) { b["endpoint"] = "https://user@layso.ai/billing" }},
 		{"script", func(b map[string]any) { b["script"] = "document.cookie" }},
 		{"selector", func(b map[string]any) { b["selector"] = ".invented" }},
