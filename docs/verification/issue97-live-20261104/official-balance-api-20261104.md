@@ -16,7 +16,7 @@ Evidence that Inventory works on this host:
 - Manager `PUT /usage-service/config` re-aligned
   `cpaBaseUrl=http://127.0.0.1:8317` + management key from the same file
 
-## OfficialBalance web source registration (PASS)
+## OfficialBalance web source registration (PASS — corrected binding)
 
 ```http
 PUT /usage-service/official-balance
@@ -31,25 +31,29 @@ Payload (binding + web contract):
   executionUser=`will`, browser family=`microsoft-edge` profile=`Profile 1`
   instanceId=`5cfdda27`, currency=`USD`,
   parsingRule=`layso-dashboard-models-account-balance-v1`
-- Core binding (complete openai-compatibility provider+credential group used
-  for this registration):
-  - provider `068a7783-00cf-40e3-a900-ced04834afbe`
-  - credential `27c51563-3dcd-424b-b591-21d93637e27f`
-  - scope revision 11
+- Core binding (claude family, `base-url=https://api.layso.ai` from Core
+  management config — resource IDs only, no secrets recorded):
+  - provider `b341a945-0b64-40cd-ac80-3423e53211cf`
+  - credential `14e6284d-b958-408f-947b-20df38076981`
 
 Result: HTTP 200, `configured=true`, `version=1`,
-`webSourceAuthority=1829ec0e2595c450353cc6ba404a86b3336e8ba34f54cebc31c41f2a4055059d`,
-`managerDirectQuery=true`, SQLite `official_balance_sources` row present.
+`webSourceAuthority=78206120372d5529d13eca87c5654cf3ed8939c3f2af91fb01362a6fe31c593f`,
+`managerDirectQuery=true`, GET status `state=ready`.
 
-`GET …/web-enrollment` → `collectionAuthorized=true`, `parserSupported=true`,
-`state=not_registered` (HTTP registration stays pending; host attestation
-already authorizes collection).
+### Misbind correction
+
+An earlier attempt incorrectly attached `layso_billing_web_v1` to the
+openai-compatibility DeepInfra group (`068a7783…` / `27c51563…`). That was
+replaced with `adapter=deepinfra` + `clearSecret=true` → `configured=false`
+(version 2). No secrets were written in evidence.
+
+Codex Layso twin (`b3452588…` / `9c6eea89…`, `https://api.layso.ai/v1`) remains
+available for a separate OfficialBalance row if needed.
 
 ## Manager-driven collection (BLOCKED on service account)
 
-`POST /usage-service/official-balance` → 202 jobs
-`4ff2badb-…` and `e9b30659-…` complete with
-`queryStatus=unavailable`, `errorCode=WEB_BROWSER_UNAVAILABLE`.
+`POST /usage-service/official-balance` on the corrected Layso binding still
+completes with `queryStatus=unavailable`, `errorCode=WEB_BROWSER_UNAVAILABLE`.
 
 Root cause on this machine:
 
@@ -69,9 +73,6 @@ not attempted here without an explicit password/account change.
 
 ## Non-claims
 
-- The Core resource group above is an openai-compatibility inventory binding
-  used to satisfy OfficialBalance identity fences; host display-name mapping
-  to “Layso” among the four openai-compat providers is not yet proven from
-  Core catalog labels (Core resources API has no display name field).
 - Tickets #97/#95/#88 stay open.
-- No issue close; no production secret dump.
+- No issue close; no production secret dump; Core `api-keys` values never
+  copied into this tree.

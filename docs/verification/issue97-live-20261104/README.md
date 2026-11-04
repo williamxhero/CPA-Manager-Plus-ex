@@ -61,11 +61,12 @@ Observed: `QueryStatus=success`, `AmountDecimal=46.92`, `Currency=USD`, `Verific
 ## OfficialBalance API (same day, later)
 
 - `GET /usage-service/resource-capabilities` → `core_contract_unverified` is **Status() stub only**; Inventory works (full-refresh shows live Core scope).
-- `PUT /usage-service/official-balance` LAYSO web source **PASS** (`configured=true`, authority `1829ec0e…`). Details: `official-balance-api-20261104.md`
+- `PUT /usage-service/official-balance` LAYSO web source **PASS** on claude/`api.layso.ai` group `b341a945…`+`14e6284d…` (`configured=true`, authority `78206120…`, GET `state=ready`). Details: `official-balance-api-20261104.md`
+- Misbind to DeepInfra openai-compat group was corrected back to `adapter=deepinfra` / `configured=false`
 - Manager `POST` collection → `WEB_BROWSER_UNAVAILABLE` while service runs as `LocalService` (user-session BrowserSkill `5cfdda27` not visible). PATH-only WinSW fix insufficient.
 
 ## Still open before issue close
 
 - Manager-path BrowserSkill under a service identity that can reach instance `5cfdda27` (or host relay)
-- Confirm which openai-compatibility Core resource group is the Layso provider among the four local ones
+- Optional: second OfficialBalance row on codex Layso twin `b3452588…`/`9c6eea89…`
 - Do not close #97/#95/#88; do not commit raw HTML dumps
