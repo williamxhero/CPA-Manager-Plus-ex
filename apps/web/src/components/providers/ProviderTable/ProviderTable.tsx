@@ -20,6 +20,11 @@ import {
 import { ResourceProtectionIndicator } from '@/features/resourceProtection/ResourceProtectionIndicator';
 import type { ResourceProtectionCapability, ResourceProtectionEvidence } from '@/features/resourceProtection/resourceProtection';
 import { ProviderPolicyControl, type ProviderPolicyConnection } from '../ProviderPolicyControl';
+import { ProviderMoneySummary } from '../ProviderMoneySummary';
+import {
+  useProviderMoneySummaries,
+  type ProviderMoneyStatusConfig,
+} from '../useProviderMoneySummaries';
 import { ProviderStatusBar } from '../ProviderStatusBar';
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from './kindMeta';
 import type { ProviderRow } from './rowData';
@@ -27,6 +32,7 @@ import styles from './ProviderTable.module.scss';
 
 interface ProviderTableProps {
   rows: ProviderRow[];
+  moneyStatus?: ProviderMoneyStatusConfig;
   resourceProtection?: ResourceProtectionCapability;
   resourceProtectionForRow?: (row: ProviderRow) => ResourceProtectionEvidence;
   providerPolicyConnection?: ProviderPolicyConnection;
@@ -165,6 +171,7 @@ function PriorityControl({
 
 export function ProviderTable({
   rows,
+  moneyStatus,
   resourceProtection,
   resourceProtectionForRow,
   providerPolicyConnection,
@@ -180,6 +187,7 @@ export function ProviderTable({
   onPriorityChange,
 }: ProviderTableProps) {
   const { t } = useTranslation();
+  const money = useProviderMoneySummaries(rows, moneyStatus);
 
   if (loading && rows.length === 0) {
     return <div className="hint">{t('common.loading')}</div>;
@@ -266,6 +274,7 @@ export function ProviderTable({
                   )}
                 </ProviderPolicyControl>
               </div>
+              {row.kind === 'openai' && <ProviderMoneySummary view={money[row.key]} />}
             </div>
 
             <div className={styles.cellUrl} role="cell" title={row.baseUrl || undefined}>
