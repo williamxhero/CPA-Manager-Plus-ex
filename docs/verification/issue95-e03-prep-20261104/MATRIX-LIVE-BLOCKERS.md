@@ -18,4 +18,12 @@ Other frozen hosts remain blocked for live Manager query as follows:
 - `CPAMP_WEB_BROWSER_ATTESTATION` + host attestation file
 - LocalService → `127.0.0.1:18717` bsk relay (`CPA-BSK-Relay` AtLogOn)
 
+## Operator unblockers (no secrets in-repo)
+
+1. DeepInfra / DeepSeek / WawAPI / 凉热葵: `PUT /usage-service/official-balance` with the
+   correct Core complete source group + adapter + `secret` (never paste into git).
+2. api-top.com: log into `https://api-top.com/dashboard` under Edge Profile 1, then
+   register `newapi-browser-session-v1` with that origin’s `user_id` and instance `5cfdda27`.
+3. Keep Scheduled Task `CPA-BSK-Relay` / agent on `:18717` while LocalService Manager runs.
+
 Tickets stay open; no secrets recorded here.
