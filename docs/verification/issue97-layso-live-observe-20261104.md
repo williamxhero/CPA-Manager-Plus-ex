@@ -22,6 +22,13 @@ After dismissing a “Message Center” dialog, the billing URL rendered a **pub
 - A real `parsingRule` still requires an **authenticated** normal billing page observation that shows durable identity + finite USD amount.
 - Closing #97 remains blocked until: Profile 1↔instance proof, logged-in billing page observe×2 match, and installed parser enrollment.
 
+## Follow-up (same day)
+
+- Re-navigate `https://layso.ai/billing` again: **final_url redirected to `https://layso.ai/`** with Sign-in dialog (still signed out).
+- Sync activity showed a human attempting Sign in and hitting **“human check is initializing…”** (captcha). Agent must not complete captcha/password.
+- `bsk request-help --prompt …` on session `lbka` **timed_out** without a confirmed logged-in billing page.
+- Local Edge disk has a directory named `Profile 1` (display name `Hinh`). This is **not** BrowserSkill Profile↔instance proof; `5cfdda27` remains unmapped until extension “Copy profile instructions”.
+
 ## Artifacts
 
-Raw observe dumps were captured locally for operator review and are **not** committed (may contain transient UI chatter). This note is the durable evidence.
+Raw observe dumps were captured locally for operator review and are **not** committed (may contain transient UI chatter / form defaults). This note is the durable evidence.
