@@ -17,6 +17,30 @@ import (
 
 type Handler struct{ App *app.Context }
 
+func (h *Handler) HandleMigration(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	middleware.WriteCORS(h.App.Config, w, r)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(204)
+		return
+	}
+	if !middleware.AuthorizePanel(w, r, h.App.AdminAuthService) {
+		return
+	}
+	if r.Method != http.MethodGet {
+		response.MethodNotAllowed(w)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	out, err := h.App.Store.ProviderPolicyMigrationReadiness(ctx)
+	if err != nil {
+		response.JSON(w, 503, map[string]string{"error": "provider_policy_migration_unavailable"})
+		return
+	}
+	response.JSON(w, 200, out)
+}
+
 func (h *Handler) HandleRecovery(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	middleware.WriteCORS(h.App.Config, w, r)
