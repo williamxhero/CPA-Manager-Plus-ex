@@ -24,4 +24,15 @@ Against running `LocalCPAManagerPlus` after E03:
 - Result: **ALL_OK** — see `s03-save-evidence.json` (secrets redacted).
 - Panel hash gate already matched installed `management.html`.
 
-Still open for #88 close: browser UI click-path / visual confirmation if required by SPEC wording beyond API; S04 branch audit/cleanup.
+## S03 browser UI path (2026-11-04, later)
+
+Against the same Running install + BrowserSkill `5cfdda27` (user session):
+
+1. `bsk session start --browser 5cfdda27 --no-focus`
+2. `navigate` → `http://127.0.0.1:18317/management.html` (session already authenticated; `登出` visible)
+3. `cooperate sync --policy target` → click sidebar `@e13` “AI 提供商”
+4. Observe banner **AI 提供商**; table includes `OpenAI Qwen-Compat` among provider rows
+
+Compact evidence: `s03-browser-path-evidence.json`. Full VOM dumps stay local / untracked.
+
+Still open for #88 close: in-UI excluded-models edit/save click-through (API path already ALL_OK); S04 cleanup awaits explicit delete auth.

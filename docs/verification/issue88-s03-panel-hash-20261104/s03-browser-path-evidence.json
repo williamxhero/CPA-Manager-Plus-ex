@@ -1,0 +1,22 @@
+{
+  "session_browser": "5cfdda27",
+  "nav": "http://127.0.0.1:18317/management.html → click AI 提供商 @e13 via cooperate sync",
+  "banner": "AI 提供商",
+  "provider_rows": [
+    "类型 标识 地址 模型 优先级 近期请求 启用 操作",
+    "Claude sk******1c",
+    "Claude sk******9A",
+    "Codex LS-Free",
+    "OpenAI DeepSeek",
+    "OpenAI Qwen-Compat",
+    "OpenAI DeepInfra",
+    "Claude sk******Pk",
+    "Codex AT1",
+    "Codex WWP3",
+    "Codex AT2"
+  ],
+  "qwen_visible": true,
+  "opencode_visible": false,
+  "observation_id": "a9a5324c-8df9-4858-bc49-3a3c6d56a9c3",
+  "note": "Browser UI reached providers table while logged in; S03 excluded-models save/restore already proven via Core management API (s03-save-evidence.json). Full VOM kept local, not committed."
+}
