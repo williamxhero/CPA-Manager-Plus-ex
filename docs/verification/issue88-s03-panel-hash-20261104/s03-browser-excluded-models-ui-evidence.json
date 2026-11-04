@@ -1,0 +1,13 @@
+﻿{
+    "download_after":  "excluded_models list_len=12 has_probe=false (UI save did not persist)",
+    "save_result":  "UI error toast: Credential save/runtime validation failed; rollback could not be confirmed",
+    "ui_edit":  "filled textbox with s03-ui-probe-20261104; Save enabled (未保存)",
+    "core_direct_patch":  "PATCH http://127.0.0.1:8317/v0/management/auth-files/fields with excluded-models probe -\u003e 200 ok",
+    "conclusion":  "S03 API path remains ALL_OK; S03 in-UI save path FAILS with Manager/Core 409 + UI rollback message — blocks #88 close; go-live can proceed with API-proven path but UI fix needed",
+    "at":  "2026-11-04T23:45:00+08:00",
+    "path":  "凭证管理 \u003e Qwen \u003e 配置 \u003e 排除模型（excluded_models）",
+    "network":  [
+                    "GET /v0/management/model-definitions/qwen -\u003e 400",
+                    "PATCH /v0/management/auth-files/fields -\u003e 200 then 409 (retry)"
+                ]
+}

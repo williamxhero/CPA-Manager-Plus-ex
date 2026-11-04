@@ -38,3 +38,14 @@ Compact evidence: `s03-browser-path-evidence.json`. Full VOM dumps stay local / 
 Also opened **Qwen-Compat** detail dialog via BrowserSkill (s03-browser-qwen-detail-evidence.json): shows 官方余额 section + model list (qwen3.8-max / qwen3.8-flash).
 
 Still open for #88 close: in-UI excluded-models edit/save click-through (API path already ALL_OK); S04 cleanup awaits explicit delete auth.
+
+## S03 browser UI excluded-models (2026-11-04 night)
+
+Opened 凭证管理 → Qwen → 配置, edited `排除模型（excluded_models）`, clicked 保存.
+
+- UI toast: `Credential save/runtime validation failed; rollback could not be confirmed. Reload before retrying.`
+- Network: `PATCH .../auth-files/fields` returned **409** (after a 200); `model-definitions/qwen` **400**
+- Direct Core PATCH on `:8317` with same probe → **200 ok**
+- Download after: probe **not** persisted (fail-closed)
+
+Evidence: `s03-browser-excluded-models-ui-evidence.json`. **#88 still open** for this UI path; API S03 remains ALL_OK.
