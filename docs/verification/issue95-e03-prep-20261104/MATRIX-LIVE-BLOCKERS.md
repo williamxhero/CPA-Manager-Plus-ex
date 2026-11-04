@@ -9,18 +9,16 @@
 | `api.deepinfra.com` | `deepinfra` | POST **success**; signed prepaid **USD 0** |
 | `wawapii.com` | `openai-compat-usage-v1` | POST **success**; **USD 53.71695596** |
 | `api-top.com` | `newapi-browser-session-v1` | POST **success**; native quota **2280724** |
-| `code28.ccwu.cc` | `newapi-browser-session-v1` | POST **success**; native quota **-13156**; userId `2822`; kele520 Core bind (no kele alias) |
+| `code28.ccwu.cc` | `newapi-browser-session-v1` | POST **success**; native quota **-13156**; kele520 Core bind |
 | `api.liangrekui.com` | `newapi-browser-session-v1` | POST **success**; quota **172900** → CNY **0.3458** |
 | `billing.volcengineapi.com` (Doubao) | `volcengine-account-balance-v2022-01-01` | POST **success**; CNY **122.35** |
 
-## Aliyun = local CLI (not OfficialBalance AK/SK)
+## Deferred (operator 2026-11-04 ~23:36)
 
-| Path | Status |
+| Item | Decision |
 |---|---|
-| `bailian-quota.exe --json --source bsk` | **keep this form**; Token Plan / console reading via BrowserSkill |
-| OfficialBalance `aliyun-prepaid-cash-v2017-12-14` | **do not pursue** for this matrix (operator: continue CLI) |
-
-Live gate now: Edge+BrowserSkill connected (`5cfdda27`), but Bailian console shows **登录** — operator must sign in on `https://bailian.console.aliyun.com/` in that profile, then re-run CLI.
+| Aliyun / Bailian Token Plan via `bailian-quota --source bsk` | **SKIP for now** — Bailian console login / bsk Edge flaky; resume after CPA go-live |
+| OfficialBalance Aliyun AK/SK | **not pursued** (operator: keep CLI form later) |
 
 ## Other
 
@@ -28,4 +26,4 @@ Live gate now: Edge+BrowserSkill connected (`5cfdda27`), but Bailian console sho
 |---|---|
 | `kele520.com` | **do not alias**; billing origin is `code28.ccwu.cc` |
 
-Tickets stay open; no secrets in-repo.
+Tickets stay open; no secrets in-repo. Priority shifts to remaining SPECs for CPA online deploy.
