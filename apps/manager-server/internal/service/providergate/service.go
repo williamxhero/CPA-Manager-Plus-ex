@@ -145,6 +145,7 @@ type prepared struct {
 	status    Status
 	record    store.ProviderGateRecord
 	doc       document
+	receipt   result
 	core      session
 	ledger    ledger
 	settled   bool
@@ -234,6 +235,8 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 		}
 		op := out.doc.Operation
 		out.status.EvidenceID = op.EvidenceID
+		out.status.UpdatedAtMS = out.doc.UpdatedAtMS
+		out.status.ReceiptPersisted = validReceipt(op, out.doc.Receipt)
 		out.status.Action, out.status.State, out.status.Reason = op.Action, "pending", "operation_outcome_unverified"
 		receipt := out.doc.Receipt
 		if sameInstance(op.Scope, b.Scope) && receipt.OpID == "" {
@@ -253,6 +256,7 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 				}
 			}
 		}
+		out.receipt = receipt
 		out.settled = out.settled || sameInstance(op.Scope, b.Scope) && validReceipt(op, receipt)
 		if sameInstance(op.Scope, b.Scope) && reflect.DeepEqual(op.Targets, b.Targets) {
 			if confirms(op, receipt, out.ledger) {

@@ -33,6 +33,8 @@ type Update struct {
 }
 
 type Status struct {
+	ReceiptPersisted bool  `json:"receiptPersisted"`
+	UpdatedAtMS      int64 `json:"updatedAtMs"`
 	Binding
 	SubjectID     string `json:"subjectId"`
 	Owner         string `json:"owner"`

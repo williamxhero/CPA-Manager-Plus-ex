@@ -252,7 +252,15 @@ func (s *Service) reconcilePending(ctx context.Context, r store.ProviderPolicyRe
 			if err := s.Store.CheckCredentialPolicyLease(ctx, lease, time.Now().UnixMilli()); err != nil {
 				return err
 			}
-			_, err = s.gate.ReconcileEvidence(ctx, pg.Binding(b), s.currentEvidence(r, view.sources, lease))
+			binding := pg.Binding(b)
+			adopted, err := s.gate.AdoptMonetaryReceipt(ctx, binding)
+			if err != nil {
+				return err
+			}
+			if adopted.Settled {
+				return nil
+			}
+			_, err = s.gate.ReconcileEvidence(ctx, binding, s.currentEvidence(r, view.sources, lease))
 			return err
 		}
 		return nil

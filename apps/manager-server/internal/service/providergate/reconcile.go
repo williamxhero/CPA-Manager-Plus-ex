@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"time"
 )
 
 // Reconcile retries only the EXACT durable immutable command. A transport
@@ -20,6 +21,32 @@ func (s *Service) ReconcileEvidence(ctx context.Context, b Binding, current Evid
 		return Status{}, ErrInput
 	}
 	return s.reconcile(ctx, b, current)
+}
+
+// AdoptMonetaryReceipt only saves a Core-verified receipt for an already
+// journalled immutable command. It never POSTs, clears a restriction, or
+// treats a missing operation as applied. Automatic replay remains separate.
+func (s *Service) AdoptMonetaryReceipt(ctx context.Context, b Binding) (Status, error) {
+	if !s.monetary {
+		return Status{}, ErrInput
+	}
+	out, err := s.prepare(ctx, b)
+	if err != nil {
+		return Status{}, err
+	}
+	if out.record.Generation == 0 || validReceipt(out.doc.Operation, out.doc.Receipt) {
+		return out.status, nil
+	}
+	if !sameInstance(out.doc.Operation.Scope, b.Scope) || !reflect.DeepEqual(out.doc.Operation.Targets, canonical(b).Targets) || out.doc.Operation.SourceVersion != out.status.SourceVersion || !validReceipt(out.doc.Operation, out.receipt) {
+		return out.status, nil
+	}
+	out.doc.Receipt = out.receipt
+	out.doc.UpdatedAtMS = time.Now().UnixMilli()
+	raw, _ := json.Marshal(out.doc)
+	if err := s.store.CompleteProviderGate(ctx, out.record, string(raw)); err != nil {
+		return out.status, err
+	}
+	return s.Status(ctx, b)
 }
 
 func (s *Service) reconcile(ctx context.Context, b Binding, current EvidenceGuard) (Status, error) {
