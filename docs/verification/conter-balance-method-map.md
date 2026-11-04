@@ -20,7 +20,7 @@
 | 可乐AI | `https://code28.ccwu.cc`（**非** kele520） | 同上 browser_session | 清单有 `kele520.com` | **主机不一致**：origin 未 enrollment；禁止把 code28 当 kele520 |
 | 凉热葵 | `https://api.liangrekui.com` | `openai_new_api` → `/api/user/self` + `New-Api-User`，`data.quota`/500000 | `api.liangrekui.com` | #74 已有 `newapi-user-self-v1` 路径；转换须显式 operator 合同 |
 | DeepInfra | `https://api.deepinfra.com` | `deepinfra_billing` checklist | `api.deepinfra.com` | #73 已交付 signed prepaid（原生 USD；×7 不进观测） |
-| LAYSO | `https://layso.ai` | 只读普通页 Account balance（非 API） | `layso.ai` | #97 **已落** `layso_billing_web_v1`：固定页 `/dashboard/models`，规则 `layso-dashboard-models-account-balance-v1`（get-html）；host attestation Enrollment；live enrolled query Credits `46.92`（`c745df5a`）；本机 Manager `PUT /usage-service/official-balance` 绑 Core claude/`api.layso.ai`（`b341a945…`/`14e6284d…`，authority `78206120…`，GET ready）；误绑 DeepInfra 已改回 `deepinfra`；Manager `POST` 在 LocalService 下仍 `WEB_BROWSER_UNAVAILABLE`（见 `issue97-live-20261104/official-balance-api-20261104.md`）。`/billing`=充值历史，勿当剩余 |
+| LAYSO | `https://layso.ai` | 只读普通页 Account balance（非 API） | `layso.ai` | #97 **已落** `layso_billing_web_v1`：固定页 `/dashboard/models`，规则 `layso-dashboard-models-account-balance-v1`；host attestation；live enrolled `46.92`；Manager `PUT` 绑 Core claude/`api.layso.ai`（`b341a945…`/`14e6284d…`）；Manager `POST` **success Credits 46.92**（job `60fa1e2d…`）经 LocalService→`127.0.0.1:18717` bsk relay（见 `issue97-live-20261104/official-balance-api-20261104.md`）。`/billing`=充值历史，勿当剩余 |
 
 ## CPA 约束（相对 conter）
 

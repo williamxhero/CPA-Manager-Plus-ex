@@ -50,26 +50,23 @@ replaced with `adapter=deepinfra` + `clearSecret=true` → `configured=false`
 Codex Layso twin (`b3452588…` / `9c6eea89…`, `https://api.layso.ai/v1`) remains
 available for a separate OfficialBalance row if needed.
 
-## Manager-driven collection (BLOCKED on service account)
+## Manager-driven collection (PASS via localhost bsk relay)
 
-`POST /usage-service/official-balance` on the corrected Layso binding still
-completes with `queryStatus=unavailable`, `errorCode=WEB_BROWSER_UNAVAILABLE`.
+Earlier POSTs under bare `LocalService` failed with
+`WEB_BROWSER_UNAVAILABLE` (service cannot see user-session BrowserSkill).
 
-Root cause on this machine:
+Host fix (runtime only, not committed as a product feature):
 
-- Service `LocalCPAManagerPlus` runs as `NT AUTHORITY\LocalService`
-- BrowserSkill instance `5cfdda27` is connected in the interactive user
-  session (`will`); `bsk browsers --json` as that user lists it
-- Manager invokes `exec.CommandContext(..., "bsk", …)`; LocalService cannot
-  see the user-session BrowserSkill daemon even after WinSW `PATH` includes
-  `C:\Users\will\.local\bin` (XML backup under
-  `runtime/CPA-Manager-Plus/deploy-backups/LocalCPAManagerPlus.xml.bak-*`)
+1. User-session agent `runtime/CPA-Manager-Plus/bsk-relay/bsk-relay-agent.ps1`
+   listens on `127.0.0.1:18717` and runs real `bsk` (PID tracked at start).
+2. `runtime/CPA-Manager-Plus/bin/bsk.exe` TCP-forwards argv to that agent.
+3. WinSW `PATH` prefers that `bin` directory (XML backups under
+   `runtime/CPA-Manager-Plus/deploy-backups/LocalCPAManagerPlus.xml.bak-*`).
 
-Workaround already proven outside the service process: package-level live
-enrolled query (`TestLiveLaysoEnrolledDashboardModelsQuery`) as user `will`
-→ Credits `46.92`. Closing Manager-path collection needs the service to run
-in an identity that can reach BrowserSkill (or an equivalent host relay) —
-not attempted here without an explicit password/account change.
+`POST /usage-service/official-balance` on the corrected Layso binding then
+returned job `60fa1e2d-…` with `queryStatus=success`, `amountDecimal=46.92`,
+`currency=USD`, status `state=success`,
+`verification=verified_browser`, authority `78206120…`.
 
 ## Non-claims
 
