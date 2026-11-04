@@ -57,9 +57,15 @@ Observed: `QueryStatus=success`, `AmountDecimal=46.92`, `Currency=USD`, `Verific
 - Installed exe SHA-256 `46A85F91…`; panel `087C71D3…`; service `LocalCPAManagerPlus` Running
 - Host file `D:\WILL\AGENT\CPA\runtime\CPA-Manager-Plus\host-attestation.json` + WinSW env `CPAMP_WEB_BROWSER_ATTESTATION`
 - Live enrolled BrowserSkill query rechecked this tick: Credits **46.92** PASS (`5cfdda27`)
-- Manager `/usage-service/resource-capabilities` → `identity.state=unknown` / `core_contract_unverified` — cannot yet register LAYSO web source through OfficialBalance API until Core management contract verifies
+
+## OfficialBalance API (same day, later)
+
+- `GET /usage-service/resource-capabilities` → `core_contract_unverified` is **Status() stub only**; Inventory works (full-refresh shows live Core scope).
+- `PUT /usage-service/official-balance` LAYSO web source **PASS** (`configured=true`, authority `1829ec0e…`). Details: `official-balance-api-20261104.md`
+- Manager `POST` collection → `WEB_BROWSER_UNAVAILABLE` while service runs as `LocalService` (user-session BrowserSkill `5cfdda27` not visible). PATH-only WinSW fix insufficient.
 
 ## Still open before issue close
 
-- Core contract verification so OfficialBalance web enrollment can be configured on the running Manager
+- Manager-path BrowserSkill under a service identity that can reach instance `5cfdda27` (or host relay)
+- Confirm which openai-compatibility Core resource group is the Layso provider among the four local ones
 - Do not close #97/#95/#88; do not commit raw HTML dumps
