@@ -1,6 +1,7 @@
 # Matrix live blockers on LocalCPAManagerPlus (2026-11-04)
 
-Layso OfficialBalance Manager path is green (claude + codex twins, 46.92).
+Layso OfficialBalance Manager path is green (claude + codex twins, 46.92),
+including panel UI readback (`configured` / `USD 46.92`) after `bd880e9a`.
 Other frozen hosts remain blocked for live Manager query as follows:
 
 | Host | Adapter | Blocker |

@@ -71,3 +71,9 @@ Observed: `QueryStatus=success`, `AmountDecimal=46.92`, `Currency=USD`, `Verific
 - Codex Layso twin OfficialBalance also **PASS** (`1b55357e…`, 46.92)
 - Remaining matrix hosts (DeepInfra/DeepSeek/Volc/WawAPI/NewAPI) still need operator secrets or browser-session enrollment before Manager query
 - Do not close #97/#95/#88; do not commit raw HTML dumps
+
+## UI binding readback (2026-11-04 evening)
+
+- Panel hot-swap SHA256 `DCB4CF7636288CB10048A07DF4CC4FA85B29CEE246A33E91857E8A7A7B0626C6` (commit `bd880e9a`)
+- Claude + Codex Layso detail: `configured` / `h7w8` / `USD 46.92`
+- Tickets stay open
