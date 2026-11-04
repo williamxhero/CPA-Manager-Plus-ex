@@ -1,11 +1,15 @@
 *.exe
 *.sqlite
+*.sqlite-*
 *.db
 *.log
+*.lock
 /data/
+/artifacts/
+/deploy-run/
+/rehearsal*/
 *.key
 admin*.txt
 SMOKE-*.txt
-
 config.json
-
+host-attestation.json
