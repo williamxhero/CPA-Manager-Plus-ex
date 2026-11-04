@@ -216,9 +216,9 @@
       "manual_disabled": true,
       "credential_count": 1,
       "has_durable_marker": false,
-      "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "delivered_protocol": "deepinfra_payment_checklist_signed_prepaid_net",
+      "implementation_readiness": "synthetic_API_SQLite_TLS_and_UI_verified_by_ticket73",
+      "real_runtime_readiness": "not_reprobed; live authorized DeepInfra window remains PARTIAL for #85"
     },
     {
       "audit_locator": "configured/openai-compatibility/1",
@@ -327,5 +327,5 @@
       "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
     }
   ],
-  "scope": "Only DeepSeek adapter implemented; none of these historical readiness rows imply current deployed identity or authorization readiness."
+  "scope": "DeepSeek (#71) and DeepInfra signed prepaid (#73) adapters implemented on this lineage. OpenRouter absent from this frozen inventory → N/A for #73. Compat/NewAPI/Layso/Volcengine/Aliyun hosts remain other tickets. None of these rows imply current deployed identity or live authorization readiness."
 }

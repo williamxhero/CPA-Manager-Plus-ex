@@ -2,9 +2,12 @@
 
 This implements **DeepSeek `GET /user/balance` only**. It does not implement an
 hourly scheduler, automatic policy, Core quota acquisition, or a Core gate ACK.
-The former DeepInfra `/v1/billing` / `recent_usage` float scaffold is disabled;
-DeepInfra capability remains unsupported pending #73. No inference credential is
-read from Core or exported to the browser for this feature.
+DeepInfra `GET /payment/checklist` signed prepaid (`-(stripe_balance+recent)` as
+USD `signed_prepaid_net`) is delivered under #73 with exact decimal debt and
+failure-retains-stale-success semantics. The old `/v1/billing` / `recent_usage`
+float scaffold remains rejected. OpenRouter is out of #73 scope when absent from
+the frozen inventory. No inference credential is read from Core or exported to
+the browser for this feature.
 
 ## Public management seam
 
