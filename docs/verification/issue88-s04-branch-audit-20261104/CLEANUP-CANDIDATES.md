@@ -1,30 +1,17 @@
-# S04 cleanup candidates (need explicit delete authorization)
+﻿# S04 cleanup candidates
 
-Do **not** execute until operator says delete/cleanup is allowed.
+## Done (2026-11-04)
 
-## Manager (integration)
+| Ref | Action |
+|---|---|
+| branch `spec/92-qwen-manager-policy` | **deleted** on origin after removing worktree `implement-spec92-20261102/worktrees/manager-qwen-policy`; tip already carries equivalents (`18f98a99` / `55b5e9a2` / `4b20a7e7` family) |
+
+## Still retained
 
 | Ref | Reason |
 |---|---|
-| branch `spec/92-qwen-manager-policy` | 4 unique commits superseded by tip equivalents `18f98a99` / `55b5e9a2` / `4b20a7e7` |
+| worktree `manager-combined-731b18-ef611899-01` | separate combined branch |
+| worktree `manager-policy82` | #82 policy line |
+| CPA-Qwen / OpenCode remote branches | cross-repo inventory only |
 
-## CPA-Qwen
-
-| Ref | Note |
-|---|---|
-| `spec/92-qwen-cli-*`, `spec/92-qwen-gate`, `spec/92-qwen-process-reaping`, `codex/spec92-qwen-coding-lane` | Still checked out / linked; audit unique commits before delete |
-
-## CPA-OpenCode-ex
-
-| Ref | Note |
-|---|---|
-| `spec/92-opencode-gate`, `spec/92-opencode-quota` | Inventory only |
-
-## Worktrees
-
-| Path | Branch |
-|---|---|
-| `manager-combined-731b18-ef611899-01` | `spec92/combined-20261103` |
-| `manager-policy82` | `spec82/provider-policy-20261103` |
-
-Keep `manager-canonical82-closing` / `spec92/conter-balance-method-map-20261104` — active delivery branch.
+Keep `manager-canonical82-closing` / `spec92/conter-balance-method-map-20261104`.
