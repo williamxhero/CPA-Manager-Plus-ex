@@ -1,0 +1,5 @@
+recorded_at=2026-11-04T16:58:27+08:00
+cwd=apps/web
+command=npx vitest run ProviderPolicyControl.test.tsx ProviderTable.money.test.tsx
+result=Test Files 2 passed; Tests 67 passed
+duration_s=1.31
