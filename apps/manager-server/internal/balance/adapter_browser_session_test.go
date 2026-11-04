@@ -46,7 +46,15 @@ func TestBrowserSessionQueryNativeQuota(t *testing.T) {
 			return []byte(`{"stopped":["sess-1"]}`), nil
 		case len(args) >= 1 && args[0] == "navigate":
 			return []byte(`{"final_url":"https://api-top.com/dashboard"}`), nil
+		case len(args) >= 2 && args[0] == "cooperate" && args[1] == "wait":
+			return []byte(`{"ready":true}`), nil
+		case len(args) >= 2 && args[0] == "cooperate" && args[1] == "sync":
+			return []byte(`{"context_id":"ctx-1","observation_id":"obs-1"}`), nil
 		case len(args) >= 1 && args[0] == "evaluate":
+			joined := strings.Join(args, " ")
+			if !strings.Contains(joined, "--context ctx-1") || !strings.Contains(joined, "--observation obs-1") {
+				t.Fatalf("evaluate missing cooperate ids: %#v", args)
+			}
 			return []byte(`{"ok":true,"value":{"status":"ok","origin":"https://api-top.com","http_status":200,"success":true,"user_id":"42","balance":"123456"}}`), nil
 		default:
 			t.Fatalf("unexpected args: %#v", args)
@@ -93,6 +101,10 @@ func TestBrowserSessionLoginRequired(t *testing.T) {
 			return []byte(`{"stopped":["sess-1"]}`), nil
 		case args[0] == "navigate":
 			return []byte(`{"final_url":"https://api-top.com/dashboard"}`), nil
+		case args[0] == "cooperate" && args[1] == "wait":
+			return []byte(`{"ready":true}`), nil
+		case args[0] == "cooperate" && args[1] == "sync":
+			return []byte(`{"context_id":"ctx-1","observation_id":"obs-1"}`), nil
 		case args[0] == "evaluate":
 			return []byte(`{"ok":true,"value":{"status":"login","origin":"https://api-top.com"}}`), nil
 		default:

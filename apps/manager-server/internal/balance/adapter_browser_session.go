@@ -188,8 +188,22 @@ func queryBrowserSession(ctx context.Context, t QueryTarget, run BrowserSkillCom
 	if json.Unmarshal(navRaw, &navigated) != nil || !sameOrigin(navigated.FinalURL, t.BrowserSession.Origin) {
 		return fail("auth_error", "WEB_ORIGIN_MISMATCH")
 	}
+	// BrowserSkill target-policy evaluate requires a fresh cooperate sync
+	// context+observation; bare evaluate fails closed as permission_denied.
+	_, _ = command(work, "cooperate", "wait", "--session", session.ID, "--timeout-ms", "15000")
+	syncRaw, err := command(work, "cooperate", "sync", "--session", session.ID, "--json")
+	if err != nil {
+		return fail("network_error", "WEB_READ_FAILED")
+	}
+	var synced struct {
+		ContextID     string `json:"context_id"`
+		ObservationID string `json:"observation_id"`
+	}
+	if json.Unmarshal(syncRaw, &synced) != nil || !sessionToken.MatchString(synced.ContextID) || !sessionToken.MatchString(synced.ObservationID) {
+		return fail("network_error", "WEB_READ_FAILED")
+	}
 	expr := browserSessionExpression(t.BrowserSession.Origin, t.NewAPI.UserID, deadline)
-	evalRaw, err := command(work, "evaluate", expr, "--session", session.ID, "--json")
+	evalRaw, err := command(work, "evaluate", expr, "--session", session.ID, "--context", synced.ContextID, "--observation", synced.ObservationID, "--json")
 	if err != nil {
 		return fail("network_error", "WEB_READ_FAILED")
 	}

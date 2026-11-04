@@ -1,0 +1,158 @@
+﻿{
+    "joined":  false,
+    "id":  "d41c45a5-cdc3-421a-b3f2-3729e8285f75",
+    "deadlineMs":  1793795684949,
+    "state":  "complete",
+    "binding":  {
+                    "scope":  {
+                                  "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                  "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                  "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                  "snapshot_revision":  11
+                              },
+                    "targets":  [
+                                    {
+                                        "resource_id":  "1a652329-35b5-440f-92bd-9dac19f5fcb3",
+                                        "incarnation":  "7eda4390-33e1-43d7-97a3-6f6fa0aa664d",
+                                        "identity_version":  1,
+                                        "credential_version":  1,
+                                        "config_version":  1,
+                                        "membership_version":  0
+                                    },
+                                    {
+                                        "resource_id":  "c826ddc8-7238-41b0-9e9e-50039b07906e",
+                                        "incarnation":  "d6e17bc1-bcd2-441e-a8e4-24e2daa1efd4",
+                                        "identity_version":  1,
+                                        "credential_version":  1,
+                                        "config_version":  1,
+                                        "membership_version":  1
+                                    }
+                                ]
+                },
+    "version":  2,
+    "status":  {
+                   "scope":  {
+                                 "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                 "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                 "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                 "snapshot_revision":  11
+                             },
+                   "targets":  [
+                                   {
+                                       "resource_id":  "1a652329-35b5-440f-92bd-9dac19f5fcb3",
+                                       "incarnation":  "7eda4390-33e1-43d7-97a3-6f6fa0aa664d",
+                                       "identity_version":  1,
+                                       "credential_version":  1,
+                                       "config_version":  1,
+                                       "membership_version":  0
+                                   },
+                                   {
+                                       "resource_id":  "c826ddc8-7238-41b0-9e9e-50039b07906e",
+                                       "incarnation":  "d6e17bc1-bcd2-441e-a8e4-24e2daa1efd4",
+                                       "identity_version":  1,
+                                       "credential_version":  1,
+                                       "config_version":  1,
+                                       "membership_version":  1
+                                   }
+                               ],
+                   "version":  2,
+                   "adapter":  "newapi-browser-session-v1",
+                   "endpoint":  "https://api-top.com/api/user/self",
+                   "timeoutMs":  60000,
+                   "newAPI":  {
+                                  "accountScope":  "api-top-user-2648",
+                                  "nativeUnit":  "newapi_quota",
+                                  "protocolConfirmed":  true,
+                                  "instanceVersion":  "api-top-live-20261104",
+                                  "auth":  "browser-session-cookie-v1",
+                                  "userID":  "2648"
+                              },
+                   "browserSession":  {
+                                          "origin":  "https://api-top.com",
+                                          "dashboardPath":  "/dashboard",
+                                          "browserInstanceId":  "5cfdda27"
+                                      },
+                   "configured":  false,
+                   "state":  "success",
+                   "managerDirectQuery":  true,
+                   "coreQuery":  false,
+                   "coreGate":  false,
+                   "stale":  false,
+                   "attempt":  {
+                                   "nativeQuota":  {
+                                                       "unit":  "newapi_quota",
+                                                       "state":  "finite",
+                                                       "remaining":  "2280724"
+                                                   },
+                                   "binding":  {
+                                                   "scope":  {
+                                                                 "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                                                 "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                                                 "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                                                 "snapshot_revision":  11
+                                                             },
+                                                   "targets":  [
+                                                                   {
+                                                                       "resource_id":  "1a652329-35b5-440f-92bd-9dac19f5fcb3",
+                                                                       "incarnation":  "7eda4390-33e1-43d7-97a3-6f6fa0aa664d",
+                                                                       "identity_version":  1,
+                                                                       "credential_version":  1,
+                                                                       "config_version":  1,
+                                                                       "membership_version":  0
+                                                                   },
+                                                                   {
+                                                                       "resource_id":  "c826ddc8-7238-41b0-9e9e-50039b07906e",
+                                                                       "incarnation":  "d6e17bc1-bcd2-441e-a8e4-24e2daa1efd4",
+                                                                       "identity_version":  1,
+                                                                       "credential_version":  1,
+                                                                       "config_version":  1,
+                                                                       "membership_version":  1
+                                                                   }
+                                                               ]
+                                               },
+                                   "queryId":  "d41c45a5-cdc3-421a-b3f2-3729e8285f75",
+                                   "capabilityStatus":  "supported",
+                                   "semantic":  "account_wallet",
+                                   "queryStatus":  "success",
+                                   "observedAtMs":  1793795630118
+                               },
+                   "lastSuccess":  {
+                                       "nativeQuota":  {
+                                                           "unit":  "newapi_quota",
+                                                           "state":  "finite",
+                                                           "remaining":  "2280724"
+                                                       },
+                                       "binding":  {
+                                                       "scope":  {
+                                                                     "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                                                     "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                                                     "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                                                     "snapshot_revision":  11
+                                                                 },
+                                                       "targets":  [
+                                                                       {
+                                                                           "resource_id":  "1a652329-35b5-440f-92bd-9dac19f5fcb3",
+                                                                           "incarnation":  "7eda4390-33e1-43d7-97a3-6f6fa0aa664d",
+                                                                           "identity_version":  1,
+                                                                           "credential_version":  1,
+                                                                           "config_version":  1,
+                                                                           "membership_version":  0
+                                                                       },
+                                                                       {
+                                                                           "resource_id":  "c826ddc8-7238-41b0-9e9e-50039b07906e",
+                                                                           "incarnation":  "d6e17bc1-bcd2-441e-a8e4-24e2daa1efd4",
+                                                                           "identity_version":  1,
+                                                                           "credential_version":  1,
+                                                                           "config_version":  1,
+                                                                           "membership_version":  1
+                                                                       }
+                                                                   ]
+                                                   },
+                                       "queryId":  "d41c45a5-cdc3-421a-b3f2-3729e8285f75",
+                                       "capabilityStatus":  "supported",
+                                       "semantic":  "account_wallet",
+                                       "queryStatus":  "success",
+                                       "observedAtMs":  1793795630118
+                                   }
+               }
+}
