@@ -1,0 +1,90 @@
+{
+    "startedAt":  "2026-11-04T12:52:47.1210910Z",
+    "finishedAt":  "2026-11-04T12:52:52.1147319Z",
+    "durationSeconds":  4.994,
+    "target":  "LocalCPAManagerPlus",
+    "serviceName":  "LocalCPAManagerPlus",
+    "status":  "deployed",
+    "dryRun":  false,
+    "rollbackOnly":  false,
+    "serviceChanged":  true,
+    "before":  {
+                   "exePath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\app\\cpa-manager-plus.exe",
+                   "exeSha256":  "42B5B594026D6BFCDDDE3F19A3FE2005B893C8CDADBB874AD8518C681B00FDFE",
+                   "panelPath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\panel\\management.html",
+                   "panelSha256":  "DCB4CF7636288CB10048A07DF4CC4FA85B29CEE246A33E91857E8A7A7B0626C6",
+                   "version":  null
+               },
+    "after":  {
+                  "exePath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\app\\cpa-manager-plus.exe",
+                  "exeSha256":  "FCB41484D4A5FD787BB1B4597FC46B63A260F9CDD5FE1739B8C75A4D6E93883C",
+                  "panelPath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\panel\\management.html",
+                  "panelSha256":  "DCB4CF7636288CB10048A07DF4CC4FA85B29CEE246A33E91857E8A7A7B0626C6",
+                  "version":  null
+              },
+    "backup":  {
+                   "target":  "LocalCPAManagerPlus",
+                   "serviceName":  "LocalCPAManagerPlus",
+                   "createdAt":  "2026-11-04T12:52:47.1210910Z",
+                   "before":  {
+                                  "exePath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\app\\cpa-manager-plus.exe",
+                                  "exeSha256":  "42B5B594026D6BFCDDDE3F19A3FE2005B893C8CDADBB874AD8518C681B00FDFE",
+                                  "panelPath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\panel\\management.html",
+                                  "panelSha256":  "DCB4CF7636288CB10048A07DF4CC4FA85B29CEE246A33E91857E8A7A7B0626C6",
+                                  "version":  null
+                              },
+                   "exeBackup":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\deploy-backups\\20261104T1252471210910Z-c5332305a4144d12b8cfffbc67674bf6-cpa-manager-plus.exe",
+                   "panelBackup":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\deploy-backups\\20261104T1252471210910Z-c5332305a4144d12b8cfffbc67674bf6-management.html"
+               },
+    "steps":  [
+                  {
+                      "name":  "preflight",
+                      "ok":  true,
+                      "detail":  "Paths, target, permissions, inputs and isolated port validated; no credentials read."
+                  },
+                  {
+                      "name":  "backup",
+                      "ok":  true,
+                      "detail":  "Timestamped executable/panel backups and manifest verified."
+                  },
+                  {
+                      "name":  "rehearsal",
+                      "ok":  true,
+                      "detail":  "New executable healthy on isolated loopback port/data; process terminated and temporary data removed."
+                  },
+                  {
+                      "name":  "stop",
+                      "ok":  true,
+                      "detail":  "Service stopped."
+                  },
+                  {
+                      "name":  "replace",
+                      "ok":  true,
+                      "detail":  "Replacement hashes verified."
+                  },
+                  {
+                      "name":  "start",
+                      "ok":  true,
+                      "detail":  "Service running."
+                  },
+                  {
+                      "name":  "health",
+                      "ok":  true,
+                      "detail":  "HTTP 200 and expected marker verified."
+                  }
+              ],
+    "health":  [
+                   {
+                       "at":  "2026-11-04T12:52:49.9815076Z",
+                       "phase":  "rehearsal",
+                       "httpStatus":  200,
+                       "expectedMarkerFound":  true
+                   },
+                   {
+                       "at":  "2026-11-04T12:52:52.0474223Z",
+                       "phase":  "deploy",
+                       "httpStatus":  200,
+                       "expectedMarkerFound":  true
+                   }
+               ]
+}

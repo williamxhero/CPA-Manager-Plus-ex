@@ -1,0 +1,188 @@
+﻿{
+    "joined":  false,
+    "id":  "8547ebe1-d58d-4a7e-8710-f57249fa3120",
+    "deadlineMs":  1793796944816,
+    "state":  "complete",
+    "binding":  {
+                    "scope":  {
+                                  "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                  "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                  "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                  "snapshot_revision":  11
+                              },
+                    "targets":  [
+                                    {
+                                        "resource_id":  "090df0bf-893c-43c6-847e-307503833951",
+                                        "incarnation":  "f7d559be-67b9-4aea-8e8e-f3520d9f41f1",
+                                        "identity_version":  1,
+                                        "credential_version":  1,
+                                        "config_version":  1,
+                                        "membership_version":  1
+                                    },
+                                    {
+                                        "resource_id":  "20198fa9-eab3-4864-bf5f-cebaef620742",
+                                        "incarnation":  "346a85b3-8635-4e53-a338-90219ab1b780",
+                                        "identity_version":  1,
+                                        "credential_version":  1,
+                                        "config_version":  1,
+                                        "membership_version":  0
+                                    }
+                                ]
+                },
+    "version":  2,
+    "status":  {
+                   "scope":  {
+                                 "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                 "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                 "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                 "snapshot_revision":  11
+                             },
+                   "targets":  [
+                                   {
+                                       "resource_id":  "090df0bf-893c-43c6-847e-307503833951",
+                                       "incarnation":  "f7d559be-67b9-4aea-8e8e-f3520d9f41f1",
+                                       "identity_version":  1,
+                                       "credential_version":  1,
+                                       "config_version":  1,
+                                       "membership_version":  1
+                                   },
+                                   {
+                                       "resource_id":  "20198fa9-eab3-4864-bf5f-cebaef620742",
+                                       "incarnation":  "346a85b3-8635-4e53-a338-90219ab1b780",
+                                       "identity_version":  1,
+                                       "credential_version":  1,
+                                       "config_version":  1,
+                                       "membership_version":  0
+                                   }
+                               ],
+                   "version":  2,
+                   "adapter":  "newapi-browser-session-v1",
+                   "endpoint":  "https://api.liangrekui.com/api/user/self",
+                   "timeoutMs":  60000,
+                   "newAPI":  {
+                                  "conversion":  {
+                                                     "confirmed":  true,
+                                                     "nativeUnit":  "newapi_quota",
+                                                     "currency":  "CNY",
+                                                     "moneyPerNativeQuota":  "0.000002",
+                                                     "proofReference":  "liangrekui-system-config-quotaPerUnit-500000",
+                                                     "contractVersion":  "liangrekui-quotaPerUnit-500000-v1"
+                                                 },
+                                  "accountScope":  "liangrekui-user-920",
+                                  "nativeUnit":  "newapi_quota",
+                                  "protocolConfirmed":  true,
+                                  "instanceVersion":  "liangrekui-live-20261104",
+                                  "auth":  "browser-session-cookie-v1",
+                                  "userID":  "920"
+                              },
+                   "browserSession":  {
+                                          "origin":  "https://api.liangrekui.com",
+                                          "dashboardPath":  "/dashboard",
+                                          "browserInstanceId":  "5cfdda27"
+                                      },
+                   "configured":  false,
+                   "state":  "success",
+                   "managerDirectQuery":  true,
+                   "coreQuery":  false,
+                   "coreGate":  false,
+                   "stale":  false,
+                   "attempt":  {
+                                   "conversion":  {
+                                                      "confirmed":  true,
+                                                      "nativeUnit":  "newapi_quota",
+                                                      "currency":  "CNY",
+                                                      "moneyPerNativeQuota":  "0.000002",
+                                                      "proofReference":  "liangrekui-system-config-quotaPerUnit-500000",
+                                                      "contractVersion":  "liangrekui-quotaPerUnit-500000-v1",
+                                                      "qualification":  "operator_asserted_contract_not_live_verified"
+                                                  },
+                                   "nativeQuota":  {
+                                                       "unit":  "newapi_quota",
+                                                       "state":  "finite",
+                                                       "remaining":  "172900"
+                                                   },
+                                   "binding":  {
+                                                   "scope":  {
+                                                                 "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                                                 "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                                                 "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                                                 "snapshot_revision":  11
+                                                             },
+                                                   "targets":  [
+                                                                   {
+                                                                       "resource_id":  "090df0bf-893c-43c6-847e-307503833951",
+                                                                       "incarnation":  "f7d559be-67b9-4aea-8e8e-f3520d9f41f1",
+                                                                       "identity_version":  1,
+                                                                       "credential_version":  1,
+                                                                       "config_version":  1,
+                                                                       "membership_version":  1
+                                                                   },
+                                                                   {
+                                                                       "resource_id":  "20198fa9-eab3-4864-bf5f-cebaef620742",
+                                                                       "incarnation":  "346a85b3-8635-4e53-a338-90219ab1b780",
+                                                                       "identity_version":  1,
+                                                                       "credential_version":  1,
+                                                                       "config_version":  1,
+                                                                       "membership_version":  0
+                                                                   }
+                                                               ]
+                                               },
+                                   "queryId":  "8547ebe1-d58d-4a7e-8710-f57249fa3120",
+                                   "capabilityStatus":  "supported",
+                                   "semantic":  "account_wallet",
+                                   "amountDecimal":  "0.3458",
+                                   "currency":  "CNY",
+                                   "queryStatus":  "success",
+                                   "observedAtMs":  1793796891189
+                               },
+                   "lastSuccess":  {
+                                       "conversion":  {
+                                                          "confirmed":  true,
+                                                          "nativeUnit":  "newapi_quota",
+                                                          "currency":  "CNY",
+                                                          "moneyPerNativeQuota":  "0.000002",
+                                                          "proofReference":  "liangrekui-system-config-quotaPerUnit-500000",
+                                                          "contractVersion":  "liangrekui-quotaPerUnit-500000-v1",
+                                                          "qualification":  "operator_asserted_contract_not_live_verified"
+                                                      },
+                                       "nativeQuota":  {
+                                                           "unit":  "newapi_quota",
+                                                           "state":  "finite",
+                                                           "remaining":  "172900"
+                                                       },
+                                       "binding":  {
+                                                       "scope":  {
+                                                                     "instance_id":  "396cba32-3920-47e6-b043-a69401344a8d",
+                                                                     "instance_incarnation":  "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+                                                                     "boot_epoch":  "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+                                                                     "snapshot_revision":  11
+                                                                 },
+                                                       "targets":  [
+                                                                       {
+                                                                           "resource_id":  "090df0bf-893c-43c6-847e-307503833951",
+                                                                           "incarnation":  "f7d559be-67b9-4aea-8e8e-f3520d9f41f1",
+                                                                           "identity_version":  1,
+                                                                           "credential_version":  1,
+                                                                           "config_version":  1,
+                                                                           "membership_version":  1
+                                                                       },
+                                                                       {
+                                                                           "resource_id":  "20198fa9-eab3-4864-bf5f-cebaef620742",
+                                                                           "incarnation":  "346a85b3-8635-4e53-a338-90219ab1b780",
+                                                                           "identity_version":  1,
+                                                                           "credential_version":  1,
+                                                                           "config_version":  1,
+                                                                           "membership_version":  0
+                                                                       }
+                                                                   ]
+                                                   },
+                                       "queryId":  "8547ebe1-d58d-4a7e-8710-f57249fa3120",
+                                       "capabilityStatus":  "supported",
+                                       "semantic":  "account_wallet",
+                                       "amountDecimal":  "0.3458",
+                                       "currency":  "CNY",
+                                       "queryStatus":  "success",
+                                       "observedAtMs":  1793796891189
+                                   }
+               }
+}

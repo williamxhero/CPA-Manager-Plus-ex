@@ -35,6 +35,10 @@ func TestBrowserSessionContractRejectsUnenrolledOrigin(t *testing.T) {
 	if err := balance.ValidateBrowserSessionContract(cfg, newAPI); err != nil {
 		t.Fatalf("code28.ccwu.cc rejected: %v", err)
 	}
+	cfg.Origin = "https://api.liangrekui.com"
+	if err := balance.ValidateBrowserSessionContract(cfg, newAPI); err != nil {
+		t.Fatalf("api.liangrekui.com rejected: %v", err)
+	}
 }
 
 func TestBrowserSessionQueryNativeQuota(t *testing.T) {

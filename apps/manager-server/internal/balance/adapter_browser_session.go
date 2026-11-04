@@ -3,6 +3,7 @@ package balance
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,8 +34,9 @@ type BrowserSessionConfig struct {
 }
 
 var browserSessionOrigins = map[string]struct{}{
-	"https://api-top.com":    {},
-	"https://code28.ccwu.cc": {},
+	"https://api-top.com":         {},
+	"https://code28.ccwu.cc":      {},
+	"https://api.liangrekui.com": {},
 }
 
 func ValidateBrowserSessionContract(c *BrowserSessionConfig, newAPI *NewAPIConfig) error {
@@ -249,43 +251,10 @@ func browserSessionExpression(origin, userID string, deadline time.Time) string 
 		"userId":    userID,
 		"timeoutMs": max(1, int(time.Until(deadline)/time.Millisecond)),
 	})
-	return fmt.Sprintf(`(async () => {
-            const c = %s;
-            const end = Date.now() + c.timeoutMs;
-            const safe = status => ({status, origin: location.origin});
-            const isLogin = () => /\/(login|sign-in|signin)(\/|$)/i.test(location.pathname)
-                || !!document.querySelector('input[type="password"]');
-            while (Date.now() < end) {
-                if (location.origin !== c.origin) return safe('origin');
-                if (isLogin()) return safe('login');
-                const app = document.querySelector('#root, #app') || document.body;
-                if (document.readyState === 'complete' && app?.innerText?.trim()) break;
-                await new Promise(resolve => setTimeout(resolve, Math.min(150, Math.max(1, end - Date.now()))));
-            }
-            if (Date.now() >= end) return safe('timeout');
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), Math.max(1, end - Date.now()));
-            try {
-                if (location.origin !== c.origin) return safe('origin');
-                const response = await fetch(c.path, {
-                    credentials: 'include', headers: {'New-Api-User': c.userId, 'Accept': 'application/json'},
-                    signal: controller.signal, redirect: 'error',
-                });
-                if (location.origin !== c.origin || new URL(response.url).origin !== c.origin) return safe('origin');
-                if (!response.ok) return safe(response.status === 401 ? 'login' : 'http');
-                let payload;
-                try { payload = await response.json(); } catch { return safe('field'); }
-                if (payload?.success !== true) return safe('business');
-                if (String(payload?.data?.id) !== c.userId) return safe('identity');
-                const balance = payload?.data?.quota;
-                if (!['number', 'string'].includes(typeof balance) || String(balance).trim() === ''
-                        || !Number.isFinite(Number(balance))) return safe('numeric');
-                return {status: 'ok', origin: location.origin, http_status: response.status,
-                    success: true, user_id: String(payload.data.id), balance: String(balance)};
-            } catch (error) {
-                return safe(error.name === 'AbortError' ? 'timeout' : 'network');
-            } finally { clearTimeout(timer); }
-        })()`, string(options))
+	// Compact + base64 so BrowserSkill argv/relay does not split on newlines or
+	// choke on long multi-line JS. Access tokens stay page-local and are cleared.
+	js := fmt.Sprintf(`(async()=>{const c=%s;const end=Date.now()+c.timeoutMs;const safe=s=>({status:s,origin:location.origin});const isLogin=()=>/\/(login|sign-in|signin)(\/|$)/i.test(location.pathname)||!!document.querySelector('input[type="password"]');while(Date.now()<end){if(location.origin!==c.origin)return safe('origin');if(isLogin())return safe('login');const app=document.querySelector('#root, #app')||document.body;if(document.readyState==='complete'&&app&&app.innerText&&app.innerText.trim())break;await new Promise(r=>setTimeout(r,Math.min(150,Math.max(1,end-Date.now()))));}if(Date.now()>=end)return safe('timeout');const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),Math.max(1,end-Date.now()));try{if(location.origin!==c.origin)return safe('origin');let accessToken='';try{const refresh=await fetch('/api/user/auth/refresh',{method:'POST',credentials:'include',headers:{'Accept':'application/json'},signal:controller.signal,redirect:'error'});if(location.origin!==c.origin||new URL(refresh.url).origin!==c.origin)return safe('origin');if(refresh.ok){const refreshed=await refresh.json().catch(()=>null);const token=(refreshed&&refreshed.data&&(refreshed.data.access_token||refreshed.data.token))||(refreshed&&(refreshed.access_token||refreshed.token));if(typeof token==='string'&&token.length>0)accessToken=token;}}catch(e){if(e&&e.name==='AbortError')return safe('timeout');}const headers={'New-Api-User':c.userId,'Accept':'application/json'};if(accessToken)headers.Authorization='Bearer '+accessToken;accessToken='';const response=await fetch(c.path,{credentials:'include',headers,signal:controller.signal,redirect:'error'});if(location.origin!==c.origin||new URL(response.url).origin!==c.origin)return safe('origin');if(!response.ok)return safe(response.status===401?'login':'http');let payload;try{payload=await response.json();}catch(e){return safe('field');}if(!payload||payload.success!==true)return safe('business');if(String(payload.data&&payload.data.id)!==c.userId)return safe('identity');const balance=payload.data&&payload.data.quota;if(!(typeof balance==='number'||typeof balance==='string')||String(balance).trim()===''||!Number.isFinite(Number(balance)))return safe('numeric');return{status:'ok',origin:location.origin,http_status:response.status,success:true,user_id:String(payload.data.id),balance:String(balance)};}catch(error){return safe(error&&error.name==='AbortError'?'timeout':'network');}finally{clearTimeout(timer);}})()`, string(options))
+	return "eval(atob('" + base64.StdEncoding.EncodeToString([]byte(js)) + "'))"
 }
 
 func parseBrowserSessionEvaluate(raw []byte, origin, userID string) (quota, status, code string) {

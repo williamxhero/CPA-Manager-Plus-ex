@@ -10,12 +10,12 @@
 | `wawapii.com` | `openai-compat-usage-v1` | POST **success**; **USD 53.71695596** |
 | `api-top.com` | `newapi-browser-session-v1` | POST **success**; native quota **2280724** |
 | `code28.ccwu.cc` | `newapi-browser-session-v1` | POST **success**; native quota **-13156** (job `38a200d9…`); userId `2822`; bound to kele520 Core row (no kele520 browser alias) |
+| `api.liangrekui.com` | `newapi-browser-session-v1` | POST **success**; native quota **172900** → CNY **0.3458** (job `8547ebe1…`, userId `920`); exe SHA `FCB41484…` (atob expression) |
 
 ## Still blocked
 
 | Host | Adapter | Blocker |
 |---|---|---|
-| `api.liangrekui.com` | `newapi-user-self-v1` | needs operator login/`userID`+conversion (+ PAT); `/v1/usage` is **404** |
 | Volcengine / Aliyun | vendor adapters | no AK/SK on host |
 | `kele520.com` | — | **do not alias**; billing origin is `code28.ccwu.cc` |
 
