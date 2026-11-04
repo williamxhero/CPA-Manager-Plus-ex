@@ -276,6 +276,45 @@ export async function saveProviderPolicy(
   }
 }
 
+export interface ProviderPolicyMigrationStatus {
+  dialect: string;
+  ready: boolean;
+  pendingCount: number;
+  reason?: string;
+  protectionHold: boolean;
+}
+
+export async function getProviderPolicyMigration(
+  base: string,
+  managementKey: string,
+  signal?: AbortSignal
+): Promise<ProviderPolicyMigrationStatus> {
+  const response = await fetch(
+    `${base.replace(/\/$/, '')}/usage-service/provider-policy/migration`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${managementKey}` },
+      signal,
+      cache: 'no-store',
+      redirect: 'error',
+    }
+  );
+  if (!response.ok) throw new ProviderPolicyRequestError(response.status);
+  const value = await response.json();
+  if (
+    !record(value) ||
+    typeof value.dialect !== 'string' ||
+    typeof value.ready !== 'boolean' ||
+    typeof value.protectionHold !== 'boolean' ||
+    !Number.isSafeInteger(value.pendingCount) ||
+    Number(value.pendingCount) < 0 ||
+    (value.reason !== undefined && typeof value.reason !== 'string')
+  ) {
+    throw new ProviderPolicyRequestError(409);
+  }
+  return value as ProviderPolicyMigrationStatus;
+}
+
 export async function recoverProviderPolicy(
   base: string,
   managementKey: string,

@@ -1387,6 +1387,7 @@
     "money_summary_last_success": "lastSuccess: {{time}}",
     "money_summary_amount_unknown": "Amount unknown",
     "money_summary_source_unverified": "source unverified",
+    "policy_migration_hold": "Provider policy migration hold · pending {{count}} · {{reason}}",
     "openai_models_count": "Models Count",
     "openai_test_title": "Connection Test",
     "openai_test_hint": "Request /models with the current settings to verify key connectivity without consuming model quota.",

@@ -36,6 +36,10 @@ import { usePanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability
 import { useResourceProtection } from '@/features/resourceProtection/resourceProtection';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { providersApi } from '@/services/api';
+import {
+  getProviderPolicyMigration,
+  type ProviderPolicyMigrationStatus,
+} from '@/services/api/providerPolicy';
 import { useAuthStore, useConfigStore, useNotificationStore, useThemeStore } from '@/stores';
 import {
   CloakConfig,
@@ -93,6 +97,33 @@ export function AiProvidersPage() {
     revision: providerPolicyRevision,
     onChanged: handleProviderPolicyChanged,
   };
+  const [policyMigration, setPolicyMigration] = useState<ProviderPolicyMigrationStatus | null>(null);
+  useEffect(() => {
+    if (
+      !featureAvailability.managerServiceAvailable ||
+      !featureAvailability.managerServiceBase ||
+      !balanceManagementKey
+    ) {
+      setPolicyMigration(null);
+      return;
+    }
+    const controller = new AbortController();
+    void getProviderPolicyMigration(
+      featureAvailability.managerServiceBase,
+      balanceManagementKey,
+      controller.signal
+    )
+      .then(setPolicyMigration)
+      .catch(() => {
+        if (!controller.signal.aborted) setPolicyMigration(null);
+      });
+    return () => controller.abort();
+  }, [
+    featureAvailability.managerServiceAvailable,
+    featureAvailability.managerServiceBase,
+    balanceManagementKey,
+    providerPolicyRevision,
+  ]);
   const [interactionsKeys, setInteractionsKeys] = useState<GeminiKeyConfig[]>(
     () => config?.interactionsApiKeys || []
   );
@@ -1645,6 +1676,14 @@ export function AiProvidersPage() {
             healthCheckDisabled={visibleRows.length === 0}
           />
 
+          {policyMigration?.protectionHold && (
+            <div className="hint" role="status" aria-live="polite">
+              {t('ai_providers.policy_migration_hold', {
+                count: policyMigration.pendingCount,
+                reason: policyMigration.reason || 'migration_pending_rows',
+              })}
+            </div>
+          )}
           <Card>
             <ProviderTable
               moneyStatus={{

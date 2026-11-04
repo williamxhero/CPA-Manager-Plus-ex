@@ -1385,6 +1385,7 @@
     "money_summary_last_success": "lastSuccess：{{time}}",
     "money_summary_amount_unknown": "金额未知",
     "money_summary_source_unverified": "来源未验证",
+    "policy_migration_hold": "Provider 策略迁移保护中 · 待确认 {{count}} · {{reason}}",
     "openai_models_count": "模型数量",
     "openai_test_title": "连通性测试",
     "openai_test_hint": "使用当前配置向 /models 请求，验证密钥连通性，不消耗模型额度。",
