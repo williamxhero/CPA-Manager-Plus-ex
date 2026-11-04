@@ -1,4 +1,4 @@
-# #95 E01/E03 source matrix freeze (local, 2026-11-04)
+﻿# #95 E01/E03 source matrix freeze (local, 2026-11-04)
 
 Frozen against worktree `spec92/conter-balance-method-map-20261104` tip including
 `40b2cb08`. **Not** a live inventory of a running production host.
@@ -7,7 +7,7 @@ Does not read production secrets.
 | Host / site | CPA adapter | Protocol | Unit | Hourly path | Live success evidence this round | Gate |
 |---|---|---|---|---|---|---|
 | `api.deepinfra.com` | deepinfra prepaid | signed checklist | USD native | full-refresh when configured | #73 suite; no new live call here | ready if secret+Core |
-| `api.liangrekui.com` | `newapi-user-self-v1` | Bearer + optional New-Api-User | NewAPI quota; conversion explicit | same | #74 contract; no new live call | needs operator conversion confirm |
+| `api.liangrekui.com` | `newapi-browser-session-v1` | BrowserSkill same-origin `/api/user/self` + refresh Bearer | NewAPI quota → CNY | same | live POST success quota 172900 / CNY 0.3458 (user 920); atob expression `98c59096` | green |
 | `wawapii.com` | `openai-compat-usage-v1` | `GET /v1/usage` Bearer | USD wallet | same | adapter+tests `2b59c7c2` | ready if secret |
 | `api-top.com` | `newapi-browser-session-v1` | BrowserSkill same-origin `/api/user/self` | native NewAPI quota | same | adapter+tests `2b59c7c2`; live `/dashboard` shows Sign-in (Profile 1 not logged in) | needs enrolled browser session + user_id |
 | `kele520.com` | (unenrolled) | — | — | — | **blocked**: conter uses `code28.ccwu.cc`, not kele520 | do not alias |
