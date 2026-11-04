@@ -41,9 +41,10 @@ func NewMonetary(st *store.Store, connection *mc.Service, identity *rc.Service) 
 }
 
 type document struct {
-	Operation   operation `json:"operation"`
-	Receipt     result    `json:"receipt"`
-	UpdatedAtMS int64     `json:"updatedAtMs"`
+	Operation          operation `json:"operation"`
+	Receipt            result    `json:"receipt"`
+	UpdatedAtMS        int64     `json:"updatedAtMs"`
+	CanceledBeforeSend bool      `json:"canceledBeforeSend,omitempty"`
 }
 
 type proof struct {
@@ -239,7 +240,10 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 		out.status.ReceiptPersisted = validReceipt(op, out.doc.Receipt)
 		out.status.Action, out.status.State, out.status.Reason = op.Action, "pending", "operation_outcome_unverified"
 		receipt := out.doc.Receipt
-		if sameInstance(op.Scope, b.Scope) && receipt.OpID == "" {
+		if out.doc.CanceledBeforeSend {
+			out.settled = true
+			out.status.State, out.status.Reason = "rejected", "operation_canceled_before_send"
+		} else if sameInstance(op.Scope, b.Scope) && receipt.OpID == "" {
 			// An immutable operation missing after its CAS revision advanced
 			// cannot commit later. A bare 404 at the same revision is unknown.
 			err := link.request(ctx, "GET", "operations/"+op.OpID, nil, &receipt)
@@ -268,6 +272,8 @@ func (s *Service) prepare(ctx context.Context, b Binding) (prepared, error) {
 				}
 			}
 		}
+		knownUnsent := out.doc.CanceledBeforeSend && op.Action == "clear" && op.Reason == ExplicitRecoveryReason && sameInstance(op.Scope, b.Scope) && reflect.DeepEqual(op.Targets, b.Targets)
+		out.status.RecoveryAvailable = s.monetary && out.settled && out.status.OwnPaused && (out.status.Applied && out.status.ReceiptPersisted || knownUnsent)
 	}
 	out.status.Settled = out.record.Generation == 0 || out.settled
 	closing := s.identity.Inventory(ctx, true)
@@ -302,6 +308,56 @@ func (s *Service) UpdateEvidence(ctx context.Context, q Update, evidence string,
 		return Status{}, ErrInput
 	}
 	return s.update(ctx, q, evidence, current)
+}
+
+// RecoverMonetary clears only this installation's monetary restriction after an
+// explicit administrator override. It never turns policy ON or clears manual
+// disabled state. authorize may re-fence OFF intent around the sole RPC.
+func (s *Service) RecoverMonetary(ctx context.Context, b Binding, generation int64, sourceVersion, evidence string, authorize func(context.Context) error) (Status, error) {
+	if !s.monetary || authorize == nil || generation <= 0 || !validDigest(sourceVersion) || !validDigest(evidence) {
+		return Status{}, ErrInput
+	}
+	out, err := s.prepare(ctx, b)
+	if err != nil {
+		return Status{}, err
+	}
+	if out.record.Generation != generation {
+		return Status{}, store.ErrProviderGateConflict
+	}
+	if !out.status.RecoveryAvailable || out.status.SourceVersion != sourceVersion {
+		return Status{}, ErrUnavailable
+	}
+	if err := authorize(ctx); err != nil {
+		return Status{}, err
+	}
+	opID := uuid.NewString()
+	op := operation{groupBinding: coreGroup(out.status.Binding), Version: 1, OpID: opID, ExpectedGateRevision: out.ledger.GateRevision, SourceVersion: sourceVersion, Subject: "provider", Owner: out.status.Owner, Action: "clear", Reason: ExplicitRecoveryReason, EvidenceID: "balance/" + evidence}
+	doc := document{Operation: op, UpdatedAtMS: time.Now().UnixMilli()}
+	raw, _ := json.Marshal(doc)
+	record := store.ProviderGateRecord{ID: out.record.ID, Generation: out.record.Generation + 1, Document: string(raw)}
+	if err := s.store.SaveProviderGate(ctx, record, out.record.Generation); err != nil {
+		return Status{}, err
+	}
+	if err := authorize(ctx); err != nil {
+		doc.CanceledBeforeSend = true
+		raw, _ = json.Marshal(doc)
+		finish, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = s.store.CompleteProviderGate(finish, record, string(raw))
+		return Status{}, err
+	}
+	if err := out.core.request(ctx, "POST", "operations", op, &doc.Receipt); err != nil {
+		return Status{}, err
+	}
+	raw, _ = json.Marshal(doc)
+	if err := s.store.CompleteProviderGate(ctx, record, string(raw)); err != nil {
+		return Status{}, err
+	}
+	status, err := s.Status(ctx, out.status.Binding)
+	if err == nil && !status.Applied {
+		err = ErrUnavailable
+	}
+	return status, err
 }
 
 func (s *Service) update(ctx context.Context, q Update, evidence string, current EvidenceGuard) (Status, error) {

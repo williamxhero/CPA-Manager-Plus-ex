@@ -17,6 +17,45 @@ import (
 
 type Handler struct{ App *app.Context }
 
+func (h *Handler) HandleRecovery(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	middleware.WriteCORS(h.App.Config, w, r)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(204)
+		return
+	}
+	if !middleware.AuthorizePanel(w, r, h.App.AdminAuthService) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		response.MethodNotAllowed(w)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+	var q svc.Recovery
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	if d.Decode(&q) != nil || d.Decode(new(any)) != io.EOF {
+		response.JSON(w, 400, map[string]string{"error": "invalid_provider_recovery"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	out, err := h.App.ProviderPolicyService.Recover(ctx, q)
+	if err == nil {
+		response.JSON(w, 200, out)
+		return
+	}
+	code := 503
+	if errors.Is(err, svc.ErrInput) {
+		code = 400
+	}
+	if errors.Is(err, svc.ErrIdentity) || errors.Is(err, store.ErrProviderPolicyConflict) || errors.Is(err, store.ErrProviderGateConflict) {
+		code = 409
+	}
+	response.JSON(w, code, map[string]string{"error": "provider_recovery_unconfirmed"})
+}
+
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	middleware.WriteCORS(h.App.Config, w, r)

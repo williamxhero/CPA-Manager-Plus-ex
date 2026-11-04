@@ -32,22 +32,27 @@ type Update struct {
 	Action             string `json:"action"`
 }
 
+// ExplicitRecoveryReason marks an administrator override that clears only this
+// installation's monetary owner while leaving policy OFF and manual disabled.
+const ExplicitRecoveryReason = "provider_balance_explicit_recovery"
+
 type Status struct {
 	ReceiptPersisted bool  `json:"receiptPersisted"`
 	UpdatedAtMS      int64 `json:"updatedAtMs"`
 	Binding
-	SubjectID     string `json:"subjectId"`
-	Owner         string `json:"owner"`
-	Generation    int64  `json:"generation"`
-	Action        string `json:"action"`
-	SourceVersion string `json:"sourceVersion"`
-	Ready         bool   `json:"ready"`
-	OwnPaused     bool   `json:"ownPaused"`
-	Applied       bool   `json:"applied"`
-	Settled       bool   `json:"settled"`
-	State         string `json:"state"`
-	Reason        string `json:"reason"`
-	EvidenceID    string `json:"evidenceId,omitempty"`
+	SubjectID         string `json:"subjectId"`
+	Owner             string `json:"owner"`
+	Generation        int64  `json:"generation"`
+	Action            string `json:"action"`
+	SourceVersion     string `json:"sourceVersion"`
+	Ready             bool   `json:"ready"`
+	OwnPaused         bool   `json:"ownPaused"`
+	Applied           bool   `json:"applied"`
+	Settled           bool   `json:"settled"`
+	RecoveryAvailable bool   `json:"recoveryAvailable"`
+	State             string `json:"state"`
+	Reason            string `json:"reason"`
+	EvidenceID        string `json:"evidenceId,omitempty"`
 }
 
 type operation struct {

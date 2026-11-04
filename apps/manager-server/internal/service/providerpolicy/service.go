@@ -47,21 +47,22 @@ type intent struct {
 }
 type Status struct {
 	Binding
-	SubjectID      string          `json:"subjectId"`
-	Enabled        bool            `json:"enabled"`
-	Effective      bool            `json:"effective"`
-	Generation     int64           `json:"generation"`
-	Owner          string          `json:"owner"`
-	Source         string          `json:"source"`
-	UpdatedAtMS    int64           `json:"updatedAtMs"`
-	BindingCurrent bool            `json:"bindingCurrent"`
-	Locked         bool            `json:"locked"`
-	ManualDisabled bool            `json:"manualDisabled"`
-	OwnPaused      bool            `json:"ownPaused"`
-	Applied        bool            `json:"applied"`
-	State          string          `json:"state"`
-	Reason         string          `json:"reason"`
-	Funding        []FundingStatus `json:"funding"`
+	SubjectID         string          `json:"subjectId"`
+	Enabled           bool            `json:"enabled"`
+	Effective         bool            `json:"effective"`
+	Generation        int64           `json:"generation"`
+	Owner             string          `json:"owner"`
+	Source            string          `json:"source"`
+	UpdatedAtMS       int64           `json:"updatedAtMs"`
+	BindingCurrent    bool            `json:"bindingCurrent"`
+	Locked            bool            `json:"locked"`
+	ManualDisabled    bool            `json:"manualDisabled"`
+	OwnPaused         bool            `json:"ownPaused"`
+	Applied           bool            `json:"applied"`
+	RecoveryAvailable bool            `json:"recoveryAvailable"`
+	State             string          `json:"state"`
+	Reason            string          `json:"reason"`
+	Funding           []FundingStatus `json:"funding"`
 }
 
 type Service struct {
@@ -230,6 +231,7 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 	out.Locked = !view.covered
 	out.OwnPaused = view.gate.OwnPaused
 	out.Applied = view.gate.Applied
+	out.RecoveryAvailable = !out.Enabled && view.gate.RecoveryAvailable
 	if !out.BindingCurrent {
 		out.Locked = true
 		out.Reason = "provider_authority_changed"

@@ -34,7 +34,7 @@ func (s *Service) AdoptMonetaryReceipt(ctx context.Context, b Binding) (Status, 
 	if err != nil {
 		return Status{}, err
 	}
-	if out.record.Generation == 0 || validReceipt(out.doc.Operation, out.doc.Receipt) {
+	if out.record.Generation == 0 || out.doc.CanceledBeforeSend || validReceipt(out.doc.Operation, out.doc.Receipt) {
 		return out.status, nil
 	}
 	if !sameInstance(out.doc.Operation.Scope, b.Scope) || !reflect.DeepEqual(out.doc.Operation.Targets, canonical(b).Targets) || out.doc.Operation.SourceVersion != out.status.SourceVersion || !validReceipt(out.doc.Operation, out.receipt) {
