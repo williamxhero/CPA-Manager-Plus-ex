@@ -1,7 +1,7 @@
 # #95 E01/E03 source matrix freeze (local, 2026-11-04)
 
 Frozen against worktree `spec92/conter-balance-method-map-20261104` tip including
-`c745df5a` / `a5904cd8`. **Not** a live inventory of a running production host.
+`40b2cb08`. **Not** a live inventory of a running production host.
 Does not read production secrets.
 
 | Host / site | CPA adapter | Protocol | Unit | Hourly path | Live success evidence this round | Gate |
