@@ -1,0 +1,30 @@
+{
+  "recordedAt": "2026-11-04T17:30:00+08:00",
+  "results": [
+    {
+      "name": "DeepInfra",
+      "adapter": "deepinfra",
+      "configured": true,
+      "state": "network_error",
+      "amount": null,
+      "currency": null,
+      "error": "UPSTREAM_UNAVAILABLE",
+      "provider": "068a7783",
+      "credential": "27c51563",
+      "secret_fp": "095ce95991d6"
+    },
+    {
+      "name": "DeepSeek",
+      "adapter": "deepseek",
+      "configured": true,
+      "state": "network_error",
+      "amount": null,
+      "currency": null,
+      "error": "UPSTREAM_UNAVAILABLE",
+      "provider": "fa7cb5e3",
+      "credential": "91d32a1d",
+      "secret_fp": "7205ca9e5dae"
+    }
+  ],
+  "note": "secrets not recorded; fingerprint only"
+}

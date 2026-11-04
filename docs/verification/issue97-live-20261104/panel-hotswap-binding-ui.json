@@ -1,0 +1,13 @@
+{
+  "recordedAt": "2026-11-04T17:25:00+08:00",
+  "mode": "panel-hotswap-with-backup",
+  "reason": "elevated E03 preflight denied (Administrator); static panel file swapped without service stop",
+  "panelSha256": "DCB4CF7636288CB10048A07DF4CC4FA85B29CEE246A33E91857E8A7A7B0626C6",
+  "commit": "bd880e9a",
+  "health": {"ok": true, "service": "cpa-manager-plus"},
+  "uiReadback": {
+    "claudeLayso": {"configured": true, "amount": "USD 46.92", "accountId": "h7w8"},
+    "codexLayso": {"configured": true, "amount": "USD 46.92", "accountId": "h7w8"}
+  },
+  "tickets": "open"
+}

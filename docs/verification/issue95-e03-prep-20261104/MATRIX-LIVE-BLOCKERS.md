@@ -6,8 +6,8 @@ Other frozen hosts remain blocked for live Manager query as follows:
 
 | Host | Adapter | Blocker |
 |---|---|---|
-| `api.deepinfra.com` | `deepinfra` | OfficialBalance `configured=false` after misbind cleanup; needs operator query credential (not pulled from Core config into evidence) |
-| `api.deepseek.com` | `deepseek` | no OfficialBalance row; needs secret |
+| `api.deepinfra.com` | `deepinfra` | PUT `configured=true`; POST `UPSTREAM_UNAVAILABLE` under LocalService (user-session checklist **200**) — see `MATRIX-DEEPINFRA-DEEPSEEK-20261104.md` |
+| `api.deepseek.com` | `deepseek` | PUT `configured=true`; POST `UPSTREAM_UNAVAILABLE` under LocalService (user-session balance **50.50 CNY**) — same note |
 | Volcengine / Aliyun | vendor adapters | no row; needs vendor contract + secret |
 | `wawapii.com` | `openai-compat-usage-v1` | needs Bearer secret |
 | `api.liangrekui.com` | `newapi-user-self-v1` | needs secret + explicit conversion profile |
