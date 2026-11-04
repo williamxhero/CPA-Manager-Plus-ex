@@ -13,8 +13,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/1",
@@ -25,8 +25,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/2",
@@ -37,8 +37,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/3",
@@ -49,8 +49,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/4",
@@ -61,8 +61,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/5",
@@ -73,8 +73,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/6",
@@ -85,8 +85,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/7",
@@ -97,8 +97,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/8",
@@ -109,8 +109,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/9",
@@ -121,8 +121,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/10",
@@ -133,8 +133,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/11",
@@ -145,8 +145,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/codex/12",
@@ -169,8 +169,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/claude/1",
@@ -193,8 +193,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/claude/3",
@@ -205,8 +205,8 @@
       "credential_count": 1,
       "has_durable_marker": false,
       "delivered_protocol": null,
-      "implementation_readiness": "not_delivered_by_ticket71",
-      "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
+      "implementation_readiness": "newapi_adapters_available_require_operator_confirmed_contract_ticket74",
+      "real_runtime_readiness": "not_reprobed; live NewAPI instance confirmation and authorized window remain PARTIAL for #85"
     },
     {
       "audit_locator": "configured/openai-compatibility/0",
@@ -327,5 +327,5 @@
       "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
     }
   ],
-  "scope": "DeepSeek (#71) and DeepInfra signed prepaid (#73) adapters implemented on this lineage. OpenRouter absent from this frozen inventory → N/A for #73. Compat/NewAPI/Layso/Volcengine/Aliyun hosts remain other tickets. None of these rows imply current deployed identity or live authorization readiness."
+  "scope": "DeepSeek (#71) and DeepInfra (#73) official adapters delivered. NewAPI user-self/token-usage (#74) adapters delivered on synthetic path; compat hosts require per-instance operator confirmation (no hostname discovery). OpenRouter absent. Layso→#97. Live authorization remains PARTIAL."
 }
