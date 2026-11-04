@@ -9,7 +9,7 @@ import (
 
 func TestParseLaysoDashboardModelsAccountBalance(t *testing.T) {
 	html := `<div>Personal</div><ul></ul>` +
-		`<img alt="h7w8" data-slot="avatar-image" class="x"/>` +
+		`<img alt="Logo"/><img alt="h7w8" data-slot="avatar-image" class="x"/>` +
 		`<span>Cumulative usage</span><span aria-label="Credits:317.68"><span aria-hidden="true">Credits:317.68</span></span>` +
 		`<article><span>Account balance</span><div class="analytics-stat-value">` +
 		`<span aria-label="Credits:46.92"><span aria-hidden="true">Credits:46.92</span></span></div>` +

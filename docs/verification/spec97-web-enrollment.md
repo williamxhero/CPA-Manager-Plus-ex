@@ -40,11 +40,18 @@ registration CAS failures return 409. The endpoint retains panel authentication,
 body limits, strict JSON decoding and the source API's Core identity checks.
 It does not change source versions or clear existing observations.
 
-The default production parser registry remains empty. Neither registration nor
-fixture environment variables grant `verified_browser` authority. A future
-trusted verifier must establish the actual Edge Profile 1 mapping, execution
-user and observed normal-page parser contract before production reads can be
-enabled. No DOM contract is guessed by this slice.
+Production now installs the observed LAYSO models-wallet parser
+(`layso-dashboard-models-account-balance-v1`). Neither registration nor fixture
+environment variables grant `verified_browser` authority. Host attestation does:
+
+- Durable table `official_balance_web_browser_attestations` (not HTTP-writable)
+- `Service.AttestWebBrowserHost` / optional startup file
+  `CPAMP_WEB_BROWSER_ATTESTATION` (see `issue97-live-20261104/host-attestation.example.json`)
+- Enrollment callback grants `verified_browser` only when Profile=`Profile 1`,
+  family/instance/executionUser match the web source, and the parser rule is
+  installed
+- Live enrolled query evidence (2026-11-04): Credits `46.92` via BrowserSkill
+  instance `5cfdda27` — `docs/verification/issue97-live-20261104/README.md`
 
 Narrow checks (run offline with the project toolchain/dependency cache):
 

@@ -16,11 +16,11 @@ After dismissing a “Message Center” dialog, the billing URL rendered a **pub
 - Visible login form: Username or Email + Password (+ email-code alternative)
 - **No** verified accountId / tenantId / role / exact decimal wallet amount on this observation
 
-## Parser gate
+## Parser gate (superseded same day)
 
-- Default registry remains empty: no rule can be installed from marketing labels.
-- A real `parsingRule` still requires an **authenticated** normal billing page observation that shows durable identity + finite USD amount.
-- Closing #97 remains blocked until: Profile 1↔instance proof, logged-in billing page observe×2 match, and installed parser enrollment.
+- Initial logged-out `/billing` observation correctly blocked a parser.
+- Later authenticated wallet surface is `/dashboard/models` (Account balance Credits), not `/billing`.
+- Host Enrollment + live enrolled query evidence: `issue97-live-20261104/README.md` (Credits `46.92`, rule `layso-dashboard-models-account-balance-v1`).
 
 ## Follow-up (same day)
 

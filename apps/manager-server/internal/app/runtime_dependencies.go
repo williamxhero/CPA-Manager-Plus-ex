@@ -7,8 +7,9 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
 )
 
-// Ordinary builds retain the production defaults: no unverified web parser or
-// enrollment, and the real scheduler clock. Runtime input cannot enable fixtures.
+// Ordinary builds keep the service-installed LAYSO parser registry and host
+// attestation Enrollment from officialbalance.New. This hook only supplies the
+// tagged entry-fixture WebReader/clock; HTTP still cannot invent enrollment.
 func managementRuntimeDependencies() (balance.WebReader, fullrefresh.Clock) {
 	return nil, nil
 }

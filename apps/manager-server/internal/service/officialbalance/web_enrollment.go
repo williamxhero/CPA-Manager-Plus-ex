@@ -57,6 +57,11 @@ func (s *Service) readWebEnrollment(ctx context.Context, source Status) (WebEnro
 		out.State = "pending_verification"
 		out.ProofReference = row.ProofReference
 	}
+	// CollectionAuthorized tracks host attestation + installed parser Ready(),
+	// never the registration request alone.
+	if out.ParserSupported && source.Web != nil {
+		out.CollectionAuthorized = s.WebReader.Ready(balance.WebRequest{Source: *source.Web, Authority: source.WebSourceAuthority})
+	}
 	return out, nil
 }
 

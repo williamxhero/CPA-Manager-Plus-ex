@@ -270,8 +270,21 @@ func (b *BrowserSkill) Query(ctx context.Context, q WebRequest) (out Observation
 	// LAYSO Account balance Credits are aria-hidden in the VOM observe tree
 	// (2026-11-04). That rule reads the same ordinary page via get-html. Other
 	// rules keep observe. Still no evaluate, storage, cookies, or private API.
+	// Models wallet hydrates after navigate load — retry get-html briefly.
 	htmlRule := q.Source.ParsingRule == LaysoDashboardModelsRuleV1
-	for i := 0; i < 2; i++ {
+	attempts := 2
+	if htmlRule {
+		attempts = 8
+	}
+	okReads := 0
+	for i := 0; i < attempts && okReads < 2; i++ {
+		if htmlRule && i > 0 {
+			select {
+			case <-work.Done():
+				return fail("network_error", "WEB_TIMEOUT")
+			case <-time.After(750 * time.Millisecond):
+			}
+		}
 		if htmlRule {
 			raw, err = command(work, "get-html", "--session", session.ID, "--json", "--max-bytes", "2097152")
 		} else {
@@ -282,6 +295,9 @@ func (b *BrowserSkill) Query(ctx context.Context, q WebRequest) (out Observation
 		}
 		page, err = b.options.Rules[q.Source.ParsingRule](raw)
 		if err != nil {
+			if htmlRule {
+				continue
+			}
 			return fail("parse_error", "WEB_PAGE_CHANGED")
 		}
 		if !page.IdentityVerified || !page.RoleVerified {
@@ -290,6 +306,10 @@ func (b *BrowserSkill) Query(ctx context.Context, q WebRequest) (out Observation
 		if page.URL != LaysoBillingPage || page.AccountID != q.Source.AccountID || page.TenantID != q.Source.TenantID || page.Role != q.Source.Role {
 			return fail("auth_error", "WEB_IDENTITY_MISMATCH")
 		}
+		okReads++
+	}
+	if okReads < 2 {
+		return fail("parse_error", "WEB_PAGE_CHANGED")
 	}
 	current, verified := b.enrollment(q)
 	if !verified || current != enrolled {

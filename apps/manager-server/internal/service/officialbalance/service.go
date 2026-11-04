@@ -102,13 +102,16 @@ func (s *Service) SetCompletionObserver(fn func(Job, Status)) {
 	s.completed = fn
 }
 func New(st *store.Store, identity *rc.Service, options ...Option) *Service {
-	s := &Service{Store: st, Identity: identity, Querier: balance.New(), WebReader: balance.NewBrowserSkill(balance.BrowserSkillOptions{
+	s := &Service{Store: st, Identity: identity, Querier: balance.New(), running: map[string]string{}, budget: managementquery.NewBudget(st)}
+	// Host-installed parser registry + Enrollment that reads durable Profile 1
+	// ↔ instance attestations. Rules alone never authorize collection; HTTP
+	// registration never writes those attestations (SPEC #97).
+	s.WebReader = balance.NewBrowserSkill(balance.BrowserSkillOptions{
 		Rules: map[string]func([]byte) (balance.WebPage, error){
 			balance.LaysoDashboardModelsRuleV1: balance.ParseLaysoDashboardModelsHTML,
 		},
-		// Enrollment stays fail-closed until the host supplies a verified
-		// Profile 1 ↔ instance proof. Rules alone never authorize collection.
-	}), running: map[string]string{}, budget: managementquery.NewBudget(st)}
+		Enrollment: s.resolveWebEnrollment,
+	})
 	for _, option := range options {
 		option(s)
 	}

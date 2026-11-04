@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -201,6 +202,9 @@ func fromExisting(
 	identityService := resourcecapabilitysvc.New(accountProcessingPolicyService, managerConfigService)
 	managementBudget := managementquery.NewBudget(st)
 	officialBalanceService := officialbalancesvc.New(st, identityService, officialbalancesvc.WithBudget(managementBudget))
+	if err := loadHostWebBrowserAttestation(context.Background(), officialBalanceService); err != nil {
+		panic(fmt.Sprintf("host web browser attestation: %v", err))
+	}
 	webReader, refreshClock := managementRuntimeDependencies()
 	if webReader != nil {
 		officialBalanceService.WebReader = webReader

@@ -49,11 +49,18 @@ func ParseLaysoDashboardModelsHTML(raw []byte) (WebPage, error) {
 	if cumAfter >= 0 && idx+cumAfter < labelAt {
 		return WebPage{}, errors.New("credits bound to cumulative usage")
 	}
+	// Site chrome includes alt="Logo"; the logged-in avatar alt is the account id
+	// (observed 2026-11-04: h7w8). Never take the first img blindly.
 	alt := ""
-	if am := laysoAvatarAlt.FindStringSubmatch(html); am != nil {
-		alt = am[1]
+	for _, am := range laysoAvatarAlt.FindAllStringSubmatch(html, -1) {
+		candidate := am[1]
+		if candidate == "" || strings.EqualFold(candidate, "Logo") || !sessionToken.MatchString(candidate) {
+			continue
+		}
+		alt = candidate
+		break
 	}
-	if alt == "" || !sessionToken.MatchString(alt) {
+	if alt == "" {
 		return WebPage{}, errors.New("account avatar missing")
 	}
 	// Observed console chrome: sidebar section label "Personal". User ID / role

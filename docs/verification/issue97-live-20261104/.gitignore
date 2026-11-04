@@ -3,3 +3,4 @@
 *.txt
 _*.py
 !README.md
+!host-attestation.example.json

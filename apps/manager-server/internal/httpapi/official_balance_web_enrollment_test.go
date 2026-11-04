@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -222,6 +223,50 @@ func TestOfficialBalanceWebEnrollmentConcurrentWritersCAS(t *testing.T) {
 	}
 	if enrollmentRead(t, f.handler)["registrationVersion"] != float64(1) {
 		t.Fatal("two writers both changed registration")
+	}
+}
+
+func TestOfficialBalanceWebHostAttestationAuthorizesCollection(t *testing.T) {
+	f := newOfficialFixture(t)
+	body := webConfiguration(0)
+	web := body["web"].(map[string]any)
+	web["accountId"], web["tenantId"], web["role"], web["executionUser"] = "h7w8", "Personal", "Personal", "will"
+	web["parsingRule"] = "layso-dashboard-models-account-balance-v1"
+	web["browser"].(map[string]any)["instanceId"] = "synthetic-edge-instance"
+	rr := testutil.Request(t, f.handler, "PUT", balancePath, webBody(t, body), testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var source map[string]any
+	testutil.DecodeJSON(t, rr, &source)
+	reg := map[string]any{
+		"scope": body["scope"], "targets": body["targets"], "version": 1,
+		"sourceAuthority": source["webSourceAuthority"], "registrationVersion": 0,
+		"proofReference": "controlled-review-reference-1",
+	}
+	testutil.RequireStatus(t, testutil.Request(t, f.handler, "PUT", enrollmentPath, webBody(t, reg), testutil.AdminKey), 200)
+	pending := enrollmentRead(t, f.handler)
+	if pending["parserSupported"] != true || pending["collectionAuthorized"] != false || pending["state"] != "pending_verification" {
+		t.Fatalf("parser without host attestation must stay unauthorized: %v", pending)
+	}
+	svc := f.server.AppContext().OfficialBalanceService
+	if err := svc.AttestWebBrowserHost(context.Background(), store.WebBrowserHostAttestation{
+		ProofReference: "host-profile1-synthetic-edge-instance",
+		Family:         "microsoft-edge",
+		Profile:        "Profile 1",
+		InstanceID:     "synthetic-edge-instance",
+		ExecutionUser:  "will",
+		EvidenceKind:   "verified_browser",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	authorized := enrollmentRead(t, f.handler)
+	if authorized["collectionAuthorized"] != true || authorized["state"] != "pending_verification" {
+		t.Fatalf("host attestation must authorize collection without HTTP self-certify: %v", authorized)
+	}
+	if err := svc.RevokeWebBrowserHostAttestations(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if enrollmentRead(t, f.handler)["collectionAuthorized"] != false {
+		t.Fatal("revoke must clear collection authorization")
 	}
 }
 
