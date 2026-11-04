@@ -317,8 +317,8 @@ export function ProviderDetailDrawer({
           'ark.cn-beijing.volces.com',
           'dashscope.aliyuncs.com',
           'token-plan.cn-beijing.maas.aliyuncs.com',
+          // bare layso.ai remains a manual candidate; api.layso.ai is balanceSupported above
           'layso.ai',
-          'api.layso.ai',
         ].includes(endpoint.hostname);
     } catch {
       /* Unknown protocols remain explicitly unsupported. */
