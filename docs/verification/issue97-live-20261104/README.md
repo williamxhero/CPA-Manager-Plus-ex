@@ -68,5 +68,6 @@ Observed: `QueryStatus=success`, `AmountDecimal=46.92`, `Currency=USD`, `Verific
 ## Still open before issue close
 
 - Scheduled Task `CPA-BSK-Relay` registered AtLogOn for user `will` (agent already listening on `:18717`)
-- Optional: second OfficialBalance row on codex Layso twin `b3452588…`/`9c6eea89…`
+- Codex Layso twin OfficialBalance also **PASS** (`1b55357e…`, 46.92)
+- Remaining matrix hosts (DeepInfra/DeepSeek/Volc/WawAPI/NewAPI) still need operator secrets or browser-session enrollment before Manager query
 - Do not close #97/#95/#88; do not commit raw HTML dumps

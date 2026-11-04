@@ -47,8 +47,8 @@ openai-compatibility DeepInfra group (`068a7783…` / `27c51563…`). That was
 replaced with `adapter=deepinfra` + `clearSecret=true` → `configured=false`
 (version 2). No secrets were written in evidence.
 
-Codex Layso twin (`b3452588…` / `9c6eea89…`, `https://api.layso.ai/v1`) remains
-available for a separate OfficialBalance row if needed.
+Codex Layso twin (`b3452588…` / `9c6eea89…`, `https://api.layso.ai/v1`) also
+registered: authority `be19953c…`; `POST` job `1b55357e…` → success `46.92` USD.
 
 ## Manager-driven collection (PASS via localhost bsk relay)
 
