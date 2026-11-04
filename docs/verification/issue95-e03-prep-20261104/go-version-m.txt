@@ -1,0 +1,29 @@
+﻿D:\WILL\AGENT\CPA\ops\needs-forever-all-specs-20261103\worktrees\manager-canonical82-closing\docs\verification\issue95-e03-prep-20261104\cpa-manager-plus.exe: go1.27.0
+	path	github.com/seakee/cpa-manager-plus/apps/manager-server/cmd/cpa-manager-plus
+	mod	github.com/seakee/cpa-manager-plus/apps/manager-server	(devel)	
+	dep	github.com/dustin/go-humanize	v1.0.1	h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
+	dep	github.com/google/uuid	v1.6.0	h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
+	dep	github.com/mattn/go-isatty	v0.0.20	h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
+	dep	github.com/ncruces/go-strftime	v1.0.0	h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
+	dep	github.com/remyoudompheng/bigfft	v0.0.0-20230129092748-24d4a6f8daec	h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
+	dep	golang.org/x/exp	v0.0.0-20251023183803-a4bb9ffd2546	h1:mgKeJMpvi0yx/sU5GsxQ7p6s2wtOnGAHZWCHUM4KGzY=
+	dep	golang.org/x/sys	v0.44.0	h1:ildZl3J4uzeKP07r2F++Op7E9B29JRUy+a27EibtBTQ=
+	dep	modernc.org/libc	v1.67.6	h1:eVOQvpModVLKOdT+LvBPjdQqfrZq+pC39BygcT+E7OI=
+	dep	modernc.org/mathutil	v1.7.1	h1:GCZVGXdaN8gTqB1Mf/usp1Y/hSqgI2vAGGP4jZMCxOU=
+	dep	modernc.org/memory	v1.11.0	h1:o4QC8aMQzmcwCK3t3Ux/ZHmwFPzE6hf2Y5LbkRs+hbI=
+	dep	modernc.org/sqlite	v1.46.1	h1:eFJ2ShBLIEnUWlLy12raN0Z1plqmFX9Qe3rjQTKt6sU=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	DefaultGODEBUG=tracebacklabels=0,x509sslcertoverrideplatform=0
+	build	CGO_ENABLED=1
+	build	CGO_CFLAGS=
+	build	CGO_CPPFLAGS=
+	build	CGO_CXXFLAGS=
+	build	CGO_LDFLAGS=
+	build	GOARCH=amd64
+	build	GOOS=windows
+	build	GOAMD64=v1
+	build	vcs=git
+	build	vcs.revision=c745df5a9e68278288fc9c91c29a81609fb9e595
+	build	vcs.time=2026-11-04T06:55:27Z
+	build	vcs.modified=true

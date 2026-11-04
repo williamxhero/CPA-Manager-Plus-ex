@@ -1,0 +1,5 @@
+﻿commit=c745df5a9e68278288fc9c91c29a81609fb9e595
+built_at=2026-11-04T14:56:52.0650052+08:00
+exe=D:\WILL\AGENT\CPA\ops\needs-forever-all-specs-20261103\worktrees\manager-canonical82-closing\docs\verification\issue95-e03-prep-20261104\cpa-manager-plus.exe
+sha256=AE3060D3E6D1B00378AD7D906DC338D268E5F4CCB9A9D56B3B41C1E13F477040
+size=34808320

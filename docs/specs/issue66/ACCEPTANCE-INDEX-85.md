@@ -28,7 +28,7 @@ Lineage tip for Manager work: `667e6143` (`spec74`/`#84`/`#73` chain). Brand ver
 1. Hermes freeze of current local provider/credential/mode list + secure channel
 2. Live authorized balance for each inventory host (esp. NewAPI instances, DeepInfra, Layso/#97)
 3. Pinned ordinary Core binary for ActualCore full-refresh / credential-quota suites that currently SKIP
-4. #97 web enrollment/parser/Profile success; #95 install deploy; #88 Qwen save residual as applicable
+4. #97 local Enrollment+parser+live Credits 46.92 PASS (`c745df5a`); host attestation still must be installed on the authorized runtime before close. #95 E03 install deploy + #88 S03/S04 remain blocked without deploy authority
 5. No yosef-server; no automatic production merge/restart/close of parent #66
 
 ## Closed child tickets (local evidence)
