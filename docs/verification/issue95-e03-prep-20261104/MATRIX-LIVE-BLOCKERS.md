@@ -16,8 +16,8 @@ bsk relay `:18717` + attestation remain required for Layso web path.
 
 | Host | Adapter | Blocker |
 |---|---|---|
-| `api.liangrekui.com` | `openai-compat-usage-v1` (+ NewAPI self) | hosts OK; `/api/status` **200**; POST `/v1/usage` **UPSTREAM_STATUS**; NewAPI user-self needs operator `userID`+conversion |
-| `api-top.com` | browser / openai-compat | Profile 1 **Sign in**; POST `/v1/usage` **UPSTREAM_STATUS** |
+| `api.liangrekui.com` | needs `newapi-user-self-v1` | hosts OK; `/api/status` **200**; bare `GET /v1/usage` → **404** (explains OfficialBalance `UPSTREAM_STATUS`); `/api/user/self` → **401** without New-Api-User |
+| `api-top.com` | `newapi-browser-session-v1` | Profile 1 **Sign in**; bare `GET /v1/usage` → **404**; `/api/user/self` → **401** |
 | `code28.ccwu.cc` | browser | Profile 1 **登录**; `/api/status` **200** |
 | Volcengine / Aliyun | vendor adapters | no AK/SK on host |
 | `kele520.com` | — | **do not alias**; use `code28.ccwu.cc` |
