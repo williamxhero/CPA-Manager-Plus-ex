@@ -74,10 +74,14 @@ returned job `60fa1e2d-…` with `queryStatus=success`, `amountDecimal=46.92`,
 - No issue close; no production secret dump; Core `api-keys` values never
   copied into this tree.
 
-## Panel UI readback gap (same host)
+## Panel UI readback (PASS after binding fix)
 
-BrowserSkill opened Claude/https://api.layso.ai provider detail. The 「官方余额」
-region showed unsupported · 本票尚未交付此来源协议… and did **not** surface
-Credits 46.92, even though Manager OfficialBalance API/full-refresh for that
-Core group is success. Treat UI wiring/readback as still open under W05; API
-path remains the verified collection evidence (ui-layso-official-balance-evidence.json).
+BrowserSkill hard-reload of Claude/`https://api.layso.ai` detail now shows:
+`configured` · LAYSO web source `h7w8` · **USD 46.92** · `layso_billing_web_v1`.
+
+Root cause: `forProvider` emitted credential-only bindings for native Claude/Codex
+rows; OfficialBalance sources were keyed to provider+member. Fix includes the
+issued parent provider in the binding set. Panel SHA `DCB4CF76…` (hot-swapped;
+full elevated E03 deferred when Administrator token unavailable).
+
+Tickets #97/#95/#88 stay open.

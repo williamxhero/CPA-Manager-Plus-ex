@@ -470,6 +470,69 @@ it.each(['gemini', 'interactions', 'codex', 'xai', 'meta', 'claude', 'vertex'] a
   }
 );
 
+it('includes the issued native parent provider in the OfficialBalance binding set', async () => {
+  const parent = '66666666-6666-4666-8666-666666666666';
+  const summary = catalog();
+  summary.negotiated.snapshot.resources = [
+    { ...sourceRow(), family: 'claude', parent_id: parent },
+    {
+      ...sourceRow(),
+      resource_id: parent,
+      family: 'claude',
+      kind: 'provider',
+      members: [id],
+      membership_version: 1,
+      parent_id: undefined,
+    },
+  ];
+  await mountSourceFixture(
+    { 'claude-api-key': [{ 'api-key': 'CANARY-NATIVE', 'resource-id': id }] },
+    summary
+  );
+  await vi.waitFor(async () => {
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(indicators()).toHaveLength(1);
+    expect(indicators()[0].props['aria-label']).toContain(en.resource_protection.identity_only);
+  });
+  const bound = indicators()[0];
+  await act(async () => bound.props.onClick());
+  const tip = text(
+    renderer!.root.findByProps({ role: 'tooltip', id: bound.props['aria-describedby'] })
+  );
+  expect(tip).toContain(id);
+  expect(tip).toContain(parent);
+});
+
+it('keeps a native credential unbound when its parent provider membership is incomplete', async () => {
+  const parent = '66666666-6666-4666-8666-666666666666';
+  const summary = catalog();
+  summary.negotiated.snapshot.resources = [
+    { ...sourceRow(), family: 'claude', parent_id: parent },
+    {
+      ...sourceRow(),
+      resource_id: parent,
+      family: 'claude',
+      kind: 'provider',
+      members: ['77777777-7777-4777-8777-777777777777'],
+      membership_version: 1,
+      parent_id: undefined,
+    },
+  ];
+  await mountSourceFixture(
+    { 'claude-api-key': [{ 'api-key': 'CANARY-NATIVE', 'resource-id': id }] },
+    summary
+  );
+  await vi.waitFor(async () => {
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(indicators()).toHaveLength(1);
+    expect(indicators()[0].props['aria-label']).toContain(en.resource_protection.unbound);
+  });
+});
+
 it.each([
   'absent marker',
   'malformed marker',

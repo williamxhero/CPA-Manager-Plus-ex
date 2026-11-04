@@ -395,9 +395,28 @@ export function useResourceProtection(availability: ManagerAvailability, sourceR
       return { status: 'identity_only', binding: { scope: inventory.scope, targets } };
     }
     if (source.kind !== 'credential' || source.family !== row.kind) return { status: 'unbound' };
+    // Native Claude/Codex (and peers) issue provider+member groups. OfficialBalance
+    // sources are keyed to that full issued set; credential-only bindings miss them.
+    const targets: ResourceTarget[] = [];
+    const parentId = source.parent;
+    if (typeof parentId === 'string' && uuid(parentId)) {
+      const parents = inventory.rows.filter((entry) => entry.target.resource_id === parentId);
+      if (
+        parents.length !== 1 ||
+        !parents[0].ready ||
+        parents[0].kind !== 'provider' ||
+        parents[0].family !== row.kind
+      )
+        return { status: 'unbound' };
+      const members = parents[0].members === undefined ? [] : parents[0].members;
+      if (!Array.isArray(members) || !members.every(uuid) || !members.includes(marker))
+        return { status: 'unbound' };
+      targets.push(parents[0].target);
+    }
+    targets.push(source.target);
     return {
       status: 'identity_only',
-      binding: { scope: inventory.scope, targets: [source.target] },
+      binding: { scope: inventory.scope, targets },
     };
   };
   return { status, refresh, forCredential, forProvider };
