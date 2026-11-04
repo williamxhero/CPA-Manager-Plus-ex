@@ -196,6 +196,36 @@ func TestProviderPolicyBackupRestoreAndUnsafeDowngradeRefusal(t *testing.T) {
 	}
 }
 
+func TestParkAmbiguousProviderGateJournalsLeavesBodiesIntact(t *testing.T) {
+	ctx := context.Background()
+	db := openPolicyMigrateFixture(t)
+	defer db.Close()
+	good := `{"owner":"provider-balance/install-1","opId":"op-1","action":"restrict"}`
+	bad := `{"owner":"CredentialPolicyInstallation/worker","opId":"op-2","action":"restrict"}`
+	if _, err := db.db.ExecContext(ctx, `INSERT INTO provider_gate_operations(id,generation,document) VALUES(?,?,?),(?,?,?)`,
+		"gate-good", 1, good, "gate-bad", 1, bad); err != nil {
+		t.Fatal(err)
+	}
+	n, err := db.ParkAmbiguousProviderGateJournals(ctx)
+	if err != nil || n != 1 {
+		t.Fatalf("parked=%d err=%v", n, err)
+	}
+	var doc string
+	if err := db.db.QueryRowContext(ctx, `SELECT document FROM provider_gate_operations WHERE id=?`, "gate-bad").Scan(&doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc != bad {
+		t.Fatalf("immutable body rewritten: %s", doc)
+	}
+	var reason string
+	if err := db.db.QueryRowContext(ctx, `SELECT reason FROM provider_gate_migration_pending WHERE id=?`, "gate-bad").Scan(&reason); err != nil {
+		t.Fatal(err)
+	}
+	if reason == "" {
+		t.Fatal("expected pending reason")
+	}
+}
+
 func openPolicyMigrateFixture(t *testing.T) *Store {
 	t.Helper()
 	db, err := Open(filepath.Join(t.TempDir(), "migrate.sqlite"), newTestProtector(t))

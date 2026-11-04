@@ -52,6 +52,7 @@ func (s *Store) ensureProviderPolicyMigrationTables(ctx context.Context) error {
 		`CREATE TABLE IF NOT EXISTS provider_policy_schema (singleton INTEGER PRIMARY KEY CHECK(singleton=1), dialect TEXT NOT NULL, version INTEGER NOT NULL CHECK(version>0))`,
 		`CREATE TABLE IF NOT EXISTS provider_policy_migration_pending (id TEXT PRIMARY KEY, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), reason TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS provider_policy_migration_backup (seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), backed_up_at_ms INTEGER NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS provider_gate_migration_pending (id TEXT PRIMARY KEY, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), reason TEXT NOT NULL)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
@@ -287,4 +288,48 @@ func (s *Store) RestoreProviderPolicyBackup(ctx context.Context, backupPath stri
 		return err
 	}
 	return tx.Commit()
+}
+
+// ParkAmbiguousProviderGateJournals inventories gate operations and parks
+// unproven/ambiguous rows for review. Immutable op bodies/IDs are never
+// rewritten; secrets and manual intent are untouched.
+func (s *Store) ParkAmbiguousProviderGateJournals(ctx context.Context) (int, error) {
+	if err := s.ensureProviderPolicyMigrationTables(ctx); err != nil {
+		return 0, err
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id,generation,document FROM provider_gate_operations ORDER BY id`)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	parked := 0
+	for rows.Next() {
+		var id, document string
+		var generation int64
+		if err := rows.Scan(&id, &generation, &document); err != nil {
+			return parked, err
+		}
+		var body map[string]any
+		reason := ""
+		if json.Unmarshal([]byte(document), &body) != nil {
+			reason = "unparseable_gate_journal"
+		} else {
+			owner, _ := body["owner"].(string)
+			opID, _ := body["opId"].(string)
+			action, _ := body["action"].(string)
+			if owner == "" || opID == "" || action == "" {
+				reason = "missing_proven_gate_identity"
+			} else if strings.Contains(owner, "CredentialPolicyInstallation") {
+				reason = "worker_or_legacy_gate_owner"
+			}
+		}
+		if reason == "" {
+			continue
+		}
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO provider_gate_migration_pending(id,generation,document,reason) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET generation=excluded.generation,document=excluded.document,reason=excluded.reason`, id, generation, document, reason); err != nil {
+			return parked, err
+		}
+		parked++
+	}
+	return parked, rows.Err()
 }

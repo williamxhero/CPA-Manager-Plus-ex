@@ -26,9 +26,14 @@ func (s *Store) ProviderPolicyMigrationReadiness(ctx context.Context) (ProviderP
 	if err := s.ensureProviderPolicyMigrationTables(ctx); err != nil {
 		return out, err
 	}
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM provider_policy_migration_pending`).Scan(&out.PendingCount); err != nil {
+	var policyPending, gatePending int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM provider_policy_migration_pending`).Scan(&policyPending); err != nil {
 		return out, err
 	}
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM provider_gate_migration_pending`).Scan(&gatePending); err != nil {
+		return out, err
+	}
+	out.PendingCount = policyPending + gatePending
 	switch {
 	case out.PendingCount > 0:
 		// Ambiguous/worker-legacy rows parked for operator review must not
