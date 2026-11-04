@@ -1,6 +1,12 @@
+import { useEffect, useState } from 'react';
 import { OfficialBalancePanel } from '../OfficialBalancePanel';
 import type { OfficialBalancePanelProps } from '../OfficialBalancePanel';
 import type { OfficialBalanceAdapter } from '@/services/api/officialBalance';
+import {
+  getProviderPolicy,
+  type ProviderPolicyBinding,
+  type ProviderPolicyStatus,
+} from '@/services/api/providerPolicy';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
@@ -21,6 +27,8 @@ import { coolingPolicyFromOverride, type CoolingPolicy } from '@/types';
 import type { ProviderRow } from '../ProviderTable/rowData';
 import styles from './ProviderDetailDrawer.module.scss';
 import { ProviderPolicyControl, type ProviderPolicyConnection } from '../ProviderPolicyControl';
+import { ProviderMoneySummary } from '../ProviderMoneySummary';
+import type { ProviderMoneyView } from '../useProviderMoneySummaries';
 
 interface ProviderDetailDrawerProps {
   officialBalance?: OfficialBalancePanelProps;
@@ -53,6 +61,50 @@ function FieldRow({ label, value }: FieldRowProps) {
       <span className={styles.fieldValue}>{value}</span>
     </div>
   );
+}
+
+function DetailPolicyMoneySummary({
+  open,
+  connection,
+  providerId,
+  binding,
+}: {
+  open: boolean;
+  connection: ProviderPolicyConnection;
+  providerId: string;
+  binding: OfficialBalancePanelProps['binding'];
+}) {
+  const [view, setView] = useState<ProviderMoneyView>({ pending: true });
+  useEffect(() => {
+    if (!open || connection.disabled || !connection.base || !connection.managementKey || !binding) {
+      setView({ pending: false });
+      return;
+    }
+    const policyBinding: ProviderPolicyBinding = { ...binding, providerId };
+    if (policyBinding.targets[0]?.resource_id !== providerId) {
+      setView({ failed: true });
+      return;
+    }
+    const controller = new AbortController();
+    setView((previous) => ({ ...previous, pending: true, failed: false }));
+    void getProviderPolicy(connection.base, connection.managementKey, policyBinding, controller.signal)
+      .then((data: ProviderPolicyStatus) => {
+        if (!controller.signal.aborted) setView({ data });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setView((previous) => ({ ...previous, failed: true, pending: false }));
+      });
+    return () => controller.abort();
+  }, [
+    open,
+    connection.base,
+    connection.managementKey,
+    connection.disabled,
+    connection.revision,
+    providerId,
+    binding,
+  ]);
+  return <ProviderMoneySummary view={view} />;
 }
 
 export function ProviderDetailDrawer({
@@ -288,6 +340,14 @@ export function ProviderDetailDrawer({
               binding={officialBalance?.binding}
               disabled={!open}
             />
+            {row.kind === 'openai' && officialBalance?.binding && row.raw.resourceId && (
+              <DetailPolicyMoneySummary
+                open={open}
+                connection={providerPolicy}
+                providerId={row.raw.resourceId}
+                binding={officialBalance.binding}
+              />
+            )}
           </section>
         )}
         <section className={styles.section}>
