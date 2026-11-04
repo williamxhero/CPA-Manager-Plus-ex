@@ -29,22 +29,20 @@ func (s *Store) ProviderPolicyMigrationReadiness(ctx context.Context) (ProviderP
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM provider_policy_migration_pending`).Scan(&out.PendingCount); err != nil {
 		return out, err
 	}
-	var policies int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM provider_policies`).Scan(&policies); err != nil {
-		return out, err
-	}
 	switch {
 	case out.PendingCount > 0:
+		// Ambiguous/worker-legacy rows parked for operator review must not
+		// admit automatic monetary reconcile until resolved.
 		out.Reason = "migration_pending_rows"
 		out.ProtectionHold = true
-	case policies > 0 && dialect == ProviderPolicyDialectUnknown:
-		out.Reason = "dialect_unknown_with_policies"
-		out.ProtectionHold = true
-	case dialect == ProviderPolicyDialectDesktopV1 || policies == 0:
-		out.Ready = true
 	default:
-		out.Reason = "dialect_not_ready"
-		out.ProtectionHold = true
+		// Greenfield and post-migrate Desktop installs are ready. Unknown
+		// dialect without pending rows remains operable; operators can still
+		// run an explicit dry-run/apply migration to stamp dialect metadata.
+		out.Ready = true
+		if dialect == ProviderPolicyDialectUnknown {
+			out.Reason = "dialect_unspecified"
+		}
 	}
 	return out, nil
 }

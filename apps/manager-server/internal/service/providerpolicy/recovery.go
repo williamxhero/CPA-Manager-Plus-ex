@@ -32,6 +32,9 @@ func (s *Service) Recover(ctx context.Context, q Recovery) (Status, error) {
 	if s.Identity == nil || s.gate == nil {
 		return Status{}, ErrUnavailable
 	}
+	if err := s.requireMigrationReady(ctx); err != nil {
+		return Status{}, err
+	}
 	if err := s.lock(ctx); err != nil {
 		return Status{}, err
 	}

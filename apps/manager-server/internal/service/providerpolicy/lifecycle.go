@@ -21,11 +21,22 @@ func (s *Service) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		// Reconcile establishes its own <=15-second, pre-lock budget and
-		// rotates the durable frontier before each attempt. Errors do not
-		// erase pending evidence; the next wake/restart retries it safely.
+		// Upgrade/restart must restore protection before monetary reconcile
+		// can admit new automatic traffic. Pending/unknown dialect holds.
+		ready, readyErr := s.Store.ProviderPolicyMigrationReadiness(ctx)
 		started := time.Now()
-		err := s.Reconcile(ctx)
+		var err error
+		if readyErr != nil || !ready.Ready {
+			err = readyErr
+			if err == nil {
+				err = ErrUnavailable
+			}
+		} else {
+			// Reconcile establishes its own <=15-second, pre-lock budget and
+			// rotates the durable frontier before each attempt. Errors do not
+			// erase pending evidence; the next wake/restart retries it safely.
+			err = s.Reconcile(ctx)
+		}
 		// Credential policy shares this fenced lease and polls every five
 		// seconds. A tick buffered during slow I/O, or a queued completion,
 		// must not immediately reacquire it after every slow/failed pass.

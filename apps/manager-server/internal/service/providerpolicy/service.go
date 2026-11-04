@@ -191,6 +191,17 @@ func (s *Service) binding(ctx context.Context, id string) (Binding, bool, error)
 	return canonical(b), disabled, nil
 }
 
+func (s *Service) requireMigrationReady(ctx context.Context) error {
+	ready, err := s.Store.ProviderPolicyMigrationReadiness(ctx)
+	if err != nil {
+		return err
+	}
+	if !ready.Ready {
+		return ErrUnavailable
+	}
+	return nil
+}
+
 func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 	b, disabled, err := s.binding(ctx, id)
 	if err != nil {
@@ -223,6 +234,18 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 		if !out.BindingCurrent {
 			out.Reason = "provider_authority_changed"
 		}
+	}
+	if ready, readyErr := s.Store.ProviderPolicyMigrationReadiness(ctx); readyErr != nil {
+		return Status{}, readyErr
+	} else if !ready.Ready {
+		out.Locked = true
+		out.Effective = false
+		out.State = "pending"
+		out.Reason = ready.Reason
+		if out.Reason == "" {
+			out.Reason = "provider_policy_migration_not_ready"
+		}
+		return out, nil
 	}
 	view, gateErr := s.funding(ctx, b)
 	if gateErr != nil {
@@ -268,6 +291,9 @@ func (s *Service) Status(ctx context.Context, id string) (Status, error) {
 }
 
 func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
+	if err := s.requireMigrationReady(ctx); err != nil {
+		return Status{}, err
+	}
 	if q.Enabled == nil || q.ExpectedGeneration == nil || *q.ExpectedGeneration < 0 || *q.ExpectedGeneration >= 9007199254740991 {
 		return Status{}, ErrInput
 	}

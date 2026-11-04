@@ -117,8 +117,8 @@ func TestProviderPolicyMigrationReadinessHoldsTrafficUntilResolved(t *testing.T)
 		t.Fatal(err)
 	}
 	ready, err = db.ProviderPolicyMigrationReadiness(ctx)
-	if err != nil || ready.Ready || !ready.ProtectionHold || ready.Reason != "dialect_unknown_with_policies" {
-		t.Fatalf("unknown dialect with policies must hold: %+v err=%v", ready, err)
+	if err != nil || !ready.Ready || ready.ProtectionHold {
+		t.Fatalf("unspecified dialect without pending park stays operable: %+v err=%v", ready, err)
 	}
 	if _, err := db.MigrateProviderPolicyDialect(ctx, ProviderPolicyMigrateOptions{Target: ProviderPolicyDialectDesktopV1}); err != nil {
 		t.Fatal(err)
