@@ -1,0 +1,159 @@
+{
+  "joined": false,
+  "id": "dbf1d73d-1e5c-4b02-b2a2-9087d376b7d9",
+  "deadlineMs": 1793801122145,
+  "state": "complete",
+  "binding": {
+    "scope": {
+      "instance_id": "396cba32-3920-47e6-b043-a69401344a8d",
+      "instance_incarnation": "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+      "boot_epoch": "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+      "snapshot_revision": 11
+    },
+    "targets": [
+      {
+        "resource_id": "8e4a25b1-244e-4d0f-b51d-cf3e67707cf1",
+        "incarnation": "fc4f6082-b646-4778-88aa-68267f177b1f",
+        "identity_version": 1,
+        "credential_version": 1,
+        "config_version": 1,
+        "membership_version": 1
+      },
+      {
+        "resource_id": "946ffbc5-156a-473a-a603-ee8536705bc3",
+        "incarnation": "d7118c73-e919-493f-b7ef-6bd023578c03",
+        "identity_version": 1,
+        "credential_version": 1,
+        "config_version": 1,
+        "membership_version": 0
+      }
+    ]
+  },
+  "version": 1,
+  "status": {
+    "scope": {
+      "instance_id": "396cba32-3920-47e6-b043-a69401344a8d",
+      "instance_incarnation": "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+      "boot_epoch": "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+      "snapshot_revision": 11
+    },
+    "targets": [
+      {
+        "resource_id": "8e4a25b1-244e-4d0f-b51d-cf3e67707cf1",
+        "incarnation": "fc4f6082-b646-4778-88aa-68267f177b1f",
+        "identity_version": 1,
+        "credential_version": 1,
+        "config_version": 1,
+        "membership_version": 1
+      },
+      {
+        "resource_id": "946ffbc5-156a-473a-a603-ee8536705bc3",
+        "incarnation": "d7118c73-e919-493f-b7ef-6bd023578c03",
+        "identity_version": 1,
+        "credential_version": 1,
+        "config_version": 1,
+        "membership_version": 0
+      }
+    ],
+    "version": 1,
+    "adapter": "volcengine-account-balance-v2022-01-01",
+    "endpoint": "https://billing.volcengineapi.com/",
+    "timeoutMs": 60000,
+    "volcengine": {
+      "accountID": "2104998129",
+      "currency": "CNY",
+      "unit": "major",
+      "currencyUnitConfirmed": true,
+      "accountBindingConfirmed": true,
+      "proofReference": "operator-volc-billing-aksk-local-20261104"
+    },
+    "configured": true,
+    "state": "success",
+    "managerDirectQuery": true,
+    "coreQuery": false,
+    "coreGate": false,
+    "stale": false,
+    "attempt": {
+      "volcengineAccount": {
+        "accountID": "2104998129",
+        "unit": "major",
+        "proofReference": "operator-volc-billing-aksk-local-20261104",
+        "qualification": "operator_asserted_binding_and_units_not_live_verified"
+      },
+      "binding": {
+        "scope": {
+          "instance_id": "396cba32-3920-47e6-b043-a69401344a8d",
+          "instance_incarnation": "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+          "boot_epoch": "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+          "snapshot_revision": 11
+        },
+        "targets": [
+          {
+            "resource_id": "8e4a25b1-244e-4d0f-b51d-cf3e67707cf1",
+            "incarnation": "fc4f6082-b646-4778-88aa-68267f177b1f",
+            "identity_version": 1,
+            "credential_version": 1,
+            "config_version": 1,
+            "membership_version": 1
+          },
+          {
+            "resource_id": "946ffbc5-156a-473a-a603-ee8536705bc3",
+            "incarnation": "d7118c73-e919-493f-b7ef-6bd023578c03",
+            "identity_version": 1,
+            "credential_version": 1,
+            "config_version": 1,
+            "membership_version": 0
+          }
+        ]
+      },
+      "queryId": "dbf1d73d-1e5c-4b02-b2a2-9087d376b7d9",
+      "capabilityStatus": "supported",
+      "semantic": "account_wallet",
+      "amountDecimal": "122.35",
+      "currency": "CNY",
+      "queryStatus": "success",
+      "observedAtMs": 1793801063982
+    },
+    "lastSuccess": {
+      "volcengineAccount": {
+        "accountID": "2104998129",
+        "unit": "major",
+        "proofReference": "operator-volc-billing-aksk-local-20261104",
+        "qualification": "operator_asserted_binding_and_units_not_live_verified"
+      },
+      "binding": {
+        "scope": {
+          "instance_id": "396cba32-3920-47e6-b043-a69401344a8d",
+          "instance_incarnation": "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+          "boot_epoch": "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+          "snapshot_revision": 11
+        },
+        "targets": [
+          {
+            "resource_id": "8e4a25b1-244e-4d0f-b51d-cf3e67707cf1",
+            "incarnation": "fc4f6082-b646-4778-88aa-68267f177b1f",
+            "identity_version": 1,
+            "credential_version": 1,
+            "config_version": 1,
+            "membership_version": 1
+          },
+          {
+            "resource_id": "946ffbc5-156a-473a-a603-ee8536705bc3",
+            "incarnation": "d7118c73-e919-493f-b7ef-6bd023578c03",
+            "identity_version": 1,
+            "credential_version": 1,
+            "config_version": 1,
+            "membership_version": 0
+          }
+        ]
+      },
+      "queryId": "dbf1d73d-1e5c-4b02-b2a2-9087d376b7d9",
+      "capabilityStatus": "supported",
+      "semantic": "account_wallet",
+      "amountDecimal": "122.35",
+      "currency": "CNY",
+      "queryStatus": "success",
+      "observedAtMs": 1793801063982
+    }
+  }
+}
