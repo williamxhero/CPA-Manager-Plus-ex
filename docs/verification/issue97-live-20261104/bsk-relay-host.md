@@ -23,3 +23,6 @@ Manager `POST /usage-service/official-balance` Layso → Credits `46.92` USD
 
 `bin/bsk.exe` SHA-256 `CF6A4821292AAABA36717A2D6E34FAC68539BDD4AC2EEE8196BC4138E4395CFA`
 (recorded 2026-11-04).
+
+Controlled `go test ./internal/httpapi/ -run OfficialBalanceWeb|Layso|BrowserSession`
+→ `ok` in 39.209s (2026-11-04T17:03+08).
