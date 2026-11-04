@@ -35,4 +35,6 @@ Against the same Running install + BrowserSkill `5cfdda27` (user session):
 
 Compact evidence: `s03-browser-path-evidence.json`. Full VOM dumps stay local / untracked.
 
+Also opened **Qwen-Compat** detail dialog via BrowserSkill (s03-browser-qwen-detail-evidence.json): shows 官方余额 section + model list (qwen3.8-max / qwen3.8-flash).
+
 Still open for #88 close: in-UI excluded-models edit/save click-through (API path already ALL_OK); S04 cleanup awaits explicit delete auth.
