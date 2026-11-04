@@ -21,8 +21,20 @@ Do **not** close #88. No branch/worktree deleted in this pass.
 - Local `spec/92-qwen-manager-policy` still present on integration checkout
 - `opencode-upstream/main` remote exists (not merged here)
 
+## `spec/92-qwen-manager-policy` vs current tip
+
+- Merge-base: `f2ec3d11`
+- Ahead/behind (`qwen...conter`): **4 / 58**
+- Unique on qwen (not in conter tip):
+  - `e6e08730` feat: accept configured Qwen CLI quota evidence
+  - `6620d952` test: keep existing quota window fixture semantics
+  - `a89c7c76` fix: enforce exact Qwen quota provenance tuple
+  - `ff94e943` test: reject cross-protocol quota provenance
+
+These look **quota-provenance** focused, not the excluded-models save path already verified on live Manager. Do **not** auto-merge into conter tip without a dedicated cherry-pick/review pass.
+
 ## Next S04 steps
 
-1. Diff `spec/92-qwen-manager-policy` vs current tip for leftover #88 fixes.
-2. Decide merge vs already-contained; only then clean merged worktrees.
-3. Confirm Qwen/OpenCode repos have no orphan delivery branches required by M88.A05.
+1. Review whether the 4 qwen commits are already superseded elsewhere or still required.
+2. Audit `CPA-Qwen` / `CPA-OpenCode-ex` remotes for orphan delivery branches (M88.A05).
+3. Only after merge decisions: clean merged worktrees; still no issue close.
