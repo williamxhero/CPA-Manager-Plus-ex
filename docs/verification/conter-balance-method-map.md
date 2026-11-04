@@ -20,7 +20,7 @@
 | 可乐AI | `https://code28.ccwu.cc`（**非** kele520） | 同上 browser_session | 清单有 `kele520.com` | **主机不一致**：origin 未 enrollment；禁止把 code28 当 kele520 |
 | 凉热葵 | `https://api.liangrekui.com` | `openai_new_api` → `/api/user/self` + `New-Api-User`，`data.quota`/500000 | `api.liangrekui.com` | #74 已有 `newapi-user-self-v1` 路径；转换须显式 operator 合同 |
 | DeepInfra | `https://api.deepinfra.com` | `deepinfra_billing` checklist | `api.deepinfra.com` | #73 已交付 signed prepaid（原生 USD；×7 不进观测） |
-| （无） | — | — | `api.layso.ai` | #97 只读 `/billing` 页；不猜 DOM；不走 NewAPI |
+| （无） | — | — | `api.layso.ai` / `layso.ai` | #97 只读 `/billing`：2026-11-04 真页 observe 为**未登录**营销+登录表；parser/Profile1 门禁仍开（见 `issue97-layso-live-observe-20261104.md`） |
 
 ## CPA 约束（相对 conter）
 
