@@ -336,6 +336,23 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
+	return s.readRecord(ctx, b, r)
+}
+
+func (s *Service) InventoryStatusEvidence(ctx context.Context, b Binding, n *rc.Negotiated) (Status, store.OfficialBalanceFence, error) {
+	if !verifyInventory(n, b) {
+		return Status{}, store.OfficialBalanceFence{}, ErrIdentity
+	}
+	key := key(b)
+	r, fence, err := s.Store.OfficialBalanceWithFence(ctx, key)
+	if err != nil {
+		return Status{}, store.OfficialBalanceFence{}, err
+	}
+	status, err := s.readRecord(ctx, b, r)
+	return status, fence, err
+}
+
+func (s *Service) readRecord(ctx context.Context, b Binding, r store.OfficialBalanceRecord) (Status, error) {
 	out := Status{Config: Config{Binding: b, Version: r.Version}, State: "needs_configuration"}
 	if r.Config == "" {
 		return out, nil

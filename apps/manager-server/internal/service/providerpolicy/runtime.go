@@ -280,11 +280,13 @@ func (s *Service) currentEvidence(record store.ProviderPolicyRecord, sources []F
 		if current.Generation != record.Generation || current.Document != record.Document {
 			return ErrUnavailable
 		}
+		fences := make([]store.OfficialBalanceFence, 0, len(sources))
 		for _, source := range sources {
-			status, err := s.official.InventoryStatus(ctx, source.Query.Binding, inventory)
+			status, fence, err := s.official.InventoryStatusEvidence(ctx, source.Query.Binding, inventory)
 			if err != nil || !status.Configured || status.Version != source.Query.Version {
 				return ErrUnavailable
 			}
+			fences = append(fences, fence)
 			if !source.KeyMatched {
 				continue
 			}
@@ -292,6 +294,9 @@ func (s *Service) currentEvidence(record store.ProviderPolicyRecord, sources []F
 			if status.LastSuccess == nil && source.QueryID != "" || status.LastSuccess != nil && status.LastSuccess.QueryID != source.QueryID || low != source.low || high != source.high {
 				return ErrUnavailable
 			}
+		}
+		if err := s.Store.ValidateProviderPolicyEvidence(ctx, record, lease, time.Now().UnixMilli(), fences); err != nil {
+			return ErrUnavailable
 		}
 		return nil
 	}
