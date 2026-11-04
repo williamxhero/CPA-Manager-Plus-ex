@@ -6,8 +6,8 @@ Other frozen hosts remain blocked for live Manager query as follows:
 
 | Host | Adapter | Blocker |
 |---|---|---|
-| `api.deepinfra.com` | `deepinfra` | PUT `configured=true`; POST `UPSTREAM_UNAVAILABLE` under LocalService (user-session checklist **200**) — see `MATRIX-DEEPINFRA-DEEPSEEK-20261104.md` |
-| `api.deepseek.com` | `deepseek` | PUT `configured=true`; POST `UPSTREAM_UNAVAILABLE` under LocalService (user-session balance **50.50 CNY**) — same note |
+| `api.deepinfra.com` | `deepinfra` | PUT `configured=true`; POST blocked: DNS fake-IP `198.18.2.52` refused by `secureClient` (user-session checklist **200**) — `MATRIX-DEEPINFRA-DEEPSEEK-20261104.md` |
+| `api.deepseek.com` | `deepseek` | PUT `configured=true`; POST blocked: DNS fake-IP `198.18.2.53` refused by `secureClient` (user-session **50.50 CNY**) — same note |
 | Volcengine / Aliyun | vendor adapters | no row; needs vendor contract + secret |
 | `wawapii.com` | `openai-compat-usage-v1` | needs Bearer secret |
 | `api.liangrekui.com` | `newapi-user-self-v1` | needs secret + explicit conversion profile |
@@ -21,10 +21,14 @@ Other frozen hosts remain blocked for live Manager query as follows:
 
 ## Operator unblockers (no secrets in-repo)
 
-1. DeepInfra / DeepSeek / WawAPI / 凉热葵: `PUT /usage-service/official-balance` with the
-   correct Core complete source group + adapter + `secret` (never paste into git).
-2. api-top.com: log into `https://api-top.com/dashboard` under Edge Profile 1, then
+1. DeepInfra / DeepSeek: PUT already green on this host; for POST, turn off Clash
+   fake-IP for those hostnames (or real DNS for LocalService). Do **not** permit
+   `198.18.0.0/15` in OfficialBalance. WawAPI / 凉热葵 still need secret + same DNS.
+2. WawAPI / 凉热葵: `PUT /usage-service/official-balance` with the correct Core
+   complete source group + adapter + `secret` (never paste into git); same DNS
+   constraint as above once configured.
+3. api-top.com: log into `https://api-top.com/dashboard` under Edge Profile 1, then
    register `newapi-browser-session-v1` with that origin’s `user_id` and instance `5cfdda27`.
-3. Keep Scheduled Task `CPA-BSK-Relay` / agent on `:18717` while LocalService Manager runs.
+4. Keep Scheduled Task `CPA-BSK-Relay` / agent on `:18717` while LocalService Manager runs.
 
 Tickets stay open; no secrets recorded here.
