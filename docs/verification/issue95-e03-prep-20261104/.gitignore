@@ -6,3 +6,6 @@
 *.key
 admin*.txt
 SMOKE-*.txt
+
+config.json
+
