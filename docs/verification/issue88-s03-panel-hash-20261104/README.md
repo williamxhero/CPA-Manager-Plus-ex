@@ -16,7 +16,12 @@ Compares on-disk `management.html` sources. Does **not** deploy or claim S03 pas
 - `CPA-Manager-Plus-ex` tree placeholder is unrelated to the running service.
 - S03 still needs live Qwen/OpenCode two-provider save/rollback on this process; hash gate for panel deploy is satisfied.
 
-## Next
+## S03 save/restore (API via Manager → Core, 2026-11-04)
 
-1. Live page save for Qwen + OpenCode (excluded-models) with snapshot restore.
-2. Do not close #88 until those page actions pass.
+Against running `LocalCPAManagerPlus` after E03:
+
+- Qwen + OpenCode: `PATCH /v0/management/auth-files/fields` add probe `excluded-models`, verify download, restore previous list.
+- Result: **ALL_OK** — see `s03-save-evidence.json` (secrets redacted).
+- Panel hash gate already matched installed `management.html`.
+
+Still open for #88 close: browser UI click-path / visual confirmation if required by SPEC wording beyond API; S04 branch audit/cleanup.
