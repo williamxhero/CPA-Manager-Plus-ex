@@ -67,6 +67,6 @@ Observed: `QueryStatus=success`, `AmountDecimal=46.92`, `Currency=USD`, `Verific
 
 ## Still open before issue close
 
-- Persist/auto-start the bsk relay with user logon (currently manual agent PID)
+- Scheduled Task `CPA-BSK-Relay` registered AtLogOn for user `will` (agent already listening on `:18717`)
 - Optional: second OfficialBalance row on codex Layso twin `b3452588…`/`9c6eea89…`
 - Do not close #97/#95/#88; do not commit raw HTML dumps
