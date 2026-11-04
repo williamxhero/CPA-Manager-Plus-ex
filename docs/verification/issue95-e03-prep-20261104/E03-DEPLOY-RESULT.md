@@ -18,13 +18,13 @@ Authorized: local backup + install + rollback; push branch; do **not** close iss
 
 Source tip at build: branch `spec92/conter-balance-method-map-20261104` (includes `c745df5a` LAYSO enrollment).
 
-## Evidence JSON (under `deploy-run/`, gitignored exe/logs may exist)
+## Evidence JSON (`evidence/`)
 
 | Step | Result file | Status |
 |---|---|---|
-| Deploy | `deploy-20261104d.json` | `deployed` (backup→rehearsal→stop→replace→start→health) |
-| Rollback drill | `rollback-20261104.json` | `rolled_back` |
-| Redeploy | `redeploy-20261104.json` | `deployed` |
+| Deploy | `evidence/deploy-20261104d.json` | `deployed` (backup→rehearsal→stop→replace→start→health) |
+| Rollback drill | `evidence/rollback-20261104.json` | `rolled_back` |
+| Redeploy | `evidence/redeploy-20261104.json` | `deployed` |
 
 Installed exe SHA-256 after redeploy matches artifact (`46A85F91…`).
 

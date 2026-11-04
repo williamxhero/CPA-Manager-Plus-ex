@@ -1,6 +1,9 @@
 worktree_management_html_sha256=087C71D3E31952C09ED5F3B43B2E899A9294E67BDCF28360999EE1073A8D69B0
 worktree_management_html_bytes=6634330
+installed_runtime_panel_sha256=087C71D3E31952C09ED5F3B43B2E899A9294E67BDCF28360999EE1073A8D69B0
+installed_runtime_panel_bytes=6634330
+installed_runtime_exe_sha256=46A85F911215EE5428A84DC26F367D98ECB63EA58261B9C84676127B1EC19639
 ex_placeholder_management_html_sha256=6913BD11A06B0315A2C09A6B2333703D8B304D2F7054200F5D2391B6BE276959
 ex_placeholder_management_html_bytes=530
-recorded_at=2026-11-04T15:47:00+08:00
-note=ex tree currently embeds placeholder text saying panel not built into binary
+recorded_at=2026-11-04T16:10:00+08:00
+note=runtime panel matches worktree after E03 redeploy; ex checkout still placeholder
