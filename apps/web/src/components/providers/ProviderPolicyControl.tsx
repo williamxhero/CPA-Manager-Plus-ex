@@ -73,6 +73,31 @@ export function ProviderPolicyControl(props: ProviderPolicyControlProps) {
               ? t('provider_policy.unavailable')
               : label}
         </button>
+        {data?.ownPaused && data.applied ? (
+          <span
+            className={styles.autoMarker}
+            role="status"
+            data-auto-pause-marker="applied"
+            aria-label={t('provider_policy.auto_paused_marker_aria', {
+              name: props.row.label,
+            })}
+            title={t('provider_policy.auto_paused_marker_hint')}
+          >
+            {t('provider_policy.auto_paused_marker')}
+          </span>
+        ) : data?.state === 'pending' ? (
+          <span
+            className={styles.autoMarker}
+            role="status"
+            data-auto-pause-marker="pending"
+            aria-label={t('provider_policy.auto_pending_marker_aria', {
+              name: props.row.label,
+            })}
+            title={t('provider_policy.auto_pending_marker_hint')}
+          >
+            {t('provider_policy.auto_pending_marker')}
+          </span>
+        ) : null}
         {props.children ?? <span>{props.row.label}</span>}
       </span>
       <div id={id} className={styles.details} aria-live="polite">

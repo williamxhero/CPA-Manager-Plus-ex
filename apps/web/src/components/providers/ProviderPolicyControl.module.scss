@@ -38,6 +38,25 @@
   white-space: nowrap;
 }
 
+/** Name-leading automatic status; not a second manual slider. */
+.autoMarker {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--warning-color) 55%, var(--border-subtle));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--warning-color) 12%, var(--surface-subtle));
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
 .indicator[data-state='paused'],
 .indicator[data-state='unavailable'],
 .indicator[data-state='pending'] {

@@ -242,6 +242,9 @@ export function ProviderHealthCheckDrawer({
       }
     >
       <div className={styles.root}>
+        <p className="hint" role="note" data-testid="health-check-historic-note">
+          {t('ai_providers.health_check_historic_note')}
+        </p>
         <section className={styles.progressSection}>
           <div className={styles.progressHeader}>
             <div>
@@ -308,7 +311,7 @@ export function ProviderHealthCheckDrawer({
                       checked={enabled}
                       disabled={actionsDisabled || running || switching}
                       onChange={(value) => void handleManualToggle(group.providerKey, value)}
-                      ariaLabel={t('ai_providers.health_check_manual_toggle')}
+                      ariaLabel={t('ai_providers.health_check_manual_config_toggle')}
                     />
                   </div>
 

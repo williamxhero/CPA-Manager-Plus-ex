@@ -1083,6 +1083,9 @@ export function RealtimeEventsPanel({
   );
   const content = (
     <>
+      <p className="hint" role="note" data-testid="monitoring-events-historic-note">
+        {t('monitoring.events_historic_note')}
+      </p>
       <div className={styles.tableWrapper}>
         <table className={`${styles.table} ${styles.realtimeTable}`}>
           <colgroup>

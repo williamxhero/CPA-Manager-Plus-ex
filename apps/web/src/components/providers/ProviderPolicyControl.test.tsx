@@ -165,10 +165,14 @@ it('visibly separates saved/effective/lock/manual/own-pause receipts without a s
     'provider_policy.manual_off',
     'provider_policy.own_pause',
     'provider_policy.states.pending',
+    'provider_policy.auto_pending_marker',
     'funding_coverage_unverified',
     '2026-11-03T09:00:00.000Z',
   ])
     expect(text).toContain(label);
+  expect(
+    renderer!.root.findByProps({ 'data-auto-pause-marker': 'pending' }).props.role
+  ).toBe('status');
   expect(control().props['aria-describedby']).toBeTruthy();
   expect(renderer!.root.findAllByType('input')).toHaveLength(0);
   expect(renderer!.root.findByType('time').props.dateTime).toBe('2026-11-03T09:00:00.000Z');
@@ -767,6 +771,10 @@ it('requires confirmation before posting explicit OFF recovery and keeps policy 
   vi.stubGlobal('fetch', fetch);
   await mount();
   expect(JSON.stringify(renderer!.toJSON())).toContain('provider_policy.recover');
+  expect(
+    renderer!.root.findByProps({ 'data-auto-pause-marker': 'applied' }).props.role
+  ).toBe('status');
+  expect(JSON.stringify(renderer!.toJSON())).toContain('provider_policy.auto_paused_marker');
   expect(renderer!.root.findAllByProps({ role: 'alertdialog' })).toHaveLength(0);
   const recoverButton = renderer!.root
     .findAllByType('button')
@@ -784,6 +792,7 @@ it('requires confirmation before posting explicit OFF recovery and keeps policy 
   expect(posts).toBe(1);
   expect(control().props['aria-checked']).toBe(false);
   expect(JSON.stringify(renderer!.toJSON())).not.toContain('provider_policy.recover_confirm');
+  expect(renderer!.root.findAllByProps({ 'data-auto-pause-marker': 'applied' })).toHaveLength(0);
   expect(fetch.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
 });
 
