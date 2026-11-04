@@ -1,0 +1,51 @@
+{
+    "startedAt":  "2026-11-04T08:06:23.4960405Z",
+    "finishedAt":  "2026-11-04T08:06:25.6436312Z",
+    "durationSeconds":  2.149,
+    "target":  "LocalCPAManagerPlus",
+    "serviceName":  "LocalCPAManagerPlus",
+    "status":  "deployed",
+    "dryRun":  true,
+    "rollbackOnly":  false,
+    "serviceChanged":  false,
+    "before":  {
+                   "exePath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\app\\cpa-manager-plus.exe",
+                   "exeSha256":  "D74ECC05F0C402EF3A54499EABD945E9B6237D69AFD6F5D7A97E3C180242116D",
+                   "panelPath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\panel\\management.html",
+                   "panelSha256":  "FE852B75BD67BD642D70E6BD29CC92AB3B6F64E94A85C40F852F1D57FF477EFC",
+                   "version":  null
+               },
+    "after":  {
+                  "exePath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\app\\cpa-manager-plus.exe",
+                  "exeSha256":  "D74ECC05F0C402EF3A54499EABD945E9B6237D69AFD6F5D7A97E3C180242116D",
+                  "panelPath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\panel\\management.html",
+                  "panelSha256":  "FE852B75BD67BD642D70E6BD29CC92AB3B6F64E94A85C40F852F1D57FF477EFC",
+                  "version":  null
+              },
+    "backup":  null,
+    "steps":  [
+                  {
+                      "name":  "preflight",
+                      "ok":  true,
+                      "detail":  "Paths, target, permissions, inputs and isolated port validated; no credentials read."
+                  },
+                  {
+                      "name":  "rehearsal",
+                      "ok":  true,
+                      "detail":  "New executable healthy on isolated loopback port/data; process terminated and temporary data removed."
+                  },
+                  {
+                      "name":  "dry_run",
+                      "ok":  true,
+                      "detail":  "DRY RUN PASSED: rehearsal only; no deployment or service changes."
+                  }
+              ],
+    "health":  [
+                   {
+                       "at":  "2026-11-04T08:06:25.5102389Z",
+                       "phase":  "rehearsal",
+                       "httpStatus":  200,
+                       "expectedMarkerFound":  true
+                   }
+               ]
+}

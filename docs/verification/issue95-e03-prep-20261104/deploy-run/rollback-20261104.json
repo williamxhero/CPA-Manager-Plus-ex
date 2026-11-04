@@ -1,0 +1,74 @@
+{
+    "startedAt":  "2026-11-04T08:08:23.6247796Z",
+    "finishedAt":  "2026-11-04T08:08:26.1039077Z",
+    "durationSeconds":  2.479,
+    "target":  "LocalCPAManagerPlus",
+    "serviceName":  "LocalCPAManagerPlus",
+    "status":  "rolled_back",
+    "dryRun":  false,
+    "rollbackOnly":  true,
+    "serviceChanged":  true,
+    "before":  {
+                   "exePath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\app\\cpa-manager-plus.exe",
+                   "exeSha256":  "46A85F911215EE5428A84DC26F367D98ECB63EA58261B9C84676127B1EC19639",
+                   "panelPath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\panel\\management.html",
+                   "panelSha256":  "087C71D3E31952C09ED5F3B43B2E899A9294E67BDCF28360999EE1073A8D69B0",
+                   "version":  null
+               },
+    "after":  {
+                  "exePath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\app\\cpa-manager-plus.exe",
+                  "exeSha256":  "46A85F911215EE5428A84DC26F367D98ECB63EA58261B9C84676127B1EC19639",
+                  "panelPath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\panel\\management.html",
+                  "panelSha256":  "087C71D3E31952C09ED5F3B43B2E899A9294E67BDCF28360999EE1073A8D69B0",
+                  "version":  null
+              },
+    "backup":  {
+                   "target":  "LocalCPAManagerPlus",
+                   "serviceName":  "LocalCPAManagerPlus",
+                   "createdAt":  "2026-11-04T08:07:33.8289605Z",
+                   "before":  {
+                                  "exePath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\app\\cpa-manager-plus.exe",
+                                  "exeSha256":  "46A85F911215EE5428A84DC26F367D98ECB63EA58261B9C84676127B1EC19639",
+                                  "panelPath":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\panel\\management.html",
+                                  "panelSha256":  "087C71D3E31952C09ED5F3B43B2E899A9294E67BDCF28360999EE1073A8D69B0",
+                                  "version":  null
+                              },
+                   "exeBackup":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\deploy-backups\\20261104T0807338289605Z-53f1900a737140df95487a731eddcbab-cpa-manager-plus.exe",
+                   "panelBackup":  "D:\\WILL\\AGENT\\CPA\\runtime\\CPA-Manager-Plus\\deploy-backups\\20261104T0807338289605Z-53f1900a737140df95487a731eddcbab-management.html"
+               },
+    "steps":  [
+                  {
+                      "name":  "preflight",
+                      "ok":  true,
+                      "detail":  "Paths, target, permissions, inputs and isolated port validated; no credentials read."
+                  },
+                  {
+                      "name":  "rollback_stop",
+                      "ok":  true,
+                      "detail":  "Service stopped."
+                  },
+                  {
+                      "name":  "rollback_restore",
+                      "ok":  true,
+                      "detail":  "Executable and panel hashes match the backup (including absent panel)."
+                  },
+                  {
+                      "name":  "rollback_start",
+                      "ok":  true,
+                      "detail":  "Service running."
+                  },
+                  {
+                      "name":  "rollback_health",
+                      "ok":  true,
+                      "detail":  "HTTP 200, expected marker and restored hashes verified."
+                  }
+              ],
+    "health":  [
+                   {
+                       "at":  "2026-11-04T08:08:25.9831857Z",
+                       "phase":  "rollback",
+                       "httpStatus":  200,
+                       "expectedMarkerFound":  true
+                   }
+               ]
+}

@@ -1,0 +1,1 @@
+2026/11/04 16:00:34 load config: parse config D:\WILL\AGENT\CPA\ops\needs-forever-all-specs-20261103\worktrees\manager-canonical82-closing\docs\verification\issue95-e03-prep-20261104\deploy-run\rehearsal-manual\config.json: invalid character '\ufeff' looking for beginning of value
