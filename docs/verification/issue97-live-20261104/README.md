@@ -52,8 +52,14 @@ Observed: `QueryStatus=success`, `AmountDecimal=46.92`, `Currency=USD`, `Verific
 - OS execution user used in contract: `will`
 - Example attestation payload: `host-attestation.example.json` (host-only; not an HTTP body)
 
-## Still open before issue close / deploy
+## Runtime after #95 E03 (2026-11-04)
 
-- Persist host attestation into the manager process SQLite on the intended runtime (not only the live test Enrollment stub)
-- #95 E03 deploy evidence and #88 S03/S04 remain blocked until authorized deploy + this attestation is on that host
-- Do not commit raw HTML dumps; keep them gitignored
+- Installed exe SHA-256 `46A85F91…`; panel `087C71D3…`; service `LocalCPAManagerPlus` Running
+- Host file `D:\WILL\AGENT\CPA\runtime\CPA-Manager-Plus\host-attestation.json` + WinSW env `CPAMP_WEB_BROWSER_ATTESTATION`
+- Live enrolled BrowserSkill query rechecked this tick: Credits **46.92** PASS (`5cfdda27`)
+- Manager `/usage-service/resource-capabilities` → `identity.state=unknown` / `core_contract_unverified` — cannot yet register LAYSO web source through OfficialBalance API until Core management contract verifies
+
+## Still open before issue close
+
+- Core contract verification so OfficialBalance web enrollment can be configured on the running Manager
+- Do not close #97/#95/#88; do not commit raw HTML dumps
