@@ -389,7 +389,9 @@ export function useProviderPolicy({
     abort.current = controller;
     setConfirmation(null);
     setView({ context, data, busy: true, error });
+    let minimumGeneration = data.generation;
     let acknowledged: ProviderPolicyStatus | undefined;
+    let authorityRejected = false;
     try {
       const saved = await recoverProviderPolicy(
         context.base,
@@ -408,6 +410,7 @@ export function useProviderPolicy({
         saved.enabled
       )
         throw new ProviderPolicyRequestError(409);
+      minimumGeneration = saved.generation;
       accept(saved);
       acknowledged = saved;
       const next = await getProviderPolicy(
@@ -421,14 +424,12 @@ export function useProviderPolicy({
         throw new ProviderPolicyRequestError(409);
       accept(next);
       setView({ context, data: next });
-      connection?.onChanged?.();
     } catch (failure) {
       if (!valid()) return;
       if (failure instanceof ProviderPolicyRequestError && [401, 403].includes(failure.status)) {
+        authorityRejected = true;
         rejectAuthority(context.authority);
-        return;
-      }
-      if (failure instanceof ProviderPolicyRequestError && failure.status === 409) {
+      } else if (failure instanceof ProviderPolicyRequestError && failure.status === 409) {
         setView({ context, busy: true, error: 'conflict' });
         try {
           const next = await getProviderPolicy(
@@ -438,14 +439,27 @@ export function useProviderPolicy({
             controller.signal
           );
           if (!valid()) return;
+          if (
+            next.subjectId !== data.subjectId ||
+            next.owner !== data.owner ||
+            next.generation < minimumGeneration
+          )
+            throw new ProviderPolicyRequestError(409);
           accept(next);
           setView({ context, data: next, error: 'conflict' });
-        } catch {
-          if (valid()) setView({ context, error: 'conflict' });
+          if (!acknowledged) connection?.onChanged?.();
+        } catch (recoveryFailure) {
+          if (valid()) {
+            if (
+              recoveryFailure instanceof ProviderPolicyRequestError &&
+              [401, 403].includes(recoveryFailure.status)
+            ) {
+              authorityRejected = true;
+              rejectAuthority(context.authority);
+            } else setView({ context, error: 'conflict' });
+          }
         }
-        return;
-      }
-      if (acknowledged) {
+      } else if (acknowledged) {
         setView({ context, data: acknowledged, readOnly: true, error: 'reconciliation' });
       } else {
         try {
@@ -463,7 +477,10 @@ export function useProviderPolicy({
         }
       }
     } finally {
-      if (valid()) pending.current = false;
+      if (valid()) {
+        pending.current = false;
+        if (acknowledged && !authorityRejected) connection?.onChanged?.();
+      }
     }
   };
 

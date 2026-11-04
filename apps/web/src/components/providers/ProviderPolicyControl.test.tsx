@@ -726,6 +726,129 @@ it.each(
   }
 );
 
+it('requires confirmation before posting explicit OFF recovery and keeps policy OFF', async () => {
+  const sourceVersion = 'a'.repeat(64);
+  const pausedOff = status({
+    enabled: false,
+    ownPaused: true,
+    applied: true,
+    recoveryAvailable: true,
+    gateGeneration: 4,
+    sourceVersion,
+    generation: 3,
+    source: 'explicit',
+    reason: 'policy_off_retains_owned_pause',
+  });
+  const recovered = status({
+    enabled: false,
+    ownPaused: false,
+    applied: true,
+    recoveryAvailable: false,
+    gateGeneration: 5,
+    sourceVersion,
+    generation: 3,
+    source: 'explicit',
+  });
+  let posts = 0;
+  const fetch = vi.fn(async (url: string, init: RequestInit = {}) => {
+    if (init.method === 'POST') {
+      posts += 1;
+      expect(String(url)).toBe('http://fixture/usage-service/provider-policy/recover');
+      expect(JSON.parse(String(init.body))).toEqual({
+        ...binding,
+        expectedGeneration: 3,
+        expectedGateGeneration: 4,
+        sourceVersion,
+      });
+      return Response.json(recovered);
+    }
+    return Response.json(posts === 0 ? pausedOff : recovered);
+  });
+  vi.stubGlobal('fetch', fetch);
+  await mount();
+  expect(JSON.stringify(renderer!.toJSON())).toContain('provider_policy.recover');
+  expect(renderer!.root.findAllByProps({ role: 'alertdialog' })).toHaveLength(0);
+  const recoverButton = renderer!.root
+    .findAllByType('button')
+    .find((node) => node.children.includes('provider_policy.recover'))!;
+  expect(recoverButton.props.disabled).toBe(false);
+  await act(async () => recoverButton.props.onClick({ stopPropagation: vi.fn() }));
+  expect(renderer!.root.findAllByProps({ role: 'alertdialog' })).toHaveLength(1);
+  expect(posts).toBe(0);
+  await act(async () =>
+    renderer!.root
+      .findAllByType('button')
+      .find((node) => node.children.includes('provider_policy.recover_confirm'))!
+      .props.onClick({ stopPropagation: vi.fn() })
+  );
+  expect(posts).toBe(1);
+  expect(control().props['aria-checked']).toBe(false);
+  expect(JSON.stringify(renderer!.toJSON())).not.toContain('provider_policy.recover_confirm');
+  expect(fetch.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
+});
+
+it('hides recovery confirmation when unavailable and cancels without posting', async () => {
+  const fetch = vi.fn(async () =>
+    Response.json(
+      status({
+        enabled: false,
+        ownPaused: true,
+        applied: true,
+        recoveryAvailable: false,
+        generation: 2,
+        source: 'explicit',
+      })
+    )
+  );
+  vi.stubGlobal('fetch', fetch);
+  await mount();
+  const recoverButton = renderer!.root
+    .findAllByType('button')
+    .find((node) => node.children.includes('provider_policy.recover'))!;
+  expect(recoverButton.props.disabled).toBe(true);
+  await act(async () => recoverButton.props.onClick({ stopPropagation: vi.fn() }));
+  expect(renderer!.root.findAllByProps({ role: 'alertdialog' })).toHaveLength(0);
+  expect(fetch.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      Response.json(
+        status({
+          enabled: false,
+          ownPaused: true,
+          applied: true,
+          recoveryAvailable: true,
+          gateGeneration: 9,
+          sourceVersion: 'b'.repeat(64),
+          generation: 2,
+          source: 'explicit',
+        })
+      )
+    )
+  );
+  await act(async () =>
+    renderer!.root
+      .findByProps({ 'aria-label': 'provider_policy.read_status' })
+      .props.onClick({ stopPropagation: vi.fn() })
+  );
+  const available = renderer!.root
+    .findAllByType('button')
+    .find((node) => node.children.includes('provider_policy.recover'))!;
+  await act(async () => available.props.onClick({ stopPropagation: vi.fn() }));
+  expect(renderer!.root.findAllByProps({ role: 'alertdialog' })).toHaveLength(1);
+  await act(async () =>
+    renderer!.root
+      .findAllByType('button')
+      .find((node) => node.children.includes('provider_policy.recover_cancel'))!
+      .props.onClick({ stopPropagation: vi.fn() })
+  );
+  expect(renderer!.root.findAllByProps({ role: 'alertdialog' })).toHaveLength(0);
+  expect(
+    vi.mocked(globalThis.fetch).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')
+  ).toBe(true);
+});
+
 for (const initialEnabled of [false, true]) {
   for (const failure of ['503', 'transport'] as const) {
     it(`locks an acknowledged ${initialEnabled ? 'OFF' : 'ON'} save when readback ${failure} fails, then recovers by GET only`, async () => {
