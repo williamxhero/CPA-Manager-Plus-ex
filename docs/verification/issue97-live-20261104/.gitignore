@@ -4,3 +4,4 @@
 _*.py
 !README.md
 !host-attestation.example.json
+!host-attestation.5cfdda27.json

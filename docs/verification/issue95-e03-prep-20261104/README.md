@@ -29,7 +29,15 @@ Expected fields when rebuilt from the same commit:
 
 ## Explicitly not done here
 
-- No service stop/start
-- No data-dir overwrite
+- No production service stop/start or data-dir overwrite
 - No push / PR / issue close
 - #88 S03/S04 still need production panel binary with embedded UI hash match
+
+## Accident note (2026-11-04)
+
+Invoking the prep `.exe` without a dedicated data dir caused it to listen on
+`[::]:18317` and create a local `data/` under this folder (gitignored). That
+orphan process may still hold the port (`cpa-manager-plus`); kill it in Task
+Manager before another local smoke. Prefer: set `CPAMP_DATA_DIR` (or project
+equivalent) to a temp path, then Ctrl+C / SIGTERM — never leave prep binaries
+running.

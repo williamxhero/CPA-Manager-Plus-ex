@@ -2,3 +2,7 @@
 *.sqlite
 *.db
 *.log
+/data/
+*.key
+admin*.txt
+SMOKE-*.txt
