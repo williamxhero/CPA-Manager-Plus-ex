@@ -18,4 +18,8 @@ XML backups: `runtime/CPA-Manager-Plus/deploy-backups/LocalCPAManagerPlus.xml.ba
 ## Verified
 
 Manager `POST /usage-service/official-balance` Layso → Credits `46.92` USD
-(`60fa1e2d…`, `verified_browser`).
+(`60fa1e2d…` / recheck `0908f04a…`, `verified_browser`). Codex twin
+`1b55357e…` also `46.92`.
+
+`bin/bsk.exe` SHA-256 `CF6A4821292AAABA36717A2D6E34FAC68539BDD4AC2EEE8196BC4138E4395CFA`
+(recorded 2026-11-04).
