@@ -226,6 +226,9 @@ func Migrate(db *sql.DB) error {
 
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS provider_policies (id TEXT PRIMARY KEY, generation INTEGER NOT NULL CHECK(generation>0), document TEXT NOT NULL CHECK(json_valid(document)))`,
+		`CREATE TABLE IF NOT EXISTS provider_policy_schema (singleton INTEGER PRIMARY KEY CHECK(singleton=1), dialect TEXT NOT NULL, version INTEGER NOT NULL CHECK(version>0))`,
+		`CREATE TABLE IF NOT EXISTS provider_policy_migration_pending (id TEXT PRIMARY KEY, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), reason TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS provider_policy_migration_backup (seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), backed_up_at_ms INTEGER NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS provider_policy_history (id TEXT NOT NULL, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), PRIMARY KEY(id,generation))`,
 		`CREATE TABLE IF NOT EXISTS provider_policy_captures (seq INTEGER PRIMARY KEY AUTOINCREMENT, subject_id TEXT NOT NULL, attempt_id TEXT NOT NULL, generation INTEGER NOT NULL, document TEXT NOT NULL CHECK(json_valid(document)), UNIQUE(subject_id,attempt_id))`,
 		`CREATE TABLE IF NOT EXISTS provider_policy_events (id TEXT PRIMARY KEY, document TEXT NOT NULL CHECK(json_valid(document)), done INTEGER NOT NULL DEFAULT 0)`,
