@@ -31,10 +31,27 @@ Do **not** close #88. No branch/worktree deleted in this pass.
   - `a89c7c76` fix: enforce exact Qwen quota provenance tuple
   - `ff94e943` test: reject cross-protocol quota provenance
 
-These look **quota-provenance** focused, not the excluded-models save path already verified on live Manager. Do **not** auto-merge into conter tip without a dedicated cherry-pick/review pass.
+These look **quota-provenance** focused, not the excluded-models save path already verified on live Manager.
+
+### Supersede check (2026-11-04 loop tick)
+
+Tip already contains equivalent commits under different SHAs:
+
+| qwen-only | tip equivalent |
+|---|---|
+| `e6e08730` accept configured Qwen CLI quota evidence | `18f98a99` |
+| `a89c7c76` exact Qwen quota provenance tuple | `55b5e9a2` |
+| `ff94e943` reject cross-protocol quota provenance | `4b20a7e7` |
+
+`evidence.go` / provenance tests match tip; **no cherry-pick required**. Keep `spec/92-qwen-manager-policy` until an explicit cleanup pass deletes it (not this tick).
+
+## Related product repos (inventory only)
+
+**CPA-Qwen** (on `main`): local branches still present — `spec/92-qwen-*`, `codex/spec92-qwen-coding-lane`, `spec/92-integration` (worktree-linked). Not deleted.
+
+**CPA-OpenCode-ex** (on `main`): `spec/92-opencode-gate`, `spec/92-opencode-quota`, `spec/92-integration`. Not deleted.
 
 ## Next S04 steps
 
-1. Review whether the 4 qwen commits are already superseded elsewhere or still required.
-2. Audit `CPA-Qwen` / `CPA-OpenCode-ex` remotes for orphan delivery branches (M88.A05).
-3. Only after merge decisions: clean merged worktrees; still no issue close.
+1. Explicit operator cleanup list for superseded manager + Qwen/OpenCode branches (after confirming no unique commits).
+2. Still no issue close; no worktree delete this tick.
