@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
 )
@@ -143,6 +144,55 @@ func TestProviderPolicyMigrationRefusesUnsafeDowngrade(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected unsafe downgrade refusal")
+	}
+}
+
+func TestProviderPolicyBackupRestoreAndUnsafeDowngradeRefusal(t *testing.T) {
+	ctx := context.Background()
+	db := openPolicyMigrateFixture(t)
+	defer db.Close()
+	proven := `{"subjectId":"subj-a","owner":"provider-balance/install-1","enabled":false,"source":"explicit"}`
+	if _, err := db.db.ExecContext(ctx, `INSERT INTO provider_policies(id,generation,document) VALUES(?,?,?)`, "subj-a", 1, proven); err != nil {
+		t.Fatal(err)
+	}
+	backupDir := t.TempDir()
+	if _, err := db.MigrateProviderPolicyDialect(ctx, ProviderPolicyMigrateOptions{
+		Target:    ProviderPolicyDialectDesktopV1,
+		BackupDir: backupDir,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := filepath.Glob(filepath.Join(backupDir, "*.json"))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("backup entries=%v err=%v", entries, err)
+	}
+	if _, err := db.db.ExecContext(ctx, `UPDATE provider_policies SET document=? WHERE id=?`, `{"subjectId":"subj-a","owner":"provider-balance/install-1","enabled":true,"source":"explicit","dialect":"desktop-canonical-v1"}`, "subj-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RestoreProviderPolicyBackup(ctx, entries[0]); err == nil {
+		t.Fatal("restoring pre-desktop backup onto desktop dialect must refuse")
+	} else if !errors.Is(err, ErrUnsafeProviderPolicyDowngrade) {
+		t.Fatalf("want unsafe downgrade, got %v", err)
+	}
+	// Explicitly mark schema unknown to rehearse a recoverable restore path.
+	if _, err := db.db.ExecContext(ctx, `UPDATE provider_policy_schema SET dialect=?`, ProviderPolicyDialectUnknown); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RestoreProviderPolicyBackup(ctx, entries[0]); err != nil {
+		t.Fatal(err)
+	}
+	var doc string
+	if err := db.db.QueryRowContext(ctx, `SELECT document FROM provider_policies WHERE id=?`, "subj-a").Scan(&doc); err != nil {
+		t.Fatal(err)
+	}
+	var got, want map[string]any
+	if json.Unmarshal([]byte(doc), &got) != nil || json.Unmarshal([]byte(proven), &want) != nil {
+		t.Fatalf("restore body not JSON: %s", doc)
+	}
+	rawGot, _ := json.Marshal(got)
+	rawWant, _ := json.Marshal(want)
+	if string(rawGot) != string(rawWant) {
+		t.Fatalf("restore did not reinstate backup body: %s", doc)
 	}
 }
 

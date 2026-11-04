@@ -33,7 +33,10 @@ type ProviderPolicyMigrateReport struct {
 	DryRun        bool   `json:"dryRun"`
 }
 
-var ErrUnsafeProviderPolicyDowngrade = errors.New("unsafe provider policy dialect downgrade refused")
+var (
+	ErrUnsafeProviderPolicyDowngrade = errors.New("unsafe provider policy dialect downgrade refused")
+	ErrProviderPolicyBackupInvalid   = errors.New("provider policy backup artifact invalid")
+)
 
 type providerPolicyMigrateDoc struct {
 	SubjectID string `json:"subjectId"`
@@ -225,4 +228,63 @@ func (s *Store) MigrateProviderPolicyDialect(ctx context.Context, opts ProviderP
 		}
 	}
 	return report, nil
+}
+
+// RestoreProviderPolicyBackup replaces current provider_policies from a backup
+// artifact written by MigrateProviderPolicyDialect. It refuses when the live
+// dialect is Desktop v1 and the backup predates that protection (unsafe
+// downgrade), and never touches credential secrets or gate journals.
+func (s *Store) RestoreProviderPolicyBackup(ctx context.Context, backupPath string) error {
+	raw, err := os.ReadFile(backupPath)
+	if err != nil {
+		return err
+	}
+	var artifact struct {
+		DialectBefore string `json:"dialectBefore"`
+		DialectAfter  string `json:"dialectAfter"`
+		Rows          []struct {
+			ID         string          `json:"id"`
+			Generation int64           `json:"generation"`
+			Document   json.RawMessage `json:"document"`
+		} `json:"rows"`
+	}
+	if json.Unmarshal(raw, &artifact) != nil || len(artifact.Rows) == 0 {
+		return ErrProviderPolicyBackupInvalid
+	}
+	for _, row := range artifact.Rows {
+		if row.ID == "" || row.Generation <= 0 || !json.Valid(row.Document) {
+			return ErrProviderPolicyBackupInvalid
+		}
+	}
+	current, err := s.providerPolicyDialect(ctx)
+	if err != nil {
+		return err
+	}
+	if current == ProviderPolicyDialectDesktopV1 && artifact.DialectBefore != ProviderPolicyDialectDesktopV1 {
+		return ErrUnsafeProviderPolicyDowngrade
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM provider_policies`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM provider_policy_migration_pending`); err != nil {
+		return err
+	}
+	for _, row := range artifact.Rows {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO provider_policies(id,generation,document) VALUES(?,?,?)`, row.ID, row.Generation, string(row.Document)); err != nil {
+			return err
+		}
+	}
+	dialect := artifact.DialectBefore
+	if dialect == "" {
+		dialect = ProviderPolicyDialectUnknown
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO provider_policy_schema(singleton,dialect,version) VALUES(1,?,1) ON CONFLICT(singleton) DO UPDATE SET dialect=excluded.dialect,version=excluded.version`, dialect); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
