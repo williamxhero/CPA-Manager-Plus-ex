@@ -161,6 +161,7 @@ export interface GeminiKeyConfig {
   excludedModels?: string[];
   authIndex?: string;
   disableCooling?: boolean | null;
+  autoHeld?: boolean;
 }
 
 export interface ProviderKeyConfig {
@@ -176,6 +177,7 @@ export interface ProviderKeyConfig {
   headers?: Record<string, string>;
   models?: ModelAlias[];
   excludedModels?: string[];
+  autoHeld?: boolean;
   cloak?: CloakConfig;
   authIndex?: string;
   disableCooling?: boolean | null;
@@ -196,6 +198,7 @@ export interface OpenAIProviderConfig {
   baseUrl: string;
   apiKeyEntries: ApiKeyEntry[];
   disabled?: boolean;
+  autoHeld?: boolean;
   headers?: Record<string, string>;
   models?: ModelAlias[];
   priority?: number;

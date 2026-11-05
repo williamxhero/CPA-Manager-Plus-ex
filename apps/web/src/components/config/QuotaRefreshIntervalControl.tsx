@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useId, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Select } from '@/components/ui/Select';
 import {
   QUOTA_REFRESH_INTERVALS,
-  readQuotaRefreshIntervalMs,
   writeQuotaRefreshIntervalMs,
 } from '@/utils/quota/refreshCadence';
+import { loadRuntimeControls, readRuntimeControls, subscribeRuntimeControls } from '@/utils/quota/runtimeControls';
+import styles from './VisualConfigEditor.module.scss';
 
 const LABELS: Record<(typeof QUOTA_REFRESH_INTERVALS)[number], string> = {
   0: 'config_management.quota_refresh_manual',
@@ -14,27 +16,35 @@ const LABELS: Record<(typeof QUOTA_REFRESH_INTERVALS)[number], string> = {
   21600000: 'config_management.quota_refresh_6h',
 };
 
-export function QuotaRefreshIntervalControl() {
+export function QuotaRefreshIntervalControl({ disabled = false }: { disabled?: boolean }) {
   const { t } = useTranslation();
-  const [value, setValue] = useState(readQuotaRefreshIntervalMs);
+  const labelId = useId();
+  const value = useSyncExternalStore(
+    subscribeRuntimeControls,
+    () => readRuntimeControls().quotaRefreshIntervalMs,
+    () => 3_600_000
+  );
+  useEffect(() => {
+    void loadRuntimeControls();
+  }, []);
   return (
-    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-      <span>{t('config_management.quota_refresh_interval')}</span>
-      <select
-        aria-label={t('config_management.quota_refresh_interval')}
-        value={value}
-        onChange={(event) => {
-          const next = Number(event.target.value);
-          writeQuotaRefreshIntervalMs(next);
-          setValue(next);
+    <div className={styles.toggleRow}>
+      <div id={labelId} className={styles.toggleTitle}>
+        {t('config_management.quota_refresh_interval')}
+      </div>
+      <Select
+        id={`${labelId}-select`}
+        value={String(value)}
+        disabled={disabled}
+        ariaLabelledBy={labelId}
+        options={QUOTA_REFRESH_INTERVALS.map((interval) => ({
+          value: String(interval),
+          label: t(LABELS[interval]),
+        }))}
+        onChange={(next) => {
+          writeQuotaRefreshIntervalMs(Number(next));
         }}
-      >
-        {QUOTA_REFRESH_INTERVALS.map((interval) => (
-          <option key={interval} value={interval}>
-            {t(LABELS[interval])}
-          </option>
-        ))}
-      </select>
-    </label>
+      />
+    </div>
   );
 }

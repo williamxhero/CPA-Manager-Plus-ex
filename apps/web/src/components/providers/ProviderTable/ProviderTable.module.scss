@@ -2,34 +2,32 @@
 @use '@/styles/mixins.scss' as *;
 
 // 类型 / 标识 / 余额 / 地址 / 模型 / 优先级 / 近期请求 / 启用 / 自动启停 / 操作
-$table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1fr) 96px 72px minmax(220px, 0.82fr) 68px 72px 148px;
+$table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1fr) 96px 72px minmax(220px, 0.82fr) 68px 72px 112px;
 
-.autoMark {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--text-tertiary);
-  opacity: 0.45;
-}
-
-.autoMark[data-state='running'] {
-  background: var(--success-color, #16a34a);
-  opacity: 1;
-}
-
-.autoMark[data-state='stopped'] {
-  background: var(--danger-color, #dc2626);
-  opacity: 1;
-}
-
-.autoOn {
-  color: var(--primary-color, #2563eb);
-  background: color-mix(in srgb, var(--primary-color, #2563eb) 16%, transparent);
-}
-
-.autoOff {
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='off'],
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='off']:hover,
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='off']:active,
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='off']:focus-visible {
   color: var(--text-tertiary);
   opacity: 0.45;
+}
+
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='present'],
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='present']:hover,
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='present']:active,
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='present']:focus-visible {
+  color: var(--success-color, #16a34a);
+  opacity: 1;
+  background: color-mix(in srgb, var(--success-color, #16a34a) 16%, transparent);
+}
+
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='absent'],
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='absent']:hover,
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='absent']:active,
+:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='absent']:focus-visible {
+  color: var(--danger-color, #dc2626);
+  opacity: 1;
+  background: color-mix(in srgb, var(--danger-color, #dc2626) 16%, transparent);
 }
 
 @mixin provider-card-layout {
@@ -82,9 +80,9 @@ $table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1
   }
 
   @include provider-card-layout {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
     grid-template-areas:
-      'type toggle'
+      'type toggle auto'
       'identity identity'
       'balance balance'
       'url url'
@@ -462,6 +460,17 @@ $table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1
 
   @include provider-card-layout {
     grid-area: toggle;
+    justify-content: flex-end;
+  }
+}
+
+.cellAuto {
+  display: flex;
+  justify-content: flex-start;
+  cursor: default;
+
+  @include provider-card-layout {
+    grid-area: auto;
     justify-content: flex-end;
   }
 }

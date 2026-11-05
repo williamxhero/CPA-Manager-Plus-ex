@@ -1,6 +1,7 @@
 import { refreshCredentialSource } from '@/services/api/fullRefresh';
 import { credentialQuotaRequest, type CredentialQuotaStatus } from '@/services/api/credentialQuota';
 import { CredentialAutoStartStopToggle } from '@/features/accounts/components/CredentialAutoStartStopToggle';
+import { credentialHasRemainingQuota } from '@/features/accounts/model/accountQuotaSummary';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   KeyboardEvent,
@@ -73,7 +74,6 @@ import { getScopedQuotaState } from '@/components/quota/quotaConfigs';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useInterval } from '@/hooks/useInterval';
 import { usePanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability';
-import { ResourceProtectionIndicator } from '@/features/resourceProtection/ResourceProtectionIndicator';
 import { useResourceProtection } from '@/features/resourceProtection/resourceProtection';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -8734,6 +8734,7 @@ export function AccountsPage() {
         managerServiceBase={featureAvailability.managerServiceBase ?? ''}
         managementKey={managementKey}
         authIndex={row.authIndex || undefined}
+        hasQuota={credentialHasRemainingQuota(row.quota)}
         revision={`${credentialQuotaRevision}:${managerConnectionFingerprint}:${JSON.stringify(credentialProtection(row.authIndex).binding ?? null)}`}
       />
     );
@@ -9337,7 +9338,6 @@ export function AccountsPage() {
                       </div>
                       <div className={styles.accountIdentityText}>
                         <div className={styles.accountIdentityCopyLine}>
-                          <ResourceProtectionIndicator {...credentialProtection(row.authIndex)} />
                           <button
                             type="button"
                             className={styles.accountIdentityCopyTarget}
@@ -9839,7 +9839,6 @@ export function AccountsPage() {
                       </div>
                       <div className={styles.accountIdentityText}>
                         <div className={styles.accountIdentityCopyLine}>
-                          <ResourceProtectionIndicator {...credentialProtection(row.authIndex)} />
                           <button
                             type="button"
                             className={styles.accountIdentityCopyTarget}

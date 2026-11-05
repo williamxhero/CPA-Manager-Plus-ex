@@ -2125,13 +2125,9 @@ describe('AccountsPage replacement flows', () => {
         },
       }));
       const renderer = await renderAccountsPage();
-      expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(
-        `resource_protection.${expected}`
-      );
+      expect(capabilityButtons(renderer)).toHaveLength(0);
       expect(adapter.mock.calls[0][0].url).toContain('?inventory=1');
-      expect(capabilityButtons(renderer)[0].props['aria-label']).not.toMatch(
-        /CANARY|protected|healthy/
-      );
+      expect(treeText(renderer)).not.toMatch(/CANARY|resource_protection/);
     }
   );
 
@@ -2191,24 +2187,11 @@ describe('AccountsPage replacement flows', () => {
         },
       }));
       const renderer = await renderAccountsPage();
-      const buttons = capabilityButtons(renderer);
-      expect(buttons).toHaveLength(2);
-      const bound = buttons.find((button) =>
-        String(button.props['aria-label']).includes('resource_protection.identity_only')
-      );
-      expect(bound).toBeDefined();
-      expect(
-        buttons.filter((button) =>
-          String(button.props['aria-label']).includes('resource_protection.unbound')
-        )
-      ).toHaveLength(1);
-      await act(async () => bound!.props.onClick());
-      const text = readText(
-        renderer.root.findByProps({ role: 'tooltip', id: bound!.props['aria-describedby'] })
-      );
-      expect(text).toContain(target.resource_id);
-      expect(text).toContain(scope.instance_id);
-      expect(text).toContain('credential_version');
+      expect(capabilityButtons(renderer)).toHaveLength(0);
+      const text = treeText(renderer);
+      expect(text).not.toContain(target.resource_id);
+      expect(text).not.toContain(scope.instance_id);
+      expect(text).not.toContain('credential_version');
       expect(text).not.toContain('CANARY');
     }
   );
@@ -2271,16 +2254,8 @@ describe('AccountsPage replacement flows', () => {
         return payload;
       });
       const renderer = await renderAccountsPage();
-      expect(capabilityButtons(renderer)).toHaveLength(1);
-      const button = capabilityButtons(renderer)[0];
-      expect(button.props['aria-label']).toContain('resource_protection.unknown');
-      expect(button.props['aria-label']).not.toMatch(/secret-key|normal|protected|healthy/);
-      await act(async () => button.props.onFocus());
-      const tooltip = renderer.root.findAll(
-        (node) => node.type === 'span' && node.props.id === button.props['aria-describedby']
-      );
-      expect(tooltip).toHaveLength(1);
-      expect(readText(tooltip[0])).not.toMatch(/secret-key|normal|protected|healthy/);
+      expect(capabilityButtons(renderer)).toHaveLength(0);
+      expect(treeText(renderer)).not.toMatch(/secret-key|resource_protection/);
     }
   );
 
@@ -2294,9 +2269,7 @@ describe('AccountsPage replacement flows', () => {
         true
       );
       const renderer = await renderAccountsPage();
-      expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(
-        'resource_protection.unavailable'
-      );
+      expect(capabilityButtons(renderer)).toHaveLength(0);
       await act(async () => {
         if (context === 'manager base')
           mocks.panelFeatureAvailability.managerServiceBase = 'http://manager-b.invalid';
@@ -2312,12 +2285,8 @@ describe('AccountsPage replacement flows', () => {
         }
         renderer.update(<AccountsPage />);
       });
-      expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(
-        'resource_protection.unknown'
-      );
-      expect(capabilityButtons(renderer)[0].props['aria-label']).not.toContain(
-        'different-secret-key'
-      );
+      expect(capabilityButtons(renderer)).toHaveLength(0);
+      expect(treeText(renderer)).not.toContain('different-secret-key');
       expect(next).toBe(context === 'checking' ? 1 : 2);
     }
   );
@@ -2333,16 +2302,7 @@ describe('AccountsPage replacement flows', () => {
         throw new Error('secret-key support read failed');
       });
       const renderer = await renderAccountsPage();
-      const indicator = capabilityButtons(renderer)[0];
-      const boundary = findAncestorByType(indicator, 'span');
-      const stopPropagation = vi.fn();
-      await act(async () => {
-        indicator.props.onClick();
-        boundary.props.onClick({ stopPropagation });
-        boundary.props.onKeyDown({ key: 'Enter', stopPropagation });
-      });
-      expect(stopPropagation).toHaveBeenCalledTimes(2);
-      expect(indicator.props['aria-expanded']).toBe(true);
+      expect(capabilityButtons(renderer)).toHaveLength(0);
       expect(mocks.toggleSelect).not.toHaveBeenCalled();
       expect(treeText(renderer)).not.toContain('accounts.detail_tab_overview');
       const card = findAccountCardByKey(renderer, 'codex.json\u0000auth-1');
@@ -2383,13 +2343,9 @@ describe('AccountsPage replacement flows', () => {
     expect(next).toBe(3);
     await act(async () => pending[0].resolve(capabilitySummary()));
     await act(async () => pending[1].resolve(capabilitySummary()));
-    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(
-      'resource_protection.unknown'
-    );
+    expect(capabilityButtons(renderer)).toHaveLength(0);
     await act(async () => pending[2].resolve(capabilitySummary()));
-    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(
-      'resource_protection.unavailable'
-    );
+    expect(capabilityButtons(renderer)).toHaveLength(0);
   });
 
   it('invalidates immediately on refresh and rejects an older refresh after a newer failure', async () => {
@@ -2398,20 +2354,15 @@ describe('AccountsPage replacement flows', () => {
     installCapabilitiesAdapter(() => pending[next++].promise, true);
     const renderer = await renderAccountsPage();
     await act(async () => pending[0].resolve(capabilitySummary()));
-    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(
-      'resource_protection.unavailable'
-    );
+    expect(capabilityButtons(renderer)).toHaveLength(0);
     await act(async () => findHostButtonByText(renderer, 'common.refresh').props.onClick());
-    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(
-      'resource_protection.unknown'
-    );
+    expect(capabilityButtons(renderer)).toHaveLength(0);
     await act(async () => findHostButtonByText(renderer, 'common.refresh').props.onClick());
     expect(next).toBe(3);
     await act(async () => pending[2].reject(new Error('secret-key failed')));
     await act(async () => pending[1].resolve(capabilitySummary()));
-    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(
-      'resource_protection.unknown'
-    );
+    expect(capabilityButtons(renderer)).toHaveLength(0);
+    expect(treeText(renderer)).not.toContain('secret-key');
   });
 
   it('does not install an unmounted request into a remounted page', async () => {
@@ -2422,13 +2373,9 @@ describe('AccountsPage replacement flows', () => {
     await act(async () => previous.unmount());
     const renderer = await renderAccountsPage();
     await act(async () => pending[0].resolve(capabilitySummary()));
-    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(
-      'resource_protection.unknown'
-    );
+    expect(capabilityButtons(renderer)).toHaveLength(0);
     await act(async () => pending[1].resolve(capabilitySummary()));
-    expect(capabilityButtons(renderer)[0].props['aria-label']).toContain(
-      'resource_protection.unavailable'
-    );
+    expect(capabilityButtons(renderer)).toHaveLength(0);
   });
 
   it.each(['table', 'grid'] as const)(
@@ -2442,18 +2389,9 @@ describe('AccountsPage replacement flows', () => {
       const response = createDeferred<unknown>();
       const adapter = installCapabilitiesAdapter(() => response.promise);
       const renderer = await renderAccountsPage();
-      expect(capabilityButtons(renderer)).toHaveLength(2);
-      expect(
-        capabilityButtons(renderer).every((node) =>
-          node.props['aria-label'].includes('resource_protection.unknown')
-        )
-      ).toBe(true);
+      expect(capabilityButtons(renderer)).toHaveLength(0);
       await act(async () => response.resolve(capabilitySummary()));
-      expect(
-        capabilityButtons(renderer).every((node) =>
-          node.props['aria-label'].includes('resource_protection.unavailable')
-        )
-      ).toBe(true);
+      expect(capabilityButtons(renderer)).toHaveLength(0);
       expect(adapter).toHaveBeenCalledTimes(1);
       const name = findAccountCardButtonByAriaLabel(
         renderer,
@@ -2461,13 +2399,13 @@ describe('AccountsPage replacement flows', () => {
         'common.copy codex@example.com'
       );
       expect(name.findAllByType('button')).toEqual([name]);
-      expect(name.parent?.findAll((node) => node.type === 'button')[0]).toBe(
+      expect(
         name.parent?.findAll(
           (node) =>
             node.type === 'button' &&
             String(node.props['aria-label']).startsWith('resource_protection.title:')
-        )[0]
-      );
+        )
+      ).toEqual([]);
       await act(async () => name.props.onClick({ stopPropagation: vi.fn() }));
       expect(copyToClipboard).toHaveBeenLastCalledWith('codex@example.com');
     }

@@ -22,7 +22,9 @@ import {
 import type { ResourceProtectionCapability, ResourceProtectionEvidence } from '@/features/resourceProtection/resourceProtection';
 import type { ProviderPolicyConnection } from '../ProviderPolicyControl';
 import {
+  providerAutoId,
   readProviderAutoUsage,
+  SERVER_PROVIDER_AUTO_USAGE,
   subscribeProviderAutoUsage,
   writeProviderAutoUsage,
 } from '../providerAutoUsage';
@@ -32,6 +34,8 @@ import {
   type ProviderMoneyStatusConfig,
 } from '../useProviderMoneySummaries';
 import { useOfficialBalanceList } from '../useOfficialBalanceList';
+import { apiClient } from '@/services/api/client';
+import { loadRuntimeControls } from '@/utils/quota/runtimeControls';
 import { ProviderStatusBar } from '../ProviderStatusBar';
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from './kindMeta';
 import type { ProviderRow } from './rowData';
@@ -195,16 +199,89 @@ export function ProviderTable({
   const { t } = useTranslation();
   const money = useProviderMoneySummaries(rows, moneyStatus);
   const officialBalances = useOfficialBalanceList(rows, moneyStatus);
-  const autoUsage = useSyncExternalStore(subscribeProviderAutoUsage, readProviderAutoUsage, () => ({
-    enabled: false,
-    ids: [] as string[],
-  }));
-  const balanceIsZero = (key: string) => {
-    const text = officialBalances[key]?.text ?? '';
-    if (!text || /unlimited/i.test(text)) return false;
+  const autoUsage = useSyncExternalStore(
+    subscribeProviderAutoUsage,
+    readProviderAutoUsage,
+    () => SERVER_PROVIDER_AUTO_USAGE
+  );
+  const hasRemainingQuota = (key: string) => {
+    const official = officialBalances[key];
+    const summary = money[key];
+    const lines = official?.text
+      ? [official.text]
+      : (summary?.data?.funding ?? []).flatMap((source) =>
+          (source.balances ?? []).flatMap((balance) =>
+            balance.currency && balance.total ? [`${balance.currency} ${balance.total}`] : []
+          )
+        );
+    if (lines.length === 0 || ((official?.pending || summary?.pending) && !official?.text)) return false;
+    const text = lines.join(' ');
+    if (/unlimited/i.test(text)) return true;
     const numbers = text.match(/-?\d+(?:\.\d+)?/g);
-    return !!numbers && numbers.length > 0 && numbers.every((value) => Number(value) === 0);
+    return !!numbers && numbers.some((value) => Number(value) > 0);
   };
+  const participating = (row: ProviderRow) =>
+    autoUsage.enabled && (autoUsage.ids.length === 0 || autoUsage.ids.includes(providerAutoId(row)));
+  const sentHold = useRef<Record<string, boolean>>({});
+  const holdRows = useRef(rows);
+  const holdBalances = useRef(officialBalances);
+  holdRows.current = rows;
+  holdBalances.current = officialBalances;
+  const holdSignature = [
+    autoUsage.enabled ? '1' : '0',
+    autoUsage.ids.join(','),
+    rows
+      .map((row) => {
+        const view = officialBalances[row.key];
+        return `${providerAutoId(row)}:${row.raw.autoHeld === true ? 1 : 0}:${view?.pending ? 1 : 0}:${view?.text ?? ''}`;
+      })
+      .join('|'),
+  ].join(';');
+  useEffect(() => {
+    let cancelled = false;
+    const paths: Record<ProviderRow['kind'], string> = {
+      gemini: '/gemini-api-key',
+      interactions: '/interactions-api-key',
+      codex: '/codex-api-key',
+      xai: '/xai-api-key',
+      meta: '/meta-api-key',
+      claude: '/claude-api-key',
+      vertex: '/vertex-api-key',
+      openai: '/openai-compatibility',
+    };
+    const snapshotRows = holdRows.current;
+    const balances = holdBalances.current;
+    const usage = readProviderAutoUsage();
+    const textIsZero = (key: string) => {
+      const text = balances[key]?.text ?? '';
+      if (!text || /unlimited/i.test(text)) return false;
+      const numbers = text.match(/-?\d+(?:\.\d+)?/g);
+      return !!numbers && numbers.length > 0 && numbers.every((value) => Number(value) === 0);
+    };
+    void (async () => {
+      await loadRuntimeControls();
+      if (cancelled) return;
+      for (const row of snapshotRows) {
+        if (cancelled) return;
+        const id = providerAutoId(row);
+        const rowParticipating = usage.enabled && (usage.ids.length === 0 || usage.ids.includes(id));
+        const balance = balances[row.key];
+        if (rowParticipating && (!balance || balance.pending)) continue;
+        const held = rowParticipating && textIsZero(row.key);
+        const rawHeld = row.raw.autoHeld === true;
+        if ((sentHold.current[id] ?? rawHeld) === held) continue;
+        sentHold.current[id] = held;
+        try {
+          await apiClient.patch(paths[row.kind], { index: row.originalIndex, value: { 'auto-held': held } });
+        } catch {
+          if (!cancelled) sentHold.current[id] = rawHeld;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [holdSignature]);
 
   if (loading && rows.length === 0) {
     return <div className="hint">{t('common.loading')}</div>;
@@ -354,18 +431,36 @@ export function ProviderTable({
               />
             </div>
 
-            <div className={styles.cellToggle} role="cell">
-              <span
-                className={styles.autoMark}
-                data-state={
-                  !autoUsage.enabled ||
-                  (autoUsage.ids.length > 0 && !autoUsage.ids.includes(row.key))
-                    ? 'off'
-                    : balanceIsZero(row.key)
-                      ? 'stopped'
-                      : 'running'
+            <div className={styles.cellAuto} role="cell" onClick={stopPropagation}>
+              <Button
+                variant="secondary"
+                size="sm"
+                iconOnly
+                onClick={() => {
+                  const id = providerAutoId(row);
+                  if (!participating(row)) {
+                    writeProviderAutoUsage({
+                      enabled: true,
+                      ids: autoUsage.enabled ? [...autoUsage.ids, id] : [id],
+                    });
+                    return;
+                  }
+                  const nextIds =
+                    autoUsage.ids.length === 0
+                      ? rows.filter((item) => providerAutoId(item) !== id).map((item) => providerAutoId(item))
+                      : autoUsage.ids.filter((item) => item !== id);
+                  writeProviderAutoUsage({ enabled: autoUsage.enabled, ids: nextIds });
+                }}
+                disabled={actionsDisabled}
+                aria-pressed={participating(row)}
+                aria-label={t('ai_providers.auto_start_stop')}
+                data-provider-auto-start-stop={participating(row) ? 'on' : 'off'}
+                data-auto-quota={
+                  participating(row) ? (hasRemainingQuota(row.key) ? 'present' : 'absent') : undefined
                 }
-              />
+              >
+                <IconPower size={15} />
+              </Button>
             </div>
 
             <div className={styles.cellActions} role="cell" onClick={stopPropagation}>
@@ -390,42 +485,6 @@ export function ProviderTable({
                 title={t('common.delete')}
               >
                 <IconTrash2 size={14} />
-              </Button>
-              <Button
-                variant="secondary"
-                size="xs"
-                iconOnly
-                onClick={() => {
-                  const participating =
-                    autoUsage.enabled &&
-                    (autoUsage.ids.length === 0 || autoUsage.ids.includes(row.key));
-                  if (!participating) {
-                    writeProviderAutoUsage({
-                      enabled: true,
-                      ids: autoUsage.enabled ? [...autoUsage.ids, row.key] : [row.key],
-                    });
-                    return;
-                  }
-                  const nextIds =
-                    autoUsage.ids.length === 0
-                      ? rows.filter((item) => item.key !== row.key).map((item) => item.key)
-                      : autoUsage.ids.filter((id) => id !== row.key);
-                  writeProviderAutoUsage({ enabled: autoUsage.enabled, ids: nextIds });
-                }}
-                disabled={actionsDisabled}
-                aria-pressed={
-                  autoUsage.enabled &&
-                  (autoUsage.ids.length === 0 || autoUsage.ids.includes(row.key))
-                }
-                aria-label={t('ai_providers.auto_start_stop')}
-                className={
-                  autoUsage.enabled &&
-                  (autoUsage.ids.length === 0 || autoUsage.ids.includes(row.key))
-                    ? styles.autoOn
-                    : styles.autoOff
-                }
-              >
-                <IconPower size={14} />
               </Button>
               <Button
                 variant="secondary"

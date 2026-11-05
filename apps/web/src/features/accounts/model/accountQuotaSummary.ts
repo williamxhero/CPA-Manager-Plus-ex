@@ -93,6 +93,14 @@ export interface AccountQuotaOverrides {
 
 export type AccountGroupedQuotaAvailabilityState = 'available' | 'partial' | 'exhausted';
 
+export function credentialHasRemainingQuota(quota: AccountQuotaSummary): boolean {
+  if (quota.groupedAvailabilityState === 'exhausted' || quota.status === 'exhausted') return false;
+  if (quota.groupedAvailabilityState === 'available' || quota.groupedAvailabilityState === 'partial')
+    return true;
+  if (quota.status === 'ok' || quota.status === 'low') return true;
+  return typeof quota.remainingPercent === 'number' && quota.remainingPercent > 0;
+}
+
 export interface AccountGroupedQuotaWindowInput {
   groupLabel?: string;
   kind?: string;

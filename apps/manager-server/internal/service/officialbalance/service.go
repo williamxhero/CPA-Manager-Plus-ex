@@ -355,7 +355,30 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	return s.readRecord(ctx, b, r)
+	out, err := s.readRecord(ctx, b, r)
+	if err != nil || out.LastSuccess != nil || r.Config != "" || s.Store == nil {
+		return out, err
+	}
+	records, err := s.Store.ListOfficialBalances(ctx)
+	if err != nil {
+		return out, nil
+	}
+	alt, ok := predecessorRecord(b, records)
+	if !ok {
+		return out, nil
+	}
+	var cfg Config
+	var obs balance.Observation
+	if json.Unmarshal([]byte(alt.Config), &cfg) != nil || json.Unmarshal([]byte(alt.LastSuccess), &obs) != nil || cfg.BrowserSession == nil {
+		return out, nil
+	}
+	balance.ApplyPublishedNewAPIDisplay(ctx, cfg.BrowserSession.Origin, &obs)
+	if obs.AmountDecimal == "" || obs.Currency == "" {
+		return out, nil
+	}
+	out.LastSuccess = &obs
+	out.Stale = true
+	return out, nil
 }
 
 func (s *Service) InventoryStatusEvidence(ctx context.Context, b Binding, n *rc.Negotiated) (Status, store.OfficialBalanceFence, error) {
@@ -435,7 +458,16 @@ func (s *Service) readRecord(ctx context.Context, b Binding, r store.OfficialBal
 			out.Stale = true
 		}
 	}
+	projectPublishedNewAPI(ctx, &out)
 	return out, nil
+}
+
+func projectPublishedNewAPI(ctx context.Context, out *Status) {
+	if out.Adapter != balance.NewAPIBrowserSessionV1 || out.BrowserSession == nil || (out.NewAPI != nil && out.NewAPI.Conversion != nil) {
+		return
+	}
+	balance.ApplyPublishedNewAPIDisplay(ctx, out.BrowserSession.Origin, out.LastSuccess)
+	balance.ApplyPublishedNewAPIDisplay(ctx, out.BrowserSession.Origin, out.Attempt)
 }
 
 func webRequest(c Config) balance.WebRequest {

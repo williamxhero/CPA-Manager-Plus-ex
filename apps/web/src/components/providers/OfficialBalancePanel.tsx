@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Select } from '@/components/ui/Select';
 import {
   officialBalanceRequest,
   OfficialBalanceRequestError,
@@ -31,6 +32,17 @@ const endpoints: Record<OfficialBalanceAdapter, string> = {
   'newapi-browser-session-v1': 'https://api-top.com/api/user/self',
   layso_billing_web_v1: 'https://layso.ai/dashboard/models',
 };
+const BALANCE_PROTOCOL_OPTIONS: { value: OfficialBalanceAdapter; label: string }[] = [
+  { value: 'deepseek', label: 'DeepSeek · account_wallet' },
+  { value: 'deepinfra', label: 'DeepInfra · signed_prepaid_net' },
+  { value: 'openai-compat-usage-v1', label: 'OpenAI 兼容 · GET /v1/usage · account_wallet' },
+  { value: 'volcengine-account-balance-v2022-01-01', label: '火山引擎 · account_wallet · 独立账务授权' },
+  { value: 'aliyun-prepaid-cash-v2017-12-14', label: '阿里云 · prepaid cash · 独立只读账务授权' },
+  { value: 'newapi-user-self-v1', label: 'NewAPI · account_wallet · 原生额度' },
+  { value: 'newapi-token-usage-v1', label: 'NewAPI · key_remaining · 原生额度' },
+  { value: 'newapi-browser-session-v1', label: 'NewAPI · 浏览器同站会话 · account_wallet' },
+  { value: 'layso_billing_web_v1', label: 'LAYSO · 只读网页账户余额' },
+];
 const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =>
   value === 'deepseek' ||
   value === 'deepinfra' ||
@@ -103,6 +115,7 @@ export function OfficialBalancePanel({
   compatibleCandidate = false,
   protocolOnly = false,
 }: OfficialBalancePanelProps) {
+  const protocolLabelId = useId();
   const bindingJSON = JSON.stringify(binding);
   const context = useMemo(
     () => ({ base, managementKey, bindingJSON, adapter, compatibleCandidate }),
@@ -413,52 +426,37 @@ export function OfficialBalancePanel({
   if (protocolOnly) {
     return (
       <section aria-label="官方余额">
-        <label>
-          官方余额协议
-          <select
-            aria-label="官方余额协议"
+        <div className="form-group">
+          <label id={protocolLabelId} htmlFor={`${protocolLabelId}-select`}>
+            官方余额协议
+          </label>
+          <Select
+            id={`${protocolLabelId}-select`}
+            ariaLabelledBy={protocolLabelId}
             value={selectedAdapter}
             disabled={controlsDisabled}
-            onChange={(event) => {
-              if (isAdapter(event.target.value))
-                setEditor({
-                  ...edit,
-                  adapter: event.target.value,
-                  endpoint: '',
-                  secret: '',
-                  clear: false,
-                  newAPI: undefined,
-                  browserSession: undefined,
-                  volcengine: undefined,
-                  volcengineSecret: undefined,
-                  aliyun: undefined,
-                  aliyunSecret: undefined,
-                  web: undefined,
-                });
+            fullWidth
+            placeholder="手动选择已确认协议"
+            options={BALANCE_PROTOCOL_OPTIONS}
+            onChange={(next) => {
+              if (!isAdapter(next)) return;
+              setEditor({
+                ...edit,
+                adapter: next,
+                endpoint: '',
+                secret: '',
+                clear: false,
+                newAPI: undefined,
+                browserSession: undefined,
+                volcengine: undefined,
+                volcengineSecret: undefined,
+                aliyun: undefined,
+                aliyunSecret: undefined,
+                web: undefined,
+              });
             }}
-          >
-            <option value="" disabled>
-              手动选择已确认协议
-            </option>
-            <option value="deepseek">DeepSeek · account_wallet</option>
-            <option value="deepinfra">DeepInfra · signed_prepaid_net</option>
-            <option value="openai-compat-usage-v1">
-              OpenAI 兼容 · GET /v1/usage · account_wallet
-            </option>
-            <option value="volcengine-account-balance-v2022-01-01">
-              火山引擎 · account_wallet · 独立账务授权
-            </option>
-            <option value="aliyun-prepaid-cash-v2017-12-14">
-              阿里云 · prepaid cash · 独立只读账务授权
-            </option>
-            <option value="newapi-user-self-v1">NewAPI · account_wallet · 原生额度</option>
-            <option value="newapi-token-usage-v1">NewAPI · key_remaining · 原生额度</option>
-            <option value="newapi-browser-session-v1">
-              NewAPI · 浏览器同站会话 · account_wallet
-            </option>
-            <option value="layso_billing_web_v1">LAYSO · 只读网页账户余额</option>
-          </select>
-        </label>
+          />
+        </div>
       </section>
     );
   }

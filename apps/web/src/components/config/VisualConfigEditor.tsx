@@ -28,6 +28,7 @@ import {
   type IconProps,
 } from '@/components/ui/icons';
 import { ConfigSection } from '@/components/config/ConfigSection';
+import { QuotaRefreshIntervalControl } from '@/components/config/QuotaRefreshIntervalControl';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type {
   PayloadFilterRule,
@@ -1359,6 +1360,7 @@ export function VisualConfigEditor({
                 disabled={disabled}
                 onChange={(quotaAntigravityCredits) => onChange({ quotaAntigravityCredits })}
               />
+              <QuotaRefreshIntervalControl disabled={disabled} />
             </SectionGrid>
           </ConfigSection>
 

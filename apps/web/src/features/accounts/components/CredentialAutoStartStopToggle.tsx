@@ -9,6 +9,7 @@ interface CredentialAutoStartStopToggleProps {
   managementKey: string;
   authIndex?: string;
   revision?: string | number;
+  hasQuota?: boolean;
 }
 
 export function CredentialAutoStartStopToggle({
@@ -16,6 +17,7 @@ export function CredentialAutoStartStopToggle({
   managementKey,
   authIndex,
   revision,
+  hasQuota = false,
 }: CredentialAutoStartStopToggleProps) {
   const { t } = useTranslation();
   const { data, busy, error, setEnabled } = useCredentialAutoStartStop(
@@ -34,10 +36,11 @@ export function CredentialAutoStartStopToggle({
       size="sm"
       iconOnly
       type="button"
-      className={`${styles.button} ${on ? styles.on : styles.off}`}
+      className={styles.button}
       aria-pressed={on}
       aria-label={t('accounts.auto_start_stop')}
       data-credential-auto-start-stop={on ? 'on' : 'off'}
+      data-auto-quota={on ? (hasQuota ? 'present' : 'absent') : undefined}
       data-reason={error || undefined}
       data-availability={data?.availability?.reason || undefined}
       disabled={busy || Boolean(error) || blocked}

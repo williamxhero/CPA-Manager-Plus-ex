@@ -1,6 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CredentialAutoStartStopToggle } from './CredentialAutoStartStopToggle';
+import { credentialHasRemainingQuota } from '@/features/accounts/model/accountQuotaSummary';
 import type { CredentialPolicyStatus } from '@/services/api/credentialPolicy';
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 const source = (auth_index = 'a', enabled = false): CredentialPolicyStatus => ({
@@ -483,4 +484,63 @@ it('drops old source authority when readback discovers a new incarnation under t
   expect(power(r).props.disabled).toBe(true);
   expect(JSON.stringify(r.toJSON())).toContain('identity_changed');
   await act(async () => r.unmount());
+});
+
+it('keeps the power button gray when off and colors it from remaining quota when on', async () => {
+  const renderTone = async (enabled: boolean, hasQuota: boolean) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.includes('view=intents') ? intent('a', enabled) : Response.json(source('a', enabled))
+      )
+    );
+    let r!: ReactTestRenderer;
+    await act(async () => {
+      r = create(
+        <CredentialAutoStartStopToggle
+          managerServiceBase="http://fixture"
+          managementKey="test"
+          authIndex="a"
+          hasQuota={hasQuota}
+        />
+      );
+    });
+    await flush();
+    return r;
+  };
+  const off = await renderTone(false, true);
+  expect(power(off).props['data-credential-auto-start-stop']).toBe('off');
+  expect(power(off).props['data-auto-quota']).toBeUndefined();
+  await act(async () => off.unmount());
+  const ready = await renderTone(true, true);
+  expect(power(ready).props['data-credential-auto-start-stop']).toBe('on');
+  expect(power(ready).props['data-auto-quota']).toBe('present');
+  await act(async () => ready.unmount());
+  const empty = await renderTone(true, false);
+  expect(power(empty).props['data-credential-auto-start-stop']).toBe('on');
+  expect(power(empty).props['data-auto-quota']).toBe('absent');
+  await act(async () => empty.unmount());
+});
+
+it('treats exhausted quota as empty and any remaining window as present', () => {
+  expect(
+    credentialHasRemainingQuota({
+      status: 'ok',
+      groupedAvailabilityState: 'exhausted',
+      remainingPercent: 40,
+    } as never)
+  ).toBe(false);
+  expect(
+    credentialHasRemainingQuota({
+      status: 'unknown',
+      groupedAvailabilityState: 'available',
+      remainingPercent: null,
+    } as never)
+  ).toBe(true);
+  expect(
+    credentialHasRemainingQuota({
+      status: 'unknown',
+      remainingPercent: null,
+    } as never)
+  ).toBe(false);
 });

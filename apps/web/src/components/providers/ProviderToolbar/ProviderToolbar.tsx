@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/icons';
 import {
   readProviderAutoUsage,
+  SERVER_PROVIDER_AUTO_USAGE,
   subscribeProviderAutoUsage,
   writeProviderAutoUsage,
 } from '../providerAutoUsage';
@@ -78,10 +79,11 @@ export function ProviderToolbar({
   healthCheckDisabled = false,
 }: ProviderToolbarProps) {
   const { t } = useTranslation();
-  const autoUsage = useSyncExternalStore(subscribeProviderAutoUsage, readProviderAutoUsage, () => ({
-    enabled: false,
-    ids: [] as string[],
-  }));
+  const autoUsage = useSyncExternalStore(
+    subscribeProviderAutoUsage,
+    readProviderAutoUsage,
+    () => SERVER_PROVIDER_AUTO_USAGE
+  );
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
   const [highlightedSortIndex, setHighlightedSortIndex] = useState(-1);

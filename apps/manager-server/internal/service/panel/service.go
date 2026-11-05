@@ -78,6 +78,7 @@ func (s *Service) ServeManagementHTML(w http.ResponseWriter, r *http.Request, wr
 				return
 			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
 			http.ServeContent(w, r, "management.html", info.ModTime(), file)
 			return
 		}

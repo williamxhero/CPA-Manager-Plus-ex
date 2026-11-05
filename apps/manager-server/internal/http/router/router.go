@@ -26,6 +26,7 @@ import (
 	quotacooldowncontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/quotacooldown"
 	quotasnapshotcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/quotasnapshot"
 	resourcecapabilitycontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/resourcecapability"
+	runtimecontrolscontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/runtimecontrols"
 	setupcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/setup"
 	systemcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/system"
 	updatecheckcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/updatecheck"
@@ -63,6 +64,8 @@ func New(appCtx *app.Context) http.Handler {
 	mux.HandleFunc("/usage-service/provider-gate", providerGateHandler.Handle)
 	credentialPolicyHandler := &credentialpolicycontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/credential-policy", credentialPolicyHandler.Handle)
+	runtimeControlsHandler := &runtimecontrolscontroller.Handler{App: appCtx}
+	mux.HandleFunc("/usage-service/runtime-controls", runtimeControlsHandler.Handle)
 	mux.HandleFunc("/usage-service/credential-policy/resume", credentialPolicyHandler.Handle)
 	fullRefreshHandler := &fullrefreshcontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/full-refresh", fullRefreshHandler.Handle)

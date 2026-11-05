@@ -71,6 +71,8 @@ const COMMON_PROVIDER_KEY_FIELDS = [
   'excluded-models',
   'excludedModels',
   'excluded_models',
+  'auto-held',
+  'autoHeld',
 ] as const;
 
 const COOLING_PROVIDER_KEY_FIELDS = [
@@ -109,6 +111,8 @@ export const META_KEY_FIELDS = [
   'excluded-models',
   'excludedModels',
   'excluded_models',
+  'auto-held',
+  'autoHeld',
   ...DISABLE_COOLING_FIELDS,
 ] as const;
 
@@ -117,6 +121,8 @@ const OPENAI_PROVIDER_FIELDS = [
   'name',
   'priority',
   'disabled',
+  'auto-held',
+  'autoHeld',
   'prefix',
   'base-url',
   'baseUrl',
@@ -846,6 +852,7 @@ const serializeProviderKey = (config: ProviderKeyConfig) => {
   if (config.excludedModels && config.excludedModels.length) {
     payload['excluded-models'] = config.excludedModels;
   }
+  if (config.autoHeld !== undefined) payload['auto-held'] = config.autoHeld;
   if (config.cloak) {
     const cloakPayload: Record<string, unknown> = {};
     const mode = config.cloak.mode?.trim();
@@ -908,6 +915,7 @@ export const serializeMetaProviderKey = (config: ProviderKeyConfig) => {
     payload['excluded-models'] = config.excludedModels;
   }
   if (config.disableCooling !== undefined) payload['disable-cooling'] = config.disableCooling;
+  if (config.autoHeld !== undefined) payload['auto-held'] = config.autoHeld;
   return payload;
 };
 
@@ -945,6 +953,7 @@ const serializeVertexKey = (config: ProviderKeyConfig) => {
   if (config.excludedModels && config.excludedModels.length) {
     payload['excluded-models'] = config.excludedModels;
   }
+  if (config.autoHeld !== undefined) payload['auto-held'] = config.autoHeld;
   return payload;
 };
 
@@ -969,6 +978,7 @@ const serializeGeminiKey = (config: GeminiKeyConfig) => {
   if (config.excludedModels && config.excludedModels.length) {
     payload['excluded-models'] = config.excludedModels;
   }
+  if (config.autoHeld !== undefined) payload['auto-held'] = config.autoHeld;
   return payload;
 };
 
@@ -987,6 +997,7 @@ const serializeOpenAIProvider = (provider: OpenAIProviderConfig) => {
   if (authIndex) payload['auth-index'] = authIndex;
   if (provider.prefix?.trim()) payload.prefix = provider.prefix.trim();
   if (provider.disabled !== undefined) payload.disabled = provider.disabled;
+  if (provider.autoHeld !== undefined) payload['auto-held'] = provider.autoHeld;
   if (provider.disableCooling !== undefined) payload['disable-cooling'] = provider.disableCooling;
   const headers = serializeHeaders(provider.headers);
   if (headers) payload.headers = headers;

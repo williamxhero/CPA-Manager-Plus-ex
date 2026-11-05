@@ -255,6 +255,8 @@ const normalizeProviderKeyConfig = (item: unknown): ProviderKeyConfig | null => 
       record?.excluded_models
   );
   if (excludedModels.length) config.excludedModels = excludedModels;
+  const providerAutoHeld = normalizeBoolean(record?.['auto-held'] ?? record?.autoHeld);
+  if (providerAutoHeld !== undefined) config.autoHeld = providerAutoHeld;
   if (authIndex) config.authIndex = authIndex;
 
   const cloakRaw = record?.cloak;
@@ -332,6 +334,8 @@ const normalizeGeminiKeyConfig = (item: unknown): GeminiKeyConfig | null => {
     record?.['excluded-models'] ?? record?.excludedModels
   );
   if (excludedModels.length) config.excludedModels = excludedModels;
+  const autoHeld = normalizeBoolean(record?.['auto-held'] ?? record?.autoHeld);
+  if (autoHeld !== undefined) config.autoHeld = autoHeld;
   if (authIndex) config.authIndex = authIndex;
   return config;
 };
@@ -367,6 +371,8 @@ const normalizeOpenAIProvider = (provider: unknown): OpenAIProviderConfig | null
   if (typeof provider['resource-id'] === 'string') result.resourceId = provider['resource-id'];
   const disabled = normalizeBoolean(provider.disabled ?? provider['disabled']);
   if (disabled !== undefined) result.disabled = disabled;
+  const autoHeld = normalizeBoolean(provider['auto-held'] ?? provider.autoHeld);
+  if (autoHeld !== undefined) result.autoHeld = autoHeld;
   const disableCooling = readCoolingOverride(provider);
   if (disableCooling !== undefined) result.disableCooling = disableCooling;
   const prefix = normalizePrefix(provider.prefix ?? provider['prefix']);

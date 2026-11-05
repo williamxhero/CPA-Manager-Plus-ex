@@ -58,6 +58,25 @@ type OfficialBalanceRecord struct {
 	LastSuccess string
 }
 
+func (s *Store) ListOfficialBalances(ctx context.Context) ([]OfficialBalanceRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, version, config, secret_ref, secret_cipher, attempt, last_success FROM official_balance_sources`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []OfficialBalanceRecord
+	for rows.Next() {
+		var r OfficialBalanceRecord
+		var cipher string
+		if err := rows.Scan(&r.ID, &r.Version, &r.Config, &r.SecretRef, &cipher, &r.Attempt, &r.LastSuccess); err != nil {
+			return nil, err
+		}
+		r.Configured = cipher != ""
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) OfficialBalance(ctx context.Context, id string) (OfficialBalanceRecord, error) {
 	r := OfficialBalanceRecord{ID: id}
 	var cipher string

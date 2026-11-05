@@ -9,7 +9,8 @@ import {
 import { fullRefreshRequest, type RefreshInventory } from '@/services/api/fullRefresh';
 import type { ProviderRow } from './ProviderTable/rowData';
 import type { ProviderMoneyStatusConfig } from './useProviderMoneySummaries';
-import { quotaRefreshDue } from '@/utils/quota/refreshCadence';
+import { quotaRefreshDelayMs, quotaRefreshDue, readQuotaRefreshIntervalMs } from '@/utils/quota/refreshCadence';
+import { loadRuntimeControls, readRuntimeControls, writeRuntimeControls } from '@/utils/quota/runtimeControls';
 
 const officialBalanceCache = new Map<string, { at: number; views: Record<string, OfficialBalanceView> }>();
 const officialInventoryCache = new Map<string, { at: number; views: Record<string, OfficialBalanceView> }>();
@@ -35,9 +36,14 @@ function observationText(obs?: BalanceObservation): string | undefined {
   const listed = money(first?.currency, first?.total);
   if (listed) return listed;
   if (obs.nativeQuota?.state === 'unlimited') return 'unlimited';
-  if (obs.nativeQuota?.state === 'finite' && obs.nativeQuota.remaining)
-    return obs.nativeQuota.remaining;
   return undefined;
+}
+
+function displayableBalanceText(text?: string): text is string {
+  return (
+    text === 'unlimited' ||
+    (!!text && /^[A-Z]{3} -?(?:0|[1-9]\d{0,59})(?:\.\d{1,30})?$/.test(text))
+  );
 }
 
 function statusText(status: OfficialBalanceStatus): string | undefined {
@@ -57,11 +63,16 @@ function rowResourceIds(row: ProviderRow): string[] {
 export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMoneyStatusConfig) {
   const issued = rows.flatMap((row) => {
     const binding = config?.bindingForRow(row);
-    return binding?.targets?.length ? [{ key: row.key, binding }] : [];
+    const storageKey =
+      typeof row.raw.resourceId === 'string' &&
+      /^[0-9a-f-]{36}$/i.test(row.raw.resourceId)
+        ? `${row.kind}:${row.raw.resourceId}`
+        : '';
+    return binding?.targets?.length ? [{ key: row.key, storageKey, binding }] : [];
   });
   const serialized = JSON.stringify(issued);
   const bindings = useMemo(
-    () => JSON.parse(serialized) as { key: string; binding: BalanceBinding }[],
+    () => JSON.parse(serialized) as { key: string; storageKey: string; binding: BalanceBinding }[],
     [serialized]
   );
   const base = config?.base;
@@ -81,19 +92,37 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
       return;
     }
     const cacheKey = `${base}\n${managementKey}\n${serialized}`;
-    const cached = officialBalanceCache.get(cacheKey);
-    if (cached && !quotaRefreshDue(cached.at)) {
-      setViews(cached.views);
-      return;
-    }
     let mounted = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const active = new Set<AbortController>();
     const collected: Record<string, OfficialBalanceView> = {};
     const publish = (key: string, view: OfficialBalanceView) => {
       collected[key] = view;
       setViews((previous) => ({ ...previous, [key]: view }));
     };
-    const run = async () => {
+    const run = async (force = false) => {
+      await loadRuntimeControls();
+      const dueAt = readRuntimeControls().quotaFetchedAtMs;
+      const cached = officialBalanceCache.get(cacheKey);
+      const texts = readRuntimeControls().balanceTexts;
+      const seeded = Object.fromEntries(
+        bindings.map((row) => {
+          const cachedText = cached?.views[row.key]?.text;
+          const text = displayableBalanceText(cachedText)
+            ? cachedText
+            : displayableBalanceText(texts[row.storageKey])
+              ? texts[row.storageKey]
+              : undefined;
+          return [row.key, { text, pending: false }];
+        })
+      );
+      const complete = bindings.every((row) => displayableBalanceText(seeded[row.key]?.text));
+      if (!force && complete && ((cached && !quotaRefreshDue(cached.at)) || !quotaRefreshDue(dueAt))) {
+        if (mounted) setViews(seeded);
+        const delay = quotaRefreshDelayMs(dueAt);
+        if (mounted && delay) timer = setTimeout(() => void run(true), delay);
+        return;
+      }
       if (mounted) {
         for (const row of bindings) collected[row.key] = { pending: true };
         setViews({ ...collected });
@@ -164,11 +193,26 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
         }
       };
       await Promise.all([worker(), worker()]);
-      if (mounted) officialBalanceCache.set(cacheKey, { at: Date.now(), views: { ...collected } });
+      if (mounted) {
+        const at = Date.now();
+        const views = { ...collected };
+        officialBalanceCache.set(cacheKey, { at, views });
+        const balanceTexts: Record<string, string> = {};
+        for (const row of bindings) {
+          const text = views[row.key]?.text;
+          if (row.storageKey && displayableBalanceText(text)) balanceTexts[row.storageKey] = text;
+        }
+        if (bindings.every((row) => !row.storageKey || balanceTexts[row.storageKey])) {
+          await writeRuntimeControls({ ...readRuntimeControls(), quotaFetchedAtMs: at, balanceTexts });
+        }
+      }
+      const interval = readQuotaRefreshIntervalMs();
+      if (mounted && interval > 0) timer = setTimeout(() => void run(true), interval);
     };
-    void run();
+    void run(false);
     return () => {
       mounted = false;
+      clearTimeout(timer);
       active.forEach((controller) => controller.abort());
     };
   }, [base, managementKey, disabled, bindings]);
@@ -180,7 +224,10 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
     }
     const controller = new AbortController();
     let mounted = true;
-    void fullRefreshRequest<RefreshInventory>(base, managementKey, undefined, undefined, controller.signal)
+    void (async () => {
+      await loadRuntimeControls();
+      if (!mounted) return;
+      await fullRefreshRequest<RefreshInventory>(base, managementKey, undefined, undefined, controller.signal)
       .then((inventory) => {
         if (!mounted) return;
         const byResource = new Map<string, string>();
@@ -203,6 +250,7 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
       .catch(() => {
         if (mounted) setInventoryViews({});
       });
+    })();
     return () => {
       mounted = false;
       controller.abort();

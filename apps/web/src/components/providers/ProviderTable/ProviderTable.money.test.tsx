@@ -5,13 +5,10 @@ import { buildProviderRows } from './rowData';
 import type { BalanceBinding } from '@/services/api/officialBalance';
 import { saveProviderPolicy } from '@/services/api/providerPolicy';
 import { beforeEach } from 'vitest';
+import { setRuntimeControlsForTests } from '@/utils/quota/runtimeControls';
 
 beforeEach(() => {
-  vi.stubGlobal('localStorage', {
-    getItem: (key: string) => (key === 'cpa.quotaRefreshIntervalMs' ? '15000' : null),
-    setItem: () => undefined,
-    removeItem: () => undefined,
-  });
+  setRuntimeControlsForTests({ quotaRefreshIntervalMs: 15000, quotaFetchedAtMs: 0 });
 });
 
 vi.mock('react-i18next', () => ({
@@ -197,6 +194,7 @@ it('retains values while refreshing, marks failed reads unverified, and replaces
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
+      if (!String(url).includes('provider-policy')) return Response.json({});
       const id = new URL(url).searchParams.get('providerId')!;
       const body = id === IDS.A ? status('A', 'KA') : status('B', 'KB');
       if (mode === 'pending') return new Promise<Response>((r) => {

@@ -157,6 +157,9 @@ func TestPanelPathStillServesExternalFile(t *testing.T) {
 	if rr.Header().Get("Last-Modified") == "" {
 		t.Fatalf("external panel lost its Last-Modified validator")
 	}
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
 }
 
 func TestPanelPathFallsBackToEmbeddedWhenMissing(t *testing.T) {
@@ -176,8 +179,8 @@ func TestPanelPathFallsBackToEmbeddedWhenMissing(t *testing.T) {
 
 func TestEmbeddedPanelAssetsOnlyAllowGetAndHead(t *testing.T) {
 	s := New("", fstest.MapFS{
-		embeddedPanelFile: &fstest.MapFile{Data: []byte(embeddedPanelBody)},
-		"web/favicon.ico": &fstest.MapFile{Data: []byte("favicon")},
+		embeddedPanelFile:          &fstest.MapFile{Data: []byte(embeddedPanelBody)},
+		"web/favicon.ico":          &fstest.MapFile{Data: []byte("favicon")},
 		"web/apple-touch-icon.png": &fstest.MapFile{Data: []byte("apple-touch-icon")},
 	})
 
