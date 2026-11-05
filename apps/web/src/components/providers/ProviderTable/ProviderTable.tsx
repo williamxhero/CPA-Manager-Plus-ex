@@ -37,6 +37,8 @@ import { useOfficialBalanceList } from '../useOfficialBalanceList';
 import { apiClient } from '@/services/api/client';
 import { loadRuntimeControls } from '@/utils/quota/runtimeControls';
 import { ProviderStatusBar } from '../ProviderStatusBar';
+import { ProviderMoneySummary } from '../ProviderMoneySummary';
+import { useProviderMoneySummaries, type ProviderMoneyStatusConfig } from '../useProviderMoneySummaries';
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from './kindMeta';
 import type { ProviderRow } from './rowData';
 import styles from './ProviderTable.module.scss';
@@ -362,6 +364,7 @@ export function ProviderTable({
                   </span>
                 )}
               </div>
+              {row.kind === 'openai' && <ProviderMoneySummary view={money[row.key]} />}
             </div>
 
             <div

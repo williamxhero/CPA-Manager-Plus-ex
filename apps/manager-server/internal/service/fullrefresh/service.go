@@ -35,6 +35,7 @@ type Service struct {
 	rounds           map[string]*Progress
 	purposes         map[string]Purpose
 	observers        []Observer
+	boundedObservers []boundedObserver
 	clock            Clock
 	recoveryNeeded   bool
 	schedulerAnchor  time.Time
