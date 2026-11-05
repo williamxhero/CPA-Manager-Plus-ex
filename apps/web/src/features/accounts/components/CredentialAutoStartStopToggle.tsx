@@ -27,7 +27,7 @@ export function CredentialAutoStartStopToggle({
     revision
   );
   const on = data?.enabled === true;
-  const quotaPresent = typeof hasRemaining === 'boolean' ? hasRemaining : hasQuota;
+  const quotaPresent = hasRemaining === true || hasQuota;
   const known = Boolean(data?.subjectId);
   const blocked =
     known && !on && (!data?.bindingCurrent || data?.availability.state !== 'available');

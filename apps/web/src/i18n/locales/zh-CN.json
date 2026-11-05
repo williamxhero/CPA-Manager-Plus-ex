@@ -1656,6 +1656,7 @@
     "list_header_availability": "可用状态",
     "list_header_recent_requests": "最近请求",
     "list_header_historical_usage": "历史用量",
+    "list_header_credits": "Credits",
     "list_header_quota": "额度",
     "list_header_actions": "操作",
     "list_plan_remaining_days": "{{days}} 天",

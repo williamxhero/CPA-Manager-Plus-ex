@@ -1658,6 +1658,7 @@
     "list_header_availability": "Availability",
     "list_header_recent_requests": "Recent Requests",
     "list_header_historical_usage": "Historical Usage",
+    "list_header_credits": "Credits",
     "list_header_quota": "Quota",
     "list_header_actions": "Actions",
     "list_plan_remaining_days": "{{days}} days",

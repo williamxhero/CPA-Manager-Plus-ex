@@ -17,13 +17,36 @@ import {
 
 const intentLoads = new Map<string, Promise<Map<string, boolean>>>();
 
+function observedCreditsRemain(raw: string): boolean {
+  try {
+    const parsed = JSON.parse(raw) as {
+      credits?: {
+        unlimited?: boolean;
+        overageLimitReached?: boolean;
+        balance?: string;
+      };
+    };
+    const credits = parsed.credits;
+    if (!credits || credits.overageLimitReached) return false;
+    if (credits.unlimited) return true;
+    if (typeof credits.balance !== 'string' || !credits.balance.trim()) return false;
+    const amount = Number(credits.balance);
+    return Number.isFinite(amount) && amount > 0;
+  } catch {
+    return false;
+  }
+}
+
 function windowsHaveRemaining(raw?: string): boolean | undefined {
   if (!raw) return undefined;
   try {
     const parsed = JSON.parse(raw) as QuotaWindows;
     if (!Array.isArray(parsed.windows) || parsed.windows.length === 0) return undefined;
-    return parsed.windows.some(
-      (window) => typeof window.remainingFraction === 'number' && window.remainingFraction > 0
+    return (
+      observedCreditsRemain(raw) ||
+      parsed.windows.some(
+        (window) => typeof window.remainingFraction === 'number' && window.remainingFraction > 0
+      )
     );
   } catch {
     return undefined;

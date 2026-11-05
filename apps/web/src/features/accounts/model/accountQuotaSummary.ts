@@ -16,6 +16,7 @@ import {
   parseQuotaResetLabelMs,
   resolveAbsoluteQuotaReset,
 } from '@/utils/quota/formatters';
+import { formatBalanceAmount } from '@/utils/quota/formatBalanceAmount';
 import { isQwenQuotaFile, type QwenQuotaState } from '@/utils/quota/qwenQuota';
 import type { UsageHeaderSnapshot } from '@/services/api/usageService';
 import { getAuthFileSelectionKey } from '@/features/authFiles/model/credentialStatus';
@@ -93,7 +94,33 @@ export interface AccountQuotaOverrides {
 
 export type AccountGroupedQuotaAvailabilityState = 'available' | 'partial' | 'exhausted';
 
+export function credentialCreditsRemain(quota: {
+  creditsUnlimited?: boolean | null;
+  creditsOverageLimitReached?: boolean | null;
+  creditsBalance?: string | null;
+}): boolean {
+  if (quota.creditsOverageLimitReached) return false;
+  if (quota.creditsUnlimited) return true;
+  if (typeof quota.creditsBalance !== 'string') return false;
+  const amount = Number(quota.creditsBalance);
+  return Number.isFinite(amount) && amount > 0;
+}
+
+export function formatCredentialCredits(quota: {
+  creditsUnlimited?: boolean | null;
+  creditsHasCredits?: boolean | null;
+  creditsBalance?: string | null;
+}): string {
+  if (quota.creditsUnlimited) return '∞';
+  if (typeof quota.creditsBalance === 'string' && quota.creditsBalance.trim()) {
+    return formatBalanceAmount(quota.creditsBalance) ?? '—';
+  }
+  if (quota.creditsHasCredits === false) return '0.00';
+  return '—';
+}
+
 export function credentialHasRemainingQuota(quota: AccountQuotaSummary): boolean {
+  if (credentialCreditsRemain(quota)) return true;
   if (quota.groupedAvailabilityState === 'exhausted' || quota.status === 'exhausted') return false;
   if (quota.groupedAvailabilityState === 'available' || quota.groupedAvailabilityState === 'partial')
     return true;

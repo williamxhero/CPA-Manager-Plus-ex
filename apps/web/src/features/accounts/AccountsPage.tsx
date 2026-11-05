@@ -1,7 +1,10 @@
 import { refreshCredentialSource } from '@/services/api/fullRefresh';
 import { credentialQuotaRequest, type CredentialQuotaStatus } from '@/services/api/credentialQuota';
 import { CredentialAutoStartStopToggle } from '@/features/accounts/components/CredentialAutoStartStopToggle';
-import { credentialHasRemainingQuota } from '@/features/accounts/model/accountQuotaSummary';
+import {
+  credentialHasRemainingQuota,
+  formatCredentialCredits,
+} from '@/features/accounts/model/accountQuotaSummary';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   KeyboardEvent,
@@ -9809,6 +9812,7 @@ export function AccountsPage() {
                 <span>{t('accounts.list_header_availability')}</span>
                 <span>{t('accounts.list_header_recent_requests')}</span>
                 <span>{t('accounts.list_header_historical_usage')}</span>
+                <span>{t('accounts.list_header_credits')}</span>
                 <span>{t('accounts.list_header_quota')}</span>
                 <span>{t('accounts.list_header_actions')}</span>
               </div>
@@ -9996,6 +10000,10 @@ export function AccountsPage() {
                     </div>
 
                     {renderAccountHistory(row, ctx)}
+
+                    <div className={styles.accountCardCredits} data-account-credits={row.selectionKey}>
+                      {row.provider === CODEX_CONFIG.type ? formatCredentialCredits(row.quota) : '—'}
+                    </div>
 
                     {(() => {
                       const resetCreditsAriaSuffix =

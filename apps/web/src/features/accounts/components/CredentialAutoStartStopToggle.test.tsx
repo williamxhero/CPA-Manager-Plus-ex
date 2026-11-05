@@ -1,7 +1,11 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CredentialAutoStartStopToggle } from './CredentialAutoStartStopToggle';
-import { credentialHasRemainingQuota } from '@/features/accounts/model/accountQuotaSummary';
+import {
+  credentialCreditsRemain,
+  credentialHasRemainingQuota,
+  formatCredentialCredits,
+} from '@/features/accounts/model/accountQuotaSummary';
 import type { CredentialPolicyStatus } from '@/services/api/credentialPolicy';
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 const source = (auth_index = 'a', enabled = false): CredentialPolicyStatus => ({
@@ -544,4 +548,21 @@ it('treats exhausted quota as empty and any remaining window as present', () => 
       remainingPercent: null,
     } as never)
   ).toBe(false);
+  expect(
+    credentialHasRemainingQuota({
+      status: 'exhausted',
+      groupedAvailabilityState: 'exhausted',
+      remainingPercent: 0,
+      creditsBalance: '18.4',
+    } as never)
+  ).toBe(true);
+  expect(credentialCreditsRemain({ creditsBalance: '0', creditsUnlimited: false })).toBe(false);
+  expect(credentialCreditsRemain({ creditsUnlimited: true, creditsBalance: '0' })).toBe(true);
+  expect(credentialCreditsRemain({ creditsBalance: '1', creditsOverageLimitReached: true })).toBe(
+    false
+  );
+  expect(formatCredentialCredits({ creditsBalance: '18.4' })).toBe('18.40');
+  expect(formatCredentialCredits({ creditsUnlimited: true })).toBe('∞');
+  expect(formatCredentialCredits({ creditsHasCredits: false })).toBe('0.00');
+  expect(formatCredentialCredits({})).toBe('—');
 });

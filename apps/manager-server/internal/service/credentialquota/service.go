@@ -60,6 +60,12 @@ type Window struct {
 	ResetAt           string  `json:"resetAt,omitempty"`
 	SourceStatus      string  `json:"sourceStatus,omitempty"`
 }
+type Credits struct {
+	HasCredits          bool   `json:"hasCredits"`
+	Unlimited           bool   `json:"unlimited"`
+	Balance             string `json:"balance,omitempty"`
+	OverageLimitReached bool   `json:"overageLimitReached"`
+}
 type CoreObservation struct {
 	Binding
 	SourceVersion       string   `json:"sourceVersion"`
@@ -71,6 +77,7 @@ type CoreObservation struct {
 	ErrorCode           string   `json:"errorCode,omitempty"`
 	ObservedAtMS        int64    `json:"observedAtMs"`
 	Windows             []Window `json:"windows,omitempty"`
+	Credits             *Credits `json:"credits,omitempty"`
 	Complete            bool     `json:"complete"`
 	AccountProvenance   string   `json:"accountProvenance"`
 	RecoveryEligible    bool     `json:"recoveryEligible"`

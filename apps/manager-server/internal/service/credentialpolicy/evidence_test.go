@@ -178,3 +178,28 @@ func TestCredentialEvidenceAcceptsConfiguredQwenCLIProvenance(t *testing.T) {
 		}
 	}
 }
+
+func TestCredentialEvidenceCodexCreditsKeepAnExhaustedWindowRecoverable(t *testing.T) {
+	status, now := windowEvidence(t)
+	var core cq.CoreObservation
+	if err := json.Unmarshal([]byte(status.Attempt.WindowsJSON), &core); err != nil {
+		t.Fatal(err)
+	}
+	core.Credits = &cq.Credits{HasCredits: true, Balance: "18.40"}
+	raw, _ := json.Marshal(core)
+	status.Attempt.WindowsJSON = string(raw)
+	status.LastSuccess = status.Attempt
+	decision := policy.ValidateCredentialEvidence(status, now)
+	if decision.Action != "recover" || decision.Reason != "quota_credits_available" {
+		t.Fatalf("credits did not keep the credential recoverable: %+v", decision)
+	}
+
+	core.Credits = &cq.Credits{HasCredits: true, Balance: "0", OverageLimitReached: true}
+	raw, _ = json.Marshal(core)
+	status.Attempt.WindowsJSON = string(raw)
+	status.LastSuccess = status.Attempt
+	decision = policy.ValidateCredentialEvidence(status, now)
+	if decision.Action != "pause" || decision.Reason != "quota_windows_exhausted" {
+		t.Fatalf("spent credits still counted: %+v", decision)
+	}
+}

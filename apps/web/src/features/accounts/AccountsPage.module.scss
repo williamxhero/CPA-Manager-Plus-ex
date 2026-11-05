@@ -370,7 +370,7 @@
 .accountCardList {
   display: grid;
   gap: 8px;
-  min-width: 1240px;
+  min-width: 1320px;
   padding: 10px 12px;
 }
 
@@ -383,6 +383,7 @@
     96px
     minmax(124px, 0.3fr)
     minmax(160px, 0.35fr)
+    72px
     minmax(280px, 3fr)
     146px;
   column-gap: 8px;
@@ -409,7 +410,8 @@
   > span:nth-child(2),
   > span:nth-child(3),
   > span:nth-child(4),
-  > span:nth-child(5) {
+  > span:nth-child(5),
+  > span:nth-child(6) {
     justify-content: center;
     text-align: center;
   }
@@ -1160,7 +1162,7 @@
 
 @media (min-width: 1360px) {
   .accountCardList {
-    min-width: 1320px;
+    min-width: 1400px;
   }
 
   .accountCardHeader,
@@ -1171,6 +1173,7 @@
       96px
       minmax(112px, 0.3fr)
       minmax(178px, 0.35fr)
+      72px
       minmax(300px, 3fr)
       175px;
     column-gap: 10px;
@@ -1185,7 +1188,7 @@
 
 @media (min-width: 1680px) {
   .accountCardList {
-    min-width: 1500px;
+    min-width: 1580px;
   }
 
   .accountCardHeader,
@@ -1196,6 +1199,7 @@
       96px
       minmax(124px, 0.3fr)
       minmax(186px, 0.35fr)
+      72px
       minmax(380px, 3fr)
       182px;
     column-gap: 12px;
@@ -1286,6 +1290,17 @@
   min-width: 0;
   flex: 1;
   gap: 3px;
+}
+
+.accountCardCredits {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
 }
 
 .accountCardPlan {

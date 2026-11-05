@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +30,21 @@ type EvidenceDecision struct {
 
 func noEvidence(reason string) EvidenceDecision {
 	return EvidenceDecision{Action: "none", Reason: reason}
+}
+
+func codexCreditsAvailable(core cq.CoreObservation) bool {
+	if core.Protocol != "codex-oauth-wham" || core.Credits == nil || core.Credits.OverageLimitReached {
+		return false
+	}
+	if core.Credits.Unlimited {
+		return true
+	}
+	balance := strings.TrimSpace(core.Credits.Balance)
+	if balance == "" {
+		return false
+	}
+	value, err := strconv.ParseFloat(balance, 64)
+	return err == nil && !math.IsNaN(value) && !math.IsInf(value, 0) && value > 0
 }
 
 func validProvenance(protocol, account, timestamp string) bool {
@@ -135,9 +151,14 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 	if modelExhausted {
 		out.ModelAutomationReason = "model_scope_unsupported"
 	}
-	if globalExhausted {
+	if globalExhausted && !codexCreditsAvailable(core) {
 		out.Action = "pause"
 		out.Reason = "quota_windows_exhausted"
+		return out
+	}
+	if globalExhausted && codexCreditsAvailable(core) {
+		out.Action = "recover"
+		out.Reason = "quota_credits_available"
 		return out
 	}
 	if len(groups[""]) == 0 {

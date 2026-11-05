@@ -10876,7 +10876,7 @@ describe('AccountsPage replacement flows', () => {
     expect(findHostButtonByText(renderer, 'accounts.view_mode_grid')).toBeDefined();
   });
 
-  it('renders the seven localized credential list headers', async () => {
+  it('renders the credential list headers', async () => {
     const renderer = await renderAccountsPage();
     const header = renderer.root.findByProps({ 'data-account-list-header': 'true' });
 
@@ -10886,6 +10886,7 @@ describe('AccountsPage replacement flows', () => {
       'accounts.list_header_availability',
       'accounts.list_header_recent_requests',
       'accounts.list_header_historical_usage',
+      'accounts.list_header_credits',
       'accounts.list_header_quota',
       'accounts.list_header_actions',
     ]);
