@@ -176,6 +176,31 @@ export async function saveCredentialPolicy(
   return response.json() as Promise<CredentialPolicyStatus>;
 }
 
+export async function listCredentialIntents(
+  base: string,
+  managementKey: string,
+  signal?: AbortSignal
+): Promise<Array<{ authIndex: string; enabled: boolean }>> {
+  const response = await fetch(
+    `${base.replace(/\/$/, '')}/usage-service/credential-policy?view=intents`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${managementKey}`, 'Content-Type': 'application/json' },
+      signal,
+      cache: 'no-store',
+      redirect: 'error',
+    }
+  );
+  if (!response.ok) throw await policyError(response);
+  const body = (await response.json()) as Array<{ authIndex?: string; enabled?: boolean }> | null;
+  if (!Array.isArray(body)) return [];
+  return body.flatMap((item) =>
+    item && typeof item.authIndex === 'string'
+      ? [{ authIndex: item.authIndex, enabled: item.enabled === true }]
+      : []
+  );
+}
+
 export async function getCredentialPolicy(
   base: string,
   managementKey: string,

@@ -1,4 +1,3 @@
-import { CommonQuotaInventoryPanel } from '@/components/quota/CommonQuotaInventoryPanel';
 import { refreshCredentialSource } from '@/services/api/fullRefresh';
 import { credentialQuotaRequest, type CredentialQuotaStatus } from '@/services/api/credentialQuota';
 import { CredentialAutoStartStopToggle } from '@/features/accounts/components/CredentialAutoStartStopToggle';
@@ -6613,8 +6612,8 @@ export function AccountsPage() {
           return {
             status: 'error',
             error:
-              error instanceof Error && error.message === 'identity_or_source_changed'
-                ? 'identity_or_source_changed'
+              error instanceof Error && error.message
+                ? error.message
                 : 'common_refresh_unavailable',
           };
         }
@@ -8529,12 +8528,6 @@ export function AccountsPage() {
           </small>
         </div>
         <div className={styles.batchActions}>
-          {backendCredentialQuota && (
-            <CommonQuotaInventoryPanel
-              base={featureAvailability.managerServiceBase ?? ''}
-              managementKey={managementKey}
-            />
-          )}
           {!isSelectionMode && !hasSelection ? (
             <Button
               variant="secondary"
@@ -8832,9 +8825,9 @@ export function AccountsPage() {
           <div className={styles.accountGridCardSecondaryActions}>
             {reauthButton}
             {deleteButton}
+            {automaticSwitch}
             {downloadButton}
           </div>
-          {automaticSwitch}
           <div className={styles.accountGridCardPrimaryActions}>
             {refreshButton}
             {settingsButton}
@@ -8845,13 +8838,13 @@ export function AccountsPage() {
 
     return (
       <div className={styles.rowActions} onClick={(event) => event.stopPropagation()}>
-        {automaticSwitch}
         <div className={styles.accountQuickActionsGrid}>
           {reauthButton}
           {refreshButton}
           {settingsButton}
           {downloadButton}
           {deleteButton}
+          {automaticSwitch}
         </div>
         {!hideSideActions ? (
           <>

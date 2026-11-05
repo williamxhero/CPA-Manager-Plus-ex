@@ -9,6 +9,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (s: string) =>
       ({
+        'ai_providers.table_col_balance': '余额',
         'ai_providers.money_summary_aria': '资金实时状态摘要',
         'ai_providers.money_summary_explicit': '显式设置',
         'ai_providers.money_summary_stale': '陈旧',
@@ -79,7 +80,7 @@ it.skipIf(!fixture)(
         });
       }
       const summaries = view.root.findAll(
-        (n) => n.type === 'div' && n.props['aria-label'] === '资金实时状态摘要'
+        (n) => n.type === 'div' && n.props['aria-label'] === '余额'
       );
       expect(summaries).toHaveLength(2);
       const words = (i: number) =>
@@ -88,12 +89,10 @@ it.skipIf(!fixture)(
           .flatMap((n) => n.children.filter((c) => typeof c === 'string'))
           .join(' ');
       expect(words(0)).toContain('USD 0.123456789012345678');
-      expect(words(0)).toContain('陈旧');
-      expect(words(0)).toContain('lastSuccess');
-      expect(words(1)).toContain('金额未知');
+      expect(words(0)).not.toContain('陈旧');
+      expect(words(1)).toContain('—');
       expect(words(1)).not.toContain('USD');
-      expect(words(0)).toContain('显式设置');
-      expect(words(1)).toContain('显式设置');
+      expect(words(0)).not.toContain('显式设置');
     } finally {
       if (view) await act(async () => view.unmount());
     }

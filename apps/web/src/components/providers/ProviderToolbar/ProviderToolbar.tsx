@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
@@ -8,10 +8,16 @@ import {
   IconArrowUpNarrowWide,
   IconChevronDown,
   IconFilterAll,
+  IconPower,
   IconSearch,
   IconShield,
   IconX,
 } from '@/components/ui/icons';
+import {
+  readProviderAutoUsage,
+  subscribeProviderAutoUsage,
+  writeProviderAutoUsage,
+} from '../providerAutoUsage';
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from '../ProviderTable/kindMeta';
 import { PROVIDER_KINDS, type ProviderKind } from '../ProviderTable/rowData';
 import type {
@@ -72,6 +78,10 @@ export function ProviderToolbar({
   healthCheckDisabled = false,
 }: ProviderToolbarProps) {
   const { t } = useTranslation();
+  const autoUsage = useSyncExternalStore(subscribeProviderAutoUsage, readProviderAutoUsage, () => ({
+    enabled: false,
+    ids: [] as string[],
+  }));
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
   const [highlightedSortIndex, setHighlightedSortIndex] = useState(-1);
@@ -552,6 +562,18 @@ export function ProviderToolbar({
           )}
         </div>
 
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-pressed={autoUsage.enabled}
+          className={autoUsage.enabled ? styles.autoOn : styles.autoOff}
+          onClick={() => writeProviderAutoUsage({ ...autoUsage, enabled: !autoUsage.enabled })}
+          disabled={disabled}
+          aria-label={t('ai_providers.auto_start_stop')}
+        >
+          <IconPower size={14} />
+          {t('ai_providers.auto_start_stop')}
+        </Button>
         <Button
           variant="secondary"
           size="sm"

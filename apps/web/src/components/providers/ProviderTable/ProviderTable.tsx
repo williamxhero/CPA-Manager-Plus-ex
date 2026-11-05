@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ChangeEvent,
   type KeyboardEvent,
   type MouseEvent,
@@ -14,17 +15,23 @@ import {
   IconCheck,
   IconEye,
   IconPencil,
+  IconPower,
   IconTrash2,
   IconX,
 } from '@/components/ui/icons';
-import { ResourceProtectionIndicator } from '@/features/resourceProtection/ResourceProtectionIndicator';
 import type { ResourceProtectionCapability, ResourceProtectionEvidence } from '@/features/resourceProtection/resourceProtection';
-import { ProviderPolicyControl, type ProviderPolicyConnection } from '../ProviderPolicyControl';
+import type { ProviderPolicyConnection } from '../ProviderPolicyControl';
+import {
+  readProviderAutoUsage,
+  subscribeProviderAutoUsage,
+  writeProviderAutoUsage,
+} from '../providerAutoUsage';
 import { ProviderMoneySummary } from '../ProviderMoneySummary';
 import {
   useProviderMoneySummaries,
   type ProviderMoneyStatusConfig,
 } from '../useProviderMoneySummaries';
+import { useOfficialBalanceList } from '../useOfficialBalanceList';
 import { ProviderStatusBar } from '../ProviderStatusBar';
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from './kindMeta';
 import type { ProviderRow } from './rowData';
@@ -42,6 +49,7 @@ interface ProviderTableProps {
   resolvedTheme: string;
   emptyState: ReactNode;
   onShowDetail: (row: ProviderRow) => void;
+  onShowBalance?: (row: ProviderRow) => void;
   onEdit: (row: ProviderRow) => void;
   onDelete: (row: ProviderRow) => void;
   onToggle: (row: ProviderRow, enabled: boolean) => void;
@@ -172,15 +180,13 @@ function PriorityControl({
 export function ProviderTable({
   rows,
   moneyStatus,
-  resourceProtection,
-  resourceProtectionForRow,
-  providerPolicyConnection,
   loading,
   actionsDisabled,
   toggleDisabled,
   resolvedTheme,
   emptyState,
   onShowDetail,
+  onShowBalance,
   onEdit,
   onDelete,
   onToggle,
@@ -188,6 +194,17 @@ export function ProviderTable({
 }: ProviderTableProps) {
   const { t } = useTranslation();
   const money = useProviderMoneySummaries(rows, moneyStatus);
+  const officialBalances = useOfficialBalanceList(rows, moneyStatus);
+  const autoUsage = useSyncExternalStore(subscribeProviderAutoUsage, readProviderAutoUsage, () => ({
+    enabled: false,
+    ids: [] as string[],
+  }));
+  const balanceIsZero = (key: string) => {
+    const text = officialBalances[key]?.text ?? '';
+    if (!text || /unlimited/i.test(text)) return false;
+    const numbers = text.match(/-?\d+(?:\.\d+)?/g);
+    return !!numbers && numbers.length > 0 && numbers.every((value) => Number(value) === 0);
+  };
 
   if (loading && rows.length === 0) {
     return <div className="hint">{t('common.loading')}</div>;
@@ -210,6 +227,7 @@ export function ProviderTable({
       <div className={`${styles.headerRow}`} role="row">
         <span role="columnheader">{t('ai_providers.table_col_type')}</span>
         <span role="columnheader">{t('ai_providers.table_col_identity')}</span>
+        <span role="columnheader">{t('ai_providers.table_col_balance')}</span>
         <span role="columnheader">{t('common.base_url')}</span>
         <span role="columnheader" className={styles.cellModelsHeader}>
           {t('ai_providers.table_col_models')}
@@ -221,6 +239,7 @@ export function ProviderTable({
           {t('ai_providers.table_col_recent')}
         </span>
         <span role="columnheader">{t('ai_providers.config_toggle_label')}</span>
+        <span role="columnheader">{t('ai_providers.auto_start_stop')}</span>
         <span role="columnheader" className={styles.cellActionsHeader}>
           {t('ai_providers.table_col_actions')}
         </span>
@@ -257,24 +276,26 @@ export function ProviderTable({
 
             <div className={styles.cellIdentity} role="cell">
               <div className={styles.identityMain}>
-                <ProviderPolicyControl
-                  row={row}
-                  connection={providerPolicyConnection}
-                  binding={resourceProtectionForRow?.(row)?.binding}
-                  compact
-                >
-                  <ResourceProtectionIndicator {...(resourceProtectionForRow?.(row) ?? {status: resourceProtection})} />
-                  <span className={styles.identityLabel} title={row.label}>
-                    {row.label}
+                <span className={styles.identityLabel} title={row.label}>
+                  {row.label}
+                </span>
+                {row.kind === 'openai' && (
+                  <span className={styles.identityMeta}>
+                    {t('ai_providers.openai_keys_count')}: {row.keyCount}
                   </span>
-                  {row.kind === 'openai' && (
-                    <span className={styles.identityMeta}>
-                      {t('ai_providers.openai_keys_count')}: {row.keyCount}
-                    </span>
-                  )}
-                </ProviderPolicyControl>
+                )}
               </div>
-              {row.kind === 'openai' && <ProviderMoneySummary view={money[row.key]} />}
+            </div>
+
+            <div
+              className={styles.cellBalance}
+              role="cell"
+              onClick={(event) => {
+                event.stopPropagation();
+                (onShowBalance ?? onShowDetail)(row);
+              }}
+            >
+              <ProviderMoneySummary view={money[row.key]} official={officialBalances[row.key]} />
             </div>
 
             <div className={styles.cellUrl} role="cell" title={row.baseUrl || undefined}>
@@ -333,6 +354,20 @@ export function ProviderTable({
               />
             </div>
 
+            <div className={styles.cellToggle} role="cell">
+              <span
+                className={styles.autoMark}
+                data-state={
+                  !autoUsage.enabled ||
+                  (autoUsage.ids.length > 0 && !autoUsage.ids.includes(row.key))
+                    ? 'off'
+                    : balanceIsZero(row.key)
+                      ? 'stopped'
+                      : 'running'
+                }
+              />
+            </div>
+
             <div className={styles.cellActions} role="cell" onClick={stopPropagation}>
               <Button
                 variant="secondary"
@@ -355,6 +390,42 @@ export function ProviderTable({
                 title={t('common.delete')}
               >
                 <IconTrash2 size={14} />
+              </Button>
+              <Button
+                variant="secondary"
+                size="xs"
+                iconOnly
+                onClick={() => {
+                  const participating =
+                    autoUsage.enabled &&
+                    (autoUsage.ids.length === 0 || autoUsage.ids.includes(row.key));
+                  if (!participating) {
+                    writeProviderAutoUsage({
+                      enabled: true,
+                      ids: autoUsage.enabled ? [...autoUsage.ids, row.key] : [row.key],
+                    });
+                    return;
+                  }
+                  const nextIds =
+                    autoUsage.ids.length === 0
+                      ? rows.filter((item) => item.key !== row.key).map((item) => item.key)
+                      : autoUsage.ids.filter((id) => id !== row.key);
+                  writeProviderAutoUsage({ enabled: autoUsage.enabled, ids: nextIds });
+                }}
+                disabled={actionsDisabled}
+                aria-pressed={
+                  autoUsage.enabled &&
+                  (autoUsage.ids.length === 0 || autoUsage.ids.includes(row.key))
+                }
+                aria-label={t('ai_providers.auto_start_stop')}
+                className={
+                  autoUsage.enabled &&
+                  (autoUsage.ids.length === 0 || autoUsage.ids.includes(row.key))
+                    ? styles.autoOn
+                    : styles.autoOff
+                }
+              >
+                <IconPower size={14} />
               </Button>
               <Button
                 variant="secondary"

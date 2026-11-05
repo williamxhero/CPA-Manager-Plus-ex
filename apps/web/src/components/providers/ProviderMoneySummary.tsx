@@ -1,26 +1,37 @@
 import { useTranslation } from 'react-i18next';
 import type { ProviderMoneyView } from './useProviderMoneySummaries';
-import { providerPolicyPresentationLines } from './providerPolicyPresentation';
+import { providerPolicyMoneyText } from './providerPolicyPresentation';
+import type { OfficialBalanceView } from './useOfficialBalanceList';
 import styles from './ProviderMoneySummary.module.scss';
 
-export function ProviderMoneySummary({ view }: { view?: ProviderMoneyView }) {
+function policyAmounts(view?: ProviderMoneyView): string[] {
+  const lines: string[] = [];
+  for (const source of view?.data?.funding ?? []) {
+    for (const balance of source.balances ?? []) {
+      const text = providerPolicyMoneyText(balance.currency, balance.total, '');
+      if (text) lines.push(text);
+    }
+  }
+  return lines;
+}
+
+export function ProviderMoneySummary({
+  view,
+  official,
+}: {
+  view?: ProviderMoneyView;
+  official?: OfficialBalanceView;
+}) {
   const { t } = useTranslation();
-  const data = view?.data;
+  const amounts = official?.text ? [official.text] : policyAmounts(view);
+  const pending = (official?.pending || view?.pending) && amounts.length === 0;
   return (
     <div
       className={styles.summary}
-      aria-label={t('ai_providers.money_summary_aria')}
+      aria-label={t('ai_providers.table_col_balance')}
       aria-live="polite"
     >
-      {view?.pending && <div role="status">{t('ai_providers.money_summary_pending')}</div>}
-      {view?.failed && <div role="status">{t('ai_providers.money_summary_failed')}</div>}
-      {!data ? (
-        <span>{t('ai_providers.money_summary_unknown')}</span>
-      ) : (
-        providerPolicyPresentationLines(data, t).map((line, index) => (
-          <div key={index}>{line}</div>
-        ))
-      )}
+      {pending ? <span>…</span> : amounts.length > 0 ? amounts.map((line) => <div key={line}>{line}</div>) : <span>—</span>}
     </div>
   );
 }

@@ -304,10 +304,14 @@ const maskCredentialLabel = (value: string): string => {
 };
 
 const resolveAccountLabel = (file: AuthFileItem): string => {
+  const alias = readString(file.label);
+  if (readString(file.provider).toLowerCase() === 'codex' && alias && !looksLikeCredentialLabel(alias)) {
+    return alias;
+  }
   const candidates = [
     readString(file.email),
     readString(file.account),
-    readString(file.label),
+    alias,
     readString(file.note),
   ];
   const name = candidates.find((value) => value && !looksLikeCredentialLabel(value));

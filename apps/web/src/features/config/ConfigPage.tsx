@@ -23,6 +23,7 @@ import {
   IconRefreshCw,
   IconSearch,
 } from '@/components/ui/icons';
+import { QuotaRefreshIntervalControl } from '@/components/config/QuotaRefreshIntervalControl';
 import { VisualConfigEditor } from '@/components/config/VisualConfigEditor';
 import type { ApiKeyMutation } from '@/components/config/ApiKeysCardEditor';
 import { DiffModal } from '@/components/config/DiffModal';
@@ -1713,6 +1714,8 @@ export function ConfigPage() {
               }}
             />
           ) : activeTab === 'visual' ? (
+            <>
+            <QuotaRefreshIntervalControl />
             <VisualConfigEditor
               values={visualValues}
               validationErrors={visualValidationErrors}
@@ -1731,6 +1734,7 @@ export function ConfigPage() {
               onApiKeyOperationStart={beginApiKeyOperation}
               onApiKeyOperationEnd={endApiKeyOperation}
             />
+            </>
           ) : (
             <div className={styles.sourceWorkspace}>
               <div className={styles.sourceToolbar}>

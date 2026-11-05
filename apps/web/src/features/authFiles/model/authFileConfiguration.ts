@@ -468,10 +468,13 @@ export const buildAuthFileConfigurationPatch = (
   const patch: AuthFileFieldsPatch = {};
   const errors: AuthFileConfigurationErrors = {};
   const capabilities = getAuthFileConfigurationCapabilities(provider);
+  const providerKey = normalizeProviderKey(provider);
   const planDefaultBaseUrl = getPlanCredentialDefaultBaseUrl(provider);
-  if (planDefaultBaseUrl) {
+  if (planDefaultBaseUrl || providerKey === 'codex') {
     const nextLabel = draft.label.trim();
     if (nextLabel !== originalDraft.label.trim()) patch.label = nextLabel;
+  }
+  if (planDefaultBaseUrl) {
     const replacementApiKey = draft.replacementApiKey.trim();
     if (replacementApiKey) patch.api_key = replacementApiKey;
     const nextBaseUrl = draft.baseUrl.trim();

@@ -303,7 +303,7 @@ describe('buildAuthFileConfigurationPatch', () => {
         baseUrl: '',
         note: 'new note',
       })
-    ).toEqual({ errors: {}, patch: { note: 'new note' } });
+    ).toEqual({ errors: {}, patch: { label: 'new', note: 'new note' } });
   });
 
   it('normalizes stored zero priority to the empty default representation', () => {

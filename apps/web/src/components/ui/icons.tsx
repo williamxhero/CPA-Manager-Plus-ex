@@ -117,6 +117,15 @@ export function IconFileText({ size = 20, ...props }: IconProps) {
   );
 }
 
+export function IconPower({ size = 20, ...props }: IconProps) {
+  return (
+    <svg {...baseSvgProps} width={size} height={size} {...props}>
+      <path d="M12 2v10" />
+      <path d="M18.4 6.6a9 9 0 1 1-12.8 0" />
+    </svg>
+  );
+}
+
 export function IconShield({ size = 20, ...props }: IconProps) {
   return (
     <svg {...baseSvgProps} width={size} height={size} {...props}>

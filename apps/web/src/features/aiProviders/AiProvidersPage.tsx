@@ -36,6 +36,7 @@ import { usePanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability
 import { useResourceProtection } from '@/features/resourceProtection/resourceProtection';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { providersApi } from '@/services/api';
+import { readListPageSize, writeListPageSize } from '@/utils/listPageSize';
 import {
   getProviderPolicyMigration,
   type ProviderPolicyMigrationStatus,
@@ -163,11 +164,18 @@ export function AiProvidersPage() {
   const [sortOption, setSortOption] = useState<ProviderSortOption>('priority');
   const [sortDirection, setSortDirection] = useState<ProviderSortDirection>('desc');
   const [detailRowKey, setDetailRowKey] = useState<string | null>(null);
+  const [detailContent, setDetailContent] = useState<'credential' | 'balance'>('credential');
   const [healthCheckOpen, setHealthCheckOpen] = useState(false);
   const [editDrawerKind, setEditDrawerKind] = useState<ProviderKind | null>(null);
   const [editDrawerIndex, setEditDrawerIndex] = useState<number | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(PROVIDER_TABLE_DEFAULT_PAGE_SIZE);
+  const [pageSize, setPageSize] = useState(() =>
+    readListPageSize(
+      'aiProviders',
+      PROVIDER_TABLE_PAGE_SIZE_OPTIONS,
+      PROVIDER_TABLE_DEFAULT_PAGE_SIZE
+    )
+  );
 
   const disableControls = connectionStatus !== 'connected';
   const isSwitching = Boolean(configSwitchingKey);
@@ -1617,7 +1625,10 @@ export function AiProvidersPage() {
 
   const handlePageSizeChange = (value: string) => {
     const nextSize = Number.parseInt(value, 10);
-    if (!Number.isFinite(nextSize) || nextSize <= 0) return;
+    if (!PROVIDER_TABLE_PAGE_SIZE_OPTIONS.includes(nextSize as (typeof PROVIDER_TABLE_PAGE_SIZE_OPTIONS)[number])) {
+      return;
+    }
+    writeListPageSize('aiProviders', nextSize, PROVIDER_TABLE_PAGE_SIZE_OPTIONS);
     setPageSize(nextSize);
     setPage(1);
   };
@@ -1701,7 +1712,14 @@ export function AiProvidersPage() {
               toggleDisabled={actionsDisabled}
               resolvedTheme={resolvedTheme}
               emptyState={emptyState}
-              onShowDetail={(row) => setDetailRowKey(row.key)}
+              onShowDetail={(row) => {
+                setDetailContent('credential');
+                setDetailRowKey(row.key);
+              }}
+              onShowBalance={(row) => {
+                setDetailContent('balance');
+                setDetailRowKey(row.key);
+              }}
               onEdit={handleRowEdit}
               onDelete={handleRowDelete}
               onToggle={handleRowToggle}
@@ -1761,6 +1779,7 @@ export function AiProvidersPage() {
       </div>
 
       <ProviderDetailDrawer
+        content={detailContent}
         officialBalance={{ base: featureAvailability.managerServiceBase, managementKey: balanceManagementKey, binding: detailRow ? forProvider(detailRow, rows).binding : undefined, disabled: !featureAvailability.managerServiceAvailable }}
         providerPolicy={providerPolicyConnection}
         row={detailRow}

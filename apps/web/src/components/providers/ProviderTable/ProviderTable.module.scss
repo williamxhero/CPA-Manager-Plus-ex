@@ -1,8 +1,36 @@
 @use '@/styles/variables.scss' as *;
 @use '@/styles/mixins.scss' as *;
 
-// 类型 / 标识 / 地址 / 模型 / 优先级 / 近期请求 / 启用 / 操作
-$table-columns: 92px minmax(132px, 0.72fr) minmax(180px, 1fr) 96px 72px minmax(220px, 0.82fr) 68px 112px;
+// 类型 / 标识 / 余额 / 地址 / 模型 / 优先级 / 近期请求 / 启用 / 自动启停 / 操作
+$table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1fr) 96px 72px minmax(220px, 0.82fr) 68px 72px 148px;
+
+.autoMark {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+  opacity: 0.45;
+}
+
+.autoMark[data-state='running'] {
+  background: var(--success-color, #16a34a);
+  opacity: 1;
+}
+
+.autoMark[data-state='stopped'] {
+  background: var(--danger-color, #dc2626);
+  opacity: 1;
+}
+
+.autoOn {
+  color: var(--primary-color, #2563eb);
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 16%, transparent);
+}
+
+.autoOff {
+  color: var(--text-tertiary);
+  opacity: 0.45;
+}
 
 @mixin provider-card-layout {
   @include narrow-laptop {
@@ -58,6 +86,7 @@ $table-columns: 92px minmax(132px, 0.72fr) minmax(180px, 1fr) 96px 72px minmax(2
     grid-template-areas:
       'type toggle'
       'identity identity'
+      'balance balance'
       'url url'
       'priority models'
       'recent recent'
@@ -75,6 +104,7 @@ $table-columns: 92px minmax(132px, 0.72fr) minmax(180px, 1fr) 96px 72px minmax(2
 // 停用行：仅信息单元格降透明度，开关与操作保持可交互的视觉权重
 .rowDisabled {
   .cellType,
+  .cellBalance,
   .cellUrl,
   .cellPriority,
   .cellModels,
@@ -124,6 +154,18 @@ $table-columns: 92px minmax(132px, 0.72fr) minmax(180px, 1fr) 96px 72px minmax(2
   font-weight: 500;
   color: var(--text-secondary);
   @include text-ellipsis;
+}
+
+.cellBalance {
+  min-width: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  cursor: pointer;
+
+  @include provider-card-layout {
+    grid-area: balance;
+  }
 }
 
 .cellIdentity {

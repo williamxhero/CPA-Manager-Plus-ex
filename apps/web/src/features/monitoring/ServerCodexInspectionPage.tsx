@@ -11,6 +11,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
+import { readListPageSize, writeListPageSize } from '@/utils/listPageSize';
 import { IconRefreshCw, IconShield, IconTrash2 } from '@/components/ui/icons';
 import { Input } from '@/components/ui/Input';
 import { Select, type SelectOption } from '@/components/ui/Select';
@@ -739,8 +740,12 @@ export function ServerCodexInspectionPage({
   const [actionFilter, setActionFilter] = useState<ActionFilter>('all');
   const [handlingFilter, setHandlingFilter] = useState<HandlingFilter>('all');
   const [resultPage, setResultPage] = useState(1);
-  const [resultPageSize, setResultPageSize] = useState<number>(
-    CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS[0]
+  const [resultPageSize, setResultPageSize] = useState<number>(() =>
+    readListPageSize(
+      'serverCodexInspection.results',
+      CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS,
+      CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS[0]
+    )
   );
   const [logLevelFilter, setLogLevelFilter] = useState<InspectionLogLevelFilter>('all');
   const [executingResultIds, setExecutingResultIds] = useState<Set<number>>(() => new Set());
@@ -1041,6 +1046,14 @@ export function ServerCodexInspectionPage({
   }, [resultPage, resultPagination.currentPage]);
 
   const handleResultPageSizeChange = useCallback((pageSize: number) => {
+    if (!CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS.includes(pageSize as (typeof CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS)[number])) {
+      return;
+    }
+    writeListPageSize(
+      'serverCodexInspection.results',
+      pageSize,
+      CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS
+    );
     setResultPageSize(pageSize);
     setResultPage(1);
   }, []);

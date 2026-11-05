@@ -151,6 +151,11 @@ export async function refreshCredentialSource(
     signal
   );
   const completed = await waitFullRefresh(base, key, job, signal, onProgress);
-  if (completed.failed) throw new Error('common_refresh_source_failed');
+  if (completed.failed) {
+    const failed = completed.items.find(
+      (item) => item.attempt?.queryStatus && item.attempt.queryStatus !== 'success'
+    );
+    throw new Error(failed?.attempt?.errorCode || failed?.reason || 'common_refresh_source_failed');
+  }
   return completed;
 }

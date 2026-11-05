@@ -850,6 +850,9 @@ function getNextDirtyFields(
   if (Object.prototype.hasOwnProperty.call(patch, 'rmAllowRemote')) {
     updateDirty('rmAllowRemote', nextValues.rmAllowRemote === baselineValues.rmAllowRemote);
   }
+  if (Object.prototype.hasOwnProperty.call(patch, 'rmIpBanEnabled')) {
+    updateDirty('rmIpBanEnabled', nextValues.rmIpBanEnabled === baselineValues.rmIpBanEnabled);
+  }
   if (
     Object.prototype.hasOwnProperty.call(patch, 'rmSecretKey') ||
     Object.prototype.hasOwnProperty.call(patch, 'rmSecretKeyAction')
@@ -1161,6 +1164,7 @@ export function useVisualConfig(runtime: VisualConfigRuntime = {}) {
             : '',
 
         rmAllowRemote: Boolean(readCompat(['remote-management', 'allow-remote'])),
+        rmIpBanEnabled: readCompat(['remote-management', 'disable-ip-ban']) !== true,
         rmSecretKey: '',
         rmSecretKeyAction: 'unchanged',
         rmSecretKeyConfigured:
@@ -1575,6 +1579,7 @@ export function useVisualConfig(runtime: VisualConfigRuntime = {}) {
             (values.rmSecretKeyAction === 'replace' && values.rmSecretKey.length > 0));
         const remoteManagementDirty =
           isDirty('rmAllowRemote') ||
+          isDirty('rmIpBanEnabled') ||
           isDirty('rmSecretKey') ||
           isDirty('rmDisableControlPanel') ||
           isDirty('rmDisableAutoUpdatePanel') ||
@@ -1583,6 +1588,9 @@ export function useVisualConfig(runtime: VisualConfigRuntime = {}) {
           ensureCompatMap(['remote-management']);
           if (isDirty('rmAllowRemote')) {
             setCompatBoolean(['remote-management', 'allow-remote'], values.rmAllowRemote);
+          }
+          if (isDirty('rmIpBanEnabled')) {
+            setCompatBoolean(['remote-management', 'disable-ip-ban'], !values.rmIpBanEnabled);
           }
           if (
             hasRemoteManagementSecretKeyUpdate &&

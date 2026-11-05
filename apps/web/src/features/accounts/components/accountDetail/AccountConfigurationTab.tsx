@@ -193,6 +193,14 @@ export function AccountConfigurationTab({
       <section className={styles.configurationSection}>
         <h3 className={styles.configurationSectionTitle}>{t('accounts.config_section_routing')}</h3>
         <div className={styles.configurationFieldGrid}>
+          {(state?.providerKey || row.provider || '').toLowerCase() === 'codex' ? (
+            <Input
+              label={t('accounts.config_label')}
+              value={draft.label}
+              disabled={disabled}
+              onChange={(event) => editor.updateField('label', event.target.value)}
+            />
+          ) : null}
           <Input
             label={t('auth_files.prefix_label')}
             value={draft.prefix}

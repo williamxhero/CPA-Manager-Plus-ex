@@ -136,6 +136,32 @@ func (s *Service) source(ctx context.Context, index string) (cq.Source, error) {
 	}
 	return cq.Source{}, ErrIdentity
 }
+
+type Intent struct {
+	AuthIndex string `json:"authIndex"`
+	Enabled   bool   `json:"enabled"`
+}
+
+// Intents reads saved switches from local storage only. It does not call Core.
+func (s *Service) Intents(ctx context.Context) ([]Intent, error) {
+	rows, err := s.Store.CredentialPolicies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Intent, 0, len(rows))
+	for _, row := range rows {
+		var doc struct {
+			AuthIndex string `json:"auth_index"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if json.Unmarshal([]byte(row.Document), &doc) != nil || doc.AuthIndex == "" {
+			continue
+		}
+		out = append(out, Intent{AuthIndex: doc.AuthIndex, Enabled: doc.Enabled})
+	}
+	return out, nil
+}
+
 func (s *Service) Status(ctx context.Context, index string) (Status, error) {
 	src, err := s.source(ctx, index)
 	if err != nil {

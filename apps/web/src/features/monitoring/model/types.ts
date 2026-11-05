@@ -437,6 +437,7 @@ export interface UseMonitoringDataReturn {
   isTransitioningScope: boolean;
   hasPresentationSnapshot: boolean;
   refreshMeta: (showLoading?: boolean) => Promise<MonitoringMetaPayload | null>;
+  refreshEventsWindow: () => void;
   loadMoreEvents: () => void;
 }
 

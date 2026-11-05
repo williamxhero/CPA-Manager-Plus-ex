@@ -89,6 +89,8 @@ export interface OfficialBalancePanelProps {
   disabled?: boolean;
   supported?: boolean;
   compatibleCandidate?: boolean;
+  /** Balance drawer shows only the protocol select. */
+  protocolOnly?: boolean;
 }
 
 export function OfficialBalancePanel({
@@ -99,6 +101,7 @@ export function OfficialBalancePanel({
   supported = true,
   adapter = 'deepseek',
   compatibleCandidate = false,
+  protocolOnly = false,
 }: OfficialBalancePanelProps) {
   const bindingJSON = JSON.stringify(binding);
   const context = useMemo(
@@ -406,6 +409,59 @@ export function OfficialBalancePanel({
         });
     }
   };
+
+  if (protocolOnly) {
+    return (
+      <section aria-label="官方余额">
+        <label>
+          官方余额协议
+          <select
+            aria-label="官方余额协议"
+            value={selectedAdapter}
+            disabled={controlsDisabled}
+            onChange={(event) => {
+              if (isAdapter(event.target.value))
+                setEditor({
+                  ...edit,
+                  adapter: event.target.value,
+                  endpoint: '',
+                  secret: '',
+                  clear: false,
+                  newAPI: undefined,
+                  browserSession: undefined,
+                  volcengine: undefined,
+                  volcengineSecret: undefined,
+                  aliyun: undefined,
+                  aliyunSecret: undefined,
+                  web: undefined,
+                });
+            }}
+          >
+            <option value="" disabled>
+              手动选择已确认协议
+            </option>
+            <option value="deepseek">DeepSeek · account_wallet</option>
+            <option value="deepinfra">DeepInfra · signed_prepaid_net</option>
+            <option value="openai-compat-usage-v1">
+              OpenAI 兼容 · GET /v1/usage · account_wallet
+            </option>
+            <option value="volcengine-account-balance-v2022-01-01">
+              火山引擎 · account_wallet · 独立账务授权
+            </option>
+            <option value="aliyun-prepaid-cash-v2017-12-14">
+              阿里云 · prepaid cash · 独立只读账务授权
+            </option>
+            <option value="newapi-user-self-v1">NewAPI · account_wallet · 原生额度</option>
+            <option value="newapi-token-usage-v1">NewAPI · key_remaining · 原生额度</option>
+            <option value="newapi-browser-session-v1">
+              NewAPI · 浏览器同站会话 · account_wallet
+            </option>
+            <option value="layso_billing_web_v1">LAYSO · 只读网页账户余额</option>
+          </select>
+        </label>
+      </section>
+    );
+  }
 
   return (
     <section aria-label="官方余额" aria-busy={busy}>

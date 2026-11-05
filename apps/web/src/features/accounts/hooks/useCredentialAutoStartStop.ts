@@ -4,10 +4,26 @@ import {
   CredentialPolicyError,
   getCredentialPolicy,
   getStoredCredentialPolicy,
+  listCredentialIntents,
   saveCredentialPolicy,
   resumeCredentialPolicy,
   type CredentialPolicyStatus,
 } from '@/services/api/credentialPolicy';
+
+const intentLoads = new Map<string, Promise<Map<string, boolean>>>();
+
+function loadIntents(base: string, managementKey: string) {
+  const key = `${base}\n${managementKey}`;
+  const existing = intentLoads.get(key);
+  if (existing) return existing;
+  const pending = listCredentialIntents(base, managementKey)
+    .then((rows) => new Map(rows.map((row) => [row.authIndex, row.enabled])))
+    .finally(() => {
+      intentLoads.delete(key);
+    });
+  intentLoads.set(key, pending);
+  return pending;
+}
 
 // No selector/name-derived identity, optimistic ON, automatic ON retry, or page scheduler.
 export function useCredentialAutoStartStop(
@@ -41,14 +57,20 @@ export function useCredentialAutoStartStop(
     pending.current = false;
     const abort = new AbortController();
     if (base && managementKey && authIndex) {
-      setView({ context, busy: true });
-      getCredentialPolicy(base, managementKey, authIndex, abort.signal)
-        .then((data) => {
-          if (!abort.signal.aborted && current.current === context) setView({ context, data });
+      loadIntents(base, managementKey)
+        .then((intents) => {
+          if (abort.signal.aborted || current.current !== context || !intents.has(authIndex)) return;
+          setView((previous) =>
+            previous.context === context && previous.data
+              ? { ...previous, data: { ...previous.data, enabled: intents.get(authIndex) === true } }
+              : {
+                  context,
+                  data: { enabled: intents.get(authIndex) === true } as CredentialPolicyStatus,
+                }
+          );
         })
         .catch(() => {
-          if (!abort.signal.aborted && current.current === context)
-            setView({ context, error: 'credential_policy_unavailable' });
+          /* The icon stays at its last known value. A click loads the full status. */
         });
     }
     return () => {
@@ -56,35 +78,45 @@ export function useCredentialAutoStartStop(
     };
   }, [context, base, managementKey, authIndex]);
   const persist = async (enabled: boolean, resume = false) => {
-    if (!data || pending.current || current.current !== context) return;
-    if (enabled && (!data.bindingCurrent || data.availability.state !== 'available')) return;
+    let status = data?.subjectId ? data : undefined;
+    if (!status && authIndex && base && managementKey) {
+      try {
+        status = await getCredentialPolicy(base, managementKey, authIndex);
+        if (current.current === context) setView({ context, data: status });
+      } catch {
+        if (current.current === context) setView({ context, error: 'credential_policy_unavailable' });
+        return;
+      }
+    }
+    if (!status || pending.current || current.current !== context) return;
+    if (enabled && (!status.bindingCurrent || status.availability.state !== 'available')) return;
     pending.current = true;
-    setView({ context, data, busy: true });
+    setView({ context, data: status, busy: true });
     const valid = () => current.current === context;
     const request = {
-      scope: data.scope,
-      targets: data.targets,
-      auth_index: data.auth_index ?? '',
-      sourceVersion: data.sourceVersion,
-      expectedGeneration: data.generation,
-      owner: data.owner,
+      scope: status.scope,
+      targets: status.targets,
+      auth_index: status.auth_index ?? '',
+      sourceVersion: status.sourceVersion,
+      expectedGeneration: status.generation,
+      owner: status.owner,
     };
     let error: string | undefined;
     try {
       const saved = resume
         ? await resumeCredentialPolicy(base, managementKey, {
             ...request,
-            opId: data.operation!.opId,
+            opId: status.operation!.opId,
           })
         : await saveCredentialPolicy(base, managementKey, { ...request, enabled });
       if (!valid()) return;
       // PUT is not proof of the subsequently persisted/current policy.
-      const read = await getStoredCredentialPolicy(base, managementKey, data.subjectId);
+      const read = await getStoredCredentialPolicy(base, managementKey, status.subjectId);
       if (!valid()) return;
       if (
-        read.subjectId !== data.subjectId ||
-        read.sourceVersion !== data.sourceVersion ||
-        read.owner !== data.owner ||
+        read.subjectId !== status.subjectId ||
+        read.sourceVersion !== status.sourceVersion ||
+        read.owner !== status.owner ||
         JSON.stringify(read.scope) !== JSON.stringify(saved.scope) ||
         JSON.stringify(read.targets) !== JSON.stringify(saved.targets) ||
         read.generation !== saved.generation ||
@@ -120,12 +152,12 @@ export function useCredentialAutoStartStop(
       // A failed readback is unknown, not a successful toggle. Reconcile known
       // subject once, with no retry of user intent (especially no ON replay).
       try {
-        const read = await getStoredCredentialPolicy(base, managementKey, data.subjectId);
+        const read = await getStoredCredentialPolicy(base, managementKey, status.subjectId);
         if (
           valid() &&
-          read.subjectId === data.subjectId &&
-          read.owner === data.owner &&
-          read.sourceVersion === data.sourceVersion
+          read.subjectId === status.subjectId &&
+          read.owner === status.owner &&
+          read.sourceVersion === status.sourceVersion
         )
           setView({ context, data: read, error });
         else if (valid()) setView({ context, error });

@@ -31,6 +31,8 @@ import { ProviderMoneySummary } from '../ProviderMoneySummary';
 import type { ProviderMoneyView } from '../useProviderMoneySummaries';
 
 interface ProviderDetailDrawerProps {
+  /** credential hides balance copy; balance keeps only the balance panel. */
+  content?: 'all' | 'credential' | 'balance';
   officialBalance?: OfficialBalancePanelProps;
   providerPolicy?: ProviderPolicyConnection;
   row: ProviderRow | null;
@@ -108,6 +110,7 @@ function DetailPolicyMoneySummary({
 }
 
 export function ProviderDetailDrawer({
+  content = 'all',
   officialBalance,
   providerPolicy,
   row,
@@ -328,17 +331,20 @@ export function ProviderDetailDrawer({
     const excludedModels =
       row.kind === 'openai' ? [] : stripDisableAllModelsRule(row.raw.excludedModels);
 
+    const showBalance = content !== 'credential';
+    const showCredential = content !== 'balance';
     return (
       <>
-        {officialBalance && (
+        {showBalance && officialBalance && (
           <OfficialBalancePanel
             {...officialBalance}
+            protocolOnly={content === 'balance'}
             supported={balanceSupported || compatibleCandidate}
             compatibleCandidate={compatibleCandidate}
             adapter={balanceAdapter}
           />
         )}
-        {providerPolicy && row && (
+        {content === 'all' && providerPolicy && row && (
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>{t('provider_policy.title')}</h4>
             <ProviderPolicyControl
@@ -357,6 +363,7 @@ export function ProviderDetailDrawer({
             )}
           </section>
         )}
+        {showCredential && (
         <section className={styles.section}>
           {!row.enabled && (
             <div className={styles.disabledBadge}>{t('ai_providers.config_disabled_badge')}</div>
@@ -380,12 +387,13 @@ export function ProviderDetailDrawer({
             <FieldRow label={t('ai_providers.openai_test_model')} value={row.raw.testModel} />
           )}
         </section>
+        )}
 
-        {renderQuickSwitches()}
-        {renderCloak()}
-        {renderOpenAIKeys()}
+        {showCredential && renderQuickSwitches()}
+        {showCredential && renderCloak()}
+        {showCredential && renderOpenAIKeys()}
 
-        {headerEntries.length > 0 && (
+        {showCredential && headerEntries.length > 0 && (
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>{t('ai_providers.detail_section_headers')}</h4>
             <div className={styles.badgeList}>
@@ -398,7 +406,7 @@ export function ProviderDetailDrawer({
           </section>
         )}
 
-        {models.length > 0 && (
+        {showCredential && models.length > 0 && (
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>
               {t('ai_providers.table_col_models')}: {models.length}
@@ -416,7 +424,7 @@ export function ProviderDetailDrawer({
           </section>
         )}
 
-        {excludedModels.length > 0 && (
+        {showCredential && excludedModels.length > 0 && (
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>
               {t('ai_providers.excluded_models_count', { count: excludedModels.length })}
@@ -431,6 +439,7 @@ export function ProviderDetailDrawer({
           </section>
         )}
 
+        {showCredential && (
         <section className={styles.section}>
           <h4 className={styles.sectionTitle}>{t('ai_providers.table_col_recent')}</h4>
           {row.usageStatsCoverage === 'unavailable' ? (
@@ -452,6 +461,7 @@ export function ProviderDetailDrawer({
             </>
           )}
         </section>
+        )}
       </>
     );
   };
@@ -477,7 +487,7 @@ export function ProviderDetailDrawer({
         ) : null
       }
       footer={
-        row ? (
+        row && content !== 'balance' ? (
           <>
             <div className={styles.footerToggle}>
               <ToggleSwitch

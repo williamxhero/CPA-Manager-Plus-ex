@@ -53,10 +53,10 @@ export function ProviderPolicyControl(props: ProviderPolicyControlProps) {
           id={`${id}-switch`}
           type="button"
           role="switch"
-          className={styles.indicator}
+          className={`${styles.indicator} ${props.compact && unavailable ? styles.listHidden : ''}`}
           data-state={state}
           aria-label={`${t('provider_policy.title')}: ${props.row.label}`}
-          aria-describedby={id}
+          aria-describedby={props.compact ? undefined : id}
           aria-checked={data?.enabled ?? false}
           disabled={busy || writeLocked || unavailable || (!data?.enabled && locked)}
           onKeyDown={(event) => {
@@ -70,7 +70,9 @@ export function ProviderPolicyControl(props: ProviderPolicyControlProps) {
           {busy
             ? t('provider_policy.loading')
             : unavailable
-              ? t('provider_policy.unavailable')
+              ? props.compact
+                ? ''
+                : t('provider_policy.unavailable')
               : label}
         </button>
         {data?.ownPaused && data.applied ? (
@@ -100,6 +102,7 @@ export function ProviderPolicyControl(props: ProviderPolicyControlProps) {
         ) : null}
         {props.children ?? <span>{props.row.label}</span>}
       </span>
+      {!props.compact && (
       <div id={id} className={styles.details} aria-live="polite">
         {unavailable ? (
           <span className={styles.unavailable}>
@@ -215,14 +218,15 @@ export function ProviderPolicyControl(props: ProviderPolicyControlProps) {
           </>
         ) : null}
       </div>
-      {error && (
+      )}
+      {!props.compact && error && (
         <span className={styles.error} role="alert">
           {t(`provider_policy.errors.${error}`)}
         </span>
       )}
       <button
         type="button"
-        className={styles.readStatus}
+        className={`${styles.readStatus} ${props.compact ? styles.listHidden : ''}`}
         aria-label={t('provider_policy.read_status')}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
@@ -235,7 +239,7 @@ export function ProviderPolicyControl(props: ProviderPolicyControlProps) {
       >
         {t('provider_policy.read_status')}
       </button>
-      {data && (
+      {!props.compact && data && (
         <details
           className={styles.funding}
           onClick={(event) => event.stopPropagation()}

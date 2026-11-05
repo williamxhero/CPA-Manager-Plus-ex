@@ -684,6 +684,12 @@ export function VisualConfigEditor({
                 onChange={(rmAllowRemote) => onChange({ rmAllowRemote })}
               />
               <ToggleRow
+                title={t('config_management.visual.sections.remote.ip_ban')}
+                checked={values.rmIpBanEnabled}
+                disabled={disabled}
+                onChange={(rmIpBanEnabled) => onChange({ rmIpBanEnabled })}
+              />
+              <ToggleRow
                 title={t('config_management.visual.sections.remote.disable_panel')}
                 description={t('config_management.visual.sections.remote.disable_panel_desc')}
                 checked={values.rmDisableControlPanel}

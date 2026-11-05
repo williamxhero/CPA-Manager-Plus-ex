@@ -8,6 +8,7 @@ import {
 } from '@/services/api/providerPolicy';
 import type { BalanceBinding } from '@/services/api/officialBalance';
 import type { ProviderRow } from './ProviderTable/rowData';
+import { readQuotaRefreshIntervalMs } from '@/utils/quota/refreshCadence';
 
 export interface ProviderMoneyStatusConfig {
   base: string;
@@ -154,7 +155,8 @@ export function useProviderMoneySummaries(rows: ProviderRow[], config?: Provider
         }
       };
       await Promise.all([worker(), worker()]);
-      if (mounted) timer = setTimeout(() => void sweep(), 15000);
+      const interval = readQuotaRefreshIntervalMs();
+      if (mounted && interval > 0) timer = setTimeout(() => void sweep(), interval);
     };
     void sweep();
     return () => {

@@ -551,6 +551,16 @@ $toolbar-control-height: 36px;
   flex-shrink: 0;
 }
 
+.autoOn {
+  color: var(--primary-color, #2563eb);
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 16%, transparent);
+}
+
+.autoOff {
+  color: var(--text-tertiary);
+  opacity: 0.55;
+}
+
 .healthCheckButton.healthCheckButton {
   margin-left: auto;
   height: $toolbar-control-height;

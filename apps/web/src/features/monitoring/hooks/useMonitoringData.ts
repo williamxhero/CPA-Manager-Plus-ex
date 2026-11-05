@@ -372,11 +372,16 @@ export function useMonitoringData({
     };
   }, [analyticsNowMs, customTimeRange, timeRange]);
 
+  const refreshEventsWindow = useCallback(() => {
+    setAnalyticsNowMs(Date.now());
+  }, []);
+
   const refreshMeta = useCallback(
     async (showLoading: boolean = true): Promise<MonitoringMetaPayload | null> => {
       const requestScopeKey = connectionScopeKey ?? null;
       if (connectionScopeKeyRef.current !== requestScopeKey) return null;
       const requestGeneration = ++metaRequestGenerationRef.current;
+      setAnalyticsNowMs(Date.now());
 
       if (showLoading) {
         setLoading(true);
@@ -1123,6 +1128,7 @@ export function useMonitoringData({
     isTransitioningScope: analytics.dataStale,
     hasPresentationSnapshot: presentationResolution.hasPresentationSnapshot,
     refreshMeta,
+    refreshEventsWindow,
     loadMoreEvents,
   };
 }

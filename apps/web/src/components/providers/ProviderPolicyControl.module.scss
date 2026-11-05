@@ -180,6 +180,10 @@
   margin-block: 7px;
 }
 
+.listHidden {
+  display: none;
+}
+
 .unavailable {
   color: var(--text-tertiary);
   font-style: italic;

@@ -40,6 +40,7 @@ import {
   type AccountSortState,
   type MonitoringAccountOverviewMode,
 } from '@/features/monitoring/accountOverviewState';
+import { readListPageSize, writeListPageSize } from '@/utils/listPageSize';
 import {
   buildMonitoringAccountQuotaTargetsByRowId,
   type MonitoringAccountQuotaTarget,
@@ -360,7 +361,11 @@ export function MonitoringCenterPage() {
     card: initialAccountOverviewUiState.current.cardPagination.page,
   }));
   const [accountPageSizeByMode, setAccountPageSizeByMode] = useState(() => ({
-    table: DEFAULT_ACCOUNT_PAGE_SIZE,
+    table: readListPageSize(
+      'monitoring.accounts.table',
+      ACCOUNT_OVERVIEW_TABLE_PAGE_SIZE_OPTIONS,
+      DEFAULT_ACCOUNT_PAGE_SIZE
+    ),
     card: initialAccountOverviewUiState.current.cardPagination.pageSize,
   }));
   const [apiKeyPage, setApiKeyPage] = useState(1);
@@ -518,6 +523,7 @@ export function MonitoringCenterPage() {
     isTransitioningScope: monitoringScopeTransitioning,
     hasPresentationSnapshot: hasMonitoringPresentationSnapshot,
     refreshMeta,
+    refreshEventsWindow,
     loadMoreEvents,
   } = useMonitoringData({
     config,
@@ -741,16 +747,23 @@ export function MonitoringCenterPage() {
     document.addEventListener('visibilitychange', updateVisibility);
     return () => document.removeEventListener('visibilitychange', updateVisibility);
   }, []);
+  const autoRefreshDelay =
+    isCurrentLayer && documentVisible && managementKey && Number(autoRefreshMs) > 0
+      ? Number(autoRefreshMs)
+      : null;
+  useInterval(
+    () => {
+      refreshEventsWindow();
+    },
+    activeDataTab === 'realtime' && autoRefreshDelay != null
+      ? Math.min(autoRefreshDelay, 5000)
+      : null
+  );
   useInterval(
     () => {
       void refreshAll().catch(() => {});
     },
-    isCurrentLayer &&
-      documentVisible &&
-      connectionStatus === 'connected' &&
-      Number(autoRefreshMs) > 0
-      ? Number(autoRefreshMs)
-      : null
+    autoRefreshDelay
   );
 
   useEffect(() => {
@@ -1663,9 +1676,17 @@ export function MonitoringCenterPage() {
 
   const handleAccountPageSizeChange = useCallback(
     (pageSize: number) => {
+      const nextSize = normalizeAccountOverviewPageSize(pageSize, accountOverviewMode);
+      if (accountOverviewMode === 'table') {
+        writeListPageSize(
+          'monitoring.accounts.table',
+          nextSize,
+          ACCOUNT_OVERVIEW_TABLE_PAGE_SIZE_OPTIONS
+        );
+      }
       setAccountPageSizeByMode((previous) => ({
         ...previous,
-        [accountOverviewMode]: normalizeAccountOverviewPageSize(pageSize, accountOverviewMode),
+        [accountOverviewMode]: nextSize,
       }));
       resetCurrentAccountPage();
     },

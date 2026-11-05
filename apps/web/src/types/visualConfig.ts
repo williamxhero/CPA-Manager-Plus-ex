@@ -95,6 +95,7 @@ export type VisualConfigValues = {
   tlsCert: string;
   tlsKey: string;
   rmAllowRemote: boolean;
+  rmIpBanEnabled: boolean;
   rmSecretKey: string;
   rmSecretKeyAction: RemoteManagementSecretKeyAction;
   rmSecretKeyConfigured: boolean;
@@ -172,6 +173,7 @@ export const DEFAULT_VISUAL_VALUES: VisualConfigValues = {
   tlsCert: '',
   tlsKey: '',
   rmAllowRemote: false,
+  rmIpBanEnabled: true,
   rmSecretKey: '',
   rmSecretKeyAction: 'unchanged',
   rmSecretKeyConfigured: false,

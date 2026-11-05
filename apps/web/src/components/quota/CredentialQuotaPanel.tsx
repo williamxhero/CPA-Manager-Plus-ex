@@ -94,8 +94,13 @@ export function CredentialQuotaPanel({
       ).catch((error: unknown) => {
         // A completed upstream failure is persisted too. Read its safe status
         // and stale last-success value below; never replay the failed query.
-        if (error instanceof Error && error.message === 'common_refresh_source_failed')
-          return undefined;
+        const control = new Set([
+          'identity_or_source_changed',
+          'current_credential_source_unavailable',
+          'common_refresh_not_completed',
+          'common_refresh_unavailable',
+        ]);
+        if (error instanceof Error && !control.has(error.message)) return undefined;
         throw error;
       });
       if (!valid()) return;

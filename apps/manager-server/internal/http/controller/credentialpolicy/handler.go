@@ -32,7 +32,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch {
 	case r.Method == "GET" && r.URL.Path == "/usage-service/credential-policy":
-		if id := r.URL.Query().Get("subjectId"); id != "" {
+		if r.URL.Query().Get("view") == "intents" {
+			out, err = h.App.CredentialPolicyService.Intents(ctx)
+		} else if id := r.URL.Query().Get("subjectId"); id != "" {
 			out, err = h.App.CredentialPolicyService.StoredStatus(ctx, id)
 		} else {
 			out, err = h.App.CredentialPolicyService.Status(ctx, r.URL.Query().Get("authIndex"))

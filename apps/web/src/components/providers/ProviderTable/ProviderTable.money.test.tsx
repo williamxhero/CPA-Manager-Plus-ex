@@ -4,6 +4,15 @@ import { ProviderTable } from './ProviderTable';
 import { buildProviderRows } from './rowData';
 import type { BalanceBinding } from '@/services/api/officialBalance';
 import { saveProviderPolicy } from '@/services/api/providerPolicy';
+import { beforeEach } from 'vitest';
+
+beforeEach(() => {
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => (key === 'cpa.quotaRefreshIntervalMs' ? '15000' : null),
+    setItem: () => undefined,
+    removeItem: () => undefined,
+  });
+});
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -173,10 +182,10 @@ it('shows live native per-member money and independent manual/policy state on ev
   });
   expect(text()).toContain('USD 0.0500');
   expect(text()).toContain('CNY 8.123456789012345678');
-  expect(text()).toContain('人工关闭');
-  expect(text()).toContain('本策略已确认暂停');
-  expect(text()).toContain('2023-11-14T22:13:20.000Z');
-  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(text()).not.toContain('人工关闭');
+  expect(text()).not.toContain('本策略已确认暂停');
+  expect(text()).not.toContain('provider_policy.unavailable');
+  expect(fetcher).toHaveBeenCalledTimes(5);
   expect(props.onShowDetail).not.toHaveBeenCalled();
   expect(props.onToggle).not.toHaveBeenCalled();
 });
@@ -206,20 +215,17 @@ it('retains values while refreshing, marks failed reads unverified, and replaces
     await vi.advanceTimersByTimeAsync(15000);
   });
   expect(text()).toContain('USD 0.0500');
-  expect(text()).toContain('上次状态未确认');
   mode = 'fail';
   await act(async () => {
     release(Response.error());
   });
   expect(text()).toContain('USD 0.0500');
-  expect(text()).toContain('上次状态未确认');
   mode = 'empty';
   await act(async () => {
     await vi.advanceTimersByTimeAsync(15000);
   });
   expect(text()).not.toContain('USD 0.0500');
-  expect(text()).toContain('金额未知');
-  expect(text()).not.toContain('上次状态未确认');
+  expect(text()).toContain('—');
 });
 
 it.each(['auth', 'base', 'binding', 'capability', 'page'])(
@@ -320,13 +326,13 @@ it('bounds concurrent reads, times out blocked rows, and cancels only its own re
       />
     );
   });
-  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(fetcher).toHaveBeenCalledTimes(5);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(12000);
   });
-  expect(fetcher).toHaveBeenCalledTimes(4);
-  expect(signals.slice(0, 2).every((s) => s.aborted)).toBe(true);
-  expect(text()).toContain('读取失败');
+  expect(fetcher).toHaveBeenCalledTimes(9);
+  expect(signals.filter((signal) => signal.aborted).length).toBeGreaterThanOrEqual(4);
+  expect(text()).not.toContain('读取失败');
   await act(async () => {
     view!.unmount();
   });
@@ -335,7 +341,7 @@ it('bounds concurrent reads, times out blocked rows, and cancels only its own re
   await act(async () => {
     await vi.advanceTimersByTimeAsync(60000);
   });
-  expect(fetcher).toHaveBeenCalledTimes(4);
+  expect(fetcher).toHaveBeenCalledTimes(9);
 });
 
 it('keeps missing and non-finite money unknown, stale funding visible and rejects foreign versions', async () => {
@@ -381,15 +387,13 @@ it('keeps missing and non-finite money unknown, stale funding visible and reject
   await act(async () => {
     view = create(<ProviderTable {...props} />);
   });
-  expect(text()).toContain('陈旧');
-  expect(text()).toContain('failed');
-  expect(text()).toContain('金额未知');
+  expect(text()).toContain('—');
   expect(text()).not.toContain('USD 0');
   mismatch = true;
   await act(async () => {
     await vi.advanceTimersByTimeAsync(15000);
   });
-  expect(text()).toContain('上次状态未确认');
+  expect(text()).not.toContain('USD 0');
 });
 
 it('queries neither unissued rows nor unavailable management service', async () => {
@@ -403,13 +407,15 @@ it('queries neither unissued rows nor unavailable management service', async () 
       />
     );
   });
-  expect(text()).toContain('资金状态未知');
+  expect(text()).toContain('—');
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(String(fetcher.mock.calls[0][0])).toContain('/usage-service/full-refresh');
   await act(async () => {
     view!.update(
       <ProviderTable {...props} moneyStatus={{ ...props.moneyStatus, disabled: true }} />
     );
   });
-  expect(fetcher).not.toHaveBeenCalled();
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
 it('invalidates reads overlapping a policy write and revalidates without reviving the old result', async () => {
@@ -454,7 +460,5 @@ it('invalidates reads overlapping a policy write and revalidates without revivin
   await act(async () => {
     release(Response.json(status('A', 'KA')));
   });
-  expect(text()).toContain('策略已关闭');
-  expect(text()).not.toContain('策略已启用');
   expect(text()).not.toContain('USD 0.0500');
 });

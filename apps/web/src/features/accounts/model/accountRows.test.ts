@@ -117,6 +117,22 @@ describe('account label resolution', () => {
     // Ordinary identities are untouched.
     expect(byName.get('claude.json')).toBe('someone@example.com');
   });
+
+  it('shows a Codex alias ahead of the account email', () => {
+    const rows = buildAccountRows(
+      [
+        {
+          name: 'codex.json',
+          provider: 'codex',
+          label: 'WWP1',
+          email: 'williamxhero@gmail.com',
+          account: 'williamxhero@gmail.com',
+        },
+      ],
+      emptyStores()
+    );
+    expect(rows[0]?.accountLabel).toBe('WWP1');
+  });
 });
 
 const buildAccountRows = (

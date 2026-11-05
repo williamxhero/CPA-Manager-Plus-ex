@@ -320,8 +320,8 @@ it.each(
     expect(reads()).toHaveLength(2);
     expect(policies().map((node) => node.props['aria-checked'])).toEqual([true, true]);
     expect(policies().map((node) => node.props.disabled)).toEqual([false, false]);
-    expect(savedReceipts()).toHaveLength(2);
-    expect(methods()).toEqual(['GET', 'GET']);
+    expect(savedReceipts()).toHaveLength(1);
+    expect(methods()).toEqual(['GET', 'GET', 'GET']);
 
     const oldClicks = policies().map((node) => node.props.onClick);
     const oldReads = reads().map((node) => node.props.onClick);
@@ -333,10 +333,10 @@ it.each(
 
     const rejectedMethods =
       stage === 'GET'
-        ? ['GET', 'GET', 'GET']
+        ? ['GET', 'GET', 'GET', 'GET']
         : stage === 'PUT'
-          ? ['GET', 'GET', 'PUT']
-          : ['GET', 'GET', 'PUT', 'GET'];
+          ? ['GET', 'GET', 'GET', 'PUT']
+          : ['GET', 'GET', 'GET', 'PUT', 'GET'];
     // The rejection must not cause an onChanged-driven auth retry on either
     // surface, or leave the other surface's previously verified ON mark alive.
     expect(methods()).toEqual(rejectedMethods);
@@ -368,7 +368,7 @@ it.each(
     firstDisabled[initiating] = false;
     expect(policies().map((node) => node.props['aria-checked'])).toEqual(firstMarks);
     expect(policies().map((node) => node.props.disabled)).toEqual(firstDisabled);
-    expect(savedReceipts()).toHaveLength(1);
+    expect(savedReceipts()).toHaveLength(surface === 'detail' ? 1 : 0);
     expect(methods()).toEqual([...rejectedMethods, 'GET']);
     await act(async () => {
       oldClicks.forEach((click) => click({ stopPropagation: vi.fn() }));
@@ -382,11 +382,11 @@ it.each(
     await act(async () => reads()[sibling].props.onClick({ stopPropagation: vi.fn() }));
     expect(methods()).toEqual([...rejectedMethods, 'GET', 'GET']);
     expect(recoveryReads).toHaveLength(1);
-    expect(savedReceipts()).toHaveLength(1);
+    expect(savedReceipts()).toHaveLength(surface === 'detail' ? 1 : 0);
     await act(async () => recoveryReads.shift()!(Response.json(recovered)));
     expect(policies().map((node) => node.props['aria-checked'])).toEqual([true, true]);
     expect(policies().map((node) => node.props.disabled)).toEqual([false, false]);
-    expect(savedReceipts()).toHaveLength(2);
+    expect(savedReceipts()).toHaveLength(1);
     await act(async () => {
       oldClicks.forEach((click) => click({ stopPropagation: vi.fn() }));
       oldReads.forEach((read) => read({ stopPropagation: vi.fn() }));
@@ -448,7 +448,7 @@ it.each(
     const { policies, savedReceipts, manual, show } = await mountPolicySurfaces();
     const policyCalls = () => fetch.mock.calls.filter(([url]) => url.includes('/provider-policy'));
     expect(policies().map((node) => node.props['aria-checked'])).toEqual([true, true]);
-    expect(savedReceipts()).toHaveLength(2);
+    expect(savedReceipts()).toHaveLength(1);
     const oldSiblingClick = policies()[sibling].props.onClick;
     await act(async () => policies()[initiating].props.onClick({ stopPropagation: vi.fn() }));
 
@@ -457,7 +457,7 @@ it.each(
     expect(policies()[sibling].props['aria-checked']).toBe(false);
     // A transient readback failure must not be broadcast as auth revocation:
     // the sibling obtains the accepted OFF receipt and retains own/manual pause.
-    expect(savedReceipts()).toHaveLength(2);
+    expect(savedReceipts()).toHaveLength(1);
     expect(JSON.stringify(renderer!.toJSON())).toContain('provider_policy.off_retains_pause');
     expect(JSON.stringify(renderer!.toJSON())).not.toContain('PRIVATE-READBACK-TRANSPORT-ERROR');
     expect(JSON.stringify(renderer!.toJSON())).not.toContain('PRIVATE-READBACK-PROXY-ERROR');

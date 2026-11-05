@@ -1,6 +1,5 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { CredentialAutoStartStopToggle } from './CredentialAutoStartStopToggle';
 import type { CredentialPolicyStatus } from '@/services/api/credentialPolicy';
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
@@ -45,9 +44,12 @@ const flush = async () => {
     await new Promise((r) => setTimeout(r, 0));
   });
 };
-const toggle = (r: ReactTestRenderer, i = 0) => r.root.findAllByType(ToggleSwitch)[i];
+const power = (r: ReactTestRenderer, i = 0) => r.root.findAllByType('button')[i];
+const press = (r: ReactTestRenderer, i = 0) => power(r, i).props.onClick();
+const intent = (authIndex: string, enabled: boolean) =>
+  Response.json([{ authIndex, enabled }]);
 afterEach(() => vi.unstubAllGlobals());
-it('refreshes the issued query subject while retaining the distinct durable policy subject', async () => {
+it('does not offer a shared quota refresh button on the auto start/stop icon', async () => {
   const policy = { ...source(), querySubjectId: 'quota-subject-a' };
   const issued = {
     kind: 'credential_quota',
@@ -100,13 +102,10 @@ it('refreshes the issued query subject while retaining the distinct durable poli
         />
       );
     });
-    expect(r.root.findByType('button').props.disabled).toBe(false);
-    await act(async () => r.root.findByType('button').props.onClick());
-    await flush();
-    expect(posts).toEqual([{ purpose: 'manual', source: issued }]);
-    expect(JSON.stringify(r.toJSON())).toContain('refreshed-selected-a');
+    expect(r.root.findAllByType('button')).toHaveLength(1);
+    expect(posts).toEqual([]);
     expect(r.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
-    expect(toggle(r).props.checked).toBe(false);
+    expect(JSON.stringify(r.toJSON())).not.toContain('credential_policy.refresh');
   } finally {
     if (r) await act(async () => r.unmount());
   }
@@ -154,11 +153,11 @@ it('ticket93 saves one issued subject and requires separate server readback, lea
   });
   await flush();
   await act(async () => {
-    toggle(r).props.onChange(true);
+    press(r);
   });
-  expect(toggle(r).props.checked).toBe(false);
-  expect(toggle(r).props.disabled).toBe(true);
-  expect(toggle(r, 1).props.checked).toBe(false);
+  expect(power(r).props['aria-pressed']).toBe(false);
+  expect(power(r).props.disabled).toBe(true);
+  expect(power(r, 1).props['aria-pressed']).toBe(false);
   expect(storedReads).toEqual([
     'http://fixture/usage-service/credential-policy?subjectId=issued-a',
   ]);
@@ -176,8 +175,8 @@ it('ticket93 saves one issued subject and requires separate server readback, lea
   await act(async () => {
     readback(Response.json(states.a));
   });
-  expect(toggle(r).props.checked).toBe(true);
-  expect(toggle(r, 1).props.checked).toBe(false);
+  expect(power(r).props['aria-pressed']).toBe(true);
+  expect(power(r, 1).props['aria-pressed']).toBe(false);
   await act(async () => r.unmount());
 });
 
@@ -236,12 +235,12 @@ it.each(['missing', 'mismatched'] as const)(
           />
         );
       });
-      await act(async () => r.root.findByType('button').props.onClick());
+      await act(async () => press(r));
       await flush();
       expect(posts).toBe(0);
-      expect(r.root.findByProps({ role: 'alert' }).children).toContain('common_refresh_unavailable');
-      expect(toggle(r).props.checked).toBe(false);
-      expect(JSON.stringify(r.toJSON())).toContain('credential_policy.saved_off');
+      expect(r.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
+      expect(JSON.stringify(r.toJSON())).not.toContain('common_refresh_unavailable');
+      expect(JSON.stringify(r.toJSON())).not.toContain('credential_policy.saved_off');
     } finally {
       if (r) await act(async () => r.unmount());
     }
@@ -271,9 +270,9 @@ it('ticket93 rejects ON without fresh common76 evidence, preserves OFF and expla
     );
   });
   await act(async () => {
-    toggle(r).props.onChange(true);
+    press(r);
   });
-  expect(toggle(r).props.checked).toBe(false);
+  expect(power(r).props['aria-pressed']).toBe(false);
   expect(JSON.stringify(r.toJSON())).toContain('fresh_authoritative_evidence_required');
   expect(puts).toBe(1);
   await act(async () => r.unmount());
@@ -284,6 +283,7 @@ it('ticket93 rechecks current capability after readback so a saved OFF can expli
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: RequestInit) => {
+      if (url.includes('view=intents')) return intent('a', state.enabled);
       if (init.method === 'PUT') {
         state = {
           ...state,
@@ -313,15 +313,16 @@ it('ticket93 rechecks current capability after readback so a saved OFF can expli
       />
     );
   });
+  await flush();
   await act(async () => {
-    toggle(r).props.onChange(false);
+    press(r);
   });
-  expect(toggle(r).props.checked).toBe(false);
-  expect(toggle(r).props.disabled).toBe(false);
+  expect(power(r).props['aria-pressed']).toBe(false);
+  expect(power(r).props.disabled).toBe(false);
   await act(async () => {
-    toggle(r).props.onChange(true);
+    press(r);
   });
-  expect(toggle(r).props.checked).toBe(true);
+  expect(power(r).props['aria-pressed']).toBe(true);
   await act(async () => r.unmount());
 });
 
@@ -335,7 +336,8 @@ it('keeps a known ON subject OFF-capable while Core unavailable and ignores a ra
   let puts = 0;
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (_url: string, init: RequestInit) => {
+    vi.fn(async (url: string, init: RequestInit) => {
+      if (url.includes('view=intents')) return intent('a', state.enabled);
       if (init.method === 'PUT') {
         puts++;
         return new Promise<Response>((r) => {
@@ -355,19 +357,21 @@ it('keeps a known ON subject OFF-capable while Core unavailable and ignores a ra
       />
     );
   });
-  expect(toggle(r).props.disabled).toBe(false);
+  await flush();
+  expect(power(r).props.disabled).toBe(false);
+  expect(power(r).props['aria-pressed']).toBe(true);
   await act(async () => {
-    toggle(r).props.onChange(false);
-    toggle(r).props.onChange(false);
+    press(r);
+    press(r);
   });
   expect(puts).toBe(1);
   state = { ...state, enabled: false, generation: 1 };
   await act(async () => {
     done(Response.json(state));
   });
-  expect(toggle(r).props.checked).toBe(false);
-  expect(toggle(r).props.disabled).toBe(true);
-  expect(JSON.stringify(r.toJSON())).toContain('credential_policy.saved_off');
+  expect(power(r).props['aria-pressed']).toBe(false);
+  expect(power(r).props.disabled).toBe(true);
+  expect(JSON.stringify(r.toJSON())).not.toContain('credential_policy.saved_off');
   await act(async () => r.unmount());
 });
 it('never publishes a late old-instance ON result or a reused-selector mutation result', async () => {
@@ -395,7 +399,7 @@ it('never publishes a late old-instance ON result or a reused-selector mutation 
     );
   });
   await act(async () => {
-    toggle(r).props.onChange(true);
+    press(r);
   });
   await act(async () => {
     r.update(
@@ -410,19 +414,22 @@ it('never publishes a late old-instance ON result or a reused-selector mutation 
   await act(async () => {
     done(Response.json({ ...source(), enabled: true, generation: 1 }));
   });
-  expect(toggle(r).props.checked).toBe(false);
+  expect(power(r).props['aria-pressed']).toBe(false);
   expect(JSON.stringify(r.toJSON())).not.toContain('credential_policy.saved_on');
   await act(async () => r.unmount());
 });
 it('management lock cannot enable a false healthy ON without a current operation', async () => {
+  let puts = 0;
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      Response.json({
+    vi.fn(async (url: string, init: RequestInit) => {
+      if (url.includes('view=intents')) return Response.json([]);
+      if (init.method === 'PUT') puts++;
+      return Response.json({
         ...source(),
         availability: { state: 'unavailable', reason: 'environment_locked_off' },
-      })
-    )
+      });
+    })
   );
   let r!: ReactTestRenderer;
   await act(async () => {
@@ -434,7 +441,13 @@ it('management lock cannot enable a false healthy ON without a current operation
       />
     );
   });
-  expect(toggle(r).props.disabled).toBe(true);
+  await flush();
+  await act(async () => {
+    press(r);
+  });
+  expect(puts).toBe(0);
+  expect(power(r).props['aria-pressed']).toBe(false);
+  expect(power(r).props.disabled).toBe(true);
   expect(JSON.stringify(r.toJSON())).toContain('environment_locked_off');
   expect(JSON.stringify(r.toJSON())).not.toContain('credential available');
   await act(async () => r.unmount());
@@ -445,6 +458,7 @@ it('drops old source authority when readback discovers a new incarnation under t
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: RequestInit) => {
+      if (url.includes('view=intents')) return Response.json([]);
       if (init.method === 'PUT' || url.includes('subjectId='))
         return Response.json({ ...source(), enabled: true, generation: 1 });
       return Response.json(
@@ -463,10 +477,10 @@ it('drops old source authority when readback discovers a new incarnation under t
     );
   });
   await act(async () => {
-    toggle(r).props.onChange(true);
+    press(r);
   });
-  expect(toggle(r).props.checked).toBe(false);
-  expect(toggle(r).props.disabled).toBe(true);
+  expect(power(r).props['aria-pressed']).toBe(false);
+  expect(power(r).props.disabled).toBe(true);
   expect(JSON.stringify(r.toJSON())).toContain('identity_changed');
   await act(async () => r.unmount());
 });

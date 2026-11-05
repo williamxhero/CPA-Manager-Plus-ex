@@ -30,6 +30,7 @@ import {
   type CodexInspectionSession,
 } from '@/features/monitoring/codexInspection';
 import { Button } from '@/components/ui/Button';
+import { readListPageSize, writeListPageSize } from '@/utils/listPageSize';
 import { CodexInspectionLogsPanel } from '@/features/monitoring/components/CodexInspectionLogsPanel';
 import { CodexInspectionResultsPanel } from '@/features/monitoring/components/CodexInspectionResultsPanel';
 import { CodexInspectionStatusPanel } from '@/features/monitoring/components/CodexInspectionStatusPanel';
@@ -154,8 +155,12 @@ export function CodexInspectionPage({
   );
   const [handlingFilter, setHandlingFilter] = useState<HandlingFilter>('all');
   const [resultPage, setResultPage] = useState(1);
-  const [resultPageSize, setResultPageSize] = useState<number>(
-    CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS[0]
+  const [resultPageSize, setResultPageSize] = useState<number>(() =>
+    readListPageSize(
+      'codexInspection.results',
+      CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS,
+      CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS[0]
+    )
   );
   const [codexReauthTarget, setCodexReauthTarget] = useState<CodexReauthTarget | null>(null);
   const logCounterRef = useRef(initialLastRun?.logs.length ?? 0);
@@ -858,6 +863,10 @@ export function CodexInspectionPage({
   }, [resultPage, resultPagination.currentPage]);
 
   const handleResultPageSizeChange = useCallback((pageSize: number) => {
+    if (!CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS.includes(pageSize as (typeof CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS)[number])) {
+      return;
+    }
+    writeListPageSize('codexInspection.results', pageSize, CODEX_INSPECTION_RESULT_PAGE_SIZE_OPTIONS);
     setResultPageSize(pageSize);
     setResultPage(1);
   }, []);
