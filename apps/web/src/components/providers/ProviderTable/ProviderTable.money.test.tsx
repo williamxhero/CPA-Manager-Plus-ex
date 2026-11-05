@@ -466,6 +466,48 @@ it('invalidates reads overlapping a policy write and revalidates without revivin
   expect(text()).not.toContain('USD 0.05');
 });
 
+it('paints a cached balance before a runtime read settles', async () => {
+  setRuntimeControlsForTests({
+    quotaRefreshIntervalMs: 3_600_000,
+    quotaFetchedAtMs: Date.now(),
+    balanceTexts: {
+      [`openai:${IDS.A}`]: 'USD 4.56',
+      [`openai:${IDS.B}`]: 'CNY 1.25',
+    },
+  });
+  let release: (response: Response) => void = () => {};
+  const fetcher = vi.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        release = resolve;
+      })
+  );
+  vi.stubGlobal('fetch', fetcher);
+  await act(async () => {
+    view = create(<ProviderTable {...props} />);
+  });
+  expect(text()).toContain('USD 4.56');
+  expect(text()).toContain('CNY 1.25');
+  release(Response.json({}));
+});
+
+it('shows a one-decimal cached balance with two decimal places', async () => {
+  setRuntimeControlsForTests({
+    quotaRefreshIntervalMs: 3_600_000,
+    quotaFetchedAtMs: Date.now(),
+    balanceTexts: {
+      [`openai:${IDS.A}`]: 'USD 4.5',
+      [`openai:${IDS.B}`]: 'CNY 50.3',
+    },
+  });
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({})));
+  await act(async () => {
+    view = create(<ProviderTable {...props} />);
+  });
+  expect(text()).toContain('USD 4.50');
+  expect(text()).toContain('CNY 50.30');
+});
+
 it('shows a fresh cached balance without requesting full-refresh', async () => {
   setRuntimeControlsForTests({
     quotaRefreshIntervalMs: 3_600_000,

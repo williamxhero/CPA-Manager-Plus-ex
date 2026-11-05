@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   officialBalanceRequest,
   type BalanceBinding,
@@ -9,9 +9,14 @@ import {
 import { fullRefreshRequest, type RefreshInventory, type RefreshProgress } from '@/services/api/fullRefresh';
 import type { ProviderRow } from './ProviderTable/rowData';
 import type { ProviderMoneyStatusConfig } from './useProviderMoneySummaries';
-import { formatBalanceText } from '@/utils/quota/formatBalanceAmount';
+import { formatBalanceText, formatBalanceDisplay } from '@/utils/quota/formatBalanceAmount';
 import { quotaRefreshDelayMs, quotaRefreshDue, readQuotaRefreshIntervalMs } from '@/utils/quota/refreshCadence';
-import { loadRuntimeControls, readRuntimeControls, writeRuntimeControls } from '@/utils/quota/runtimeControls';
+import {
+  loadRuntimeControls,
+  readRuntimeControls,
+  subscribeRuntimeControls,
+  writeRuntimeControls,
+} from '@/utils/quota/runtimeControls';
 
 const officialBalanceCache = new Map<string, { at: number; views: Record<string, OfficialBalanceView> }>();
 const officialInventoryCache = new Map<string, { at: number; views: Record<string, OfficialBalanceView> }>();
@@ -92,6 +97,19 @@ function rowResourceIds(row: ProviderRow): string[] {
   return ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
 }
 
+function viewsFromStoredTexts(
+  rows: ProviderRow[],
+  texts: Record<string, string>
+): Record<string, OfficialBalanceView> {
+  const views: Record<string, OfficialBalanceView> = {};
+  for (const row of rows) {
+    const resourceId = typeof row.raw.resourceId === 'string' ? row.raw.resourceId : '';
+    const stored = storedRowBalance(texts, row.kind, resourceId, rowResourceIds(row));
+    if (stored.text) views[row.key] = { text: formatBalanceDisplay(stored.text), pending: false };
+  }
+  return views;
+}
+
 export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMoneyStatusConfig) {
   const issued = rows.flatMap((row) => {
     const binding = config?.bindingForRow(row);
@@ -123,6 +141,11 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
     [inventoryQuery]
   );
   const [inventoryViews, setInventoryViews] = useState<Record<string, OfficialBalanceView>>({});
+  const controls = useSyncExternalStore(subscribeRuntimeControls, readRuntimeControls, readRuntimeControls);
+  const cachedViews = useMemo(
+    () => viewsFromStoredTexts(rows, controls.balanceTexts),
+    [rows, controls]
+  );
   const bindingsSettled = config?.bindingsSettled !== false;
 
   useEffect(() => {
@@ -430,7 +453,7 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
     };
   }, [base, managementKey, disabled, inventoryRows, inventoryQuery, bindings, bindingsSettled]);
 
-  const merged: Record<string, OfficialBalanceView> = { ...inventoryViews };
+  const merged: Record<string, OfficialBalanceView> = { ...cachedViews, ...inventoryViews };
   for (const [key, view] of Object.entries(views)) {
     if (view.text || !merged[key]) merged[key] = view;
   }

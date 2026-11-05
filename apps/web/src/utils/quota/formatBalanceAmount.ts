@@ -19,3 +19,13 @@ export function formatBalanceText(currency?: string, total?: string): string | u
   const amount = formatBalanceAmount(total);
   return amount ? `${currency} ${amount}` : undefined;
 }
+
+const DISPLAYED_BALANCE = /^([A-Z]{3}) (-?(?:0|[1-9]\d{0,59})(?:\.\d{1,30})?)$/;
+
+export function formatBalanceDisplay(text: string): string {
+  if (text === 'unlimited') return text;
+  const match = DISPLAYED_BALANCE.exec(text);
+  if (!match) return text;
+  const amount = formatBalanceAmount(match[2]);
+  return amount ? `${match[1]} ${amount}` : text;
+}

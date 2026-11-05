@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import type { ProviderMoneyView } from './useProviderMoneySummaries';
 import { providerPolicyMoneyText } from './providerPolicyPresentation';
 import type { OfficialBalanceView } from './useOfficialBalanceList';
+import { formatBalanceDisplay } from '@/utils/quota/formatBalanceAmount';
 import styles from './ProviderMoneySummary.module.scss';
 
 function policyAmounts(view?: ProviderMoneyView): string[] {
@@ -23,7 +24,9 @@ export function ProviderMoneySummary({
   official?: OfficialBalanceView;
 }) {
   const { t } = useTranslation();
-  const amounts = official?.text ? [official.text] : policyAmounts(view);
+  const amounts = official?.text
+    ? [formatBalanceDisplay(official.text)]
+    : policyAmounts(view);
   const pending = (official?.pending || view?.pending) && amounts.length === 0;
   return (
     <div

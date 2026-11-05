@@ -21,7 +21,11 @@ const SAFE_AUTO_ID =
 
 let current: RuntimeControls = { ...DEFAULTS, balanceTexts: {}, autoStartStopIds: [] };
 let loaded = false;
+let balanceLoadSettled = false;
 const listeners = new Set<() => void>();
+const BALANCE_CACHE_KEY = 'cpa.providerBalanceCache';
+const BALANCE_TEXT_KEY =
+  /^(gemini|interactions|codex|xai|meta|claude|vertex|openai):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function clone(value: RuntimeControls): RuntimeControls {
   return {
@@ -71,16 +75,62 @@ export function runtimeControlsLoaded(): boolean {
   return loaded;
 }
 
+export function runtimeBalancesReady(): boolean {
+  return loaded || balanceLoadSettled || Object.keys(current.balanceTexts).length > 0;
+}
+
 export function subscribeRuntimeControls(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+function notify() {
+  listeners.forEach((listener) => listener());
 }
 
 function publish(next: RuntimeControls) {
   const cloned = clone(next);
   if (sameControls(current, cloned)) return;
   current = cloned;
-  listeners.forEach((listener) => listener());
+  notify();
+}
+
+function balanceCachePayload(value: RuntimeControls) {
+  const balanceTexts: Record<string, string> = {};
+  for (const [key, text] of Object.entries(value.balanceTexts)) {
+    if (!BALANCE_TEXT_KEY.test(key) || text.length === 0 || text.length > 80) continue;
+    balanceTexts[key] = text;
+  }
+  return { quotaFetchedAtMs: value.quotaFetchedAtMs, balanceTexts };
+}
+
+function readStoredBalanceCache(): Pick<RuntimeControls, 'quotaFetchedAtMs' | 'balanceTexts'> | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(BALANCE_CACHE_KEY);
+    if (!raw) return null;
+    return balanceCachePayload(normalize(JSON.parse(raw) as Partial<RuntimeControls>));
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredBalanceCache(value: RuntimeControls) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(BALANCE_CACHE_KEY, JSON.stringify(balanceCachePayload(value)));
+  } catch {
+    // The memory copy still paints this view.
+  }
+}
+
+const storedBalances = readStoredBalanceCache();
+if (storedBalances && (storedBalances.quotaFetchedAtMs > 0 || Object.keys(storedBalances.balanceTexts).length > 0)) {
+  current = {
+    ...current,
+    quotaFetchedAtMs: storedBalances.quotaFetchedAtMs,
+    balanceTexts: storedBalances.balanceTexts,
+  };
 }
 
 function normalize(value: Partial<RuntimeControls> | null | undefined): RuntimeControls {
@@ -130,11 +180,14 @@ export function loadRuntimeControls(): Promise<RuntimeControls> {
       .then((controls) => {
         loaded = true;
         publish(controls);
+        writeStoredBalanceCache(readRuntimeControls());
         return readRuntimeControls();
       })
       .catch(() => readRuntimeControls())
       .finally(() => {
         pending = null;
+        balanceLoadSettled = true;
+        notify();
       });
   }
   return pending;
@@ -158,6 +211,7 @@ export function writeRuntimeControls(next: RuntimeControls): Promise<void> {
     } catch {
       publish(normalized);
     }
+    writeStoredBalanceCache(readRuntimeControls());
   });
   pendingWrite = task.then(
     () => undefined,
@@ -168,6 +222,7 @@ export function writeRuntimeControls(next: RuntimeControls): Promise<void> {
 
 export function setRuntimeControlsForTests(next: Partial<RuntimeControls>) {
   loaded = true;
+  balanceLoadSettled = true;
   pending = null;
   publish(normalize({ ...DEFAULTS, ...next }));
 }

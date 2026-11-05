@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   buildProviderRows,
@@ -37,6 +37,7 @@ import { useResourceProtection } from '@/features/resourceProtection/resourcePro
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { providersApi } from '@/services/api';
 import { readListPageSize, writeListPageSize } from '@/utils/listPageSize';
+import { loadRuntimeControls, runtimeBalancesReady, subscribeRuntimeControls } from '@/utils/quota/runtimeControls';
 import {
   getProviderPolicyMigration,
   type ProviderPolicyMigrationStatus,
@@ -79,6 +80,7 @@ export function AiProvidersPage() {
 
   const hasMounted = useRef(false);
   const [loading, setLoading] = useState(() => !isCacheValid());
+  const balancesReady = useSyncExternalStore(subscribeRuntimeControls, runtimeBalancesReady, () => false);
   const [error, setError] = useState('');
   const [providerPolicyRevision, setProviderPolicyRevision] = useState(0);
   const handleProviderPolicyChanged = useCallback(() => setProviderPolicyRevision((value) => value + 1), []);
@@ -246,6 +248,7 @@ export function AiProvidersPage() {
   useEffect(() => {
     if (hasMounted.current) return;
     hasMounted.current = true;
+    void loadRuntimeControls();
     loadConfigs();
   }, [loadConfigs]);
 
@@ -1707,8 +1710,8 @@ export function AiProvidersPage() {
               resourceProtection={resourceProtection}
               resourceProtectionForRow={(row) => forProvider(row, rows)}
               providerPolicyConnection={providerPolicyConnection}
-              rows={pagedRows}
-              loading={loading}
+              rows={balancesReady ? pagedRows : []}
+              loading={loading || !balancesReady}
               actionsDisabled={actionsDisabled}
               toggleDisabled={actionsDisabled}
               resolvedTheme={resolvedTheme}
@@ -1726,7 +1729,7 @@ export function AiProvidersPage() {
               onToggle={handleRowToggle}
               onPriorityChange={handleRowPriorityChange}
             />
-            {visibleRows.length > 0 &&
+            {balancesReady && visibleRows.length > 0 &&
               (visibleRows.length > PROVIDER_TABLE_DEFAULT_PAGE_SIZE ||
                 pageSize !== PROVIDER_TABLE_DEFAULT_PAGE_SIZE) && (
                 <div className={styles.paginationBar}>
