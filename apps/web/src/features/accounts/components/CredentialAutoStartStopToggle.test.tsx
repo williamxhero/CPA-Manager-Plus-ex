@@ -156,7 +156,7 @@ it('ticket93 saves one issued subject and requires separate server readback, lea
   await act(async () => {
     press(r);
   });
-  expect(power(r).props['aria-pressed']).toBe(false);
+  expect(power(r).props['aria-pressed']).toBe(true);
   expect(power(r).props.disabled).toBe(true);
   expect(power(r, 1).props['aria-pressed']).toBe(false);
   expect(storedReads).toEqual([
@@ -460,6 +460,7 @@ it('drops old source authority when readback discovers a new incarnation under t
     'fetch',
     vi.fn(async (url: string, init: RequestInit) => {
       if (url.includes('view=intents')) return Response.json([]);
+      if (url.includes('/usage-service/credential-quota')) return Response.json({});
       if (init.method === 'PUT' || url.includes('subjectId='))
         return Response.json({ ...source(), enabled: true, generation: 1 });
       return Response.json(

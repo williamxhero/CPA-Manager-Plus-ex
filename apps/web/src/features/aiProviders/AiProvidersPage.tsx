@@ -1702,6 +1702,7 @@ export function AiProvidersPage() {
                 managementKey: balanceManagementKey,
                 disabled: !featureAvailability.managerServiceAvailable,
                 bindingForRow: (row) => forProvider(row, rows).binding,
+                bindingsSettled: resourceProtection !== 'unknown',
               }}
               resourceProtection={resourceProtection}
               resourceProtectionForRow={(row) => forProvider(row, rows)}

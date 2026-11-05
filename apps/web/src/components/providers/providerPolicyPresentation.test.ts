@@ -64,7 +64,7 @@ it('keeps list and detail on the same identity-fenced presentation lines', () =>
     'ai_providers.money_summary_updated:{"time":"2023-11-14T22:13:20.000Z"}',
     'ai_providers.money_summary_source:{"id":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2"} · success · ai_providers.money_summary_stale',
     'ai_providers.money_summary_last_success:{"time":"2023-11-14T22:13:20.000Z"}',
-    'USD 0.0500',
+    'USD 0.05',
   ]);
 });
 

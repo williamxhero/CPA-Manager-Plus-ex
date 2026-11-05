@@ -1,4 +1,5 @@
 import type { OfficialBalanceStatus, WebBalanceSource } from '@/services/api/officialBalance';
+import { formatBalanceAmount } from '@/utils/quota/formatBalanceAmount';
 
 export function WebBalanceFields({
   source,
@@ -50,8 +51,9 @@ export function WebBalanceFields({
 
 export function WebBalanceObservation({ status }: { status: OfficialBalanceStatus }) {
   const last = status.lastSuccess;
-  const amount = last?.amountDecimal;
-  const validAmount = typeof amount === 'string' && /^-?\d+(?:\.\d+)?$/.test(amount);
+  const amount =
+    typeof last?.amountDecimal === 'string' ? formatBalanceAmount(last.amountDecimal) : undefined;
+  const validAmount = Boolean(amount);
   return (
     <>
       <p>来源：LAYSO 只读网页 · {status.endpoint}</p>

@@ -1,3 +1,8 @@
+import {
+  credentialQuotaRequest,
+  type CredentialQuotaStatus,
+  type QuotaWindows,
+} from '@/services/api/credentialQuota';
 import { refreshCredentialSource } from '@/services/api/fullRefresh';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -11,6 +16,19 @@ import {
 } from '@/services/api/credentialPolicy';
 
 const intentLoads = new Map<string, Promise<Map<string, boolean>>>();
+
+function windowsHaveRemaining(raw?: string): boolean | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as QuotaWindows;
+    if (!Array.isArray(parsed.windows) || parsed.windows.length === 0) return undefined;
+    return parsed.windows.some(
+      (window) => typeof window.remainingFraction === 'number' && window.remainingFraction > 0
+    );
+  } catch {
+    return undefined;
+  }
+}
 
 function loadIntents(base: string, managementKey: string) {
   const key = `${base}\n${managementKey}`;
@@ -49,6 +67,7 @@ export function useCredentialAutoStartStop(
     data?: CredentialPolicyStatus;
     busy?: boolean;
     error?: string;
+    hasRemaining?: boolean;
   }>({ context });
   const data = view.context === context ? view.data : undefined;
   const busy = view.context === context && view.busy;
@@ -72,26 +91,60 @@ export function useCredentialAutoStartStop(
         .catch(() => {
           /* The icon stays at its last known value. A click loads the full status. */
         });
+      void credentialQuotaRequest<CredentialQuotaStatus>(
+        base,
+        managementKey,
+        'GET',
+        `?authIndex=${encodeURIComponent(authIndex)}`,
+        undefined,
+        abort.signal
+      )
+        .then((quota) => {
+          const remaining = windowsHaveRemaining(
+            quota.lastSuccess?.windowsJson ?? quota.attempt?.windowsJson
+          );
+          if (abort.signal.aborted || current.current !== context || remaining === undefined) return;
+          setView((previous) =>
+            previous.context === context ? { ...previous, hasRemaining: remaining } : { context, hasRemaining: remaining }
+          );
+        })
+        .catch(() => {
+          /* Color falls back to the page quota summary. */
+        });
     }
     return () => {
       abort.abort();
     };
   }, [context, base, managementKey, authIndex]);
+  const hasRemaining = view.context === context ? view.hasRemaining : undefined;
   const persist = async (enabled: boolean, resume = false) => {
+    if (pending.current || current.current !== context) return;
+    pending.current = true;
+    const paint = (next?: CredentialPolicyStatus, busy?: boolean, error?: string) => {
+      if (current.current === context) setView({ context, data: next, busy, error, hasRemaining });
+    };
+    paint({ ...(data ?? ({} as CredentialPolicyStatus)), enabled }, true);
     let status = data?.subjectId ? data : undefined;
     if (!status && authIndex && base && managementKey) {
       try {
         status = await getCredentialPolicy(base, managementKey, authIndex);
-        if (current.current === context) setView({ context, data: status });
       } catch {
-        if (current.current === context) setView({ context, error: 'credential_policy_unavailable' });
+        paint(data, undefined, 'credential_policy_unavailable');
+        pending.current = false;
         return;
       }
     }
-    if (!status || pending.current || current.current !== context) return;
-    if (enabled && (!status.bindingCurrent || status.availability.state !== 'available')) return;
-    pending.current = true;
-    setView({ context, data: status, busy: true });
+    if (!status || current.current !== context) {
+      paint(data);
+      pending.current = false;
+      return;
+    }
+    if (enabled && (!status.bindingCurrent || status.availability.state !== 'available')) {
+      paint(status);
+      pending.current = false;
+      return;
+    }
+    paint({ ...status, enabled }, true);
     const valid = () => current.current === context;
     const request = {
       scope: status.scope,
@@ -142,11 +195,11 @@ export function useCredentialAutoStartStop(
       } catch (e) {
         if (e instanceof CredentialPolicyError && e.code === 'identity_changed') throw e;
       }
-      if (valid()) setView({ context, data: live });
+      if (valid()) paint(live);
     } catch (e) {
       error = e instanceof CredentialPolicyError ? e.code : 'credential_policy_request_failed';
       if (error === 'identity_changed') {
-        if (valid()) setView({ context, error });
+        if (valid()) paint(undefined, undefined, error);
         return;
       }
       // A failed readback is unknown, not a successful toggle. Reconcile known
@@ -159,10 +212,10 @@ export function useCredentialAutoStartStop(
           read.owner === status.owner &&
           read.sourceVersion === status.sourceVersion
         )
-          setView({ context, data: read, error });
-        else if (valid()) setView({ context, error });
+          paint(read, undefined, error);
+        else if (valid()) paint(undefined, undefined, error);
       } catch {
-        if (valid()) setView({ context, error });
+        if (valid()) paint(undefined, undefined, error);
       }
     } finally {
       if (valid()) pending.current = false;
@@ -204,6 +257,7 @@ export function useCredentialAutoStartStop(
   return {
     data,
     busy,
+    hasRemaining,
     refresh,
     error: view.context === context ? view.error : undefined,
     setEnabled: (v: boolean) => persist(v),

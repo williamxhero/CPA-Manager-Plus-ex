@@ -16,6 +16,9 @@ export interface ProviderMoneyStatusConfig {
   managementKey: string;
   disabled?: boolean;
   bindingForRow: (row: ProviderRow) => BalanceBinding | undefined;
+  // False while resource bindings are still loading. A cached balance is shown
+  // and no inventory read starts until this becomes true.
+  bindingsSettled?: boolean;
 }
 export interface ProviderMoneyView {
   data?: ProviderPolicyStatus;

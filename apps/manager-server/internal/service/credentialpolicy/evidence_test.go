@@ -32,6 +32,25 @@ func TestCredentialEvidenceWholeScopeExhaustionIsOnlyAPauseCandidate(t *testing.
 	}
 }
 
+func TestCredentialEvidenceCodexPrimaryWithoutSecondaryCanPause(t *testing.T) {
+	status, now := windowEvidence(t)
+	var core cq.CoreObservation
+	if err := json.Unmarshal([]byte(status.Attempt.WindowsJSON), &core); err != nil {
+		t.Fatal(err)
+	}
+	core.Complete = false
+	core.Windows = core.Windows[:1]
+	raw, err := json.Marshal(core)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Attempt.WindowsJSON = string(raw)
+	decision := policy.ValidateCredentialEvidence(status, now)
+	if decision.Action != "pause" || decision.Reason != "quota_windows_exhausted" {
+		t.Fatalf("primary-only exhaustion not recognized: %+v", decision)
+	}
+}
+
 func TestCredentialEvidenceRecoveryRecomputesEveryScopedWindow(t *testing.T) {
 	status, now := windowEvidence(t)
 	var core cq.CoreObservation

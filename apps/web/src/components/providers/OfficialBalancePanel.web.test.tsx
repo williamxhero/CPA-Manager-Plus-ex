@@ -77,7 +77,7 @@ it.each([undefined, null, 'NaN', 'Infinity', '0.00000'])(
       expect(text).not.toContain('Invalid Date');
       expect(text).not.toContain('1970-01-01');
       expect(text).not.toContain('平台可用标志');
-      if (amount === '0.00000') expect(text).toContain('USD 0.00000');
+      if (amount === '0.00000') expect(text).toContain('USD 0.00');
       else {
         expect(text).toContain('未知（未产生有效金额）');
         expect(text).not.toContain('USD 0');
@@ -114,12 +114,12 @@ it('retains the web capture and draft during cache revalidation and failed GET, 
       renderer.root.findAllByType('button').find((n) => n.children.join('') === '刷新观测')!;
     await act(async () => field().props.onChange({ target: { value: 'unsaved-account' } }));
     await act(async () => refresh().props.onClick());
-    expect(JSON.stringify(renderer.toJSON())).toContain(exact);
+    expect(JSON.stringify(renderer.toJSON())).toContain('-9007199254740993.00');
     expect(refresh().props.disabled).toBe(true);
     await act(async () => finish(Response.json({ ...status(), state: 'success', stale: false })));
     expect(field().props.value).toBe('unsaved-account');
     await act(async () => refresh().props.onClick());
-    expect(JSON.stringify(renderer.toJSON())).toContain(exact);
+    expect(JSON.stringify(renderer.toJSON())).toContain('-9007199254740993.00');
     expect(JSON.stringify(renderer.toJSON())).toContain('stale');
     expect(JSON.stringify(renderer.toJSON())).toContain('balance_request_failed_reload_identity');
     expect(field().props.value).toBe('unsaved-account');

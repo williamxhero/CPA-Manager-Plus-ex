@@ -20,13 +20,14 @@ export function CredentialAutoStartStopToggle({
   hasQuota = false,
 }: CredentialAutoStartStopToggleProps) {
   const { t } = useTranslation();
-  const { data, busy, error, setEnabled } = useCredentialAutoStartStop(
+  const { data, busy, error, hasRemaining, setEnabled } = useCredentialAutoStartStop(
     managerServiceBase,
     managementKey,
     authIndex,
     revision
   );
   const on = data?.enabled === true;
+  const quotaPresent = typeof hasRemaining === 'boolean' ? hasRemaining : hasQuota;
   const known = Boolean(data?.subjectId);
   const blocked =
     known && !on && (!data?.bindingCurrent || data?.availability.state !== 'available');
@@ -40,7 +41,7 @@ export function CredentialAutoStartStopToggle({
       aria-pressed={on}
       aria-label={t('accounts.auto_start_stop')}
       data-credential-auto-start-stop={on ? 'on' : 'off'}
-      data-auto-quota={on ? (hasQuota ? 'present' : 'absent') : undefined}
+      data-auto-quota={on ? (quotaPresent ? 'present' : 'absent') : undefined}
       data-reason={error || undefined}
       data-availability={data?.availability?.reason || undefined}
       disabled={busy || Boolean(error) || blocked}

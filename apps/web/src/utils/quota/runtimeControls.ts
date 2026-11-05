@@ -140,15 +140,30 @@ export function loadRuntimeControls(): Promise<RuntimeControls> {
   return pending;
 }
 
-export async function writeRuntimeControls(next: RuntimeControls): Promise<void> {
-  const normalized = normalize(next);
-  publish(normalized);
-  loaded = true;
-  try {
-    publish(await request('PUT', normalized));
-  } catch {
+let pendingWrite: Promise<void> = Promise.resolve();
+
+export function writeRuntimeControls(next: RuntimeControls): Promise<void> {
+  const task = pendingWrite.then(async () => {
+    const latest = readRuntimeControls();
+    const normalized = normalize({
+      ...latest,
+      ...next,
+      quotaFetchedAtMs: Math.max(latest.quotaFetchedAtMs || 0, next.quotaFetchedAtMs || 0),
+      balanceTexts: { ...latest.balanceTexts, ...next.balanceTexts },
+    });
     publish(normalized);
-  }
+    loaded = true;
+    try {
+      publish(await request('PUT', normalized));
+    } catch {
+      publish(normalized);
+    }
+  });
+  pendingWrite = task.then(
+    () => undefined,
+    () => undefined
+  );
+  return task;
 }
 
 export function setRuntimeControlsForTests(next: Partial<RuntimeControls>) {

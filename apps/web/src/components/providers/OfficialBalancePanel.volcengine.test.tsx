@@ -218,7 +218,7 @@ it('shows exact stale account debt without fabricating wallet parts, availabilit
   });
   try {
     const text = JSON.stringify(renderer.toJSON());
-    expect(text).toContain('-12345678901234567890.0000000001');
+    expect(text).toContain('-12345678901234567890.00');
     expect(text).toContain('stale');
     expect(text).toContain('auth_error');
     expect(text).toContain('account-proof-v1');

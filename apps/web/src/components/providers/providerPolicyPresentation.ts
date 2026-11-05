@@ -1,4 +1,5 @@
 import type { ProviderPolicyFunding, ProviderPolicyStatus } from '@/services/api/providerPolicy';
+import { formatBalanceText } from '@/utils/quota/formatBalanceAmount';
 
 export type Translate = (key: string, options?: Record<string, string>) => string;
 
@@ -8,11 +9,7 @@ export const providerPolicyTimeText = (ms?: number) =>
     : 'unknown';
 
 export const providerPolicyMoneyText = (currency: string, total: string, unknown: string) =>
-  /^[A-Z]{3}$/.test(currency) &&
-  typeof total === 'string' &&
-  /^-?(0|[1-9]\d{0,59})(\.\d{1,30})?$/.test(total)
-    ? `${currency} ${total}`
-    : unknown;
+  formatBalanceText(currency, total) ?? unknown;
 
 /** Identity-fenced read-model lines shared by list summary and detail. */
 export function providerPolicyIntentLines(data: ProviderPolicyStatus, t: Translate): string[] {

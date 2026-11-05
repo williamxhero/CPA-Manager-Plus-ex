@@ -60,7 +60,8 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 	if len(obs.WindowsJSON) > 2<<20 || json.Unmarshal([]byte(obs.WindowsJSON), &core) != nil || json.Unmarshal(obs.Binding, &binding) != nil || !reflect.DeepEqual(binding, status.Binding) || !reflect.DeepEqual(core.Binding, status.Binding) || core.SourceVersion != status.SourceVersion || core.Protocol != status.Protocol || core.AccountProvenance != status.AccountProvenance {
 		return noEvidence("source_authority_changed")
 	}
-	if core.ProtocolVersion != 1 || core.QueryStatus != "success" || !core.Complete || len(core.Windows) == 0 || len(core.Windows) > 128 || obs.ObservedAtMS != core.ObservedAtMS || core.ObservedAtMS <= 0 || core.ObservedAtMS > now.Add(time.Minute).UnixMilli() || core.ObservedAtMS < now.Add(-5*time.Minute).UnixMilli() || core.ReceivedAtMS < core.ObservedAtMS-60000 || core.ReceivedAtMS > now.Add(time.Minute).UnixMilli() {
+	codexWithoutSecondary := core.Protocol == "codex-oauth-wham" && !core.Complete && len(core.Windows) == 1 && core.Windows[0].Name == "primary" && core.Windows[0].Model == ""
+	if core.ProtocolVersion != 1 || core.QueryStatus != "success" || (!core.Complete && !codexWithoutSecondary) || len(core.Windows) == 0 || len(core.Windows) > 128 || obs.ObservedAtMS != core.ObservedAtMS || core.ObservedAtMS <= 0 || core.ObservedAtMS > now.Add(time.Minute).UnixMilli() || core.ObservedAtMS < now.Add(-5*time.Minute).UnixMilli() || core.ReceivedAtMS < core.ObservedAtMS-60000 || core.ReceivedAtMS > now.Add(time.Minute).UnixMilli() {
 		return noEvidence("fresh_authoritative_evidence_required")
 	}
 	if !validProvenance(core.Protocol, core.AccountProvenance, core.TimestampProvenance) {
@@ -120,7 +121,7 @@ func ValidateCredentialEvidence(status cq.Status, now time.Time) EvidenceDecisio
 	// whole/global reason. Only the complete global scope can vote here.
 	if names := groups[""]; len(names) != 0 {
 		if core.Protocol == "codex-oauth-wham" {
-			if len(names) != 2 || !names["primary"] || !names["secondary"] {
+			if !names["primary"] || len(names) > 2 || (len(names) == 2 && !names["secondary"]) || (len(names) == 1 && core.Complete) {
 				return noEvidence("incomplete_evidence")
 			}
 		} else {

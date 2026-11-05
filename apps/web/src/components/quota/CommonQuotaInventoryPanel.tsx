@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/Button';
+import { formatBalanceAmount } from '@/utils/quota/formatBalanceAmount';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -118,7 +119,11 @@ export function CommonQuotaInventoryPanel({
               ·{' '}
               {s.lastSuccess.nativeQuota
                 ? `${s.lastSuccess.nativeQuota.unit} ${s.lastSuccess.nativeQuota.state} ${s.lastSuccess.nativeQuota.remaining ?? 'unknown'}`
-                : `${s.lastSuccess.currency ?? ''} ${s.lastSuccess.amountDecimal ?? 'unknown'}`}{' '}
+                : `${s.lastSuccess.currency ?? ''} ${
+                    typeof s.lastSuccess.amountDecimal === 'string'
+                      ? (formatBalanceAmount(s.lastSuccess.amountDecimal) ?? 'unknown')
+                      : 'unknown'
+                  }`}{' '}
               ·{' '}
               {typeof s.lastSuccess.observedAtMs === 'number' &&
               s.lastSuccess.observedAtMs > 0 &&

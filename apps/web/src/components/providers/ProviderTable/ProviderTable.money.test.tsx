@@ -6,8 +6,13 @@ import type { BalanceBinding } from '@/services/api/officialBalance';
 import { saveProviderPolicy } from '@/services/api/providerPolicy';
 import { beforeEach } from 'vitest';
 import { setRuntimeControlsForTests } from '@/utils/quota/runtimeControls';
+import {
+  CACHED_BALANCE_SETTLE_MS,
+  clearOfficialBalanceCachesForTests,
+} from '../useOfficialBalanceList';
 
 beforeEach(() => {
+  clearOfficialBalanceCachesForTests();
   setRuntimeControlsForTests({ quotaRefreshIntervalMs: 15000, quotaFetchedAtMs: 0 });
 });
 
@@ -177,8 +182,8 @@ it('shows live native per-member money and independent manual/policy state on ev
   await act(async () => {
     view = create(<ProviderTable {...props} />);
   });
-  expect(text()).toContain('USD 0.0500');
-  expect(text()).toContain('CNY 8.123456789012345678');
+  expect(text()).toContain('USD 0.05');
+  expect(text()).toContain('CNY 8.12');
   expect(text()).not.toContain('人工关闭');
   expect(text()).not.toContain('本策略已确认暂停');
   expect(text()).not.toContain('provider_policy.unavailable');
@@ -212,17 +217,17 @@ it('retains values while refreshing, marks failed reads unverified, and replaces
   await act(async () => {
     await vi.advanceTimersByTimeAsync(15000);
   });
-  expect(text()).toContain('USD 0.0500');
+  expect(text()).toContain('USD 0.05');
   mode = 'fail';
   await act(async () => {
     release(Response.error());
   });
-  expect(text()).toContain('USD 0.0500');
+  expect(text()).toContain('USD 0.05');
   mode = 'empty';
   await act(async () => {
     await vi.advanceTimersByTimeAsync(15000);
   });
-  expect(text()).not.toContain('USD 0.0500');
+  expect(text()).not.toContain('USD 0.05');
   expect(text()).toContain('—');
 });
 
@@ -248,7 +253,7 @@ it.each(['auth', 'base', 'binding', 'capability', 'page'])(
     await act(async () => {
       view = create(<ProviderTable {...one} />);
     });
-    expect(text()).toContain('USD 0.0500');
+    expect(text()).toContain('USD 0.05');
     pending = true;
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15000);
@@ -275,12 +280,12 @@ it.each(['auth', 'base', 'binding', 'capability', 'page'])(
     await act(async () => {
       view!.update(<ProviderTable {...changed} />);
     });
-    expect(text()).not.toContain('USD 0.0500');
+    expect(text()).not.toContain('USD 0.05');
     await act(async () => {
       view!.update(<ProviderTable {...one} />);
       old(Response.json(status('A', 'KA')));
     });
-    expect(text()).not.toContain('USD 0.0500');
+    expect(text()).not.toContain('USD 0.05');
   }
 );
 
@@ -458,5 +463,274 @@ it('invalidates reads overlapping a policy write and revalidates without revivin
   await act(async () => {
     release(Response.json(status('A', 'KA')));
   });
-  expect(text()).not.toContain('USD 0.0500');
+  expect(text()).not.toContain('USD 0.05');
+});
+
+it('shows a fresh cached balance without requesting full-refresh', async () => {
+  setRuntimeControlsForTests({
+    quotaRefreshIntervalMs: 3_600_000,
+    quotaFetchedAtMs: Date.now(),
+    balanceTexts: {
+      [`openai:${IDS.A}`]: 'USD 4.56',
+      [`openai:${IDS.B}`]: 'CNY 1.25',
+    },
+  });
+  const fetcher = vi.fn(async () => Response.json({}));
+  vi.stubGlobal('fetch', fetcher);
+  await act(async () => {
+    view = create(<ProviderTable {...props} />);
+  });
+  expect(text()).toContain('USD 4.56');
+  expect(text()).toContain('CNY 1.25');
+  expect(fetcher.mock.calls.some((call) => String(call[0]).includes('/usage-service/full-refresh'))).toBe(
+    false
+  );
+});
+
+it('refreshes a cached insufficient balance before the interval elapses', async () => {
+  setRuntimeControlsForTests({
+    quotaRefreshIntervalMs: 3_600_000,
+    quotaFetchedAtMs: Date.now(),
+    balanceTexts: {
+      [`openai:${IDS.A}`]: 'USD 0.00',
+      [`openai:${IDS.B}`]: 'CNY 1.25',
+    },
+  });
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    const href = String(url);
+    if (init?.method === 'POST' && href.includes('/usage-service/official-balance')) {
+      return Response.json({
+        id: 'job-1',
+        state: 'complete',
+        status: {
+          adapter: 'deepinfra',
+          lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '2.50' },
+        },
+      });
+    }
+    if (href.includes('/usage-service/official-balance')) {
+      return Response.json({
+        adapter: 'deepinfra',
+        configured: true,
+        managerDirectQuery: true,
+        version: 1,
+        lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '0.00' },
+      });
+    }
+    return Response.json({});
+  });
+  vi.stubGlobal('fetch', fetcher);
+  await act(async () => {
+    view = create(<ProviderTable {...props} />);
+  });
+  expect(text()).toContain('USD 2.50');
+  expect(text()).toContain('CNY 1.25');
+  const urls = fetcher.mock.calls.map((call) => String(call[0]));
+  expect(urls.some((url) => url.includes('/usage-service/full-refresh'))).toBe(false);
+  expect(
+    fetcher.mock.calls.some(
+      (call) =>
+        String(call[0]).includes('/usage-service/official-balance') && call[1]?.method === 'POST'
+    )
+  ).toBe(true);
+});
+
+it('keeps the cached balance when the binding arrives after the first paint', async () => {
+  vi.useFakeTimers();
+  let issue = false;
+  setRuntimeControlsForTests({
+    quotaRefreshIntervalMs: 3_600_000,
+    quotaFetchedAtMs: Date.now(),
+    balanceTexts: {
+      [`openai:${IDS.A}`]: 'USD 0.00',
+      [`openai:${IDS.B}`]: 'CNY 1.25',
+    },
+  });
+  const issued = (r: (typeof rows)[number]) =>
+    issue ? (r.raw.resourceId === IDS.A ? binding('A', 'KA') : binding('B', 'KB')) : undefined;
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    const href = String(url);
+    if (init?.method === 'POST' && href.includes('/usage-service/official-balance')) {
+      return Response.json({
+        id: 'job-1',
+        state: 'complete',
+        status: {
+          adapter: 'deepinfra',
+          lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '2.50' },
+        },
+      });
+    }
+    if (href.includes('/usage-service/official-balance')) {
+      return Response.json({
+        adapter: 'deepinfra',
+        configured: true,
+        managerDirectQuery: true,
+        version: 1,
+        lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '0.00' },
+      });
+    }
+    return Response.json({});
+  });
+  vi.stubGlobal('fetch', fetcher);
+  const fullRefresh = () =>
+    fetcher.mock.calls.some((call) => String(call[0]).includes('/usage-service/full-refresh'));
+  await act(async () => {
+    view = create(
+      <ProviderTable {...props} moneyStatus={{ ...props.moneyStatus, bindingForRow: issued }} />
+    );
+  });
+  expect(text()).toContain('USD 0.00');
+  expect(text()).toContain('CNY 1.25');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(CACHED_BALANCE_SETTLE_MS - 1);
+  });
+  expect(fullRefresh()).toBe(false);
+  issue = true;
+  await act(async () => {
+    view!.update(
+      <ProviderTable {...props} moneyStatus={{ ...props.moneyStatus, bindingForRow: issued }} />
+    );
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2000);
+  });
+  expect(text()).toContain('USD 2.50');
+  expect(text()).toContain('CNY 1.25');
+  expect(fullRefresh()).toBe(false);
+  expect(
+    fetcher.mock.calls.some(
+      (call) =>
+        String(call[0]).includes('/usage-service/official-balance') && call[1]?.method === 'POST'
+    )
+  ).toBe(true);
+});
+
+it('refreshes a cached insufficient balance with no binding before the quota interval', async () => {
+  vi.useFakeTimers();
+  setRuntimeControlsForTests({
+    quotaRefreshIntervalMs: 3_600_000,
+    quotaFetchedAtMs: Date.now(),
+    balanceTexts: {
+      [`openai:${IDS.A}`]: 'USD 0.00',
+      [`openai:${IDS.B}`]: 'CNY 1.25',
+    },
+  });
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    const href = String(url);
+    if (init?.method === 'POST' && href.includes('/usage-service/full-refresh')) {
+      return Response.json({
+        id: 'job-1',
+        state: 'complete',
+        items: [
+          {
+            request: { kind: 'official', official: {} },
+            targets: [target(IDS.A)],
+            state: 'complete',
+            stale: false,
+            lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '2.50' },
+          },
+        ],
+      });
+    }
+    if (href.includes('/usage-service/full-refresh')) {
+      return Response.json({
+        sources: [
+          {
+            id: 'source-a',
+            queryCapable: true,
+            request: { kind: 'official', official: { adapter: 'deepinfra' } },
+            targets: [target(IDS.A)],
+            state: 'idle',
+            stale: true,
+            lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '0.00' },
+          },
+        ],
+      });
+    }
+    return Response.json({});
+  });
+  vi.stubGlobal('fetch', fetcher);
+  const fullRefresh = () =>
+    fetcher.mock.calls.filter((call) => String(call[0]).includes('/usage-service/full-refresh'));
+  await act(async () => {
+    view = create(
+      <ProviderTable
+        {...props}
+        moneyStatus={{ ...props.moneyStatus, bindingForRow: () => undefined }}
+      />
+    );
+  });
+  expect(text()).toContain('USD 0.00');
+  expect(fullRefresh()).toHaveLength(0);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(CACHED_BALANCE_SETTLE_MS);
+  });
+  expect(text()).toContain('USD 2.50');
+  expect(text()).toContain('CNY 1.25');
+  expect(fullRefresh().some((call) => call[1]?.method === 'POST')).toBe(true);
+});
+
+it('keeps a cached insufficient balance when that source cannot be queried directly', async () => {
+  setRuntimeControlsForTests({
+    quotaRefreshIntervalMs: 3_600_000,
+    quotaFetchedAtMs: Date.now(),
+    balanceTexts: {
+      [`openai:${IDS.A}`]: 'USD 0.00',
+      [`openai:${IDS.B}`]: 'CNY 1.25',
+    },
+  });
+  const fetcher = vi.fn(async (url: string) => {
+    if (String(url).includes('/usage-service/official-balance')) {
+      return Response.json({
+        adapter: 'deepinfra',
+        configured: false,
+        managerDirectQuery: false,
+        version: 1,
+        lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '0.00' },
+      });
+    }
+    return Response.json({ sources: [] });
+  });
+  vi.stubGlobal('fetch', fetcher);
+  await act(async () => {
+    view = create(<ProviderTable {...props} />);
+  });
+  expect(text()).toContain('USD 0.00');
+  expect(text()).toContain('CNY 1.25');
+  expect(fetcher.mock.calls.some((call) => String(call[0]).includes('/usage-service/full-refresh'))).toBe(
+    false
+  );
+});
+
+it('does not read the inventory while bindings are still loading', async () => {
+  vi.useFakeTimers();
+  setRuntimeControlsForTests({
+    quotaRefreshIntervalMs: 3_600_000,
+    quotaFetchedAtMs: Date.now(),
+    balanceTexts: {
+      [`openai:${IDS.A}`]: 'USD 0.00',
+      [`openai:${IDS.B}`]: 'CNY 1.25',
+    },
+  });
+  const fetcher = vi.fn(async () => Response.json({ sources: [] }));
+  vi.stubGlobal('fetch', fetcher);
+  const fullRefresh = () =>
+    fetcher.mock.calls.some((call) => String(call[0]).includes('/usage-service/full-refresh'));
+  await act(async () => {
+    view = create(
+      <ProviderTable
+        {...props}
+        moneyStatus={{
+          ...props.moneyStatus,
+          bindingForRow: () => undefined,
+          bindingsSettled: false,
+        }}
+      />
+    );
+  });
+  expect(text()).toContain('USD 0.00');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(CACHED_BALANCE_SETTLE_MS + 1000);
+  });
+  expect(fullRefresh()).toBe(false);
 });

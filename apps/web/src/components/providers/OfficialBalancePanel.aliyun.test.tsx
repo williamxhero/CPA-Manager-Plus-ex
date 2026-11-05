@@ -250,7 +250,7 @@ it('preserves exact same-response cash currency and last-success time on stale f
   });
   try {
     const text = () => JSON.stringify(renderer.toJSON());
-    expect(text()).toContain(observation.amountDecimal);
+    expect(text()).toContain('-9007199254740993.00');
     expect(text()).toContain('USD');
     expect(text()).toContain('2026-11-02T08:00:00.000Z');
     expect(text()).toContain(observation.aliyunAccount.qualification);
@@ -264,7 +264,7 @@ it('preserves exact same-response cash currency and last-success time on stale f
     );
     expect(text()).toContain('stale');
     expect(text()).toContain('auth_error');
-    expect(text()).toContain(observation.amountDecimal);
+    expect(text()).toContain('-9007199254740993.00');
     expect(text()).toContain('2026-11-02T08:00:00.000Z');
     for (const invented of ['赠送部分', '充值部分', '平台可用标志', 'CNY', '已验证 Key 归属'])
       expect(text()).not.toContain(invented);
@@ -407,7 +407,7 @@ it('marks retained cash stale after a query transport failure without changing i
     );
     const text = JSON.stringify(renderer.toJSON());
     expect(text).toContain('stale');
-    expect(text).toContain('-0.000000000000000001');
+    expect(text).toContain('0.00');
     expect(text).toContain('JPY');
     expect(text).toContain('2026-11-02T08:00:00.000Z');
     expect(text).toContain('balance_request_failed_reload_identity');

@@ -20,6 +20,10 @@ import {
 } from './VolcengineBalanceFields';
 import { AliyunBalanceFields, type AliyunBillingCredentials } from './AliyunBalanceFields';
 import { WebBalanceFields, WebBalanceObservation } from './WebBalanceFields';
+import { formatBalanceAmount } from '@/utils/quota/formatBalanceAmount';
+
+const shownAmount = (value?: string) =>
+  typeof value === 'string' ? (formatBalanceAmount(value) ?? value) : value;
 
 const endpoints: Record<OfficialBalanceAdapter, string> = {
   deepseek: 'https://api.deepseek.com/user/balance',
@@ -927,7 +931,7 @@ export function OfficialBalancePanel({
                           <>
                             <p>
                               明确合同换算金额：{data.lastSuccess.currency}{' '}
-                              {data.lastSuccess.amountDecimal}
+                              {shownAmount(data.lastSuccess.amountDecimal)}
                               ；与原生额度是同一余额的两种表示，不能相加。
                             </p>
                             <p>
@@ -943,7 +947,7 @@ export function OfficialBalancePanel({
                     <>
                       <p>
                         阿里预付费现金余额：{data.lastSuccess.currency}{' '}
-                        {data.lastSuccess.amountDecimal}
+                        {shownAmount(data.lastSuccess.amountDecimal)}
                       </p>
                       <p>
                         仅取 AvailableCashAmount
@@ -967,7 +971,7 @@ export function OfficialBalancePanel({
                     <>
                       <p>
                         资金账户可用余额：{data.lastSuccess.currency}{' '}
-                        {data.lastSuccess.amountDecimal}
+                        {shownAmount(data.lastSuccess.amountDecimal)}
                       </p>
                       <p>
                         负值保留账户欠款；可用余额直接取自官方结果，不与现金、信控或冻结金额再次加减。
@@ -987,10 +991,10 @@ export function OfficialBalancePanel({
                     <>
                       <p>
                         DeepInfra 预付净额：{data.lastSuccess.currency}{' '}
-                        {data.lastSuccess.amountDecimal}
+                        {shownAmount(data.lastSuccess.amountDecimal)}
                       </p>
                       <p>
-                        {data.lastSuccess.amountDecimal?.startsWith('-')
+                        {shownAmount(data.lastSuccess.amountDecimal)?.startsWith('-')
                           ? '负值表示账户欠款。'
                           : '正值表示预付净信用；零值仅来自实际有效观测。'}
                       </p>
@@ -1006,8 +1010,8 @@ export function OfficialBalancePanel({
                       <ul>
                         {data.lastSuccess.balances?.map((wallet) => (
                           <li key={wallet.currency}>
-                            {wallet.currency} 总余额 {wallet.total} · 赠送部分 {wallet.granted} ·
-                            充值部分 {wallet.toppedUp}
+                            {wallet.currency} 总余额 {shownAmount(wallet.total)} · 赠送部分{' '}
+                            {shownAmount(wallet.granted)} · 充值部分 {shownAmount(wallet.toppedUp)}
                           </li>
                         ))}
                       </ul>
