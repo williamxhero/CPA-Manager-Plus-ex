@@ -78,8 +78,12 @@ const verifyRuntime = async (
     throw new Error('Credential runtime provider or enabled state did not match the saved file');
   }
   // Model registration is a supported, non-inference check. Never enable a disabled credential to probe it.
-  if (!disabled && (await authFilesApi.getModelsForAuthFile(file.id || name, scope)).length === 0) {
-    throw new Error('Credential runtime has no registered models');
+  // Qwen plan credentials stay active without a Core model catalog: auth-files/models returns [] and
+  // model-definitions/qwen is unknown. Requiring models here falsely fails UI saves and triggers rollback.
+  if (!disabled && provider !== 'qwen') {
+    if ((await authFilesApi.getModelsForAuthFile(file.id || name, scope)).length === 0) {
+      throw new Error('Credential runtime has no registered models');
+    }
   }
 };
 const canonicalJSON = (value: unknown): unknown => {

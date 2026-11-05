@@ -1,29 +1,36 @@
-﻿# Matrix live blockers on LocalCPAManagerPlus (2026-11-04)
+﻿# Matrix live blockers on LocalCPAManagerPlus (2026-11-05)
 
-## Green now
+Freeze after #88 S03 night elevated deploy.
 
-| Host | Adapter | Evidence |
-|---|---|---|
-| `api.layso.ai` / `layso.ai` | `layso_billing_web_v1` | Manager POST **success** / **USD 46.92** |
-| `api.deepseek.com` | `deepseek` | POST **success**; wallet CNY **50.47** |
-| `api.deepinfra.com` | `deepinfra` | POST **success**; signed prepaid **USD 0** |
-| `wawapii.com` | `openai-compat-usage-v1` | POST **success**; **USD 53.71695596** |
-| `api-top.com` | `newapi-browser-session-v1` | POST **success**; native quota **2280724** |
-| `code28.ccwu.cc` | `newapi-browser-session-v1` | POST **success**; native quota **-13156**; kele520 Core bind |
-| `api.liangrekui.com` | `newapi-browser-session-v1` | POST **success**; quota **172900** → CNY **0.3458** |
-| `billing.volcengineapi.com` (Doubao) | `volcengine-account-balance-v2022-01-01` | POST **success**; CNY **122.35** |
+- exe SHA-256: `A89466285946D5DBCE60FB7058DFA4B22EB84C613D28FDD37CA0C67C74255987`
+- panel SHA-256: `AF171E9BFBC045041043E71B7C589EE9BCA726C0A74FF55E504323A7162385DA`
+- Evidence: `evidence/e03-s03-capability-readback-20261105.json`
+- Aliyun: **DEFERRED** (operator skip for go-live)
 
-## Deferred (operator 2026-11-04 ~23:36)
+## Green on this SHA (Manager POST OfficialBalance)
 
-| Item | Decision |
+| Host / adapter | Result |
 |---|---|
-| Aliyun / Bailian Token Plan via `bailian-quota --source bsk` | **SKIP for now** — Bailian console login / bsk Edge flaky; resume after CPA go-live |
-| OfficialBalance Aliyun AK/SK | **not pursued** (operator: keep CLI form later) |
+| Layso `layso_billing_web_v1` (×2 Claude/Codex) | **success** USD **46.92** (jobs `74b95068…`, `43b7d4c4…`) |
+| DeepInfra `deepinfra` | **success** USD **0** (`17fdd16e…`) |
+| DeepSeek `deepseek` | **success** (`c49eb158…`; amount field null in job status, queryStatus success) |
+| Volcengine Doubao `volcengine-account-balance-v2022-01-01` | **success** CNY **122.35** |
+| WawAPI `openai-compat-usage-v1` | **success** USD **53.66854619** after hosts re-pin (`5faf1a1a…`) |
+| api-top / code28 / 凉热葵 `newapi-browser-session-v1` | prior-night live POST green; not in this tick's queryCapable official set |
 
-## Other
+## Deferred
 
 | Host | Note |
 |---|---|
-| `kele520.com` | **do not alias**; billing origin is `code28.ccwu.cc` |
+| Aliyun / Bailian | **SKIP** until after go-live |
 
-Tickets stay open; no secrets in-repo. Priority shifts to remaining SPECs for CPA online deploy.
+## DNS
+
+Elevated hosts re-pinned (Clash `198.18` bypass): `wawapii.com`, `api.deepseek.com`, `api.deepinfra.com`, `api.liangrekui.com`, `api-top.com`, `code28.ccwu.cc`, plus existing Volc entries. Clash Verge Merge `fake-ip-filter` still not applied — hosts remain the operational fix.
+
+## E03 readback
+
+- `GET /usage-service/full-refresh` → 200, `resourceCount=51`, round `complete`
+- `CPA-BSK-Relay` AtLogOn task Ready but **never ran this boot** (`LastTaskResult=267011`); live `:18717` = user-session `bsk-relay-agent.ps1` PID 50560 (Layso POST still works)
+
+Tickets stay open; no issue close.

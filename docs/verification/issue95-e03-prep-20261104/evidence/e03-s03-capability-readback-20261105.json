@@ -1,0 +1,170 @@
+{
+  "at": "2026-11-05T00:12:00+08:00",
+  "exe_sha256": "A89466285946D5DBCE60FB7058DFA4B22EB84C613D28FDD37CA0C67C74255987",
+  "panel_sha256": "AF171E9BFBC045041043E71B7C589EE9BCA726C0A74FF55E504323A7162385DA",
+  "full_refresh": {
+    "http": 200,
+    "resourceCount": 51,
+    "latestRound_id": "f8a721e1-0636-495b-8c92-a0ade98f9af6",
+    "latestRound_state": "complete",
+    "scope": {
+      "instance_id": "396cba32-3920-47e6-b043-a69401344a8d",
+      "instance_incarnation": "dda12a1b-dca0-4a37-b1a3-2a3fa3383fe8",
+      "boot_epoch": "6365eb51-3cc9-45f0-862e-0cad986f54ec",
+      "snapshot_revision": 25
+    },
+    "queryCapable_sources": 8
+  },
+  "official_balance_posts": [
+    {
+      "adapter": "layso_billing_web_v1",
+      "get": 200,
+      "state": "success",
+      "configured": true,
+      "mDQ": true,
+      "cached_amount": "46.92",
+      "cached_currency": "USD",
+      "post": 202,
+      "job_id": "74b95068-06c5-4697-8af3-43c6a78cbd0d",
+      "result": {
+        "job_state": "complete",
+        "state": "success",
+        "amountDecimal": "46.92",
+        "currency": "USD",
+        "queryStatus": "success",
+        "errorCode": null
+      }
+    },
+    {
+      "adapter": "layso_billing_web_v1",
+      "get": 200,
+      "state": "success",
+      "configured": true,
+      "mDQ": true,
+      "cached_amount": "46.92",
+      "cached_currency": "USD",
+      "post": 202,
+      "job_id": "43b7d4c4-d1fe-4be5-83ff-26ee5b620d31",
+      "result": {
+        "job_state": "complete",
+        "state": "success",
+        "amountDecimal": "46.92",
+        "currency": "USD",
+        "queryStatus": "success",
+        "errorCode": null
+      }
+    },
+    {
+      "adapter": "openai-compat-usage-v1",
+      "get": 200,
+      "state": "network_error",
+      "configured": true,
+      "mDQ": true,
+      "cached_amount": null,
+      "cached_currency": null,
+      "post": 202,
+      "job_id": "b93c0d23-2db9-4155-a4b7-4a1e3808b06d",
+      "result": {
+        "job_state": "complete",
+        "state": "network_error",
+        "amountDecimal": null,
+        "currency": null,
+        "queryStatus": "network_error",
+        "errorCode": "UPSTREAM_UNAVAILABLE"
+      }
+    },
+    {
+      "adapter": "deepinfra",
+      "get": 200,
+      "state": "success",
+      "configured": true,
+      "mDQ": true,
+      "cached_amount": "0",
+      "cached_currency": "USD",
+      "post": 202,
+      "job_id": "17fdd16e-e813-4155-8901-33bb9c2f27fd",
+      "result": {
+        "job_state": "complete",
+        "state": "success",
+        "amountDecimal": "0",
+        "currency": "USD",
+        "queryStatus": "success",
+        "errorCode": null
+      }
+    },
+    {
+      "adapter": "deepseek",
+      "get": 200,
+      "state": "success",
+      "configured": true,
+      "mDQ": true,
+      "cached_amount": null,
+      "cached_currency": null,
+      "post": 202,
+      "job_id": "c49eb158-49b7-4ee3-9577-dba58fedbc62",
+      "result": {
+        "job_state": "complete",
+        "state": "success",
+        "amountDecimal": null,
+        "currency": null,
+        "queryStatus": "success",
+        "errorCode": null
+      }
+    },
+    {
+      "adapter": "volcengine-account-balance-v2022-01-01",
+      "get": 200,
+      "state": "success",
+      "configured": true,
+      "mDQ": true,
+      "cached_amount": "122.35",
+      "cached_currency": "CNY",
+      "post": 202,
+      "job_id": "3eba38f4-b2fd-4370-9618-ede2348ea206",
+      "result": {
+        "job_state": "complete",
+        "state": "success",
+        "amountDecimal": "122.35",
+        "currency": "CNY",
+        "queryStatus": "success",
+        "errorCode": null
+      }
+    },
+    {
+      "skip": true,
+      "source_id": "credential_quota:31a1706571701e164aca60aae32be1f6b5571cd7f883a84a4b66ac366a56717a",
+      "request_keys": [
+        "credential",
+        "kind"
+      ]
+    },
+    {
+      "skip": true,
+      "source_id": "credential_quota:644e48fe8d93b8ea342ad5d56154e90a722dd9707d684c6a2d5f4ec720b82d0c",
+      "request_keys": [
+        "credential",
+        "kind"
+      ]
+    }
+  ],
+  "success_n": 5,
+  "non_success_n": 1,
+  "bsk_relay": {
+    "listening": true,
+    "pid": 50560,
+    "agent": "bsk-relay-agent.ps1",
+    "scheduled_task": "CPA-BSK-Relay AtLogOn/will Ready; LastTaskResult=267011 never-run this boot; live user agent covers go-live"
+  },
+  "aliyun": "DEFERRED",
+  "conclusion": "E03 capability readback on S03-night SHA recorded",
+  "wawapi_repost_after_hosts": {
+    "adapter": "openai-compat-usage-v1",
+    "job_id": "5faf1a1a-4fad-4428-ae65-517de1aa99c4",
+    "state": "success",
+    "queryStatus": "success",
+    "amountDecimal": "53.66854619",
+    "currency": "USD",
+    "errorCode": null
+  },
+  "hosts_pins_restored_at": "2026-11-05T00:15:00+08:00"
+}

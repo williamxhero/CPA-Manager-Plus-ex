@@ -1,13 +1,14 @@
-﻿{
-    "download_after":  "excluded_models list_len=12 has_probe=false (UI save did not persist)",
-    "save_result":  "UI error toast: Credential save/runtime validation failed; rollback could not be confirmed",
-    "ui_edit":  "filled textbox with s03-ui-probe-20261104; Save enabled (未保存)",
-    "core_direct_patch":  "PATCH http://127.0.0.1:8317/v0/management/auth-files/fields with excluded-models probe -\u003e 200 ok",
-    "conclusion":  "S03 API path remains ALL_OK; S03 in-UI save path FAILS with Manager/Core 409 + UI rollback message — blocks #88 close; go-live can proceed with API-proven path but UI fix needed",
-    "at":  "2026-11-04T23:45:00+08:00",
-    "path":  "凭证管理 \u003e Qwen \u003e 配置 \u003e 排除模型（excluded_models）",
-    "network":  [
-                    "GET /v0/management/model-definitions/qwen -\u003e 400",
-                    "PATCH /v0/management/auth-files/fields -\u003e 200 then 409 (retry)"
-                ]
+{
+  "at": "2026-11-04T23:56:00+08:00",
+  "path": "凭证管理 > Qwen > 配置 > 排除模型（excluded_models）",
+  "root_cause": "verifyRuntime required auth-files/models length>0; Qwen returns [] and model-definitions/qwen is unknown channel, so successful PATCH was rolled back with toast Credential save/runtime validation failed",
+  "fix": "planCredentials.verifyRuntime skips model-catalog check for provider qwen; opencode-go still requires models",
+  "ui_edit": "appended s03-ui-probe-fix-20261104 via config textarea + Save",
+  "download_after": "excluded_models list_len=13 has_probe=true (UI save persisted)",
+  "restore_after_evidence": "probe removed; list_len=12",
+  "panel_sha256_live": "AF171E9BFBC045041043E71B7C589EE9BCA726C0A74FF55E504323A7162385DA",
+  "artifact_exe_sha256": "A89466285946D5DBCE60FB7058DFA4B22EB84C613D28FDD37CA0C67C74255987",
+  "deploy_note": "deploy-cpamp needs elevation; live panelPath already serves rebuilt management.html so UI fix is active without service swap",
+  "vitest": "planCredentials.test.ts 25 passed",
+  "conclusion": "S03 in-UI excluded-models save path FIXED and verified; #88 S03 UI blocker cleared; S04 still awaits explicit delete auth; tickets not closed"
 }

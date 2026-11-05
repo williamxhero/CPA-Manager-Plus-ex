@@ -37,15 +37,23 @@ Compact evidence: `s03-browser-path-evidence.json`. Full VOM dumps stay local / 
 
 Also opened **Qwen-Compat** detail dialog via BrowserSkill (s03-browser-qwen-detail-evidence.json): shows 官方余额 section + model list (qwen3.8-max / qwen3.8-flash).
 
-Still open for #88 close: in-UI excluded-models edit/save click-through (API path already ALL_OK); S04 cleanup awaits explicit delete auth.
+Still open for #88 close: S04 cleanup awaits explicit delete auth. S03 UI excluded-models save is fixed (below).
 
-## S03 browser UI excluded-models (2026-11-04 night)
+## S03 browser UI excluded-models (2026-11-04 night) — root cause + fix
 
 Opened 凭证管理 → Qwen → 配置, edited `排除模型（excluded_models）`, clicked 保存.
 
+**Earlier failure**
+
 - UI toast: `Credential save/runtime validation failed; rollback could not be confirmed. Reload before retrying.`
 - Network: `PATCH .../auth-files/fields` returned **409** (after a 200); `model-definitions/qwen` **400**
-- Direct Core PATCH on `:8317` with same probe → **200 ok**
-- Download after: probe **not** persisted (fail-closed)
+- Direct Core PATCH on `:8317` with same probe → **200 ok**, but UI `verifyRuntime` then failed because `/auth-files/models?name=qwen…` returns `[]`
 
-Evidence: `s03-browser-excluded-models-ui-evidence.json`. **#88 still open** for this UI path; API S03 remains ALL_OK.
+**Fix (worktree)**
+
+- `planCredentials.verifyRuntime` skips the model-catalog check for `provider === 'qwen'` (Core has no Qwen model catalog; `opencode-go` still requires models).
+- Vitest: `planCredentials.test.ts` **25 passed**.
+- Rebuilt `management.html` served via runtime `panelPath` (`SHA256 AF171E9B…`); UI save of probe `s03-ui-probe-fix-20261104` **persisted** (`list_len=13`), then restored to 12.
+- Artifact exe rebuilt (`SHA256 A8946628…`); `deploy-cpamp` still needs Administrator elevation to swap the Windows service binary.
+
+Evidence: `s03-browser-excluded-models-ui-evidence.json`. **#88 S03 UI path cleared**; S04 still blocked on explicit delete auth; tickets not closed.

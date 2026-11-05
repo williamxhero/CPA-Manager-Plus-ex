@@ -129,6 +129,67 @@ describe('plan credential runtime activation', () => {
     }
   );
 
+  it('accepts enabled qwen exclusion saves when Core has no registered model catalog', async () => {
+    const before = {
+      type: 'qwen',
+      api_key: key,
+      base_url: baseURL,
+      disabled: false,
+      excluded_models: ['old'],
+    };
+    const after = { ...before, excluded_models: ['new', 's03-ui-probe'] };
+    mocks.getRaw
+      .mockResolvedValueOnce({ data: new Blob([JSON.stringify(before)]) })
+      .mockResolvedValueOnce({ data: new Blob([JSON.stringify(after)]) });
+    mocks.get.mockResolvedValue({ files: [runtime] });
+    mocks.patch.mockResolvedValue({ status: 'ok' });
+    await expect(
+      planCredentialsApi.update(
+        { name, provider: 'qwen' },
+        { 'excluded-models': ['new', 's03-ui-probe'] },
+        scope
+      )
+    ).resolves.toBeUndefined();
+    expect(mocks.get).toHaveBeenCalledWith(
+      expect.stringMatching(/auth-files/),
+      expect.anything()
+    );
+    expect(mocks.get.mock.calls.every((call) => !String(call[0]).includes('/auth-files/models'))).toBe(
+      true
+    );
+  });
+
+  it('still requires registered models for enabled opencode-go saves', async () => {
+    const before = {
+      type: 'opencode-go',
+      api_key: key,
+      base_url: PLAN_CREDENTIAL_DEFAULT_URLS['opencode-go'],
+      disabled: false,
+      excluded_models: ['old'],
+    };
+    const after = { ...before, excluded_models: ['new'] };
+    const oldText = JSON.stringify(before);
+    const nextText = JSON.stringify(after);
+    mocks.getRaw
+      .mockResolvedValueOnce({ data: new Blob([oldText]) })
+      .mockResolvedValueOnce({ data: new Blob([nextText]) })
+      .mockResolvedValueOnce({ data: new Blob([nextText]) })
+      .mockResolvedValue({ data: new Blob([oldText]) });
+    mocks.get
+      .mockResolvedValueOnce({ files: [{ ...runtime, type: 'opencode-go' }] })
+      .mockResolvedValueOnce({ models: [] })
+      .mockResolvedValue({ files: [{ ...runtime, type: 'opencode-go', status: 'active' }] });
+    mocks.patch.mockResolvedValue({ status: 'ok' });
+    mocks.post.mockResolvedValue({ status: 'ok' });
+    await expect(
+      planCredentialsApi.update(
+        { name, provider: 'opencode-go' },
+        { 'excluded-models': ['new'] },
+        scope
+      )
+    ).rejects.toThrow(/rolled back|rollback could not be confirmed/);
+  });
+
   it.each(['qwen', 'opencode-go'])(
     'accepts clearing core-canonicalized exclusions for %s',
     async (provider) => {
