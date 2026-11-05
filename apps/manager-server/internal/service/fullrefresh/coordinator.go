@@ -585,24 +585,6 @@ func (s *Service) Subscribe(observer Observer) {
 	defer s.mu.Unlock()
 	s.observers = append(s.observers, observer)
 }
-
-type boundedObserver struct {
-	observe Observer
-	budget  time.Duration
-}
-
-// SubscribeBounded keeps expensive downstream proof/gate work out of the
-// legacy shared five-second notification budget. It runs inline, stays within
-// the existing four query slots and is canceled/waited by runtime shutdown.
-func (s *Service) SubscribeBounded(observer Observer, budget time.Duration) error {
-	if observer == nil || budget <= 0 || budget > 20*time.Second {
-		return ErrInput
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.boundedObservers = append(s.boundedObservers, boundedObserver{observer, budget})
-	return nil
-}
 func (s *Service) notify(event CompletedObservation) {
 	event.WalletMembers = s.walletNotificationMembers(s.ctx, event)
 	s.mu.Lock()
@@ -612,7 +594,6 @@ func (s *Service) notify(event CompletedObservation) {
 	}
 	delete(s.purposes, event.AttemptID)
 	observers := append([]Observer(nil), s.observers...)
-	bounded := append([]boundedObserver(nil), s.boundedObservers...)
 	closed := s.closed
 	s.mu.Unlock()
 	if closed {
@@ -622,11 +603,6 @@ func (s *Service) notify(event CompletedObservation) {
 	defer cancel()
 	for _, observer := range observers {
 		observer(ctx, event)
-	}
-	for _, observer := range bounded {
-		ctx, cancel := context.WithTimeout(s.ctx, observer.budget)
-		observer.observe(ctx, event)
-		cancel()
 	}
 }
 func (s *Service) completedOfficial(job ob.Job, status ob.Status) {

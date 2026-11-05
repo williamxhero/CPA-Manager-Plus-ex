@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/buildinfo"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/config"
@@ -211,7 +210,6 @@ func fromExisting(
 		officialBalanceService.WebReader = webReader
 	}
 	credentialQuotaService := credentialquotasvc.New(st, identityService, credentialquotasvc.WithBudget(managementBudget))
-	providerGateService := providergatesvc.New(st, managerConfigService, identityService)
 	out := &Context{
 		ProviderPolicyService:   providerpolicysvc.New(st, identityService, managerConfigService, officialBalanceService),
 		ProviderGateService:     providergatesvc.New(st, managerConfigService, identityService),

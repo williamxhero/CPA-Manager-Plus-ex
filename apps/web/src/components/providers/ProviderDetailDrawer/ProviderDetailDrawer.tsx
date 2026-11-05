@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { OfficialBalancePanel } from '../OfficialBalancePanel';
-import { ProviderMoneyPanel } from '../ProviderMoneyPanel';
 import type { OfficialBalancePanelProps } from '../OfficialBalancePanel';
 import type { OfficialBalanceAdapter } from '@/services/api/officialBalance';
 import {
