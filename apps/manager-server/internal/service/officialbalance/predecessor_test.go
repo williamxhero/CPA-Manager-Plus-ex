@@ -24,6 +24,27 @@ func TestPredecessorRecordUsesTheSingleRemainingBrowserSession(t *testing.T) {
 	}
 }
 
+func TestPredecessorRecordKeepsSavedBalanceAfterProviderTargetChanges(t *testing.T) {
+	request := Binding{Scope: testScope(), Targets: []rc.Target{target("provider-new", "p2"), target("credential", "c1")}}
+	cfg := Config{
+		Binding:  Binding{Scope: testScope(), Targets: []rc.Target{target("provider-old", "p1"), target("credential", "c1")}},
+		Adapter:  balance.LaysoBillingWebV1,
+		Endpoint: balance.LaysoBillingPage,
+	}
+	raw, _ := json.Marshal(cfg)
+	got, ok := predecessorRecord(request, []store.OfficialBalanceRecord{{
+		Config:      string(raw),
+		LastSuccess: `{"queryStatus":"success","amountDecimal":"46.92","currency":"USD"}`,
+	}})
+	if !ok {
+		t.Fatal("expected the saved layso balance")
+	}
+	var obs balance.Observation
+	if json.Unmarshal([]byte(got.LastSuccess), &obs) != nil || observationDisplayText(obs) != "USD 46.92" {
+		t.Fatalf("display text = %q", observationDisplayText(obs))
+	}
+}
+
 func TestPredecessorRecordRejectsAmbiguousOrIntactBindings(t *testing.T) {
 	request := Binding{Scope: testScope(), Targets: []rc.Target{target("provider", "p1"), target("credential", "c2")}}
 	if _, ok := predecessorRecord(request, []store.OfficialBalanceRecord{

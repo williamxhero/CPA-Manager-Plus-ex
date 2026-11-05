@@ -3,13 +3,12 @@ package officialbalance
 import (
 	"encoding/json"
 
-	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
 
-// predecessorRecord keeps a browser-session observation visible after one saved
-// target disappears, when exactly one stored source still shares the request.
+// predecessorRecord keeps a saved observation visible after one saved target
+// disappears, when exactly one stored source still shares the request.
 // An exact current binding is handled by the normal read and never comes here.
 func predecessorRecord(request Binding, records []store.OfficialBalanceRecord) (store.OfficialBalanceRecord, bool) {
 	current := map[string]string{}
@@ -33,7 +32,7 @@ func predecessorRecord(request Binding, records []store.OfficialBalanceRecord) (
 
 func predecessorMatch(request Binding, current map[string]string, raw string) bool {
 	var cfg Config
-	if json.Unmarshal([]byte(raw), &cfg) != nil || cfg.Adapter != balance.NewAPIBrowserSessionV1 || cfg.BrowserSession == nil {
+	if json.Unmarshal([]byte(raw), &cfg) != nil {
 		return false
 	}
 	if cfg.Scope.InstanceID != request.Scope.InstanceID || cfg.Scope.InstanceIncarnation != request.Scope.InstanceIncarnation {

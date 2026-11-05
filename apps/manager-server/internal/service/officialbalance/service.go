@@ -369,11 +369,13 @@ func (s *Service) read(ctx context.Context, b Binding) (Status, error) {
 	}
 	var cfg Config
 	var obs balance.Observation
-	if json.Unmarshal([]byte(alt.Config), &cfg) != nil || json.Unmarshal([]byte(alt.LastSuccess), &obs) != nil || cfg.BrowserSession == nil {
+	if json.Unmarshal([]byte(alt.Config), &cfg) != nil || json.Unmarshal([]byte(alt.LastSuccess), &obs) != nil {
 		return out, nil
 	}
-	balance.ApplyPublishedNewAPIDisplay(ctx, cfg.BrowserSession.Origin, &obs)
-	if obs.AmountDecimal == "" || obs.Currency == "" {
+	if cfg.BrowserSession != nil {
+		balance.ApplyPublishedNewAPIDisplay(ctx, cfg.BrowserSession.Origin, &obs)
+	}
+	if observationDisplayText(obs) == "" {
 		return out, nil
 	}
 	out.LastSuccess = &obs

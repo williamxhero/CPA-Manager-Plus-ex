@@ -15,6 +15,15 @@ import (
 
 type Handler struct{ App *app.Context }
 
+func (h *Handler) load(ctx context.Context) (setting.RuntimeControls, error) {
+	controls, err := h.App.Store.LoadRuntimeControls(ctx)
+	if err != nil || h.App.OfficialBalanceService == nil {
+		return controls, err
+	}
+	h.App.OfficialBalanceService.RestoreCachedBalances(ctx, controls.BalanceTexts)
+	return controls, nil
+}
+
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	middleware.WriteCORS(h.App.Config, w, r)
@@ -29,7 +38,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	switch r.Method {
 	case http.MethodGet:
-		controls, err := h.App.Store.LoadRuntimeControls(ctx)
+		controls, err := h.load(ctx)
 		if err != nil {
 			response.JSON(w, http.StatusServiceUnavailable, map[string]string{"error": "runtime_controls_unavailable"})
 			return
@@ -48,7 +57,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			response.JSON(w, http.StatusServiceUnavailable, map[string]string{"error": "runtime_controls_unavailable"})
 			return
 		}
-		saved, err := h.App.Store.LoadRuntimeControls(ctx)
+		saved, err := h.load(ctx)
 		if err != nil {
 			response.JSON(w, http.StatusServiceUnavailable, map[string]string{"error": "runtime_controls_unavailable"})
 			return
