@@ -2,10 +2,11 @@
   "schemaVersion": 1,
   "canonical": {
     "repository": "williamxhero/CPA-Qwen",
-    "commit": "bde955c51bdcfa82c1d9a1bc743655d8ac4e953d",
-    "tree": "a004ba6f08e84a62a999cf828bdcf17a27f1cc42",
+    "commit": "8225908505bbd39eea8a4d3b4a7362cc64c2ccc8",
+    "tree": "b21d041f300453b4ea52a202553292ab8842dd89",
     "files": {
       ".gitignore": "02aaadefae3ee99f09f99130b593066da82ba384ee4b0a179dd7da6645432fff",
+      "AGENTS.md": "ff15d5fd2568e0994f41bfc306d42c949675d088a350e7d597017c774d7aafbb",
       "LICENSE": "8885d63dad501a360f030353cb8221d1e6de0f092101e471745cd05f1bbc08a0",
       "NOTICE.md": "91d9e1ac7165e80c12c72fd1694d0eab17f59539003a1f215841620330f769bb",
       "README.md": "1bf6b9ab19378f59d8b49aa4be87d13b954e0a5f5418e51a71ec62ac3b73e072",
@@ -13,6 +14,9 @@
       "cmd/aliyun-bss-quota-plugin/main.go": "fbd85d0f04cacd49ec127892ae8989750d73c52b7fa7b35b3a636c4abb5fe4d5",
       "cmd/aliyun-bss-quota-plugin/main_test.go": "f719f203d25f9cb02e99ec63867756097a6a552e777bce238f4d159d15ca6e18",
       "cmd/bailian-quota/main.go": "41041a2fa1cc17b3172f5ee32230613c1f56329bff26a14b9f195259229e7826",
+      "docs/agents/domain.md": "78cdc773699674a9bd48d5cb4b969a1e57bf514d5186dc4487de55ad7cfbdb0b",
+      "docs/agents/issue-tracker.md": "faa163f862def5dfdba1d560eca4cf000df606cf31326b3718c68b3bd8e148f8",
+      "docs/agents/triage-labels.md": "ae512af838c78b8750471c42cd2b20fa32319553e61d84c9a23d171b40ce14aa",
       "docs/aliyun-quota-compatibility.md": "5cb3c8ed5b3d6f587f85346ed9600908afafa4b30c3453a317b54485b65b226f",
       "docs/bl-quota-deployment.md": "3383781c6fbf11f5ea50a0105ff4cc10d9914f6b119c0783b4e28e88752ed03a",
       "docs/coding-plan-quota.md": "1dcb9e54f1db734eab9b0841a7375d2a72955989ef4f151080f8b2f4ea67ef4e",
