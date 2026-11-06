@@ -313,7 +313,8 @@ function Invoke-CPALocalStackDeployment {
         $result.scriptSHA256=Get-CPAStackHash $ctx.script
         if($ctx.customHealth){$plan=Get-Content -LiteralPath $HealthPlanPath -Raw|ConvertFrom-Json;if($plan.schema -ne 1){throw 'health_plan_schema'};$ctx.probes=@($plan.probes)}
         else{$ctx.probes=@(@{name='LocalCPA';url='http://127.0.0.1:8317/v8/management/inference-gates';kind='gate'},@{name='LocalCPAManagerPlus';url='http://127.0.0.1:18317/usage-service/full-refresh';kind='inventory'},@{name='CPAUsageKeeper';url='http://127.0.0.1:8318/readyz'})}
-        if(@($ctx.probes).Count -ne 3 -or @($ctx.probes|Select-Object -ExpandProperty name -Unique).Count -ne 3){throw 'health_plan_incomplete'}
+        $probeNames=@($ctx.probes|ForEach-Object {[string]$_.name}|Sort-Object -Unique)
+        if(@($ctx.probes).Count -ne 3 -or $probeNames.Count -ne 3){throw 'health_plan_incomplete'}
         $services=@(Get-CPAStackServices $ctx)
         if($services.Count -ne 3 -or @($services|Where-Object {$_.status -ne 'Running'}).Count){throw 'service_not_running'}
         foreach($service in $services){if(@($service.dependents|Where-Object {$_ -notin $ctx.names}).Count){throw 'external_dependent'}}
