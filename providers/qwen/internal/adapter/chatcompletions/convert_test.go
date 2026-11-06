@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"qwen-cliproxyapi/internal/adapter/shared"
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/adapter/shared"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 func wantErr(t *testing.T, eErr *errclass.Error, class errclass.Class) {

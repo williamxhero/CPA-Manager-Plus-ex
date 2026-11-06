@@ -132,6 +132,26 @@ func TestManagerConsumesHTTPUsageQueue(t *testing.T) {
 	}
 }
 
+func TestAutoModeKeepsRetryingSubscribeWhenUpstreamIsDown(t *testing.T) {
+	db := newTestStore(t)
+	manager := NewManager(testConfig(t, "auto"), db)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	manager.Start(ctx, RuntimeConfig{
+		CPAUpstreamURL: "http://127.0.0.1:1",
+		ManagementKey:  "management-key",
+	})
+
+	waitFor(t, func() bool {
+		status := manager.Status()
+		return strings.HasPrefix(status.LastError, "connect:")
+	})
+	if status := manager.Status(); status.Transport == "http" {
+		t.Fatalf("transport = %q, dial failure abandoned subscribe", status.Transport)
+	}
+}
+
 func TestManagerEnrichesMissingProjectSnapshotWithoutOverwritingAccount(t *testing.T) {
 	var calls int32
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

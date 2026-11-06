@@ -14,7 +14,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
-const credentialPath = "/v0/management/plugins/qwen-cliproxyapi/credentials"
+const credentialPath = "/v0/management/plugins/cpa-credential-qwen/credentials"
 
 func credentialPost(t *testing.T, m *Manager, body string) pluginapi.ManagementResponse {
 	t.Helper()
@@ -206,7 +206,7 @@ func TestCredentialRouteDuplicateOfConfiguredAndImportedKey(t *testing.T) {
 func TestPluginDisplayMetadataAndEmbeddedLogo(t *testing.T) {
 	var registration registrationResult
 	decodeResult(t, registrationEnvelope(), &registration)
-	if registration.Metadata.Name != "QWen Plan API Key" || registration.Metadata.Logo != "/v0/resource/plugins/qwen-cliproxyapi/logo.svg" {
+	if registration.Metadata.Name != "QWen Plan API Key" || registration.Metadata.Logo != "/v0/resource/plugins/cpa-credential-qwen/logo.svg" {
 		t.Fatalf("wrong metadata: %#v", registration.Metadata)
 	}
 	t.Chdir(t.TempDir())
@@ -221,7 +221,7 @@ func TestPluginDisplayMetadataAndEmbeddedLogo(t *testing.T) {
 		}
 	}
 	raw, _ := m.HandleCall(pluginabi.MethodManagementRegister, []byte(`{}`))
-	if !strings.Contains(string(raw), `"path":"/logo.svg"`) || !strings.Contains(string(raw), `"path":"/plugins/qwen-cliproxyapi/credentials"`) {
+	if !strings.Contains(string(raw), `"path":"/logo.svg"`) || !strings.Contains(string(raw), `"path":"/plugins/cpa-credential-qwen/credentials"`) {
 		t.Fatalf("routes not registered: %s", raw)
 	}
 }
@@ -231,7 +231,7 @@ func TestLoginStartManualFormMetadata(t *testing.T) {
 	raw, _ := m.HandleCall(pluginabi.MethodAuthLoginStart, []byte(`{"Provider":"qwen"}`))
 	var result pluginapi.AuthLoginStartResponse
 	decodeResult(t, raw, &result)
-	want := `{"auth_kind":"manual_api_key","submit_path":"/v0/management/plugins/qwen-cliproxyapi/credentials","submit_label":"添加凭证","fields":[{"name":"base_url","label":"Base URL","placeholder":"https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1","required":true},{"name":"api_key","label":"API Key","type":"password","required":true},{"name":"name","label":"别名 (Alias)","placeholder":"留空则显示脱敏 API Key","required":false}]}`
+	want := `{"auth_kind":"manual_api_key","submit_path":"/v0/management/plugins/cpa-credential-qwen/credentials","submit_label":"添加凭证","fields":[{"name":"base_url","label":"Base URL","placeholder":"https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1","required":true},{"name":"api_key","label":"API Key","type":"password","required":true},{"name":"name","label":"别名 (Alias)","placeholder":"留空则显示脱敏 API Key","required":false}]}`
 	var wantValue, gotValue any
 	_ = json.Unmarshal([]byte(want), &wantValue)
 	_ = json.Unmarshal(mustJSON(result.Metadata), &gotValue)

@@ -96,7 +96,7 @@ func credentialQuotaActualCoreChain(t *testing.T, requirePlugin bool) {
 		pluginSHA = os.Getenv("CORE_QUOTA_OLD_PLUGIN_EXPECTED_SHA256")
 		pluginRevision = os.Getenv("CORE_QUOTA_OLD_PLUGIN_EXPECTED_REVISION")
 	}
-	pluginFile := filepath.Join(pluginDir, "opencode-go-cliproxyapi.dll")
+	pluginFile := filepath.Join(pluginDir, "cpa-credential-opencode.dll")
 	pluginBytes, err := os.ReadFile(pluginFile)
 	if err != nil {
 		t.Fatal(err)

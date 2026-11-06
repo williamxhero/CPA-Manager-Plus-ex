@@ -88,7 +88,7 @@ func newRefreshFixture(t *testing.T, scales ...refreshFixtureScale) *refreshFixt
 	}
 	verifiedRefreshArtifact(t, binary, os.Getenv("CORE_QUOTA_EXPECTED_SHA256"), os.Getenv("CORE_QUOTA_EXPECTED_REVISION"))
 	plugin := os.Getenv("CORE_QUOTA_PLUGIN_DIR")
-	verifiedRefreshArtifact(t, filepath.Join(plugin, "opencode-go-cliproxyapi.dll"), os.Getenv("CORE_QUOTA_PLUGIN_EXPECTED_SHA256"), os.Getenv("CORE_QUOTA_PLUGIN_EXPECTED_REVISION"))
+	verifiedRefreshArtifact(t, filepath.Join(plugin, "cpa-credential-opencode.dll"), os.Getenv("CORE_QUOTA_PLUGIN_EXPECTED_SHA256"), os.Getenv("CORE_QUOTA_PLUGIN_EXPECTED_REVISION"))
 	if os.Getenv("CORE_QUOTA_PLUGIN_SDK_REVISION") != os.Getenv("CORE_QUOTA_EXPECTED_REVISION") {
 		t.Fatal("plugin SDK provenance mismatch")
 	}
@@ -233,7 +233,7 @@ func newRefreshFixture(t *testing.T, scales ...refreshFixtureScale) *refreshFixt
 	}
 	// Actual producer fixture accepts a preexisting config, allowing more than four
 	// independently disabled provider groups without changing compiled Core.
-	config := fmt.Sprintf("server: {port: 0}\nmanagement: {secret-key: test-password}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\nplugins:\n  enabled: true\n  dir: %q\n  configs:\n    opencode-go-cliproxyapi:\n      enabled: true\n      base-url: https://opencode.ai/zen/go/v1\n      api-keys: [{name: test, value: PLUGIN-SECRET-CANARY}]\napi-keys:\n  openai-compatibility:\n", filepath.ToSlash(filepath.Join(state, "auth")), filepath.ToSlash(plugin))
+	config := fmt.Sprintf("server: {port: 0}\nmanagement: {secret-key: test-password}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\nplugins:\n  enabled: true\n  dir: %q\n  configs:\n    cpa-credential-opencode:\n      enabled: true\n      base-url: https://opencode.ai/zen/go/v1\n      api-keys: [{name: test, value: PLUGIN-SECRET-CANARY}]\napi-keys:\n  openai-compatibility:\n", filepath.ToSlash(filepath.Join(state, "auth")), filepath.ToSlash(plugin))
 	for i := 0; i < scale.providers; i++ {
 		config += fmt.Sprintf("    - name: same-label-%d\n      base-url: https://unqueried.invalid/v1\n      disabled: true\n      keys:\n        - {api-key: INFERENCE-SECRET-%d, disabled: true}\n", i, i)
 		if i == 0 {

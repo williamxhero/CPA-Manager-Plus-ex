@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 func TestRewriteModelID(t *testing.T) {

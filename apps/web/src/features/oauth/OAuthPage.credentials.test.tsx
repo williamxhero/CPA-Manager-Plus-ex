@@ -264,8 +264,8 @@ describe('plugin manual credentials', () => {
       })
     );
     mocks.plugins = [
-      plugin('qwen-cliproxyapi', 'qwen'),
-      plugin('opencode-go-cliproxyapi', 'opencode-go'),
+      plugin('cpa-credential-qwen', 'qwen'),
+      plugin('cpa-credential-opencode', 'opencode-go'),
     ];
     await render(<PlanCredentialsPage />);
     expect(renderer.root.findAllByType('form')).toHaveLength(2);
@@ -277,7 +277,7 @@ describe('plugin manual credentials', () => {
   });
 
   it('uses only the exact plugin-id fallback when login metadata is absent', async () => {
-    mocks.plugins = [plugin('qwen-cliproxyapi', 'qwen')];
+    mocks.plugins = [plugin('cpa-credential-qwen', 'qwen')];
     mocks.startAuth.mockResolvedValue({
       url: 'https://plugin.example/login',
       state: 'unused-state',
@@ -296,12 +296,12 @@ describe('plugin manual credentials', () => {
   });
 
   it('prefers Qwen login-start metadata over the allowlist fallback', async () => {
-    mocks.plugins = [plugin('qwen-cliproxyapi', 'qwen')];
+    mocks.plugins = [plugin('cpa-credential-qwen', 'qwen')];
     mocks.startAuth.mockResolvedValue({
       metadata: {
         ...metadata,
         fields: metadata.fields.slice(0, 3),
-        submit_path: '/v0/management/plugins/qwen-cliproxyapi/alternate',
+        submit_path: '/v0/management/plugins/cpa-credential-qwen/alternate',
       },
     });
     await render(<PlanCredentialsPage />);
@@ -309,7 +309,7 @@ describe('plugin manual credentials', () => {
   });
 
   it('retains fallback if an older host rejects the metadata probe', async () => {
-    mocks.plugins = [plugin('qwen-cliproxyapi', 'qwen')];
+    mocks.plugins = [plugin('cpa-credential-qwen', 'qwen')];
     mocks.startAuth.mockRejectedValue(new Error('unsupported'));
     await render(<PlanCredentialsPage />);
     expect(findButton(renderer, '添加凭证')).toBeDefined();

@@ -15,8 +15,8 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
-	"qwen-cliproxyapi/internal/catalog"
-	"qwen-cliproxyapi/internal/config"
+	"cpa-credential-qwen/internal/catalog"
+	"cpa-credential-qwen/internal/config"
 )
 
 const providerYAML = "api-keys: [{value: dummy-config-key}]\ncommand: quota-stub\n"
@@ -373,7 +373,7 @@ func TestProviderQuotaDescribeManagementAndFallbackMethods(t *testing.T) {
 	if !decodeEnv(t, raw).OK {
 		t.Fatal(string(raw))
 	}
-	raw, _ = m.HandleCall(pluginabi.MethodManagementHandle, mustJSON(pluginapi.ManagementRequest{Method: http.MethodGet, Path: "/v0/management/plugins/qwen-cliproxyapi/quota-info"}))
+	raw, _ = m.HandleCall(pluginabi.MethodManagementHandle, mustJSON(pluginapi.ManagementRequest{Method: http.MethodGet, Path: "/v0/management/plugins/cpa-credential-qwen/quota-info"}))
 	var response pluginapi.ManagementResponse
 	decodeResult(t, raw, &response)
 	if response.StatusCode != 200 || !strings.Contains(string(response.Body), "quota/fetch") {

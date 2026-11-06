@@ -1,5 +1,5 @@
 // Package config loads Qwen configuration. Parsing and validation idioms are
-// adapted from the MIT opencode-go-cliproxyapi project (see NOTICE.md).
+// adapted from the MIT cpa-credential-opencode project (see NOTICE.md).
 package config
 
 import (

@@ -140,7 +140,7 @@ func policyOldCore(t *testing.T, stopOut ...*func()) string {
 		t.Fatal("actual Core revision unverified")
 	}
 	t.Logf("actual Core %s sha256=%s modified=%s", revision, os.Getenv("CORE_QUOTA_EXPECTED_SHA256"), modified)
-	pluginFile := filepath.Join(os.Getenv("CORE_QUOTA_PLUGIN_DIR"), "opencode-go-cliproxyapi.dll")
+	pluginFile := filepath.Join(os.Getenv("CORE_QUOTA_PLUGIN_DIR"), "cpa-credential-opencode.dll")
 	pluginBytes, err := os.ReadFile(pluginFile)
 	if err != nil {
 		t.Fatal(err)

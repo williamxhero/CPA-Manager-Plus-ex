@@ -79,7 +79,7 @@ class BuildSourceGateTest(unittest.TestCase):
         for name, item in self.sources.items():
             repo = Path(item["repository"])
             for relative in ("go.mod", "go.sum"):
-                (repo / relative).write_text("module qwen-cliproxyapi\n" if name == "CPA-Qwen" and relative == "go.mod" else "fixture\n", encoding="utf-8")
+                (repo / relative).write_text("module cpa-credential-qwen\n" if name == "CPA-Qwen" and relative == "go.mod" else "fixture\n", encoding="utf-8")
             if name == "CPA-Qwen":
                 (repo / "scripts").mkdir()
                 shutil.copy2(ENTRY.parents[1].parent / "providers/qwen/scripts/verify-manager-snapshot.py",

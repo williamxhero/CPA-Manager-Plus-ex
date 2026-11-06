@@ -152,7 +152,7 @@ function Get-Process {
     $directory=Join-Path $script:shadowOptions.RuntimeRoot ('shadow-fixture/cliproxy-pluginhost/pid-'+$owner)
     [IO.Directory]::CreateDirectory($directory)|Out-Null
     $modules=@()
-    foreach($name in @('opencode-go-cliproxyapi','qwen-cliproxyapi')){
+    foreach($name in @('cpa-credential-opencode','cpa-credential-qwen')){
         $artifact=Join-Path $script:shadowOptions.RuntimeRoot ('CPA-Core/plugins/windows/amd64/'+$name+'.dll')
         $digest=Get-CPAStackHash $artifact
         $mapped=Join-Path $directory ('cliproxy-plugin-'+$name+'-'+$digest.Substring(0,32)+'.dll')
@@ -198,7 +198,7 @@ function New-Case([string]$Name) {
     $case=Join-Path $OutputDir $Name; [IO.Directory]::CreateDirectory($case)|Out-Null
     $runtime=Join-Path $case 'runtime'; $candidate=Join-Path $case 'candidate'; $service=Join-Path $case 'service'
     [IO.Directory]::CreateDirectory($runtime)|Out-Null; [IO.Directory]::CreateDirectory($candidate)|Out-Null; [IO.Directory]::CreateDirectory($service)|Out-Null
-    $targets=@('CPA-Core/app/cli-proxy-api.exe','CPA-Manager-Plus/app/cpa-manager-plus.exe','CPA-Usage-Keeper/cpa-usage-keeper.exe','CPA-Core/static/management.html','CPA-Manager-Plus/panel/management.html','CPA-Core/plugins/windows/amd64/opencode-go-cliproxyapi.dll','CPA-Core/plugins/windows/amd64/qwen-cliproxyapi.dll','CPA-Core/tools/bailian-quota.exe')
+    $targets=@('CPA-Core/app/cli-proxy-api.exe','CPA-Manager-Plus/app/cpa-manager-plus.exe','CPA-Usage-Keeper/cpa-usage-keeper.exe','CPA-Core/static/management.html','CPA-Manager-Plus/panel/management.html','CPA-Core/plugins/windows/amd64/cpa-credential-opencode.dll','CPA-Core/plugins/windows/amd64/cpa-credential-qwen.dll','CPA-Core/tools/bailian-quota.exe')
     $files=@(); $index=0
     foreach($target in $targets){
         $installed=Join-Path $runtime $target; [IO.Directory]::CreateDirectory((Split-Path -Parent $installed))|Out-Null

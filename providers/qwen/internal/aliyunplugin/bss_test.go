@@ -11,7 +11,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
-	"qwen-cliproxyapi/internal/aliyunplugin"
+	"cpa-credential-qwen/internal/aliyunplugin"
 )
 
 func mockManager(t *testing.T, handler http.HandlerFunc, extra string, bridge *aliyunplugin.HostBridge) *aliyunplugin.Manager {

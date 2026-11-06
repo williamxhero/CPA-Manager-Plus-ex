@@ -49,7 +49,7 @@ providers/
 
 | 项 | 值 |
 |---|---|
-| 插件 ID | `opencode-go-cliproxyapi` |
+| 插件 ID | `cpa-credential-opencode` |
 | 导入方式 | `git subtree` |
 | 命名上游 remote | `opencode-upstream` → `https://github.com/massiveits/opencode-go-cliproxyapi.git`，branch `main` |
 | 首次导入 | `git subtree add --prefix=providers/opencode-go opencode-upstream main --squash` |
@@ -82,7 +82,7 @@ providers/
 
 | 项 | 值 |
 |---|---|
-| 插件 ID | `qwen-cliproxyapi` |
+| 插件 ID | `cpa-credential-qwen` |
 | 导入方式 | **一次性目录导入**（不虚构 upstream 或 subtree remote） |
 | 来源 | `williamxhero/qwen-cliproxyapi`，默认分支 `claude/qwen-provider` |
 | CLI | 内嵌 `cmd/bailian-quota`（+ `internal/bailianquota/*`），`go build -o bin/bailian-quota.exe ./cmd/bailian-quota` |
@@ -122,12 +122,12 @@ providers/
 
   | id | provider | 产物 | 构建 |
   |---|---|---|---|
-  | `opencode-go-plugin` | opencode-go | `providers/opencode-go/bin/opencode-go-cliproxyapi-windows-amd64.dll` | `CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o bin/...dll .` |
-  | `qwen-plugin` | qwen | `providers/qwen/bin/qwen-cliproxyapi-windows-amd64.dll` | `CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o bin/...dll .` |
+  | `opencode-go-plugin` | opencode-go | `providers/opencode-go/bin/cpa-credential-opencode-windows-amd64.dll` | `CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o bin/...dll .` |
+  | `qwen-plugin` | qwen | `providers/qwen/bin/cpa-credential-qwen-windows-amd64.dll` | `CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o bin/...dll .` |
   | `qwen-cli` | qwen | `providers/qwen/bin/bailian-quota.exe` | `go build -o bin/bailian-quota.exe ./cmd/bailian-quota` |
 
-- module 边界：各 provider 保持独立 `go.mod`（`module opencode-go-cliproxyapi` /
-  `module qwen-cliproxyapi`），不并入 `apps/manager-server`。
+- module 边界：各 provider 保持独立 `go.mod`（`module cpa-credential-opencode` /
+  `module cpa-credential-qwen`），不并入 `apps/manager-server`。
 - CI hook（SPEC5-D）：在 `.github/workflows/pr-check.yml` 增加 `providers` job，至少运行
   `bin/release/check-provider-import-boundary.mjs`；发布工作流按需增加三产物构建。
 

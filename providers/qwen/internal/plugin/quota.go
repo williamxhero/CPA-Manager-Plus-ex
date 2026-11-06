@@ -10,9 +10,9 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
-	"qwen-cliproxyapi/internal/bailianquota"
-	"qwen-cliproxyapi/internal/config"
-	"qwen-cliproxyapi/internal/quotawire"
+	"cpa-credential-qwen/internal/bailianquota"
+	"cpa-credential-qwen/internal/config"
+	"cpa-credential-qwen/internal/quotawire"
 )
 
 const maxQuotaStdout = quotawire.MaxStdout

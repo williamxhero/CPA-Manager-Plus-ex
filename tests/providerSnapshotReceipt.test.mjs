@@ -18,7 +18,7 @@ git('config', 'user.email', 'fixture@example.invalid');
 git('config', 'user.name', 'Receipt fixture');
 git('config', 'core.autocrlf', 'false');
 copyFileSync(path.join(repoRoot, 'providers/qwen/scripts/verify-manager-snapshot.py'), path.join(canonical, 'scripts/verify-manager-snapshot.py'));
-writeFileSync(path.join(canonical, 'go.mod'), 'module qwen-cliproxyapi\n');
+writeFileSync(path.join(canonical, 'go.mod'), 'module cpa-credential-qwen\n');
 writeFileSync(path.join(canonical, 'go.sum'), '');
 git('add', '.');
 git('-c', 'commit.gpgsign=false', 'commit', '-qm', 'controlled verifier fixture');
@@ -106,7 +106,7 @@ describe('Qwen consumer receipt production gate', () => {
     expect(verifyQwenSnapshot(fixture).status).toBe('verified');
   }, 30000);
 
-  for (const filename of ['qwen-cliproxyapi-windows-amd64.dll', 'aliyun-bss-quota.dll', 'bailian-quota.exe', 'aliyun-bss-quota.h']) {
+  for (const filename of ['cpa-credential-qwen-windows-amd64.dll', 'aliyun-bss-quota.dll', 'bailian-quota.exe', 'aliyun-bss-quota.h']) {
     it(`rejects existing output file link ${filename} before Go/probe and preserves source`, () => {
       const fixture = consumer();
       const output = path.join(fixture.root, 'bin/tmp/provider-build/qwen', filename);

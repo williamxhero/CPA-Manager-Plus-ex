@@ -9,7 +9,7 @@ second repository or a second CLI**. See `NOTICE.md` for migration provenance.
 
 | Entry | Product and authority |
 | --- | --- |
-| Native `qwen-cliproxyapi` | Selected-credential inference; strict Coding Plan CLI/cache candidate quota, subject to Core enrollment/receipt validation. |
+| Native `cpa-credential-qwen` | Selected-credential inference; strict Coding Plan CLI/cache candidate quota, subject to Core enrollment/receipt validation. |
 | Compatibility `aliyun-bss-quota`, `quota-source: command` | Existing account-level console/Token Plan CLI readings. No inference, auth provider or model catalogue. |
 | Compatibility `aliyun-bss-quota`, `quota-source: bss` | Signed AK/SK account money, optional current-month spend and actual Model Studio resource packages. Not Coding Plan request usage or key ownership. |
 
@@ -23,7 +23,7 @@ commands; migration is not a fallback from that lane into the compatibility DLL.
 ## Build
 
 Run the repository's `scripts/build-artifacts.py` with an explicit compatible
-Core source, Go 1.26.10+ and C compiler. It produces `qwen-cliproxyapi.dll`,
+Core source, Go 1.26.10+ and C compiler. It produces `cpa-credential-qwen.dll`,
 `aliyun-bss-quota.dll` and `bailian-quota.exe` on Windows, plus generated native
 headers and an all-success manifest. Linux/macOS filenames use their native
 suffixes; Windows execution evidence is not evidence of other platforms working.

@@ -39,7 +39,7 @@ beforeEach(() => {
 describe('oauthApi', () => {
   const requestScope = { apiBase: 'http://cpa.example:8317', managementKey: 'test-key' };
 
-  it.each(['qwen-cliproxyapi', 'opencode-go-cliproxyapi'])(
+  it.each(['cpa-credential-qwen', 'cpa-credential-opencode'])(
     'publishes %s credentials to scoped core file APIs before returning the created label',
     async (pluginId) => {
       const fields = {
@@ -47,7 +47,7 @@ describe('oauthApi', () => {
         api_key: 'test-secret',
         name: 'Work',
       };
-      const provider = pluginId === 'qwen-cliproxyapi' ? 'qwen' : 'opencode-go';
+      const provider = pluginId === 'cpa-credential-qwen' ? 'qwen' : 'opencode-go';
       const id = `${provider}-key-${sha256RawTextHex(`${fields.api_key}\0${fields.base_url}`)}`;
       const response = { ok: true, id, label: 'Work' };
       mocks.get
@@ -154,8 +154,8 @@ describe('oauthApi', () => {
       mocks.post.mockResolvedValue(response);
       await expect(
         oauthApi.submitPluginCredential(
-          'qwen-cliproxyapi',
-          '/v0/management/plugins/qwen-cliproxyapi/credentials',
+          'cpa-credential-qwen',
+          '/v0/management/plugins/cpa-credential-qwen/credentials',
           { api_key: 'synthetic-key-a' },
           requestScope
         )
@@ -167,7 +167,7 @@ describe('oauthApi', () => {
   it('rejects a submit path outside the plugin management namespace before sending secrets', async () => {
     await expect(
       oauthApi.submitPluginCredential(
-        'qwen-cliproxyapi',
+        'cpa-credential-qwen',
         'https://untrusted.example/credentials',
         { api_key: 'test-secret' },
         requestScope

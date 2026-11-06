@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/signal"
 
-	"qwen-cliproxyapi/internal/bailianquota"
+	"cpa-credential-qwen/internal/bailianquota"
 )
 
 func main() {

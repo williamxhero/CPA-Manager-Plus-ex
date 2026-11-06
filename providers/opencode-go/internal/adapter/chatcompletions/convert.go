@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"opencode-go-cliproxyapi/internal/adapter/shared"
-	"opencode-go-cliproxyapi/internal/errclass"
+	"cpa-credential-opencode/internal/adapter/shared"
+	"cpa-credential-opencode/internal/errclass"
 )
 
 // ---- upstream Chat Completions response shapes (FR-006) ----

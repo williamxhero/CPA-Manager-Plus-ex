@@ -25,8 +25,8 @@ TARGETS = {
     "CPA-Manager-Plus-ex/management.html": ["CPA-Core/static/management.html",
                                           "CPA-Manager-Plus/panel/management.html"],
     "CPA-Usage-Keeper-ex/cpa-usage-keeper.exe": ["CPA-Usage-Keeper/cpa-usage-keeper.exe"],
-    "CPA-OpenCode-ex/opencode-go-cliproxyapi.dll": ["CPA-Core/plugins/windows/amd64/opencode-go-cliproxyapi.dll"],
-    "CPA-Qwen/qwen-cliproxyapi.dll": ["CPA-Core/plugins/windows/amd64/qwen-cliproxyapi.dll"],
+    "CPA-OpenCode-ex/cpa-credential-opencode.dll": ["CPA-Core/plugins/windows/amd64/cpa-credential-opencode.dll"],
+    "CPA-Qwen/cpa-credential-qwen.dll": ["CPA-Core/plugins/windows/amd64/cpa-credential-qwen.dll"],
     "CPA-Qwen/bailian-quota.exe": ["CPA-Core/tools/bailian-quota.exe"],
 }
 CANDIDATE_ONLY = ("CPA-Qwen/aliyun-bss-quota.dll",)
@@ -140,7 +140,7 @@ def build(args, sources):
                 # Core's Go directive may require updating this external modfile.
                 # Never update the reviewed plugin checkout or rely on GOFLAGS.
                 mod_flags = ["-mod=mod", "-modfile=" + str(modfile)]
-                plugin = "opencode-go-cliproxyapi" if name == "CPA-OpenCode-ex" else "qwen-cliproxyapi"
+                plugin = "cpa-credential-opencode" if name == "CPA-OpenCode-ex" else "cpa-credential-qwen"
                 run(["go", "build", *mod_flags, "-buildvcs=true", "-trimpath", "-buildmode=c-shared",
                      "-ldflags=-s -w", "-o", dest / (plugin + ".dll"), "."])
                 run(["go", "test", *mod_flags, "./..."])

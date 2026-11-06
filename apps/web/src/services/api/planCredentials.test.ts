@@ -38,8 +38,8 @@ const runtime = {
 };
 const create = () =>
   oauthApi.submitPluginCredential(
-    'qwen-cliproxyapi',
-    '/v0/management/plugins/qwen-cliproxyapi/credentials',
+    'cpa-credential-qwen',
+    '/v0/management/plugins/cpa-credential-qwen/credentials',
     { api_key: key, base_url: baseURL, name: 'Synthetic alias' },
     scope
   );

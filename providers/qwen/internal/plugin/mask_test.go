@@ -3,7 +3,7 @@ package plugin
 import (
 	"testing"
 
-	"qwen-cliproxyapi/internal/config"
+	"cpa-credential-qwen/internal/config"
 )
 
 // The panel shows a credential's label; without an alias that label is the key

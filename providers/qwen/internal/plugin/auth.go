@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"qwen-cliproxyapi/internal/config"
+	"cpa-credential-qwen/internal/config"
 	"regexp"
 	"strings"
 	"time"

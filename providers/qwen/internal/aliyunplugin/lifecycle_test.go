@@ -11,7 +11,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
-	"qwen-cliproxyapi/internal/aliyunplugin"
+	"cpa-credential-qwen/internal/aliyunplugin"
 )
 
 func describe(t *testing.T, m *aliyunplugin.Manager) pluginapi.QuotaDescribeResponse {

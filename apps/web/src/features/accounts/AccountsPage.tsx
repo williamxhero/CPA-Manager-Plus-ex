@@ -191,6 +191,7 @@ import {
   buildAccountQuotaDisplayWindows,
   type AccountQuotaDisplayWindow,
 } from '@/features/accounts/model/accountQuotaDisplayWindows';
+import { credentialQuotaListWindows } from '@/features/accounts/model/credentialQuotaListWindows';
 import {
   buildAccountQuotaWindowDefinitions,
   type AccountQuotaWindowDefinition,
@@ -1304,6 +1305,10 @@ export function AccountsPage() {
     () => createCodexInspectionConnectionFingerprint(apiBase, managementKey) ?? '',
     [apiBase, managementKey]
   );
+  const [credentialListWindows, setCredentialListWindows] = useState<
+    Map<string, AccountQuotaDisplayWindow[]>
+  >(new Map());
+  const [credentialListRevision, setCredentialListRevision] = useState(0);
   const credentialQuotaRevision = useAccountCredentialMutationRevisionStore((state) =>
     Object.values(state.events)
       .filter(
@@ -4889,16 +4894,78 @@ export function AccountsPage() {
     },
     [t]
   );
+  const credentialQuotaTargets = useMemo(
+    () =>
+      pageRows
+        .filter(
+          (row) =>
+            (row.provider === OPENCODE_GO_CONFIG.type || row.provider === QWEN_CONFIG.type) &&
+            row.authIndex
+        )
+        .map((row) => `${row.provider}:${row.authIndex}`)
+        .join('\n'),
+    [pageRows]
+  );
+  useEffect(() => {
+    if (
+      !backendCredentialQuota ||
+      !featureAvailability.managerServiceBase ||
+      !managementKey ||
+      !credentialQuotaTargets
+    ) {
+      return;
+    }
+    const abort = new AbortController();
+    const targets = credentialQuotaTargets.split('\n').map((item) => {
+      const splitAt = item.indexOf(':');
+      return { provider: item.slice(0, splitAt), authIndex: item.slice(splitAt + 1) };
+    });
+    void Promise.all(
+      targets.map(async (target) => {
+        try {
+          const quota = await credentialQuotaRequest<CredentialQuotaStatus>(
+            featureAvailability.managerServiceBase,
+            managementKey,
+            'GET',
+            `?authIndex=${encodeURIComponent(target.authIndex)}`,
+            undefined,
+            abort.signal
+          );
+          const source = target.provider === QWEN_CONFIG.type ? 'qwen' : 'opencode-go';
+          return [
+            target.authIndex,
+            credentialQuotaListWindows(quota.lastSuccess?.windowsJson, source),
+          ] as const;
+        } catch {
+          return [target.authIndex, [] as AccountQuotaDisplayWindow[]] as const;
+        }
+      })
+    ).then((rows) => {
+      if (abort.signal.aborted) return;
+      setCredentialListWindows(
+        new Map(rows.filter((entry): entry is readonly [string, AccountQuotaDisplayWindow[]] => entry[1].length > 0).map((entry) => [entry[0], entry[1]]))
+      );
+    });
+    return () => abort.abort();
+  }, [
+    backendCredentialQuota,
+    credentialListRevision,
+    credentialQuotaTargets,
+    featureAvailability.managerServiceBase,
+    managementKey,
+  ]);
   const buildQuotaDisplayWindows = useCallback(
     (row: AccountRow): AccountQuotaDisplayWindow[] => {
-      return buildAccountQuotaDisplayWindows(row, {
+      const local = buildAccountQuotaDisplayWindows(row, {
         stores: baseQuotaStores,
         getDisplayCodexQuota,
         translateQuotaWindowLabel,
         t,
       });
+      if (local.length > 0 || !row.authIndex) return local;
+      return credentialListWindows.get(String(row.authIndex)) ?? local;
     },
-    [baseQuotaStores, getDisplayCodexQuota, t, translateQuotaWindowLabel]
+    [baseQuotaStores, credentialListWindows, getDisplayCodexQuota, t, translateQuotaWindowLabel]
   );
   const buildCodexSnapshotDefinitions = useCallback(
     (row: AccountRow, quota: CodexQuotaState | undefined): AccountQuotaWindowDefinition[] =>
@@ -6593,12 +6660,11 @@ export function AccountsPage() {
             'GET',
             `?authIndex=${encodeURIComponent(String(row.authIndex))}`
           );
-          const currentBinding = credentialProtection(row.authIndex).binding;
           if (
-            !currentBinding ||
             (quota.auth_index !== undefined && quota.auth_index !== String(row.authIndex)) ||
-            JSON.stringify(currentBinding.scope) !== JSON.stringify(quota.scope) ||
-            JSON.stringify(currentBinding.targets) !== JSON.stringify(quota.targets)
+            !quota.scope ||
+            !quota.targets ||
+            !quota.sourceId
           )
             return { status: 'error', error: 'identity_or_source_changed' };
           await refreshCredentialSource(featureAvailability.managerServiceBase, managementKey, {
@@ -6610,6 +6676,7 @@ export function AccountsPage() {
             queryVersion: quota.queryVersion ?? quota.version,
             sourceVersion: quota.sourceVersion,
           });
+          setCredentialListRevision((value) => value + 1);
           return { status: 'success' };
         } catch (error) {
           return {

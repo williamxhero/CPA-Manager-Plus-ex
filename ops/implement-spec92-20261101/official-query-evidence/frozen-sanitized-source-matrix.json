@@ -267,9 +267,9 @@
       "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
     },
     {
-      "audit_locator": "plugin/opencode-go-cliproxyapi",
+      "audit_locator": "plugin/cpa-credential-opencode",
       "kind": "plugin",
-      "family": "opencode-go-cliproxyapi",
+      "family": "cpa-credential-opencode",
       "host": "opencode.ai",
       "credential_count": 1,
       "delivered_protocol": null,
@@ -277,9 +277,9 @@
       "real_runtime_readiness": "not_reprobed; supplied authorized DeepSeek probe200 is an input, not this implementation deployment acceptance"
     },
     {
-      "audit_locator": "plugin/qwen-cliproxyapi",
+      "audit_locator": "plugin/cpa-credential-qwen",
       "kind": "plugin",
-      "family": "qwen-cliproxyapi",
+      "family": "cpa-credential-qwen",
       "host": "token-plan.cn-beijing.maas.aliyuncs.com",
       "credential_count": 1,
       "delivered_protocol": null,

@@ -18,7 +18,7 @@ func TestRegistrationUsesCanonicalRepositoryAndPreservesRuntimeID(t *testing.T) 
 	if registration.Metadata.GitHubRepository != "https://github.com/williamxhero/CPA-Qwen" {
 		t.Fatalf("stale repository metadata: %s", registration.Metadata.GitHubRepository)
 	}
-	if registration.Metadata.Logo != "/v0/resource/plugins/qwen-cliproxyapi/logo.svg" {
+	if registration.Metadata.Logo != "/v0/resource/plugins/cpa-credential-qwen/logo.svg" {
 		t.Fatal("runtime plugin ID changed")
 	}
 	hasBindings := false
@@ -31,7 +31,7 @@ func TestRegistrationUsesCanonicalRepositoryAndPreservesRuntimeID(t *testing.T) 
 		t.Fatal("quota resource bindings registration lost")
 	}
 	raw, _ = m.HandleCall(pluginabi.MethodAuthLoginStart, []byte(`{}`))
-	if !decodeEnv(t, raw).OK || !strings.Contains(string(raw), "/v0/management/plugins/qwen-cliproxyapi/credentials") {
+	if !decodeEnv(t, raw).OK || !strings.Contains(string(raw), "/v0/management/plugins/cpa-credential-qwen/credentials") {
 		t.Fatal("runtime credential route changed")
 	}
 }

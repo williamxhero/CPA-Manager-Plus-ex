@@ -1,4 +1,4 @@
-module qwen-cliproxyapi
+module cpa-credential-qwen
 
 go 1.26.7
 

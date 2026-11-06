@@ -16,7 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 const MaxStdout = 1 << 20

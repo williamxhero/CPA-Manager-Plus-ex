@@ -100,7 +100,7 @@ function Get-CPAStackRunningIdentity($Context) {
         $identities+=@{name=$name;pid=$processes[0].ProcessId;startedAt=$processes[0].CreationDate.ToUniversalTime().ToString('o');path=$path;sha256=(Get-CPAStackHash $path)}
         if($name -eq 'LocalCPA'){
             $modules=@((Get-Process -Id $processes[0].ProcessId -ErrorAction Stop).Modules|ForEach-Object {$_.FileName})
-            foreach($relative in @('CPA-Core/plugins/windows/amd64/opencode-go-cliproxyapi.dll','CPA-Core/plugins/windows/amd64/qwen-cliproxyapi.dll')){
+            foreach($relative in @('CPA-Core/plugins/windows/amd64/cpa-credential-opencode.dll','CPA-Core/plugins/windows/amd64/cpa-credential-qwen.dll')){
                 $dll=[IO.Path]::GetFullPath((Join-Path $Context.runtime $relative))
                 $expectedHash=Get-CPAStackHash $dll
                 $pluginId=[IO.Path]::GetFileNameWithoutExtension($dll)
@@ -299,7 +299,7 @@ function Invoke-CPALocalStackDeployment {
         $receiptOwned=$true
         if(Test-Path -LiteralPath $ctx.backup){throw 'backup_exists'}
         $manifest=Get-Content -LiteralPath $ManifestPath -Raw|ConvertFrom-Json
-        $required=@('CPA-Core/app/cli-proxy-api.exe','CPA-Manager-Plus/app/cpa-manager-plus.exe','CPA-Usage-Keeper/cpa-usage-keeper.exe','CPA-Core/static/management.html','CPA-Manager-Plus/panel/management.html','CPA-Core/plugins/windows/amd64/opencode-go-cliproxyapi.dll','CPA-Core/plugins/windows/amd64/qwen-cliproxyapi.dll','CPA-Core/tools/bailian-quota.exe')
+        $required=@('CPA-Core/app/cli-proxy-api.exe','CPA-Manager-Plus/app/cpa-manager-plus.exe','CPA-Usage-Keeper/cpa-usage-keeper.exe','CPA-Core/static/management.html','CPA-Manager-Plus/panel/management.html','CPA-Core/plugins/windows/amd64/cpa-credential-opencode.dll','CPA-Core/plugins/windows/amd64/cpa-credential-qwen.dll','CPA-Core/tools/bailian-quota.exe')
         if($manifest.schema -ne 1 -or @($manifest.files).Count -ne $required.Count){throw 'manifest_schema'}
         $seen=@{};$before=@{}
         foreach($file in $manifest.files){

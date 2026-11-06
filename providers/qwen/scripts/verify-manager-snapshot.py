@@ -75,7 +75,7 @@ def canonical_inputs(root):
         if object_id != head_files[name]:
             raise ValueError("canonical working bytes do not belong to the declared HEAD commit: " + name)
         files[name] = hashlib.sha256(body).hexdigest()
-    if (root / "go.mod").read_text(encoding="utf-8").splitlines()[0].strip() != "module qwen-cliproxyapi":
+    if (root / "go.mod").read_text(encoding="utf-8").splitlines()[0].strip() != "module cpa-credential-qwen":
         raise ValueError("canonical checkout is not the Qwen module")
     return {"repository": REPOSITORY, "commit": git(root, "rev-parse", "HEAD").decode().strip(), "tree": git(root, "rev-parse", "HEAD^{tree}").decode().strip(), "files": files}
 

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"qwen-cliproxyapi/internal/bss"
+	"cpa-credential-qwen/internal/bss"
 )
 
 func success(data string) []byte {

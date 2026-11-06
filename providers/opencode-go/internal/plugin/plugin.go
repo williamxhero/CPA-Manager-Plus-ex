@@ -16,9 +16,9 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
-	"opencode-go-cliproxyapi/internal/catalog"
-	"opencode-go-cliproxyapi/internal/config"
-	"opencode-go-cliproxyapi/internal/errclass"
+	"cpa-credential-opencode/internal/catalog"
+	"cpa-credential-opencode/internal/config"
+	"cpa-credential-opencode/internal/errclass"
 )
 
 // ProviderID is the single provider key served by this plugin (FR-001).
@@ -26,7 +26,7 @@ const ProviderID = "opencode-go"
 
 // pluginName / pluginVersion are reported in registration metadata.
 const (
-	pluginName    = "opencode-go-cliproxyapi"
+	pluginName    = "cpa-credential-opencode"
 	pluginVersion = "0.2.0"
 )
 

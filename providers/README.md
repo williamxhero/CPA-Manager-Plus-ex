@@ -52,7 +52,7 @@ node bin/release/check-provider-import-boundary.mjs   # 必须通过；失败则
 ```
 
 > `git subtree` 不能按路径过滤，导入源与本地定制（本地 fork `williamxhero/
-> opencode-go-cliproxyapi-ex` 领先上游 17 个提交）的取舍由 SPEC5-B 决定并记录；
+> cpa-credential-opencode-ex` 领先上游 17 个提交）的取舍由 SPEC5-B 决定并记录；
 > 冲突不得强行覆盖，必须报告并测试。
 
 ## Qwen 导入历史（SPEC5-C）
@@ -100,7 +100,7 @@ Core 必须包含 SPEC92 观察字段的兼容 SDK；published `v8.0.0` 不足�
 
 Qwen 三产物写到仓库根的 `bin/tmp/provider-build/qwen/`（**快照之外**）：
 
-- `qwen-cliproxyapi-windows-amd64.dll`：原 Qwen 插件；
+- `cpa-credential-qwen-windows-amd64.dll`：原 Qwen 插件；
 - `aliyun-bss-quota.dll`：同仓 quota-only 兼容入口，不是第二份源码或 CLI；
 - `bailian-quota.exe`：唯一 CLI。
 

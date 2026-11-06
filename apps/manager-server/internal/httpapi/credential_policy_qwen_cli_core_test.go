@@ -249,7 +249,7 @@ func newQwenCLIPolicyFixture(t *testing.T, mode string) *qwenCLIPolicyFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(pluginDir, "qwen-cliproxyapi.dll"), plugin, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(pluginDir, "cpa-credential-qwen.dll"), plugin, 0600); err != nil {
 		t.Fatal(err)
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -275,7 +275,7 @@ plugins:
   enabled: true
   dir: %q
   configs:
-    qwen-cliproxyapi:
+    cpa-credential-qwen:
       enabled: true
       allow-http: true
       base-url: %q
@@ -460,7 +460,7 @@ func (f *qwenCLIPolicyFixture) enroll() {
 		// version or rewrite a sealed catalog to bypass enrollment self-rotation.
 		bindings = append(bindings, map[string]any{"resource-id": target.ResourceID, "identity-version": target.IdentityVersion, "credential-version": target.CredentialVersion, "config-version": target.ConfigVersion, "membership-version": target.MembershipVersion})
 	}
-	configs["qwen-cliproxyapi"]["quota-resource-bindings"] = bindings
+	configs["cpa-credential-qwen"]["quota-resource-bindings"] = bindings
 	var result any
 	f.coreAPI("PUT", "config/plugins/configs", configs, &result)
 	deadline := time.Now().Add(10 * time.Second)

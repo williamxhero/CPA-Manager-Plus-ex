@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -465,11 +466,27 @@ func (s *Service) readRecord(ctx context.Context, b Binding, r store.OfficialBal
 }
 
 func projectPublishedNewAPI(ctx context.Context, out *Status) {
-	if out.Adapter != balance.NewAPIBrowserSessionV1 || out.BrowserSession == nil || (out.NewAPI != nil && out.NewAPI.Conversion != nil) {
+	if out.NewAPI != nil && out.NewAPI.Conversion != nil {
 		return
 	}
-	balance.ApplyPublishedNewAPIDisplay(ctx, out.BrowserSession.Origin, out.LastSuccess)
-	balance.ApplyPublishedNewAPIDisplay(ctx, out.BrowserSession.Origin, out.Attempt)
+	origin := ""
+	switch out.Adapter {
+	case balance.NewAPIBrowserSessionV1:
+		if out.BrowserSession == nil {
+			return
+		}
+		origin = out.BrowserSession.Origin
+	case balance.NewAPITokenUsageV1:
+		parsed, err := url.Parse(out.Endpoint)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return
+		}
+		origin = parsed.Scheme + "://" + parsed.Host
+	default:
+		return
+	}
+	balance.ApplyPublishedNewAPIDisplay(ctx, origin, out.LastSuccess)
+	balance.ApplyPublishedNewAPIDisplay(ctx, origin, out.Attempt)
 }
 
 func webRequest(c Config) balance.WebRequest {

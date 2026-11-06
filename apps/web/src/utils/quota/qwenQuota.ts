@@ -9,7 +9,7 @@ import { normalizeAuthIndex } from '@/utils/authIndex';
 import { isRecord } from '@/utils/helpers';
 import type { QuotaFetchContext } from './metaQuota';
 
-export const QWEN_QUOTA_PATH = '/plugins/qwen-cliproxyapi/quota-usage';
+export const QWEN_QUOTA_PATH = '/plugins/cpa-credential-qwen/quota-usage';
 export const QWEN_NATIVE_QUOTA_PATH = '/quota/fetch';
 
 export interface QwenQuotaWindow {

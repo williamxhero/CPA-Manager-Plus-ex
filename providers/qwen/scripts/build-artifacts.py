@@ -110,7 +110,7 @@ def main():
         if not isinstance(go_environment, dict):
             raise ValueError("Go environment did not return a JSON object")
         products = [
-            ("qwen", "qwen-cliproxyapi" + suffix, ".", True),
+            ("qwen", "cpa-credential-qwen" + suffix, ".", True),
             ("aliyun-quota-compat", "aliyun-bss-quota" + suffix, "./cmd/aliyun-bss-quota-plugin", True),
             ("bailian-quota", "bailian-quota" + (".exe" if target_os == "windows" else ""), "./cmd/bailian-quota", False),
         ]

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"opencode-go-cliproxyapi/internal/adapter/shared"
-	"opencode-go-cliproxyapi/internal/errclass"
+	"cpa-credential-opencode/internal/adapter/shared"
+	"cpa-credential-opencode/internal/errclass"
 )
 
 func wantErr(t *testing.T, eErr *errclass.Error, class errclass.Class) {

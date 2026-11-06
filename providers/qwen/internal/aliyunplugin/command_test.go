@@ -14,7 +14,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 	"gopkg.in/yaml.v3"
-	"qwen-cliproxyapi/internal/aliyunplugin"
+	"cpa-credential-qwen/internal/aliyunplugin"
 )
 
 const selectedKey = "selected-credential-fixture-not-for-cli"

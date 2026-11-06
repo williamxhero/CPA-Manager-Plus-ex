@@ -17,8 +17,8 @@ export const PLAN_CREDENTIAL_DEFAULT_URLS: Readonly<Record<string, string>> = {
   'opencode-go': 'https://opencode.ai/zen/go/v1',
 };
 const pluginProviders: Readonly<Record<string, string>> = {
-  'qwen-cliproxyapi': 'qwen',
-  'opencode-go-cliproxyapi': 'opencode-go',
+  'cpa-credential-qwen': 'qwen',
+  'cpa-credential-opencode': 'opencode-go',
 };
 type PlanFields = AuthFileFieldsPatch & { api_key?: string; label?: string; disabled?: boolean };
 const normalizeURL = (value: string) => value.trim().replace(/\/+$/, '');

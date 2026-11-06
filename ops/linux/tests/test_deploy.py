@@ -90,7 +90,7 @@ class DeployTests(unittest.TestCase):
             (self.root / "config.yaml.final").write_text(self.old_config + "# new-config\n")
             plugins = self.root / "plugins/linux/amd64"
             plugins.mkdir(parents=True)
-            for name in ("qwen-cliproxyapi.so", "opencode-go-cliproxyapi.so"):
+            for name in ("cpa-credential-qwen.so", "cpa-credential-opencode.so"):
                 (plugins / name).write_text("original-plugin")
             (self.tmp / "oauth").mkdir()
             quota = self.tmp / "quota"
@@ -141,7 +141,7 @@ class DeployTests(unittest.TestCase):
         self.assertEqual((self.root / "app/current").resolve(), self.root / "app/old")
         if self.kind == "core":
             self.assertEqual((self.root / "config.yaml").read_text(), self.old_config)
-            self.assertEqual((self.root / "plugins/linux/amd64/qwen-cliproxyapi.so").read_text(), "original-plugin")
+            self.assertEqual((self.root / "plugins/linux/amd64/cpa-credential-qwen.so").read_text(), "original-plugin")
             self.assertFalse((self.root / "plugins/added.so").exists())
         else:
             self.assertEqual((self.root / "panel/current").resolve(), self.root / "panel/old")
@@ -161,7 +161,7 @@ class DeployTests(unittest.TestCase):
         self.assertFalse((backup / "app-target.txt").is_symlink())
         self.assertEqual((backup / "app-target.txt").read_text().strip(), str(self.root / "app/old"))
         self.assertEqual((backup / "config.yaml.old").read_text(), self.old_config)
-        self.assertEqual((backup / "plugins/linux/amd64/qwen-cliproxyapi.so").read_text(), "original-plugin")
+        self.assertEqual((backup / "plugins/linux/amd64/cpa-credential-qwen.so").read_text(), "original-plugin")
 
     def test_core_restart_failure_restores_pointer_config_and_health(self):
         self.fixture("core")
@@ -234,7 +234,7 @@ exec /bin/{command} "$@"
     def test_core_health_failure_restores_plugins_and_absence(self):
         self.fixture("core")
         config = self.root / "config.yaml.final"
-        config.write_text(config.read_text() + f"delete-plugin: {self.root}/plugins/linux/amd64/qwen-cliproxyapi.so\nwrite-plugin: {self.root}/plugins/added.so\n")
+        config.write_text(config.read_text() + f"delete-plugin: {self.root}/plugins/linux/amd64/cpa-credential-qwen.so\nwrite-plugin: {self.root}/plugins/added.so\n")
         self.assertEqual(self.run_deploy(failure="health-new").returncode, 3)
         self.assertEqual(self.report["status"], "rolled_back")
         self.assert_restored()
@@ -271,14 +271,14 @@ exec /bin/{command} "$@"
         shutil.move(self.root / "plugins", protected)
         (self.root / "plugins").symlink_to(protected)
         config = self.root / "config.yaml.final"
-        config.write_text(config.read_text() + f"delete-plugin: {self.root}/plugins/linux/amd64/qwen-cliproxyapi.so\n")
+        config.write_text(config.read_text() + f"delete-plugin: {self.root}/plugins/linux/amd64/cpa-credential-qwen.so\n")
         before = snapshot(protected)
         self.assertEqual(self.run_deploy("--dry-run").returncode, 2)
         self.assertEqual(snapshot(protected), before)
 
     def test_core_linked_plugin_file_is_not_a_trusted_snapshot(self):
         self.fixture("core")
-        plugin = self.root / "plugins/linux/amd64/qwen-cliproxyapi.so"
+        plugin = self.root / "plugins/linux/amd64/cpa-credential-qwen.so"
         external = self.tmp / "external-plugin.so"
         plugin.rename(external)
         plugin.symlink_to(external)

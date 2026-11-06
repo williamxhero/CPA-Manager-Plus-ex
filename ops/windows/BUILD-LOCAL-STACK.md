@@ -43,7 +43,7 @@ The preflight-only source-ref check does not execute this snapshot gate and is
 not a build/snapshot acceptance result.
 
 Qwen builds three products from the selected **independent CPA-Qwen pin**:
-`qwen-cliproxyapi.dll`, `aliyun-bss-quota.dll` and the sole `bailian-quota.exe`.
+`cpa-credential-qwen.dll`, `aliyun-bss-quota.dll` and the sole `bailian-quota.exe`.
 All live under `artifacts/CPA-Qwen/`, outside the source snapshots. The compatibility
 DLL is hashed under `candidate-manifest.json`'s `candidate_only` list with
 `policy: candidate-only` and source/Core identities; it has **no `target`** and is

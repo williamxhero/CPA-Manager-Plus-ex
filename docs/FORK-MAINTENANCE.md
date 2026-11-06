@@ -47,7 +47,7 @@
 面板只是消费者；仓库托管整合不等于面板替代 CPA 执行器。
 
 - 布局：`providers/opencode-go/`、`providers/qwen/`，每个 provider **保持独立 Go module**
-  （`module opencode-go-cliproxyapi` / `module qwen-cliproxyapi`），不并入 `apps/manager-server`。
+  （`module cpa-credential-opencode` / `module cpa-credential-qwen`），不并入 `apps/manager-server`。
 - 契约文件：机器可读 `providers/import-boundary.json`；人读 `docs/providers-layout-contract.md`；
   边界说明 `providers/README.md`；归属声明根 `NOTICE`。
 - 边界校验：`node bin/release/check-provider-import-boundary.mjs`（`--json` 输出结构化结果）。
@@ -114,8 +114,8 @@ Qwen 为**一次性目录导入**，不虚构 upstream 或 subtree remote，无�
 
   | id | 产物 |
   |---|---|
-  | `opencode-go-plugin` | `providers/opencode-go/bin/opencode-go-cliproxyapi-windows-amd64.dll` |
-  | `qwen-plugin` | `providers/qwen/bin/qwen-cliproxyapi-windows-amd64.dll` |
+  | `opencode-go-plugin` | `providers/opencode-go/bin/cpa-credential-opencode-windows-amd64.dll` |
+  | `qwen-plugin` | `providers/qwen/bin/cpa-credential-qwen-windows-amd64.dll` |
   | `qwen-cli` | `providers/qwen/bin/bailian-quota.exe` |
 
 - CI：`.github/workflows/pr-check.yml` 新增 `providers` job，矩阵 `os ∈ {ubuntu-latest, windows-latest} × go ∈ {1.26.x, 1.27.x}`，

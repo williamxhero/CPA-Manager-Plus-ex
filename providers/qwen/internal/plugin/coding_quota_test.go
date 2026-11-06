@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"qwen-cliproxyapi/internal/bailianquota"
+	"cpa-credential-qwen/internal/bailianquota"
 )
 
 type codingQuotaTransport func(*http.Request) (*http.Response, error)

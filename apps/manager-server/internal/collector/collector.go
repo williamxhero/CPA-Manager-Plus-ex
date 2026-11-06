@@ -208,9 +208,10 @@ func (m *Manager) runSubscribe(ctx context.Context, cfg RuntimeConfig, mode stri
 		}
 		client, err := resp.Dial(cfg.CPAUpstreamURL, cfg.TLSSkipVerify)
 		if err != nil {
-			if mode == "auto" && !subscribed {
-				return fallback()
-			}
+			// A refused connection is the upstream restarting, not a server that
+			// cannot speak SUBSCRIBE. Auto mode keeps retrying instead of
+			// settling on the HTTP queue, which stays empty while another
+			// subscriber is connected.
 			m.markError("connect", err)
 			sleep(ctx, backoff)
 			backoff = nextBackoff(backoff)

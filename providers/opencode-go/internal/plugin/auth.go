@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"opencode-go-cliproxyapi/internal/config"
+	"cpa-credential-opencode/internal/config"
 	"regexp"
 	"strings"
 

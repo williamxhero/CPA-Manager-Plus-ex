@@ -1,5 +1,5 @@
 // Package bss provides signed, bounded Alibaba billing RPC reads. Its module
-// import path is qwen-cliproxyapi/internal/bss. The implementation and baseline
+// import path is cpa-credential-qwen/internal/bss. The implementation and baseline
 // tests were migrated from CPA-Aliyun-Quota/internal/bss; no plugin entrypoint,
 // SDK dependency, configuration, quota projection or automatic query is added.
 //

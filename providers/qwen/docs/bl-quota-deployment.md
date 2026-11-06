@@ -23,7 +23,7 @@ User instructions identify **yosef-server** as the live CPA runtime. No local Wi
 
 - OS/architecture: Linux x86_64; SSH user: `yosef`.
 - CPA services are active **user units**: `cpa-cliproxyapi.service`, `cpa-manager.service`.
-- Inspected only non-secret facts from `/data/cpa/CLIProxyAPI/config.yaml`: `plugins.enabled` is true, but `plugins.configs.qwen-cliproxyapi` is **absent**.
+- Inspected only non-secret facts from `/data/cpa/CLIProxyAPI/config.yaml`: `plugins.enabled` is true, but `plugins.configs.cpa-credential-qwen` is **absent**.
 - `command -v bl` returned no path in the SSH user's environment. This does not prove absence under every other identity/service PATH.
 - No service was stopped/restarted, no production file/cache/profile was modified, and no management secret or console token was displayed.
 

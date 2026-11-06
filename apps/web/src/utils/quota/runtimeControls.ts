@@ -23,7 +23,7 @@ let current: RuntimeControls = { ...DEFAULTS, balanceTexts: {}, autoStartStopIds
 let loaded = false;
 let balanceLoadSettled = false;
 const listeners = new Set<() => void>();
-const BALANCE_CACHE_KEY = 'cpa.providerBalanceCache';
+const BALANCE_CACHE_KEY = 'cpa.providerBalanceCache.v2';
 const BALANCE_TEXT_KEY =
   /^(gemini|interactions|codex|xai|meta|claude|vertex|openai):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

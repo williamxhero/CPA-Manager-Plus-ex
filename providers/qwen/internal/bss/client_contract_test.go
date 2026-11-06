@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"qwen-cliproxyapi/internal/bss"
+	"cpa-credential-qwen/internal/bss"
 )
 
 func fixtureClient(t *testing.T, handler http.HandlerFunc) *bss.Client {

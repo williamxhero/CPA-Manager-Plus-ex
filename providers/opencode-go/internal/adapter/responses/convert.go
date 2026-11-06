@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"opencode-go-cliproxyapi/internal/adapter/shared"
-	"opencode-go-cliproxyapi/internal/errclass"
+	"cpa-credential-opencode/internal/adapter/shared"
+	"cpa-credential-opencode/internal/errclass"
 )
 
 // ---- upstream Responses result shapes (decode-only) ----

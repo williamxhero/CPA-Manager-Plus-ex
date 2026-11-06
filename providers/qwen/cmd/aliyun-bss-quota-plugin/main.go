@@ -64,7 +64,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 
-	plugin "qwen-cliproxyapi/internal/aliyunplugin"
+	plugin "cpa-credential-qwen/internal/aliyunplugin"
 )
 
 func main() {}

@@ -61,8 +61,8 @@ export const getPluginCredentialFormFallback = (
   pluginId: string
 ): PluginCredentialFormDefinition | undefined => {
   const baseURLs: Record<string, string> = {
-    'qwen-cliproxyapi': 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
-    'opencode-go-cliproxyapi': 'https://opencode.ai/zen/go/v1',
+    'cpa-credential-qwen': 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+    'cpa-credential-opencode': 'https://opencode.ai/zen/go/v1',
   };
   if (!Object.prototype.hasOwnProperty.call(baseURLs, pluginId)) return undefined;
   return {

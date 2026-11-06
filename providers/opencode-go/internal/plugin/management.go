@@ -13,7 +13,7 @@ import (
 	"net/http"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
-	"opencode-go-cliproxyapi/resources"
+	"cpa-credential-opencode/resources"
 )
 
 type legacyQuotaWindow struct {

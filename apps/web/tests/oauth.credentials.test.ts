@@ -128,10 +128,10 @@ afterEach(async () => {
 });
 
 describe('plugin credential management HTTP contract', () => {
-  it.each(['qwen-cliproxyapi', 'opencode-go-cliproxyapi'])(
+  it.each(['cpa-credential-qwen', 'cpa-credential-opencode'])(
     'routes %s credentials through the plugin-aware core file APIs, never the plugin route',
     async (pluginId) => {
-      const provider = pluginId === 'qwen-cliproxyapi' ? 'qwen' : 'opencode-go';
+      const provider = pluginId === 'cpa-credential-qwen' ? 'qwen' : 'opencode-go';
       // A node HTTP fixture cannot serve the Blob download the publish flow needs, so the
       // call rejects here; this test pins the routing decision, not the completion.
       await expect(
@@ -163,7 +163,7 @@ describe('plugin credential management HTTP contract', () => {
       url: '/plugin/login',
       metadata: {
         auth_kind: 'manual_api_key',
-        submit_path: '/v0/management/plugins/qwen-cliproxyapi/credentials',
+        submit_path: '/v0/management/plugins/cpa-credential-qwen/credentials',
         fields: [{ name: 'api_key' }],
       },
     };
@@ -176,8 +176,8 @@ describe('plugin credential management HTTP contract', () => {
     response = { error: 'plugin says: invalid base url' };
     await expect(
       oauthApi.submitPluginCredential(
-        'qwen-cliproxyapi',
-        '/v0/management/plugins/qwen-cliproxyapi/credentials',
+        'cpa-credential-qwen',
+        '/v0/management/plugins/cpa-credential-qwen/credentials',
         { api_key: 'fixture-secret' },
         scope
       )
@@ -189,13 +189,13 @@ describe('plugin credential management HTTP contract', () => {
       'https://evil.example/credentials',
       '//evil.example/credentials',
       '/v0/management/plugins/other/credentials',
-      '/v0/management/plugins/qwen-cliproxyapi/../other/credentials',
-      '/v0/management/plugins/qwen-cliproxyapi/%2e%2e/other',
-      '/v0/management/plugins/qwen-cliproxyapi/credentials?key=secret',
+      '/v0/management/plugins/cpa-credential-qwen/../other/credentials',
+      '/v0/management/plugins/cpa-credential-qwen/%2e%2e/other',
+      '/v0/management/plugins/cpa-credential-qwen/credentials?key=secret',
     ]) {
       await expect(
         oauthApi.submitPluginCredential(
-          'qwen-cliproxyapi',
+          'cpa-credential-qwen',
           path,
           { api_key: 'fixture-secret' },
           scope

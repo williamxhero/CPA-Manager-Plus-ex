@@ -1,4 +1,4 @@
-// Command qwen-cliproxyapi builds the CLIProxyAPI native plugin DLL
+// Command cpa-credential-qwen builds the CLIProxyAPI native plugin DLL
 // exposing the Qwen provider. This file is CGO glue only: every RPC
 // method is forwarded verbatim into internal/plugin.HandleCall.
 package main
@@ -64,7 +64,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 
-	"qwen-cliproxyapi/internal/plugin"
+	"cpa-credential-qwen/internal/plugin"
 )
 
 func main() {}

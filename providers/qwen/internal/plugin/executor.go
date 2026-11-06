@@ -17,11 +17,11 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
-	"qwen-cliproxyapi/internal/adapter/chatcompletions"
-	"qwen-cliproxyapi/internal/adapter/shared"
-	"qwen-cliproxyapi/internal/catalog"
-	"qwen-cliproxyapi/internal/config"
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/adapter/chatcompletions"
+	"cpa-credential-qwen/internal/adapter/shared"
+	"cpa-credential-qwen/internal/catalog"
+	"cpa-credential-qwen/internal/config"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 // executorRequest mirrors rpcExecutorRequest: the SDK embeds

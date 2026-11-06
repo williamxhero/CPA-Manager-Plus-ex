@@ -1,4 +1,4 @@
-module opencode-go-cliproxyapi
+module cpa-credential-opencode
 
 go 1.26.7
 

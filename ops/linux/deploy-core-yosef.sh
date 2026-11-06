@@ -127,7 +127,7 @@ exec 2>/dev/null
 step preflight
 [[ -x "$ROOT/app/$NEWVER/cli-proxy-api" && -f "$NEWCFG" && -f "$ROOT/config.yaml" && ! -L "$ROOT/config.yaml" ]]
 [[ -L "$ROOT/app/current" && -d "$OAUTH" && -x "$QUOTA" && -f "$CHECKS" ]]
-for so in qwen-cliproxyapi.so opencode-go-cliproxyapi.so; do [[ -f "$ROOT/plugins/linux/amd64/$so" ]]; done
+for so in cpa-credential-qwen.so cpa-credential-opencode.so; do [[ -f "$ROOT/plugins/linux/amd64/$so" ]]; done
 # cp -a must produce independent bytes, never aliases to a live plugin tree.
 [[ ! -L "$ROOT/plugins" && -z "$(find "$ROOT/plugins" -type l -print -quit)" ]]
 [[ -w "$ROOT" ]]

@@ -13,7 +13,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 // CanonicalLevels is the ordered effort space, weakest to strongest.

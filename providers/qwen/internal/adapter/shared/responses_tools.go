@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 // responseToolIdentity is the original (name, namespace) pair behind one

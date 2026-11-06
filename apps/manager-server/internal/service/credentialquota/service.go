@@ -439,7 +439,12 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 		err = s.Identity.CredentialQuotaRequest(network, query, &result)
 	}
 	ncancel()
-	current, verifyErr := s.source(ctx, job.Query.AuthIndex)
+	// The query budget must not cancel the terminal write. A cancelled
+	// completion leaves the attempt "running", and the next read reports that
+	// as MANAGEMENT_BUDGET_EXHAUSTED even when Core already answered.
+	writeCtx, writeCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer writeCancel()
+	current, verifyErr := s.source(writeCtx, job.Query.AuthIndex)
 	obs := balance.Observation{QueryID: job.ID, QueryStatus: "network_error", ErrorCode: "QUOTA_QUERY_FAILED", ObservedAtMS: time.Now().UnixMilli(), DeadlineMS: job.DeadlineMS, Semantic: "quota_windows"}
 	if startErr != nil {
 		obs.ErrorCode = "START_FENCE_UNAVAILABLE"
@@ -470,7 +475,7 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 	a, _ := json.Marshal(obs)
 	doc, _ := json.Marshal(job)
 	s.mu.Lock()
-	committed, saved := s.Store.CompleteCredentialQuotaSnapshot(ctx, id, job.Query.Version, job.ID, string(a), string(doc), obs.QueryStatus == "success")
+	committed, saved := s.Store.CompleteCredentialQuotaSnapshot(writeCtx, id, job.Query.Version, job.ID, string(a), string(doc), obs.QueryStatus == "success")
 	observer := s.completed
 	s.mu.Unlock()
 	if saved == nil && job.State == "complete" && observer != nil {
@@ -495,7 +500,11 @@ func valid(r CoreObservation, s Source) bool {
 	if !validProvenance(r.Protocol, r.AccountProvenance, r.TimestampProvenance) || r.ReceivedAtMS < r.ObservedAtMS-60000 || r.ReceivedAtMS > time.Now().Add(time.Minute).UnixMilli() {
 		return false
 	}
-	if r.ObservedAtMS <= 0 || time.Since(time.UnixMilli(r.ObservedAtMS)) > 5*time.Minute || time.Until(time.UnixMilli(r.ObservedAtMS)) > time.Minute || len(r.Windows) == 0 {
+	age := 5 * time.Minute
+	if r.Protocol == "qwen-coding-plan-cli" && !r.Complete && len(r.Windows) == 1 && r.Windows[0].Name == "monthly" {
+		age = 45 * time.Minute
+	}
+	if r.ObservedAtMS <= 0 || time.Since(time.UnixMilli(r.ObservedAtMS)) > age || time.Until(time.UnixMilli(r.ObservedAtMS)) > time.Minute || len(r.Windows) == 0 {
 		return false
 	}
 	eligible := r.Complete && r.AccountProvenance != "unverified"

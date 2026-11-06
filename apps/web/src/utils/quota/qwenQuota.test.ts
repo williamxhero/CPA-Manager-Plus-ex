@@ -91,7 +91,7 @@ describe('isQwenQuotaFile', () => {
     'codex',
     'claude',
     'opencode-go',
-    'qwen-cliproxyapi',
+    'cpa-credential-qwen',
     'qwen_oauth',
     'qwen2',
     '',

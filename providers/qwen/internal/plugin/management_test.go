@@ -14,12 +14,12 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
-	"qwen-cliproxyapi/internal/config"
+	"cpa-credential-qwen/internal/config"
 )
 
 func TestManagementRegisterReferenceEnvelope(t *testing.T) {
 	m := NewManager(nil)
-	raw, err := m.HandleCall(pluginabi.MethodManagementRegister, []byte(`{"Plugin":{"name":"qwen-cliproxyapi"},"BasePath":"/v0/management","ResourceBasePath":"/v0/resource/plugins/qwen-cliproxyapi"}`))
+	raw, err := m.HandleCall(pluginabi.MethodManagementRegister, []byte(`{"Plugin":{"name":"cpa-credential-qwen"},"BasePath":"/v0/management","ResourceBasePath":"/v0/resource/plugins/cpa-credential-qwen"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestManagementRegisterReferenceEnvelope(t *testing.T) {
 	}
 	found := false
 	for _, route := range result.Routes {
-		if route.Method == "POST" && route.Path == "/plugins/qwen-cliproxyapi/quota-usage" {
+		if route.Method == "POST" && route.Path == "/plugins/cpa-credential-qwen/quota-usage" {
 			found = true
 		}
 	}
@@ -57,7 +57,7 @@ func TestManagementResourceEmbeddedHTML(t *testing.T) {
 	// The process cwd has no resources directory: serving must use go:embed.
 	t.Chdir(t.TempDir())
 	m := NewManager(nil)
-	raw, err := m.HandleCall(pluginabi.MethodManagementHandle, mustJSON(pluginapi.ManagementRequest{Method: http.MethodGet, Path: "/v0/resource/plugins/qwen-cliproxyapi/quota"}))
+	raw, err := m.HandleCall(pluginabi.MethodManagementHandle, mustJSON(pluginapi.ManagementRequest{Method: http.MethodGet, Path: "/v0/resource/plugins/cpa-credential-qwen/quota"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestManagementResourceEmbeddedHTML(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || resp.Headers.Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Fatalf("bad HTML response: %#v", resp)
 	}
-	for _, marker := range []string{"套餐", "额度", "刷新", "剩余天数", "数据来自 CLI", "cli-proxy-auth", "enc::v1::", "/v0/management/plugins/qwen-cliproxyapi/quota-usage"} {
+	for _, marker := range []string{"套餐", "额度", "刷新", "剩余天数", "数据来自 CLI", "cli-proxy-auth", "enc::v1::", "/v0/management/plugins/cpa-credential-qwen/quota-usage"} {
 		if !strings.Contains(string(resp.Body), marker) {
 			t.Fatalf("missing %s", marker)
 		}
@@ -99,7 +99,7 @@ func managementCommandManager(t *testing.T, mode string) *Manager {
 
 func managementUsage(t *testing.T, m *Manager, body string) (pluginapi.ManagementResponse, []quotaCard) {
 	t.Helper()
-	resp, err := m.HandleManagement(context.Background(), pluginapi.ManagementRequest{Method: "POST", Path: "/v0/management/plugins/qwen-cliproxyapi/quota-usage", Body: []byte(body)})
+	resp, err := m.HandleManagement(context.Background(), pluginapi.ManagementRequest{Method: "POST", Path: "/v0/management/plugins/cpa-credential-qwen/quota-usage", Body: []byte(body)})
 	if err != nil {
 		t.Fatal(err)
 	}

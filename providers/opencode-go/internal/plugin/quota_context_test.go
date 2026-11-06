@@ -6,7 +6,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
-	"opencode-go-cliproxyapi/internal/config"
+	"cpa-credential-opencode/internal/config"
 )
 
 func TestQuotaInvocationCallbackContextIsForwarded(t *testing.T) {

@@ -17,10 +17,10 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
-	"opencode-go-cliproxyapi/internal/adapter/shared"
-	"opencode-go-cliproxyapi/internal/catalog"
-	"opencode-go-cliproxyapi/internal/errclass"
-	"opencode-go-cliproxyapi/internal/thinking"
+	"cpa-credential-opencode/internal/adapter/shared"
+	"cpa-credential-opencode/internal/catalog"
+	"cpa-credential-opencode/internal/errclass"
+	"cpa-credential-opencode/internal/thinking"
 )
 
 // EndpointPath is the upstream endpoint path for the Responses route (FR-004).

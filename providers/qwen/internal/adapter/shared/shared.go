@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 // SSEFramer buffers SSE bytes across chunks and yields complete frames.

@@ -12,7 +12,7 @@ import { formatQuotaResetTime, resolveAbsoluteQuotaReset } from './formatters';
 import type { ClaudeQuotaData } from './providerRequests';
 import type { QuotaFetchContext } from './metaQuota';
 
-export const OPENCODE_GO_QUOTA_PATH = '/plugins/opencode-go-cliproxyapi/quota-usage';
+export const OPENCODE_GO_QUOTA_PATH = '/plugins/cpa-credential-opencode/quota-usage';
 
 export const parseOpenCodeGoQuota = (payload: unknown, t: TFunction): ClaudeQuotaData => {
   const usage = isRecord(payload) && isRecord(payload.usage) ? payload.usage : null;

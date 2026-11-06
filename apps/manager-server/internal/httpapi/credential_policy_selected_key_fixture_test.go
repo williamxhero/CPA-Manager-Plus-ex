@@ -78,7 +78,7 @@ func newSelectedKeyPolicyFixtureOptions(t *testing.T, opts selectedKeyFixtureOpt
 	}
 	verifiedRefreshArtifact(t, binary, os.Getenv("CORE_QUOTA_EXPECTED_SHA256"), os.Getenv("CORE_QUOTA_EXPECTED_REVISION"))
 	plugin := os.Getenv("CORE_QUOTA_PLUGIN_DIR")
-	verifiedRefreshArtifact(t, filepath.Join(plugin, "opencode-go-cliproxyapi.dll"), os.Getenv("CORE_QUOTA_PLUGIN_EXPECTED_SHA256"), os.Getenv("CORE_QUOTA_PLUGIN_EXPECTED_REVISION"))
+	verifiedRefreshArtifact(t, filepath.Join(plugin, "cpa-credential-opencode.dll"), os.Getenv("CORE_QUOTA_PLUGIN_EXPECTED_SHA256"), os.Getenv("CORE_QUOTA_PLUGIN_EXPECTED_REVISION"))
 	if os.Getenv("CORE_QUOTA_PLUGIN_SDK_REVISION") != os.Getenv("CORE_QUOTA_EXPECTED_REVISION") {
 		t.Fatal("SDK mismatch")
 	}
@@ -207,7 +207,7 @@ func newSelectedKeyPolicyFixtureOptions(t *testing.T, opts selectedKeyFixtureOpt
 	if opts.authOverride != "" {
 		extraHeaders = fmt.Sprintf("      headers: {Authorization: %q}\n", opts.authOverride)
 	}
-	config := fmt.Sprintf("server: {port: 0}\nmanagement: {secret-key: test-password}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\napi-keys:\n  codex:\n    - name: selected-key-fixture\n      base-url: %q\n%s      keys: [{api-key: SELECTED-KEY-A, priority: 100}, {api-key: SELECTED-KEY-B, priority: 0}]\nplugins:\n  enabled: true\n  dir: %q\n  configs:\n    opencode-go-cliproxyapi:\n      enabled: true\n      base-url: https://opencode.ai/zen/go/v1\n      api-keys: [{name: fixture-only, value: NATIVE-FIXTURE-PLUGIN}]\n", filepath.ToSlash(auth), upstream.URL+opts.tenantPrefix+"/v1", extraHeaders, filepath.ToSlash(plugin))
+	config := fmt.Sprintf("server: {port: 0}\nmanagement: {secret-key: test-password}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\napi-keys:\n  codex:\n    - name: selected-key-fixture\n      base-url: %q\n%s      keys: [{api-key: SELECTED-KEY-A, priority: 100}, {api-key: SELECTED-KEY-B, priority: 0}]\nplugins:\n  enabled: true\n  dir: %q\n  configs:\n    cpa-credential-opencode:\n      enabled: true\n      base-url: https://opencode.ai/zen/go/v1\n      api-keys: [{name: fixture-only, value: NATIVE-FIXTURE-PLUGIN}]\n", filepath.ToSlash(auth), upstream.URL+opts.tenantPrefix+"/v1", extraHeaders, filepath.ToSlash(plugin))
 	if err := os.WriteFile(filepath.Join(state, "config.yaml"), []byte(config), 0600); err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
-	"opencode-go-cliproxyapi/internal/config"
+	"cpa-credential-opencode/internal/config"
 )
 
 // The live host reports plugin-managed records with a path relative to its own working

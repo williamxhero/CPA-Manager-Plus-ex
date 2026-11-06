@@ -15,9 +15,9 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
-	"qwen-cliproxyapi/internal/catalog"
-	"qwen-cliproxyapi/internal/config"
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/catalog"
+	"cpa-credential-qwen/internal/config"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 // ProviderID is the single provider key served by this plugin (FR-001).
@@ -25,7 +25,7 @@ const ProviderID = "qwen"
 
 // pluginName / pluginVersion are reported in registration metadata.
 const (
-	pluginName    = "qwen-cliproxyapi"
+	pluginName    = "cpa-credential-qwen"
 	pluginVersion = "0.1.0"
 )
 

@@ -58,7 +58,7 @@
       "id": "opencode-go",
       "dir": "providers/opencode-go",
       "displayName": "OpenCode Go CLIProxyAPI plugin",
-      "pluginId": "opencode-go-cliproxyapi",
+      "pluginId": "cpa-credential-opencode",
       "importStrategy": "git-subtree",
       "status": "imported",
       "sourceRepo": "massiveits/opencode-go-cliproxyapi",
@@ -138,7 +138,7 @@
       "id": "qwen",
       "dir": "providers/qwen",
       "displayName": "Qwen Token Plan CLIProxyAPI plugin",
-      "pluginId": "qwen-cliproxyapi",
+      "pluginId": "cpa-credential-qwen",
       "importStrategy": "one-time-import",
       "status": "imported",
       "sourceRepo": "williamxhero/qwen-cliproxyapi",
@@ -208,18 +208,18 @@
         "provider": "opencode-go",
         "kind": "plugin-c-shared",
         "workdir": "providers/opencode-go",
-        "output": "providers/opencode-go/bin/opencode-go-cliproxyapi-windows-amd64.dll",
-        "build": "CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o bin/opencode-go-cliproxyapi-windows-amd64.dll .",
+        "output": "providers/opencode-go/bin/cpa-credential-opencode-windows-amd64.dll",
+        "build": "CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o bin/cpa-credential-opencode-windows-amd64.dll .",
         "env": { "CGO_ENABLED": "1", "GOOS": "windows", "GOARCH": "amd64" },
-        "args": ["build", "-buildmode=c-shared", "-o", "bin/opencode-go-cliproxyapi-windows-amd64.dll", "."]
+        "args": ["build", "-buildmode=c-shared", "-o", "bin/cpa-credential-opencode-windows-amd64.dll", "."]
       },
       {
         "id": "qwen-plugin",
         "provider": "qwen",
         "kind": "plugin-c-shared",
         "workdir": "providers/qwen",
-        "output": "bin/tmp/provider-build/qwen/qwen-cliproxyapi-windows-amd64.dll",
-        "build": "CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o ../../bin/tmp/provider-build/qwen/qwen-cliproxyapi-windows-amd64.dll .",
+        "output": "bin/tmp/provider-build/qwen/cpa-credential-qwen-windows-amd64.dll",
+        "build": "CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared -o ../../bin/tmp/provider-build/qwen/cpa-credential-qwen-windows-amd64.dll .",
         "env": {
           "CGO_ENABLED": "1",
           "GOOS": "windows",
@@ -229,7 +229,7 @@
           "build",
           "-buildmode=c-shared",
           "-o",
-          "../../bin/tmp/provider-build/qwen/qwen-cliproxyapi-windows-amd64.dll",
+          "../../bin/tmp/provider-build/qwen/cpa-credential-qwen-windows-amd64.dll",
           "."
         ]
       },
@@ -270,7 +270,7 @@
         ]
       }
     ],
-    "moduleBoundary": "每个 provider 保持独立 go.mod（module opencode-go-cliproxyapi / qwen-cliproxyapi），不并入 apps/manager-server module。",
+    "moduleBoundary": "每个 provider 保持独立 go.mod（module cpa-credential-opencode / cpa-credential-qwen），不并入 apps/manager-server module。",
     "ciHook": {
       "existingWorkflow": ".github/workflows/pr-check.yml",
       "plannedJob": "providers",

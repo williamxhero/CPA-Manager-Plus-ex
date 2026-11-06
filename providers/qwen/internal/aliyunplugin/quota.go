@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
-	config "qwen-cliproxyapi/internal/aliyunconfig"
+	config "cpa-credential-qwen/internal/aliyunconfig"
 )
 
 func (m *Manager) FetchQuota(req pluginapi.QuotaFetchRequest) (*pluginapi.QuotaFetchResponse, error) {

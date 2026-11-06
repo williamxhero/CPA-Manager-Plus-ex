@@ -14,8 +14,8 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
-	"qwen-cliproxyapi/internal/config"
-	"qwen-cliproxyapi/resources"
+	"cpa-credential-qwen/internal/config"
+	"cpa-credential-qwen/resources"
 )
 
 func (m *Manager) registerManagement(request []byte) ([]byte, error) {

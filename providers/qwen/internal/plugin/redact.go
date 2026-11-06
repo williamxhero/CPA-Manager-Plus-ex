@@ -4,8 +4,8 @@ import (
 	"regexp"
 	"strings"
 
-	"qwen-cliproxyapi/internal/config"
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/config"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 var secretKeyPattern = regexp.MustCompile(`\bsk-[A-Za-z0-9_.-]+`)

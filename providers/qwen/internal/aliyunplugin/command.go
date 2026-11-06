@@ -6,8 +6,8 @@ import (
 	"errors"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
-	config "qwen-cliproxyapi/internal/aliyunconfig"
-	"qwen-cliproxyapi/internal/quotawire"
+	config "cpa-credential-qwen/internal/aliyunconfig"
+	"cpa-credential-qwen/internal/quotawire"
 )
 
 func fetchCommand(cfg config.Config, req pluginapi.QuotaFetchRequest) (*pluginapi.QuotaFetchResponse, error) {

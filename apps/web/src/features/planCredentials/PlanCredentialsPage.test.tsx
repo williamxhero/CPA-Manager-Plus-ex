@@ -73,7 +73,7 @@ vi.mock('@/features/accounts/model/accountCredentialMutationMarker', () => ({
   createAccountCredentialMutationBaseline: vi.fn(),
 }));
 
-const ids = ['qwen-cliproxyapi', 'opencode-go-cliproxyapi'] as const;
+const ids = ['cpa-credential-qwen', 'cpa-credential-opencode'] as const;
 const plugin = (id: string, provider: string): PluginListEntry => ({
   id,
   oauthProvider: provider,

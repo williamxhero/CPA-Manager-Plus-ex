@@ -134,9 +134,9 @@ describe('plugin resource helpers', () => {
 
   it('suppresses both plan plugins only in navigation and keeps every direct resource entry', () => {
     const plugins = [
-      createPlugin({ id: 'qwen-cliproxyapi' }),
+      createPlugin({ id: 'cpa-credential-qwen' }),
       createPlugin({
-        id: 'opencode-go-cliproxyapi',
+        id: 'cpa-credential-opencode',
         menus: [
           { path: '/opencode/quota', menu: 'OpenCode Go Quota', description: '' },
           { path: '/opencode/details', menu: 'Details', description: '' },
@@ -156,21 +156,21 @@ describe('plugin resource helpers', () => {
       }))
     ).toEqual([
       {
-        pluginID: 'qwen-cliproxyapi',
+        pluginID: 'cpa-credential-qwen',
         menuIndex: 0,
-        route: '/plugin-pages/qwen-cliproxyapi/0',
+        route: '/plugin-pages/cpa-credential-qwen/0',
         path: '/v0/resource/plugins/demo-plugin/page',
       },
       {
-        pluginID: 'opencode-go-cliproxyapi',
+        pluginID: 'cpa-credential-opencode',
         menuIndex: 0,
-        route: '/plugin-pages/opencode-go-cliproxyapi/0',
+        route: '/plugin-pages/cpa-credential-opencode/0',
         path: '/opencode/quota',
       },
       {
-        pluginID: 'opencode-go-cliproxyapi',
+        pluginID: 'cpa-credential-opencode',
         menuIndex: 1,
-        route: '/plugin-pages/opencode-go-cliproxyapi/1',
+        route: '/plugin-pages/cpa-credential-opencode/1',
         path: '/opencode/details',
       },
       {
@@ -184,9 +184,9 @@ describe('plugin resource helpers', () => {
 
   it.each([
     'Qwen-cliproxyapi',
-    'qwen-cliproxyapi-extra',
-    ' qwen-cliproxyapi',
-    'opencode-go-cliproxyapi-extra',
+    'cpa-credential-qwen-extra',
+    ' cpa-credential-qwen',
+    'cpa-credential-opencode-extra',
     'OpenCode-go-cliproxyapi',
     'other-plugin',
   ])('keeps non-exact plugin IDs in resource navigation: %s', (id) => {

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"qwen-cliproxyapi/internal/bss"
+	"cpa-credential-qwen/internal/bss"
 )
 
 // Only synthetic literals are used; no environment/profile/credential files.

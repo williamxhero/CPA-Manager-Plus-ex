@@ -175,7 +175,7 @@ export const buildForkRelease = (
       'provider-key-aliases',
       'opencodeGoQuota',
       'setOpenCodeGoQuota',
-      '/plugins/opencode-go-cliproxyapi/quota-usage',
+      '/plugins/cpa-credential-opencode/quota-usage',
       'OpenAI-compatible base URL is required',
     ]) {
       if (!panel.includes(marker)) fail(`Combined panel is missing an approved feature: ${marker}`);

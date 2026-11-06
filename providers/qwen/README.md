@@ -37,7 +37,7 @@ python -B scripts/build-artifacts.py `
   --output 'D:\path\to\new-candidate'
 ```
 
-The single build entry creates **both native plugins and the only `bailian-quota` CLI** from this module. Runtime identifiers and artifact basenames remain `qwen-cliproxyapi`, `aliyun-bss-quota`, and `bailian-quota`; the repository is `williamxhero/CPA-Qwen`. No old Aliyun checkout, directory junction or second module is required.
+The single build entry creates **both native plugins and the only `bailian-quota` CLI** from this module. Runtime identifiers and artifact basenames remain `cpa-credential-qwen`, `aliyun-bss-quota`, and `bailian-quota`; the repository is `williamxhero/CPA-Qwen`. No old Aliyun checkout, directory junction or second module is required.
 
 The Core SDK must be explicitly supplied; the published v8.0.0 dependency alone is insufficient. The script copies module inputs into the candidate, resolves that SDK there, and leaves both source checkouts' module files unchanged. Module downloads are disabled unless `--allow-module-downloads` is explicitly supplied. Python 3 and the selected Go/C toolchains must already be installed.
 
@@ -52,7 +52,7 @@ plugins:
   enabled: true
   dir: "D:\\path\\to\\candidate\\plugins"
   configs:
-    qwen-cliproxyapi:
+    cpa-credential-qwen:
       enabled: true
       base-url: "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
       api-keys:
@@ -104,9 +104,9 @@ For Coding Plan use `https://coding.dashscope.aliyuncs.com/v1` (CN) or `https://
 
 ## Panel API-key form
 
-Registration displays **QWen Plan API Key** with an original embedded Q monogram at `/v0/resource/plugins/qwen-cliproxyapi/logo.svg`. Panel-created credentials are included in the quota API; credential cards and the standalone page retain the same explicit query/authority status, not unverified per-key numbers.
+Registration displays **QWen Plan API Key** with an original embedded Q monogram at `/v0/resource/plugins/cpa-credential-qwen/logo.svg`. Panel-created credentials are included in the quota API; credential cards and the standalone page retain the same explicit query/authority status, not unverified per-key numbers.
 
-With management authorization, submit `POST /v0/management/plugins/qwen-cliproxyapi/credentials` with `base_url`, `api_key`, and optional `name`. The default label is `Qwen`. Unknown fields are ignored. URLs must be HTTP/HTTPS with a hostname and without userinfo, query, or fragment; explicit HTTP panel credentials are accepted independently of the config-only `allow-http` switch. Prefer HTTPS outside local tests. Empty/whitespace keys and control characters are rejected. Successful responses contain only `ok`, the `qwen-key-<sha256>` ID, and the label; keys are never returned or logged. A label containing the submitted key is redacted. Duplicate key + normalized base URL returns 409, including configured and imported credentials. Unreadable existing Qwen storage fails closed with 502.
+With management authorization, submit `POST /v0/management/plugins/cpa-credential-qwen/credentials` with `base_url`, `api_key`, and optional `name`. The default label is `Qwen`. Unknown fields are ignored. URLs must be HTTP/HTTPS with a hostname and without userinfo, query, or fragment; explicit HTTP panel credentials are accepted independently of the config-only `allow-http` switch. Prefer HTTPS outside local tests. Empty/whitespace keys and control characters are rejected. Successful responses contain only `ok`, the `qwen-key-<sha256>` ID, and the label; keys are never returned or logged. A label containing the submitted key is redacted. Duplicate key + normalized base URL returns 409, including configured and imported credentials. Unreadable existing Qwen storage fails closed with 502.
 
 The host saves the same top-level `type`, `id`, `label`, and `api_key` schema as configured credentials, plus `base_url`. Panel IDs hash the key and URL together, so the same key can target distinct URLs without overwriting a credential. Existing configured-key IDs remain unchanged. Panel parsing uses the host's filename-based runtime ID (`<returned id>.json`) so watcher parsing updates the initially saved record instead of creating a duplicate runtime credential. Execution resolves `base_url` from current persisted storage, then attributes, then the plugin endpoint default; both streaming and non-streaming use that result. Parsing/reloading and refresh preserve the URL and panel label. Model discovery still uses the configured key/base URL, not a separate catalogue per panel credential; at least one configured key remains required.
 

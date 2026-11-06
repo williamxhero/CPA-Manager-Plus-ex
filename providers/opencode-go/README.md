@@ -48,29 +48,29 @@ Build the dynamic shared library for your platform:
 
 ### Windows (AMD64)
 ```powershell
-go build -buildmode=c-shared -o plugins/windows/amd64/opencode-go-cliproxyapi.dll .
+go build -buildmode=c-shared -o plugins/windows/amd64/cpa-credential-opencode.dll .
 ```
 
 ### Linux (AMD64)
 ```bash
-go build -buildmode=c-shared -o plugins/linux/amd64/opencode-go-cliproxyapi.so .
+go build -buildmode=c-shared -o plugins/linux/amd64/cpa-credential-opencode.so .
 ```
 
 ### macOS (ARM64)
 ```bash
-go build -buildmode=c-shared -o plugins/darwin/arm64/opencode-go-cliproxyapi.dylib .
+go build -buildmode=c-shared -o plugins/darwin/arm64/cpa-credential-opencode.dylib .
 ```
 
 Place the compiled binary into your CLIProxyAPI plugin directory (e.g. `<cliproxyapi_root>/plugins/<os>/<arch>/`).
 
 ## Configuration
 
-Configure the plugin in your CLIProxyAPI `config.yaml` under `plugins.configs.opencode-go-cliproxyapi`:
+Configure the plugin in your CLIProxyAPI `config.yaml` under `plugins.configs.cpa-credential-opencode`:
 
 ```yaml
 plugins:
   configs:
-    opencode-go-cliproxyapi:
+    cpa-credential-opencode:
       # Upstream base URL (default: "https://opencode.ai/zen/go/v1")
       base-url: "https://opencode.ai/zen/go/v1"
 
@@ -169,7 +169,7 @@ go vet ./...
 ## Adding credentials from a management form
 
 With the plugin enabled, submit a management-authenticated request to
-`POST /v0/management/plugins/opencode-go-cliproxyapi/credentials`:
+`POST /v0/management/plugins/cpa-credential-opencode/credentials`:
 
 ```json
 {"base_url":"https://opencode.ai/zen/go/v1","api_key":"oc_sk_dummy_example","name":"Personal"}

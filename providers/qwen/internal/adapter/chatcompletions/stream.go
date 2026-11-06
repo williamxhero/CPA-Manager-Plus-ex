@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"qwen-cliproxyapi/internal/adapter/shared"
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/adapter/shared"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 // StreamConverter incrementally converts an upstream Chat Completions

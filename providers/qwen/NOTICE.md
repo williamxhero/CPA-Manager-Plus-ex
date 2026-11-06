@@ -5,7 +5,7 @@
 This project copies and adapts portions of the MIT-licensed
 [opencode-go-cliproxyapi](https://github.com/massiveits/opencode-go-cliproxyapi),
 Copyright (c) 2026 massiveits. The read-only local reference was
-`D:\WILL\AGENT\CPA\opencode-go-cliproxyapi`, revision
+`D:\WILL\AGENT\CPA\cpa-credential-opencode`, revision
 `7b36b2323e89b37250151c3acef96d2fc323b5ed`.
 
 Copied/adapted files and areas (paths refer to this project):

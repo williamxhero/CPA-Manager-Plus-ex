@@ -185,7 +185,7 @@ describe('provider import boundary contract', () => {
       providerFiles: {
         'providers/opencode-go/LICENSE': 'MIT',
         'providers/opencode-go/go.mod': 'module x\n',
-        'providers/opencode-go/bin/opencode-go-cliproxyapi-windows-amd64.dll': 'MZ',
+        'providers/opencode-go/bin/cpa-credential-opencode-windows-amd64.dll': 'MZ',
         'providers/opencode-go/.gitignore': 'bin/\n',
       },
     });
@@ -204,7 +204,7 @@ describe('provider import boundary contract', () => {
       providerFiles: {
         'providers/opencode-go/LICENSE': 'MIT',
         'providers/opencode-go/go.mod': 'module x\n',
-        'providers/opencode-go/bin/opencode-go-cliproxyapi-windows-amd64.dll': 'MZ',
+        'providers/opencode-go/bin/cpa-credential-opencode-windows-amd64.dll': 'MZ',
       },
     });
     execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
@@ -212,7 +212,7 @@ describe('provider import boundary contract', () => {
     const { ok, findings } = runBoundaryCheck({ root });
 
     expect(ok).toBe(false);
-    expect(findings.some((finding) => finding.includes('opencode-go-cliproxyapi-windows-amd64.dll'))).toBe(
+    expect(findings.some((finding) => finding.includes('cpa-credential-opencode-windows-amd64.dll'))).toBe(
       true
     );
   });
@@ -223,7 +223,7 @@ describe('provider import boundary contract', () => {
       manifest,
       providerFiles: {
         'providers/opencode-go/LICENSE': 'MIT',
-        'providers/opencode-go/go.mod': 'module opencode-go-cliproxyapi\n',
+        'providers/opencode-go/go.mod': 'module cpa-credential-opencode\n',
         'providers/opencode-go/main.go': 'package main\n',
       },
     });
@@ -238,14 +238,14 @@ describe('provider import boundary contract', () => {
       providerFiles: {
         'providers/opencode-go/LICENSE': 'MIT',
         'providers/opencode-go/go.mod': 'module x\n',
-        'providers/opencode-go/plugins/windows/amd64/opencode-go-cliproxyapi.dll': 'MZ',
+        'providers/opencode-go/plugins/windows/amd64/cpa-credential-opencode.dll': 'MZ',
       },
     });
 
     const { ok, findings } = runBoundaryCheck({ root });
 
     expect(ok).toBe(false);
-    expect(findings.some((finding) => finding.includes('opencode-go-cliproxyapi.dll'))).toBe(true);
+    expect(findings.some((finding) => finding.includes('cpa-credential-opencode.dll'))).toBe(true);
   });
 
   it('rejects excluded workspace junk after a subtree import', () => {

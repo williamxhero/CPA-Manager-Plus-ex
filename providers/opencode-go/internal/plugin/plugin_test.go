@@ -18,8 +18,8 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
-	"opencode-go-cliproxyapi/internal/catalog"
-	"opencode-go-cliproxyapi/internal/config"
+	"cpa-credential-opencode/internal/catalog"
+	"cpa-credential-opencode/internal/config"
 )
 
 // ---- test doubles -------------------------------------------------------
@@ -429,7 +429,7 @@ func TestRegisterSuccessPublishesModels(t *testing.T) {
 	if reg.SchemaVersion != pluginabi.SchemaVersion {
 		t.Fatalf("schema_version = %d, want %d", reg.SchemaVersion, pluginabi.SchemaVersion)
 	}
-	if reg.Metadata.Name != "opencode-go-cliproxyapi" || reg.Metadata.Version != pluginVersion ||
+	if reg.Metadata.Name != "cpa-credential-opencode" || reg.Metadata.Version != pluginVersion ||
 		len(reg.Metadata.ConfigFields) != 10 {
 		t.Fatalf("metadata wrong: %+v", reg.Metadata)
 	}

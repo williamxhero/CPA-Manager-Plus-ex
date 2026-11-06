@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"qwen-cliproxyapi/internal/adapter/shared"
-	"qwen-cliproxyapi/internal/errclass"
+	"cpa-credential-qwen/internal/adapter/shared"
+	"cpa-credential-qwen/internal/errclass"
 )
 
 // ---- upstream Chat Completions response shapes (FR-006) ----

@@ -6,8 +6,8 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
-	config "qwen-cliproxyapi/internal/aliyunconfig"
-	"qwen-cliproxyapi/internal/bss"
+	config "cpa-credential-qwen/internal/aliyunconfig"
+	"cpa-credential-qwen/internal/bss"
 )
 
 const ID = "aliyun-bss-quota"
