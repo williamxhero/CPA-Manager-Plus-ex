@@ -15,6 +15,7 @@ import (
 
 const (
 	DefaultBaseURL          = "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+	CodingPlanCatalogURL    = "https://coding.dashscope.aliyuncs.com/v1/models"
 	DefaultModelPrefix      = "qwen"
 	DefaultRefreshInterval  = 30 * time.Minute
 	DefaultRequestTimeout   = 5 * time.Minute
@@ -115,14 +116,47 @@ func Load(body []byte) (Config, error) {
 		QuotaSource: orDefault(raw.QuotaSource, "command"), Command: strings.TrimSpace(raw.Command), CommandTimeout: commandTimeout, DisplayName: orDefault(raw.DisplayName, DefaultDisplayName),
 		CommandArgs: append([]string(nil), orDefault(raw.CommandArgs, []string{"--json"})...),
 	}
-	c.CatalogURL = c.BaseURL + "/models"
 	for _, k := range raw.APIKeys {
 		c.APIKeys = append(c.APIKeys, APIKey{Name: strings.TrimSpace(k.Name), Value: strings.TrimSpace(os.ExpandEnv(k.Value))})
 	}
+	c.CatalogURL = catalogURL(c.BaseURL, c.APIKeys)
 	if err := c.validate(); err != nil {
 		return Config{}, err
 	}
 	return c, nil
+}
+
+// catalogURL keeps chat routing on the configured base URL. A Coding Plan
+// key is rejected by the Token Plan models endpoint, so discovery uses the
+// Coding Plan catalog unless the configured host is already a Coding Plan host.
+func catalogURL(base string, keys []APIKey) string {
+	base = strings.TrimRight(base, "/")
+	if codingPlanKey(keys) && !codingPlanHost(base) {
+		return CodingPlanCatalogURL
+	}
+	return base + "/models"
+}
+
+func codingPlanKey(keys []APIKey) bool {
+	for _, key := range keys {
+		if strings.HasPrefix(key.Value, "sk-sp-") {
+			return true
+		}
+	}
+	return false
+}
+
+func codingPlanHost(base string) bool {
+	parsed, err := url.Parse(base)
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(parsed.Hostname()) {
+	case "coding.dashscope.aliyuncs.com", "coding-intl.dashscope.aliyuncs.com":
+		return true
+	default:
+		return false
+	}
 }
 
 func PublicID(c Config, id string) string {

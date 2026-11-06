@@ -2,8 +2,11 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -42,6 +45,9 @@ func (m *Manager) FetchQuota(ctx context.Context, req pluginapi.QuotaFetchReques
 		if err != nil || req.Attributes["auth_index_seed"] != seed || req.AuthIndex != credentialAuthIndex(seed) {
 			return empty, fmt.Errorf("quota credential identity does not match current key and endpoint")
 		}
+	}
+	if resp, ok := monthlyBLQuota(cfg); ok && codingPlanCLIArgs(cfg.CommandArgs) {
+		return resp, nil
 	}
 	reading, err := fetchCommandQuota(ctx, cfg, key)
 	if err != nil {
@@ -206,6 +212,85 @@ func fetchCommandQuota(ctx context.Context, cfg config.Config, key string) (bail
 
 // Preserve the CLI's own structured errors on both zero and nonzero exits.
 // Non-JSON diagnostics are returned only through the redaction/bounding edge.
+// monthlyBLQuota reads the one monthly window the cache writer actually stores.
+// It does not add 5-hour or weekly windows.
+func monthlyBLQuota(cfg config.Config) (pluginapi.QuotaFetchResponse, bool) {
+	cacheFile, maxAge, ok := cacheOnlyReading(cfg.CommandArgs)
+	if !ok {
+		return pluginapi.QuotaFetchResponse{}, false
+	}
+	file, err := os.Open(cacheFile)
+	if err != nil {
+		return pluginapi.QuotaFetchResponse{}, false
+	}
+	body, readErr := io.ReadAll(io.LimitReader(file, 1<<20+1))
+	file.Close()
+	if readErr != nil || len(body) == 0 || len(body) > 1<<20 {
+		return pluginapi.QuotaFetchResponse{}, false
+	}
+	var saved struct {
+		Source     string `json:"source"`
+		ObservedAt string `json:"observedAt"`
+		Windows    []struct {
+			Window      string   `json:"window"`
+			UsedPercent *float64 `json:"usedPercent"`
+			ResetTime   string   `json:"resetTime"`
+		} `json:"windows"`
+	}
+	if json.Unmarshal(body, &saved) != nil || saved.Source != "bl" || len(saved.Windows) != 1 {
+		return pluginapi.QuotaFetchResponse{}, false
+	}
+	window := saved.Windows[0]
+	if window.Window != "1month" || window.UsedPercent == nil || *window.UsedPercent < 0 || *window.UsedPercent > 100 {
+		return pluginapi.QuotaFetchResponse{}, false
+	}
+	observed, err := time.Parse(time.RFC3339Nano, saved.ObservedAt)
+	if err != nil || observed.After(time.Now()) || time.Since(observed) > maxAge {
+		return pluginapi.QuotaFetchResponse{}, false
+	}
+	reset, err := time.Parse(time.RFC3339Nano, window.ResetTime)
+	if err != nil || !reset.After(time.Now()) {
+		return pluginapi.QuotaFetchResponse{}, false
+	}
+	remaining := (100 - *window.UsedPercent) / 100
+	return pluginapi.QuotaFetchResponse{
+		Groups:              []pluginapi.QuotaGroup{{Buckets: []pluginapi.QuotaBucket{{Window: "billing_month", RemainingFraction: remaining, ResetTime: window.ResetTime}}}},
+		ObservedAtMS:        observed.UnixMilli(),
+		TimestampProvenance: "local_cli_acquisition_time",
+		Protocol:            bailianquota.CodingPlanProtocol,
+		AccountProvenance:   "configured_cli_profile",
+	}, true
+}
+
+func cacheOnlyReading(args []string) (string, time.Duration, bool) {
+	var cacheFile, maxAge string
+	cacheOnly := false
+	for i := 0; i < len(args); i++ {
+		arg := strings.TrimSpace(args[i])
+		if !strings.HasPrefix(arg, "--") {
+			continue
+		}
+		name, value, hasValue := strings.Cut(strings.TrimPrefix(arg, "--"), "=")
+		if !hasValue && i+1 < len(args) && !strings.HasPrefix(strings.TrimSpace(args[i+1]), "--") {
+			value = strings.TrimSpace(args[i+1])
+			i++
+		}
+		switch name {
+		case "cache-file":
+			cacheFile = value
+		case "max-age":
+			maxAge = value
+		case "cache-only":
+			cacheOnly = value == "" || strings.EqualFold(value, "true")
+		}
+	}
+	age, err := time.ParseDuration(maxAge)
+	if !cacheOnly || cacheFile == "" || err != nil || age <= 0 || age > 45*time.Minute {
+		return "", 0, false
+	}
+	return cacheFile, age, true
+}
+
 func commandErrorText(stdout, stderr []byte, fallback string) string {
 	return quotawire.Diagnostic(stdout, stderr, fallback)
 }

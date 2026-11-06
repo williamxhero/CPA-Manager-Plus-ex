@@ -25,6 +25,29 @@ func TestConfigDefaultsAndEnvironmentExpansion(t *testing.T) {
 	}
 }
 
+func TestCodingPlanKeyDiscoversCodingPlanCatalog(t *testing.T) {
+	c, err := Load([]byte("api-keys:\n  - value: sk-sp-dummy\ncommand: quota-stub\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.BaseURL != DefaultBaseURL {
+		t.Fatalf("base url = %s", c.BaseURL)
+	}
+	if c.CatalogURL != CodingPlanCatalogURL {
+		t.Fatalf("catalog url = %s", c.CatalogURL)
+	}
+}
+
+func TestCodingPlanHostKeepsItsOwnCatalog(t *testing.T) {
+	c, err := Load([]byte("api-keys:\n  - value: sk-sp-dummy\nbase-url: https://coding-intl.dashscope.aliyuncs.com/v1\ncommand: quota-stub\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.CatalogURL != "https://coding-intl.dashscope.aliyuncs.com/v1/models" {
+		t.Fatalf("catalog url = %s", c.CatalogURL)
+	}
+}
+
 func TestConfigExplicitValuesTakePrecedence(t *testing.T) {
 	c, err := Load([]byte(validYAML + `base-url: http://localhost:8399/compatible-mode/v1/
 allow-http: true
