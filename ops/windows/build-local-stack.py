@@ -101,7 +101,12 @@ def build(args, sources):
     for name, item in sources["sources"].items():
         checkout = output / "sources" / name
         checkout.parent.mkdir(exist_ok=True)
+        # Local source checkouts may be partial clones with a promisor remote.
+        # A shallow snapshot of the explicitly pinned branch avoids asking that
+        # remote to repair unrelated historical objects while still retaining
+        # the exact selected commit, clean tree, and VCS metadata for the build.
         subprocess.run(["git", "clone", "--quiet", "--no-hardlinks", "--no-checkout",
+                        "--depth", "1", "--single-branch",
                         str(Path(item["repository"]).resolve()), str(checkout)], check=True)
         git(checkout, "-c", "core.autocrlf=false", "checkout", "--quiet", "--detach", item["head"])
         if git(checkout, "rev-parse", "HEAD") != item["head"] or git(checkout, "status", "--porcelain"):
