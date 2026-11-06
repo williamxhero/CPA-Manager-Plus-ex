@@ -406,7 +406,7 @@ describe('AccountConfigurationTab', () => {
     ['v8.0.32', null],
     ['v8.0.33', 'accounts.config_excluded_models_override_hint'],
     ['custom', 'accounts.config_excluded_models_precedence_unknown_hint'],
-  ] as const)('explains credential exclusion precedence on CPA %s', (serverVersion, hint) => {
+  ] as const)('explains credential exclusion precedence on CPA %s', (serverVersion, _hint) => {
     mockAuthState.serverVersion = serverVersion;
     try {
       const text = readText(renderTab(makeRow(), makeEditor('codex')).toJSON());

@@ -76,5 +76,5 @@ it('never synthesizes zero totals for unknown or non-finite money', () => {
     t
   );
   expect(lines.some((line) => line.includes('USD'))).toBe(false);
-  expect(lines.at(-1)).toBe('ai_providers.money_summary_amount_unknown');
+  expect(lines[lines.length - 1]).toBe('ai_providers.money_summary_amount_unknown');
 });

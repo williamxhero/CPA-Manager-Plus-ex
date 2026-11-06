@@ -704,6 +704,7 @@ export const QuotaWindowCard = ({
         data-quota-card-mode="other"
       >
         {header}
+        {modelWarning}
         {progress}
         <div className={styles.meta}>
           {q.amountLabel ? <span className={styles.amountLabel}>{q.amountLabel}</span> : null}
@@ -713,6 +714,7 @@ export const QuotaWindowCard = ({
             </span>
           ) : null}
         </div>
+        {sourceMeta}
       </div>
     );
   }
@@ -726,6 +728,7 @@ export const QuotaWindowCard = ({
         data-quota-card-mode="model"
       >
         {header}
+        {modelWarning}
         {progress}
         {modelHasUsableUsage && !modelBoundaryIncomplete ? (
           <div className={styles.compareColumns} data-quota-model-comparison="true">
@@ -774,6 +777,7 @@ export const QuotaWindowCard = ({
             ) : null}
           </div>
         ) : null}
+        {sourceMeta}
       </div>
     );
   }
@@ -835,6 +839,7 @@ export const QuotaWindowCard = ({
           ) : null}
         </div>
       ) : null}
+      {sourceMeta}
     </div>
   );
 };

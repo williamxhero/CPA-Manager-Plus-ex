@@ -2100,7 +2100,7 @@ describe('AccountsPage replacement flows', () => {
     ['unknown', 'core_auth_error', 'unknown'],
   ])(
     'shows negotiated %s identity without implying a gate ACK',
-    async (state, reason, expected) => {
+    async (state, reason, _expected) => {
       const adapter = installCapabilitiesAdapter(async () => ({
         ...capabilitySummary(),
         negotiated: {

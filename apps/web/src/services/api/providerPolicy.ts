@@ -312,7 +312,7 @@ export async function getProviderPolicyMigration(
   ) {
     throw new ProviderPolicyRequestError(409);
   }
-  return value as ProviderPolicyMigrationStatus;
+  return value as unknown as ProviderPolicyMigrationStatus;
 }
 
 export async function recoverProviderPolicy(

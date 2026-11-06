@@ -288,7 +288,7 @@ it('retains the generation fence after clearing an invalid view and explicitly r
 
 it('rechecks status without platform refresh or PUT, retaining trusted ON if that GET returns 503', async () => {
   let reads = 0;
-  const fetch = vi.fn(async () =>
+  const fetch = vi.fn(async (_url: string, _init?: RequestInit) =>
     reads++ === 0
       ? Response.json(status({ enabled: true, generation: 5 }))
       : new Response(null, { status: 503 })
@@ -797,7 +797,7 @@ it('requires confirmation before posting explicit OFF recovery and keeps policy 
 });
 
 it('hides recovery confirmation when unavailable and cancels without posting', async () => {
-  const fetch = vi.fn(async () =>
+  const fetch = vi.fn(async (_url: string, _init?: RequestInit) =>
     Response.json(
       status({
         enabled: false,

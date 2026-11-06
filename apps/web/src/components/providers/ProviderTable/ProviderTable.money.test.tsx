@@ -517,7 +517,7 @@ it('shows a fresh cached balance without requesting full-refresh', async () => {
       [`openai:${IDS.B}`]: 'CNY 1.25',
     },
   });
-  const fetcher = vi.fn(async () => Response.json({}));
+  const fetcher = vi.fn(async (_url: string) => Response.json({}));
   vi.stubGlobal('fetch', fetcher);
   await act(async () => {
     view = create(<ProviderTable {...props} />);
@@ -754,7 +754,7 @@ it('does not read the inventory while bindings are still loading', async () => {
       [`openai:${IDS.B}`]: 'CNY 1.25',
     },
   });
-  const fetcher = vi.fn(async () => Response.json({ sources: [] }));
+  const fetcher = vi.fn(async (_url: string) => Response.json({ sources: [] }));
   vi.stubGlobal('fetch', fetcher);
   const fullRefresh = () =>
     fetcher.mock.calls.some((call) => String(call[0]).includes('/usage-service/full-refresh'));
