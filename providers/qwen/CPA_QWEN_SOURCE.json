@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "canonical": {
     "repository": "williamxhero/CPA-Qwen",
-    "commit": "9231c34f1936c832f31e607b3826ae76b0b496a4",
-    "tree": "d4f1c8106ad01ec9470a57827c6932c4c8d6b33a",
+    "commit": "bde955c51bdcfa82c1d9a1bc743655d8ac4e953d",
+    "tree": "a004ba6f08e84a62a999cf828bdcf17a27f1cc42",
     "files": {
       ".gitignore": "02aaadefae3ee99f09f99130b593066da82ba384ee4b0a179dd7da6645432fff",
       "LICENSE": "8885d63dad501a360f030353cb8221d1e6de0f092101e471745cd05f1bbc08a0",
@@ -105,7 +105,7 @@
       "internal/plugin/identity_test.go": "cd376edab93cf4f7d1ab741777501aeee7ac6a40f6a01a39c77ec0e39a93c94c",
       "internal/plugin/inference_context_test.go": "d48948e7c6f485fee7f0f02a908eaf8a46dbe30bc72626537c17a1541395928a",
       "internal/plugin/management.go": "d706e4ce2c438bc605209e23289d028a5be21027a8a58760d6b5a343014d09be",
-      "internal/plugin/management_test.go": "a234a1fe1850828eb0a7b57868feca965c3002ee0c6724a67c8410cb3caacbe7",
+      "internal/plugin/management_test.go": "2916dbeb7edcfbd70fc0423f6c4d4cba77b9d564adb0df50a3107cc035c5ba45",
       "internal/plugin/mask_test.go": "8ec5d01844c9180592aeff9d4ad2f92b1c9b45e081af27b43b9be58adf684ce5",
       "internal/plugin/plugin.go": "d836483c078f24dadd689e7db44b65a2e92c2e5bd822f9ce3907ab7df1832c1b",
       "internal/plugin/provider_test.go": "2b3472726bbde91106a0d45649a50091d47fe3707c8f7c3f688d4152e1f8d5ff",

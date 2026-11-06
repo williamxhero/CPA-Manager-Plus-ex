@@ -129,7 +129,7 @@ func TestManagementQuotaUsageSuccessAndSelectedHostIndex(t *testing.T) {
 		t.Fatalf("wrong cards: %s", resp.Body)
 	}
 	card := cards[0]
-	if card.AuthIndex != "host-index-0" || card.Label != accountLabel(m.cfg, m.cfg.APIKeys[0].Value, "Host label", 0) || card.QueryStatus != "success" || card.AuthorityStatus != "configured_cli_profile" || card.Error != nil {
+	if card.AuthIndex != "host-index-0" || card.Label != accountLabel(m.cfg, m.cfg.APIKeys[0].Value, "Host label", 0) || card.QueryStatus != "success" || card.AuthorityStatus != "needs_configuration" || card.Error == nil || !strings.Contains(*card.Error, "account_authority_unverified") {
 		t.Fatalf("wrong card: %#v", card)
 	}
 	if len(card.Windows) != 0 || len(card.Metrics) != 0 || card.Plan != "" || card.ObservedAt != "" {
