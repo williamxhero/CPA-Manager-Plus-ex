@@ -7,19 +7,6 @@
 
 # CPA Manager Plus
 
-## 本 fork 的功能
-
-相对上游 `seakee/CPA-Manager-Plus`，这条主干增加：
-
-- 同一仓库托管 OpenCode Go 与 Qwen 插件源码，运行标识是 `cpa-credential-opencode` 和 `cpa-credential-qwen`。
-- 提供商密钥别名、计划凭证页，以及 OpenCode、Qwen 的凭证与额度。
-- AI 提供商余额按各自密钥保存，两位小数；间隔未到时直接用缓存。
-- Codex Credits 列，自动启停会把剩余 Credits 算进去。
-- Keeper 正在订阅用量时，请求监控仍能通过 HTTP 收到新记录。
-- Qwen 额度可以显示缓存里真实的月度窗口。
-
-完整清单见 [README-ex.md](README-ex.md)。
-
 [![Release](https://img.shields.io/github/v/release/williamxhero/CPA-Manager-Plus-ex?style=flat-square)](https://github.com/williamxhero/CPA-Manager-Plus-ex/releases/latest)
 [![License](https://img.shields.io/github/license/williamxhero/CPA-Manager-Plus-ex?style=flat-square&color=blue)](https://github.com/williamxhero/CPA-Manager-Plus-ex/blob/main/LICENSE)
 [![Docker Pulls](https://img.shields.io/docker/pulls/seakee/cpa-manager-plus?style=flat-square)](https://hub.docker.com/r/seakee/cpa-manager-plus)
@@ -31,16 +18,9 @@ Operate providers, credentials, OAuth, plugins, and configuration while keeping 
 
 [中文](README_CN.md) ｜ [Live Demo](https://seakee.github.io/CPA-Manager-Plus/) ｜ [Documentation](https://seakee.github.io/CPA-Manager-Plus/docs/en/) ｜ [Install](#quick-start)
 
-> This repository is the **CPAMP-EX** fork. Fork-specific customizations and the upstream-merge checklist live in [docs/FORK-MAINTENANCE.md](docs/FORK-MAINTENANCE.md). The fork also bundles the OpenCode Go and Qwen CLIProxyAPI provider plugins under [`providers/`](providers/README.md): one repository builds the panel and the plugin sources, guarded by an import boundary and a providers CI job.
+> This repository is the **CPAMP-EX** fork. Major differences from upstream are documented in [README-ex.md](README-ex.md).
 
 </div>
-
-## Fork Additions (CPAMP-EX)
-
-Upstream `seakee/CPA-Manager-Plus` stays the base; this fork adds the items below. The full list, the upstream-merge checklist, and the provider sync runbooks live in [docs/FORK-MAINTENANCE.md](docs/FORK-MAINTENANCE.md).
-
-- **Single-repository providers** — the OpenCode Go and Qwen CLIProxyAPI plugin sources (with the Qwen `bailian-quota` CLI) live under [`providers/`](providers/README.md). The same repo builds the panel and the plugins, with an import-boundary guard and a `providers` CI job. Layout/licence/import contract: [docs/providers-layout-contract.md](docs/providers-layout-contract.md).
-- **Panel-side additions** — OpenCode Go credential management and quota, Qwen plan/quota rendering, provider key aliases, manual plugin credential forms, protected plan-credential editing, and the unified `/plan-credentials` page, plus the CPAMP-EX branding.
 
 ## What Can CPAMP Help You Answer?
 

@@ -551,7 +551,7 @@ describe('AccountModelsTab', () => {
       editor: disabledEditor,
       models: [{ id: 'disabled-credential-model' }],
     });
-    expect(readText(disabled.renderer.toJSON())).toContain('accounts.config_disabled_read_only');
+    expect(readText(disabled.renderer.toJSON())).not.toContain('accounts.config_disabled_read_only');
     expect(
       findButtonByText(
         findModelRow(disabled.renderer, 'disabled-credential-model'),

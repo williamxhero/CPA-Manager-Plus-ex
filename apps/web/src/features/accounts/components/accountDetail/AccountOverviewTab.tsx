@@ -274,7 +274,6 @@ export function AccountOverviewTab({ detailView, getHealthStatusClass }: Account
             </strong>
             <span className={styles.overviewStatusPill}>{t(capacity.statusLabelKey)}</span>
           </div>
-          <p className={styles.overviewCardDescription}>{t(capacity.descriptionKey)}</p>
           <OverviewFieldGrid fields={capacity.fields} />
         </section>
 

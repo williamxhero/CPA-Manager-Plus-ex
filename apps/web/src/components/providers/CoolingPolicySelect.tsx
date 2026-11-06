@@ -89,14 +89,6 @@ export function CoolingPolicySelect({
     <div className="form-group">
       <label htmlFor={id}>{t(key('label'))}</label>
       {select}
-      <div className="hint" id={hintId}>
-        {t(key('hint'))}
-      </div>
-      {compatibilityHint && (
-        <div className="hint" id={compatibilityHintId} role="note">
-          {compatibilityHint}
-        </div>
-      )}
     </div>
   );
 }

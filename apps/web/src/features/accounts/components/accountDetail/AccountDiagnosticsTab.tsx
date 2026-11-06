@@ -122,7 +122,6 @@ export function AccountDiagnosticsTab({
           </span>
           <div className={styles.diagnosticConclusionCopy}>
             <strong>{t(conclusion.actionLabelKey)}</strong>
-            <p>{t(conclusion.reasonKey)}</p>
           </div>
         </div>
         <div className={styles.diagnosticConclusionMeta}>

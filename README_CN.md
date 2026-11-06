@@ -16,16 +16,9 @@
 
 [English](README.md) ｜ [在线演示](https://seakee.github.io/CPA-Manager-Plus/) ｜ [在线文档](https://seakee.github.io/CPA-Manager-Plus/docs/) ｜ [快速安装](#快速开始)
 
-> 本仓库是 **CPAMP-EX** fork。fork 自有定制与上游合并清单见 [docs/FORK-MAINTENANCE.md](docs/FORK-MAINTENANCE.md)（含 provider 同步手册）。本 fork 还把 OpenCode Go 与 Qwen 两个 CLIProxyAPI 插件源码（含 Qwen `bailian-quota` CLI）收进 [`providers/`](providers/README.md)：同一仓库构建面板与插件，并由导入边界守卫与 `providers` CI job 把关。
+> 本仓库是 **CPAMP-EX** fork。相对上游的主要功能见 [README-ex.md](README-ex.md)。
 
 </div>
-
-## 本 fork 新增（CPAMP-EX）
-
-上游 `seakee/CPA-Manager-Plus` 仍是基线；本 fork 在其上新增以下内容。完整清单、上游合并检查表和 provider 同步手册见 [docs/FORK-MAINTENANCE.md](docs/FORK-MAINTENANCE.md)。
-
-- **插件源码单仓**：OpenCode Go 与 Qwen 的 CLIProxyAPI 插件源码（含 Qwen 的 `bailian-quota` CLI）位于 [`providers/`](providers/README.md)。同一仓库既构建面板也构建插件，并有导入边界守卫与 `providers` CI job。布局/许可证/导入契约见 [docs/providers-layout-contract.md](docs/providers-layout-contract.md)。
-- **面板侧新增**：OpenCode Go 凭证管理与额度、Qwen 计划/额度渲染、Provider key 别名、手写插件凭证表单、受保护的计划凭证编辑、统一 `/plan-credentials` 页面，以及 CPAMP-EX 品牌角标。
 
 ## CPAMP 可以帮你回答什么问题？
 

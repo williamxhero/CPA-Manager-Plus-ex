@@ -2,8 +2,16 @@
   <path fill="#FFF" d="M129 18 54 65C34 77 22 85 22 99v49c0 2.2 1.8 4 4 4h20c2.1 0 3.2-.8 4.7-2.3l8-8c1.5-1.5 2.3-3.5 2.3-5.7v-21c0-3.7 1.5-6.3 4-8.7L140 56V26c0-4.4-4.4-8-11-8Zm38 0 75 47c20 12 32 20 32 34v49c0 2.2-1.8 4-4 4h-20c-2.1 0-3.2-.8-4.7-2.3l-8-8c-1.5-1.5-2.3-3.5-2.3-5.7v-21c0-3.7-1.5-6.3-4-8.7L156 56V26c0-4.4 4.4-8 11-8ZM26 168h20c2.1 0 3.2.8 4.7 2.3l6.3 6.3c2.6 2.6 3 4.4 3 7.4v16c0 4 .4 7.5 2 11L140 263v26c0 4.8-2.3 7-5.5 8.8-3.1 1.8-6.3 2-10 .2l-84-50.7C28 239.7 22 232.5 22 219v-47c0-2.2 1.8-4 4-4Zm244 0h-20c-2.1 0-3.2.8-4.7 2.3l-6.3 6.3c-2.6 2.6-3 4.4-3 7.4v16c0 4-.4 7.5-2 11L156 263v26c0 4.8 2.3 7 5.5 8.8 3.1 1.8 6.3 2 10 .2l84-50.7C268 239.7 274 232.5 274 219v-47c0-2.2-1.8-4-4-4Z"/>
   <path d="m148 102 55 58-55 57-55-57 55-58Z" fill="#FFF"/>
 
+  <defs>
+    <linearGradient id="cpamp-ex-badge-gradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#19C4FF"/>
+      <stop offset="1" stop-color="#2A3EB8"/>
+    </linearGradient>
+  </defs>
   <g data-cpamp-ex="1" shape-rendering="geometricPrecision">
-    <rect x="196.96" y="222.96" width="81.6" height="81.6" rx="16.32" fill="#005CFF" stroke="#FFFFFF" stroke-width="5.71"/>
-    <text x="237.76" y="263.76" font-family="Arial, Helvetica, sans-serif" font-size="47.33" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">EX</text>
+    <rect x="196.96" y="222.96" width="81.6" height="81.6" rx="16.32" fill="url(#cpamp-ex-badge-gradient)" stroke="#FFFFFF" stroke-width="5.71"/>
+    <path d="M 215.73 286.61 L 260.61 240.91" stroke="#B8F4FF" stroke-width="13.06" stroke-linecap="round" opacity="0.8"/>
+    <text x="237.76" y="263.76" font-family="Arial, Helvetica, sans-serif" font-size="39.76" font-style="italic" font-weight="700" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">ex</text>
+    <circle cx="263.87" cy="239.28" r="2.86" fill="#FFFFFF"/>
   </g>
 </svg>

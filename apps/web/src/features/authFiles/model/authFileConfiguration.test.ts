@@ -168,6 +168,21 @@ describe('parseAuthFileConfigurationSource', () => {
     ).toThrow(AUTH_FILE_CONFIGURATION_TARGET_NOT_FOUND);
   });
 
+  it('accepts a Qwen file when the embedded auth index differs from the host index', () => {
+    const parsed = parseAuthFileConfigurationSource(
+      JSON.stringify({
+        type: 'qwen',
+        auth_index: 'stored-index',
+        label: 'Qwen',
+        priority: 200,
+      }),
+      makeFile({ type: 'qwen', provider: 'qwen', authIndex: 'host-index' })
+    );
+
+    expect(parsed.providerKey).toBe('qwen');
+    expect(parsed.record).toMatchObject({ label: 'Qwen', auth_index: 'stored-index' });
+  });
+
   it('rejects a Codex record with a conflicting auth index before member fallback', () => {
     expect(() =>
       parseAuthFileConfigurationSource(

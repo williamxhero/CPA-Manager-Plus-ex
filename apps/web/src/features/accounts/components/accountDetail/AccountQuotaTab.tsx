@@ -181,7 +181,6 @@ export function AccountQuotaTab({
       <div className={styles.quotaTabHeader}>
         <div className={styles.quotaPageHeading}>
           <h2 className={styles.quotaPageTitle}>{t('accounts.detail_tab_quota')}</h2>
-          <p>{t('accounts.detail_quota_window_usage_desc')}</p>
         </div>
         <div className={styles.quotaTabActions}>
           <Button
@@ -248,11 +247,6 @@ export function AccountQuotaTab({
         <section className={styles.quotaSection} data-quota-window-group="standard">
           <div className={styles.quotaSectionHeading}>
             <h3>{t('accounts.detail_quota_standard_title', { defaultValue: '标准额度' })}</h3>
-            <span>
-              {t('accounts.detail_quota_standard_desc', {
-                defaultValue: '账号级配额；窗口边界可用时提供区间统计。',
-              })}
-            </span>
           </div>
           {standardWindows.length > 0 ? (
             <div className={styles.quotaCardList}>
@@ -275,11 +269,6 @@ export function AccountQuotaTab({
         <section className={styles.quotaSection} data-quota-window-group="model">
           <div className={styles.quotaSectionHeading}>
             <h3>{t('accounts.detail_quota_model_title', { defaultValue: '模型额度' })}</h3>
-            <span>
-              {t('accounts.detail_quota_model_desc', {
-                defaultValue: '模型范围配额；窗口边界可用时提供区间统计。',
-              })}
-            </span>
           </div>
           <div className={styles.quotaCardList}>
             {modelWindows.map((window) => (
@@ -298,11 +287,6 @@ export function AccountQuotaTab({
         <section className={styles.quotaSection} data-quota-window-group="other">
           <div className={styles.quotaSectionHeading}>
             <h3>{t('accounts.detail_quota_other_items', { defaultValue: '其他额度项' })}</h3>
-            <span>
-              {t('accounts.detail_quota_other_items_desc', {
-                defaultValue: '金额、产品及其他不属于已识别标准或模型窗口的额度。',
-              })}
-            </span>
           </div>
           <div className={styles.quotaCardList}>
             {otherQuotaItems.map((window) => (

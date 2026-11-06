@@ -8,8 +8,9 @@ output, never hand-edited.
 
 Design
 ------
-* Rounded-square chip, CPAMP primary blue ``#005CFF`` fill, white outline, bold
-  white ``EX``, anchored to the bottom-right of the symbol region.
+* Rounded-square chip with a blue-violet gradient, a diagonal highlight, and a
+  compact italic ``ex`` wordmark. It is anchored to the bottom-right of the
+  symbol region so lockups never cover their text.
 * Explicit canvas, symbol and protected text bounds cover each asset family;
   pure wordmarks are copied unchanged.
 * The ICO is composed per frame (16/32/48) from the pre-badge 48px master, so
@@ -77,10 +78,14 @@ except ImportError:  # pragma: no cover - surfaced as a clean error
 # clean inputs instead of re-stamping an already-badged file.
 DEFAULT_SOURCE_REF = "419c65fc"
 
-FILL = (0, 92, 255, 255)
+FILL = (42, 62, 184, 255)
+FILL_HIGHLIGHT = (25, 196, 255, 255)
 STROKE = (255, 255, 255, 255)
 TEXT = (255, 255, 255, 255)
 FONT_FALLBACKS = (
+    "C:/Windows/Fonts/arialbi.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
     "C:/Windows/Fonts/arialbd.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
@@ -266,16 +271,32 @@ def svg_badge(vx, vy, vw, vh):
     r = s * 0.20
     sw = s * 0.07
     lines = [
+        '  <defs>',
+        '    <linearGradient id="cpamp-ex-badge-gradient" x1="0" y1="0" x2="1" y2="1">',
+        '      <stop offset="0" stop-color="#19C4FF"/>',
+        '      <stop offset="1" stop-color="#2A3EB8"/>',
+        '    </linearGradient>',
+        '  </defs>',
         '  <g data-cpamp-ex="1" shape-rendering="geometricPrecision">',
         f'    <rect x="{fmt(x0)}" y="{fmt(y0)}" width="{fmt(s)}" height="{fmt(s)}" '
-        f'rx="{fmt(r)}" fill="#005CFF" stroke="#FFFFFF" stroke-width="{fmt(sw)}"/>',
+        f'rx="{fmt(r)}" fill="url(#cpamp-ex-badge-gradient)" stroke="#FFFFFF" stroke-width="{fmt(sw)}"/>',
     ]
     if s >= TEXT_MIN:
-        fs = s * GLYPH_FRAC
+        fs = s * GLYPH_FRAC * 0.84
+        slash = s * 0.16
+        lines.append(
+            f'    <path d="M {fmt(x0 + s * 0.23)} {fmt(y0 + s * 0.78)} '
+            f'L {fmt(x0 + s * 0.78)} {fmt(y0 + s * 0.22)}" stroke="#B8F4FF" '
+            f'stroke-width="{fmt(slash)}" stroke-linecap="round" opacity="0.8"/>',
+        )
         lines.append(
             f'    <text x="{fmt(cx)}" y="{fmt(cy)}" font-family="Arial, Helvetica, sans-serif" '
-            f'font-size="{fmt(fs)}" font-weight="700" fill="#FFFFFF" text-anchor="middle" '
-            f'dominant-baseline="central">EX</text>'
+            f'font-size="{fmt(fs)}" font-style="italic" font-weight="700" fill="#FFFFFF" '
+            f'text-anchor="middle" dominant-baseline="central">ex</text>'
+        )
+        lines.append(
+            f'    <circle cx="{fmt(x0 + s * 0.82)}" cy="{fmt(y0 + s * 0.20)}" '
+            f'r="{fmt(max(0.8, s * 0.035))}" fill="#FFFFFF"/>'
         )
     lines.append("  </g>")
     return "\n" + "\n".join(lines) + "\n"
@@ -331,9 +352,18 @@ def draw_badge(img, bounds=None):
     r = s * 0.20
     sw = max(1, round(s * 0.07))
     d.rounded_rectangle([x0, y0, x0 + s, y0 + s], radius=r, fill=FILL, outline=STROKE, width=sw)
+    d.line(
+        [x0 + s * 0.23, y0 + s * 0.78, x0 + s * 0.78, y0 + s * 0.22],
+        fill=FILL_HIGHLIGHT,
+        width=max(1, round(s * 0.16)),
+    )
     if s >= TEXT_MIN:
-        fs = max(1, round(s * GLYPH_FRAC))
-        d.text((x0 + s / 2.0, y0 + s / 2.0), "EX", font=load_font(fs), fill=TEXT, anchor="mm")
+        fs = max(1, round(s * GLYPH_FRAC * 0.84))
+        d.text((x0 + s / 2.0, y0 + s / 2.0), "ex", font=load_font(fs), fill=TEXT, anchor="mm")
+        d.ellipse(
+            [x0 + s * 0.785, y0 + s * 0.165, x0 + s * 0.855, y0 + s * 0.235],
+            fill=TEXT,
+        )
     return Image.alpha_composite(img, overlay)
 
 

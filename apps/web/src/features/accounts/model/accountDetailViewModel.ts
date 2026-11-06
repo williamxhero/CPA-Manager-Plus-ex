@@ -1016,7 +1016,12 @@ const buildOverviewCapacity = (
           resetValue,
           typeof resetValue === 'number' ? 'quota_reset' : 'text'
         ),
-        field('source', 'accounts.detail_source', quotaSourceLabelKey(row.quota.source), 'i18n'),
+        field(
+          'source',
+          'accounts.detail_source',
+          row.quota.source === 'none' ? null : quotaSourceLabelKey(row.quota.source),
+          'i18n'
+        ),
         field(
           'overviewQuotaObservedAt',
           'accounts.detail_overview_capacity_checked',
@@ -1040,8 +1045,7 @@ const buildOverviewCapacity = (
   return {
     kind: 'percent',
     statusLabelKey: listItem.quota.statusLabelKey,
-    remainingPercent: row.quota.remainingPercent ??
-      (row.provider === 'xai' ? quotaWindow?.remainingPercent ?? null : null),
+    remainingPercent: row.quota.remainingPercent ?? quotaWindow?.remainingPercent ?? null,
     availableGroupCount: null,
     totalGroupCount: null,
     hasData: hasQuotaData,
@@ -1065,7 +1069,12 @@ const buildOverviewCapacity = (
         resetValue,
         typeof resetValue === 'number' ? 'quota_reset' : 'text'
       ),
-      field('source', 'accounts.detail_source', quotaSourceLabelKey(row.quota.source), 'i18n'),
+      field(
+        'source',
+        'accounts.detail_source',
+        row.quota.source === 'none' ? null : quotaSourceLabelKey(row.quota.source),
+        'i18n'
+      ),
       field(
         'overviewQuotaObservedAt',
         'accounts.detail_overview_capacity_checked',

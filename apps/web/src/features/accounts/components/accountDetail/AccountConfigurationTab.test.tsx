@@ -332,7 +332,7 @@ describe('AccountConfigurationTab', () => {
     expect(text).not.toContain('accounts.config_section_models_desc');
     expect(text).not.toContain('accounts.config_section_advanced_desc');
     expect(text).not.toContain('accounts.config_aliases_hint');
-    expect(text).toContain('accounts.config_excluded_models_hint');
+    expect(text).not.toContain('accounts.config_excluded_models_hint');
     expect(noteInput?.props.hint).toBeUndefined();
   });
 
@@ -410,13 +410,9 @@ describe('AccountConfigurationTab', () => {
     mockAuthState.serverVersion = serverVersion;
     try {
       const text = readText(renderTab(makeRow(), makeEditor('codex')).toJSON());
-      expect(text).toContain('accounts.config_excluded_models_hint');
-      expect(text.includes('accounts.config_excluded_models_override_hint')).toBe(
-        hint === 'accounts.config_excluded_models_override_hint'
-      );
-      expect(text.includes('accounts.config_excluded_models_precedence_unknown_hint')).toBe(
-        hint === 'accounts.config_excluded_models_precedence_unknown_hint'
-      );
+      expect(text).not.toContain('accounts.config_excluded_models_hint');
+      expect(text).not.toContain('accounts.config_excluded_models_override_hint');
+      expect(text).not.toContain('accounts.config_excluded_models_precedence_unknown_hint');
     } finally {
       mockAuthState.serverVersion = null;
     }

@@ -8,7 +8,6 @@ import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { CoolingPolicySelect } from '@/components/providers/CoolingPolicySelect';
 import { IconCode, IconCopy, IconRefreshCw } from '@/components/ui/icons';
 import type { AccountRow } from '@/features/accounts/model/accountRows';
-import { getAccountModelExclusionPriority } from '@/features/accounts/model/accountModelRules';
 import { getProviderLabel } from '@/features/accounts/model/accountsPagePresentation';
 import type { UseAuthFileConfigurationEditorResult } from '@/features/authFiles/hooks/useAuthFileConfigurationEditor';
 import {
@@ -19,7 +18,6 @@ import {
   type AuthFileConfigurationErrorKey,
   type XaiRoutingMode,
 } from '@/features/authFiles/model/authFileConfiguration';
-import { useAuthStore } from '@/stores/useAuthStore';
 import styles from '@/features/accounts/AccountsPage.module.scss';
 
 type AccountConfigurationTabProps = {
@@ -36,9 +34,6 @@ export function AccountConfigurationTab({
   onCopyText,
 }: AccountConfigurationTabProps) {
   const { t } = useTranslation();
-  const exclusionPriority = getAccountModelExclusionPriority(
-    useAuthStore((authState) => authState.serverVersion)
-  );
   const reloadButtonId = useId();
   const {
     state,
@@ -205,7 +200,6 @@ export function AccountConfigurationTab({
             label={t('auth_files.prefix_label')}
             value={draft.prefix}
             placeholder={t('accounts.config_prefix_placeholder')}
-            hint={t('accounts.config_prefix_hint')}
             disabled={disabled}
             onChange={(event) => editor.updateField('prefix', event.target.value)}
           />
@@ -214,7 +208,6 @@ export function AccountConfigurationTab({
               label={t('auth_files.proxy_url_label')}
               value={draft.proxyUrl}
               placeholder={t('auth_files.proxy_url_placeholder')}
-              hint={t('accounts.config_proxy_hint')}
               disabled={disabled}
               onChange={(event) => editor.updateField('proxyUrl', event.target.value)}
             />
@@ -233,7 +226,6 @@ export function AccountConfigurationTab({
             step="1"
             value={draft.priority}
             error={fieldError('priority')}
-            hint={t('auth_files.priority_hint')}
             disabled={disabled}
             onChange={(event) => editor.updateField('priority', event.target.value)}
           />
@@ -245,7 +237,6 @@ export function AccountConfigurationTab({
             max={AUTH_FILE_WEIGHT_MAX}
             value={draft.weight}
             error={fieldError('weight', { max: AUTH_FILE_WEIGHT_MAX })}
-            hint={t('accounts.config_weight_hint')}
             disabled={disabled}
             onChange={(event) => editor.updateField('weight', event.target.value)}
           />
@@ -283,7 +274,6 @@ export function AccountConfigurationTab({
                 type="password"
                 autoComplete="new-password"
                 value={draft.replacementApiKey}
-                hint={t('accounts.config_replacement_api_key_hint')}
                 disabled={disabled}
                 onChange={(event) => editor.updateField('replacementApiKey', event.target.value)}
               />
@@ -292,7 +282,6 @@ export function AccountConfigurationTab({
                 value={draft.baseUrl}
                 placeholder={planDefaultBaseUrl}
                 error={fieldError('baseUrl')}
-                hint={t('accounts.config_plan_base_url_hint', { url: planDefaultBaseUrl })}
                 disabled={disabled}
                 onChange={(event) => editor.updateField('baseUrl', event.target.value)}
               />
@@ -432,22 +421,6 @@ export function AccountConfigurationTab({
             disabled={disabled}
             onChange={(event) => editor.updateField('excludedModelsText', event.target.value)}
           />
-          <div className="hint">
-            {t(
-              sharedSourceReadOnly
-                ? 'accounts.config_excluded_models_shared_hint'
-                : 'accounts.config_excluded_models_hint'
-            )}
-          </div>
-          {!sharedSourceReadOnly && exclusionPriority !== 'merge' ? (
-            <div className="hint" role="note">
-              {t(
-                exclusionPriority === 'override'
-                  ? 'accounts.config_excluded_models_override_hint'
-                  : 'accounts.config_excluded_models_precedence_unknown_hint'
-              )}
-            </div>
-          ) : null}
         </div>
       </section>
 
@@ -470,7 +443,6 @@ export function AccountConfigurationTab({
             step="1"
             value={draft.requestRetry}
             error={fieldError('requestRetry')}
-            hint={t('accounts.config_request_retry_hint')}
             disabled={disabled}
             onChange={(event) => editor.updateField('requestRetry', event.target.value)}
           />
@@ -489,9 +461,7 @@ export function AccountConfigurationTab({
           />
           {fieldError('headersText') ? (
             <div className="error-box">{fieldError('headersText')}</div>
-          ) : (
-            <div className="hint">{t('auth_files.headers_hint')}</div>
-          )}
+          ) : null}
         </div>
       </section>
 
@@ -521,7 +491,6 @@ export function AccountConfigurationTab({
             </div>
           </dl>
           <div className={styles.configurationRawDataHeader}>
-            <p>{t('accounts.config_raw_data_hint')}</p>
             <Button
               variant="secondary"
               size="sm"

@@ -265,7 +265,11 @@ const recordHasFileIdentityConflict = (
   const expectedAuthIndex = readAuthFileStatusAuthIndex(file);
   const candidateAuthIndex = normalizeRecordAuthIndex(record);
   if (expectedAuthIndex && candidateAuthIndex && candidateAuthIndex !== expectedAuthIndex) {
-    return true;
+    // Plan files can keep a stale embedded index. The host list index is
+    // derived from the credential, and the downloaded file is already the
+    // selected record.
+    const provider = expectedProvider || candidateProvider;
+    if (provider !== 'qwen' && provider !== 'opencode-go') return true;
   }
 
   const identityProvider = expectedProvider || candidateProvider;

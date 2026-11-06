@@ -19,7 +19,6 @@ import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
 import { useAccountCredentialMutationRevisionStore } from '@/stores/useAccountCredentialMutationRevisionStore';
-import { CredentialQuotaPanel } from '@/components/quota/CredentialQuotaPanel';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
@@ -10275,14 +10274,6 @@ export function AccountsPage() {
       if (detailTab === 'quota') {
         return (
           <>
-            {managerStorageAvailable && (
-              <CredentialQuotaPanel
-                base={featureAvailability.managerServiceBase ?? ''}
-                managementKey={managementKey}
-                authIndex={selectedRow.authIndex || undefined}
-                revision={credentialQuotaRevision}
-              />
-            )}
             <AccountQuotaTab
               detailView={detailView}
               windowUsageError={accountWindowUsageError}
@@ -10532,12 +10523,6 @@ export function AccountsPage() {
               <span>
                 {t('accounts.detail_disabled_notice_title', { defaultValue: '账号已禁用' })}
               </span>
-              <p>
-                {t('accounts.detail_disabled_notice_desc', {
-                  defaultValue:
-                    '此账号当前不接收业务请求，但仍可刷新额度和维护配置。点击底部“启用”按钮可恢复请求路由。',
-                })}
-              </p>
             </div>
           ) : null}
           <div

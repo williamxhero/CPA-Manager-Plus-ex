@@ -189,11 +189,11 @@ describe('QuotaWindowCard', () => {
     expect(forecastText).toContain('accounts.detail_forecast_tokens');
     expect(forecastText).toContain('accounts.detail_forecast_cost');
     expect(forecastText).toContain('$200.00');
-    expect(forecastText).toContain('accounts.detail_forecast_basis_quota');
+    expect(forecastText).not.toContain('accounts.detail_forecast_basis_quota');
     expect(forecastText).not.toContain('accounts.detail_success_rate');
     expect(
-      forecast.findByProps({ 'data-quota-forecast-success-rate': 'unavailable' })
-    ).toBeTruthy();
+      forecast.findAllByProps({ 'data-quota-forecast-success-rate': 'unavailable' })
+    ).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-quota-progress': 'shared' })).toHaveLength(1);
 
     const previous = renderer.root.findByProps({ 'data-quota-usage-period': 'previous' });
@@ -429,7 +429,7 @@ describe('QuotaWindowCard', () => {
     expect(text).toContain('accounts.detail_rolling_estimated_recovery');
     expect(text).toContain('accounts.quota_boundary_estimated');
     expect(text).toContain('accounts.detail_quota_snapshot_stale');
-    expect(text).toContain('accounts.detail_forecast_unavailable');
+    expect(text).not.toContain('accounts.detail_forecast_unavailable');
     expect(renderer.root.findAllByProps({ 'data-quota-usage-forecast': 'true' })).toHaveLength(0);
   });
 
@@ -660,12 +660,10 @@ describe('QuotaWindowCard', () => {
     );
 
     const comparison = renderer.root.findByProps({ 'data-quota-model-comparison': 'true' });
-    const current = comparison.findByProps({ 'data-quota-usage-period': 'current' });
-    const currentText = readText(current);
     expect(renderer.root.findAllByProps({ 'data-quota-model-warning': 'true' })).toHaveLength(0);
-    expect(currentText).toContain('accounts.detail_model_window_empty_usage');
-    expect(currentText).not.toContain('accounts.detail_window_stats_empty');
-    expect(readText(comparison)).toContain('accounts.detail_forecast_basis_previous');
+    expect(comparison.findAllByProps({ 'data-quota-usage-period': 'current' })).toHaveLength(0);
+    expect(readText(comparison)).not.toContain('accounts.detail_model_window_empty_usage');
+    expect(readText(comparison)).not.toContain('accounts.detail_forecast_basis_previous');
   });
 
   it('keeps model comparisons when only the current window has actual usage', () => {

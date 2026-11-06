@@ -11,8 +11,8 @@
 2026/11/02 10:16:16 http GET /usage-service/credential-quota status=409 duration=71.8909ms remote=192.0.2.1:1234
     credential_ui_migration_core_test.go:13: GET /usage-service/credential-quota returned 409 want 200: {"error":"identity_changed"}
     credential_policy_native_admission_fixture_test.go:349: time="2026-11-02T10:16:15+08:00" level=warning msg="catalog refresh failed" error="catalog refresh failed: network error"
-        time="2026-11-02T10:16:15+08:00" level=info msg="pluginhost: plugin loaded" path="D:\\WILL\\AGENT\\CPA\\ops\\implement-spec92-20261101\\integration-evidence\\core-sourceview-matched-merge.plugins-e978f72b9828fca3858087566957e72a009ffee3\\opencode-go-cliproxyapi.dll" plugin_id=opencode-go-cliproxyapi
-        time="2026-11-02T10:16:15+08:00" level=info msg="pluginhost: plugin registered" path="D:\\WILL\\AGENT\\CPA\\ops\\implement-spec92-20261101\\integration-evidence\\core-sourceview-matched-merge.plugins-e978f72b9828fca3858087566957e72a009ffee3\\opencode-go-cliproxyapi.dll" plugin_id=opencode-go-cliproxyapi plugin_name=opencode-go-cliproxyapi version=0.2.2
+        time="2026-11-02T10:16:15+08:00" level=info msg="pluginhost: plugin loaded" path="D:\\WILL\\AGENT\\CPA\\ops\\implement-spec92-20261101\\integration-evidence\\core-sourceview-matched-merge.plugins-e978f72b9828fca3858087566957e72a009ffee3\\cpa-credential-opencode.dll" plugin_id=cpa-credential-opencode
+        time="2026-11-02T10:16:15+08:00" level=info msg="pluginhost: plugin registered" path="D:\\WILL\\AGENT\\CPA\\ops\\implement-spec92-20261101\\integration-evidence\\core-sourceview-matched-merge.plugins-e978f72b9828fca3858087566957e72a009ffee3\\cpa-credential-opencode.dll" plugin_id=cpa-credential-opencode plugin_name=cpa-credential-opencode version=0.2.2
         time="2026-11-02T10:16:15+08:00" level=info msg="management routes registered after secret key configuration"
 
     credential_policy_native_admission_fixture_test.go:203: exact controlled counts quota[A,B]=[0,0] business[A,B]=[0,0]

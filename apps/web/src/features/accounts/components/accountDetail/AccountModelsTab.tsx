@@ -233,7 +233,12 @@ export function AccountModelsTab({
     precedenceUnknown ||
     state?.saving === true ||
     !editorReady;
-  const disabledCount = projection.rows.filter((model) => isKnownDisabledScope(model.scope)).length;
+  const excludedRuleCount = projection.advancedCredentialRules.filter(
+    (rule) => !rule.includes('*')
+  ).length;
+  const disabledCount =
+    projection.rows.filter((model) => isKnownDisabledScope(model.scope)).length +
+    excludedRuleCount;
   const filterItems = useMemo(
     () => [
       { id: 'all' as const, label: t('accounts.model_filter_all') },
@@ -372,7 +377,10 @@ export function AccountModelsTab({
       <div className={styles.accountModelsHeader}>
         <div className={styles.accountModelsSummary}>
           <strong>
-            {t('accounts.detail_models_summary', { count: projection.rows.length, file: fileName })}
+            {t('accounts.detail_models_summary', {
+              count: projection.rows.length + excludedRuleCount,
+              file: fileName,
+            })}
           </strong>
         </div>
         <div className={styles.headerActions}>
@@ -399,10 +407,6 @@ export function AccountModelsTab({
       ) : sharedSourceReadOnly ? (
         <div className={styles.configurationReadOnlyNotice} role="note">
           {t('accounts.config_shared_source_read_only', { count: sourceMemberCount })}
-        </div>
-      ) : row.disabled ? (
-        <div className={styles.configurationReadOnlyNotice} role="note">
-          {t('accounts.config_disabled_read_only')}
         </div>
       ) : !state || state.loading ? (
         <div className={styles.accountModelsInlineStatus} role="status">
@@ -491,9 +495,7 @@ export function AccountModelsTab({
                   <span>{t('accounts.model_other_config_changes')}</span>
                 )}
               </>
-            ) : (
-              <span>{t('accounts.model_changes_empty')}</span>
-            )}
+            ) : null}
           </div>
           <div className={styles.configurationToolbarActions}>
             <Button
@@ -572,12 +574,12 @@ export function AccountModelsTab({
           description={t('auth_files.models_unsupported_desc')}
         />
       ) : showLoadFailed ? null : showEmpty ? (
-        <EmptyState
-          title={t('auth_files.models_empty')}
-          description={t('auth_files.models_empty_desc')}
-        />
+        <EmptyState title={t('auth_files.models_empty')} />
       ) : filteredRows.length === 0 ? (
-        <EmptyState title={t('accounts.model_filter_empty')} />
+        projection.advancedCredentialRules.length > 0 ||
+        projection.advancedGlobalRules.length > 0 ? null : (
+          <EmptyState title={t('accounts.model_filter_empty')} />
+        )
       ) : (
         <div className={styles.accountModelsList}>
           {filteredRows.map((model) => {
