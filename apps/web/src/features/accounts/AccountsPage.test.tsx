@@ -4074,7 +4074,12 @@ describe('AccountsPage replacement flows', () => {
       refreshButton.props.onClick();
       await Promise.resolve();
     });
-    expect(mocks.handleCredentialRefresh).toHaveBeenCalledWith(mocks.files[0]);
+    expect(mocks.lastCodexReauthProps?.open).toBe(true);
+    expect(mocks.lastCodexReauthProps?.target).toMatchObject({
+      fileName: mocks.files[0].name,
+      account: mocks.files[0].account,
+    });
+    expect(mocks.handleCredentialRefresh).not.toHaveBeenCalled();
   });
 
   it('disables inline credential refresh while that credential is refreshing', async () => {

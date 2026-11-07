@@ -8817,7 +8817,7 @@ export function AccountsPage() {
           size="sm"
           iconOnly
           className={`${styles.accountIconButton} ${styles.accountIconButtonRefresh}`}
-          onClick={() => void handleCredentialRefresh(row.raw)}
+          onClick={() => handleReauthAccount(row.raw)}
           disabled={disableControls || configurationSaving || credentialRefreshInProgress}
           loading={credentialRefreshInProgress}
           title={t('auth_files.credential_refresh_button')}
