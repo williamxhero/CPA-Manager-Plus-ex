@@ -40,6 +40,7 @@ export function CredentialAutoStartStopToggle({
       className={styles.button}
       aria-pressed={on}
       aria-label={t('accounts.auto_start_stop')}
+      title={t('accounts.auto_start_stop_aria')}
       data-credential-auto-start-stop={on ? 'on' : 'off'}
       data-auto-quota={on ? (quotaPresent ? 'present' : 'absent') : undefined}
       data-reason={error || undefined}

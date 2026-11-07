@@ -476,6 +476,7 @@ const { mocks } = vi.hoisted(() => {
       handleDelete: vi.fn(),
       handleDownload: vi.fn(async () => undefined),
       handleCredentialRefresh: vi.fn(async () => undefined),
+      credentialRefreshing: {} as Record<string, boolean>,
       showModels: vi.fn(async () => undefined),
       refreshModels: vi.fn(async () => undefined),
       invalidateModels: vi.fn(),
@@ -697,7 +698,7 @@ vi.mock('@/features/authFiles/hooks/useAuthFilesData', () => ({
       handleDelete: mocks.handleDelete,
       handleDownload: mocks.handleDownload,
       handleCredentialRefresh: mocks.handleCredentialRefresh,
-      credentialRefreshing: {},
+      credentialRefreshing: mocks.credentialRefreshing,
       toggleSelect: mocks.toggleSelect,
       selectAllVisible: mocks.selectAllVisible,
       invertVisibleSelection: mocks.invertVisibleSelection,
@@ -1635,6 +1636,7 @@ describe('AccountsPage replacement flows', () => {
     mocks.handleDelete.mockClear();
     mocks.handleDownload.mockClear();
     mocks.handleCredentialRefresh.mockClear();
+    mocks.credentialRefreshing = {};
     mocks.showModels.mockClear();
     mocks.refreshModels.mockClear();
     mocks.invalidateModels.mockClear();
@@ -4028,6 +4030,67 @@ describe('AccountsPage replacement flows', () => {
       await Promise.resolve();
     });
     expect(mocks.handleCredentialRefresh).toHaveBeenCalledWith(mocks.files[0]);
+  });
+
+  it('offers inline Codex credential refresh after auto start/stop', async () => {
+    const renderer = await renderAccountsPage();
+    const selectionKey = getAuthFileSelectionKey(mocks.files[0]);
+    const card = findAccountCardByKey(renderer, selectionKey);
+    const refreshButton = findAccountCardButtonByAriaLabel(
+      renderer,
+      selectionKey,
+      'auth_files.credential_refresh_button'
+    );
+
+    expect(refreshButton.props.title).toBe('auth_files.credential_refresh_button');
+    const quickActions = card.findAll(
+      (node) =>
+        typeof node.props.className === 'string' &&
+        node.props.className.includes('accountQuickActionsGrid')
+    )[0];
+    expect(quickActions).toBeDefined();
+    const actionChildren = quickActions?.children ?? [];
+    const autoIndex = actionChildren.findIndex(
+      (child) =>
+        child !== null &&
+        typeof child === 'object' &&
+        'type' in child &&
+        typeof (child as ReactTestInstance).type === 'function' &&
+        ((child as ReactTestInstance).type as { name?: string }).name ===
+          'CredentialAutoStartStopToggle'
+    );
+    const refreshIndex = actionChildren.findIndex(
+      (child) =>
+        child !== null &&
+        typeof child === 'object' &&
+        'props' in child &&
+        (child as { props?: { 'aria-label'?: string } }).props?.['aria-label'] ===
+          'auth_files.credential_refresh_button'
+    );
+    expect(autoIndex).toBeGreaterThanOrEqual(0);
+    expect(refreshIndex).toBe(autoIndex + 1);
+
+    await act(async () => {
+      refreshButton.props.onClick();
+      await Promise.resolve();
+    });
+    expect(mocks.handleCredentialRefresh).toHaveBeenCalledWith(mocks.files[0]);
+  });
+
+  it('disables inline credential refresh while that credential is refreshing', async () => {
+    const file = mocks.files[0];
+    mocks.credentialRefreshing[getAuthFileSelectionKey(file)] = true;
+    const renderer = await renderAccountsPage();
+    const refreshButton = findAccountCardButtonByAriaLabel(
+      renderer,
+      getAuthFileSelectionKey(file),
+      'auth_files.credential_refresh_button'
+    );
+
+    expect(refreshButton.props.disabled).toBe(true);
+    expect(refreshButton.findAll((node) => node.props.className === 'loading-spinner')).toHaveLength(
+      1
+    );
   });
 
   it('confirms before leaving a dirty configuration tab', async () => {

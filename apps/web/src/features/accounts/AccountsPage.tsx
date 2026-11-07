@@ -8807,6 +8807,24 @@ export function AccountsPage() {
         revision={`${credentialQuotaRevision}:${managerConnectionFingerprint}:${JSON.stringify(credentialProtection(row.authIndex).binding ?? null)}`}
       />
     );
+    const credentialRefreshInProgress =
+      credentialRefreshing[getAuthFileSelectionKey(row.raw)] === true;
+    const credentialRefreshButton =
+      !row.runtimeOnly && row.provider === CODEX_CONFIG.type ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          iconOnly
+          className={`${styles.accountIconButton} ${styles.accountIconButtonRefresh}`}
+          onClick={() => void handleCredentialRefresh(row.raw)}
+          disabled={disableControls || configurationSaving || credentialRefreshInProgress}
+          loading={credentialRefreshInProgress}
+          title={t('auth_files.credential_refresh_button')}
+          aria-label={t('auth_files.credential_refresh_button')}
+        >
+          {!credentialRefreshInProgress ? <IconRefreshCw size={15} /> : null}
+        </Button>
+      ) : null;
     const reauthButton = needsReauth ? (
       <Button
         variant="secondary"
@@ -8896,6 +8914,7 @@ export function AccountsPage() {
             {reauthButton}
             {deleteButton}
             {automaticSwitch}
+            {credentialRefreshButton}
             {downloadButton}
           </div>
           <div className={styles.accountGridCardPrimaryActions}>
@@ -8915,6 +8934,7 @@ export function AccountsPage() {
           {downloadButton}
           {deleteButton}
           {automaticSwitch}
+          {credentialRefreshButton}
         </div>
         {!hideSideActions ? (
           <>

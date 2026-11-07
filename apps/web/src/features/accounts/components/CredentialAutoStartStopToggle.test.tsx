@@ -108,6 +108,7 @@ it('does not offer a shared quota refresh button on the auto start/stop icon', a
       );
     });
     expect(r.root.findAllByType('button')).toHaveLength(1);
+    expect(power(r).props.title).toBe('accounts.auto_start_stop_aria');
     expect(posts).toEqual([]);
     expect(r.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
     expect(JSON.stringify(r.toJSON())).not.toContain('credential_policy.refresh');
