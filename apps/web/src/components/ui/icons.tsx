@@ -223,6 +223,19 @@ export function IconRotateCcw({ size = 20, ...props }: IconProps) {
   );
 }
 
+export function IconRecycle({ size = 20, ...props }: IconProps) {
+  return (
+    <svg {...baseSvgProps} width={size} height={size} {...props}>
+      <path d="m7 7-3 5 3 5" />
+      <path d="M4 12h7a3 3 0 0 0 3-3V5" />
+      <path d="m17 17 3-5-3-5" />
+      <path d="M20 12h-7a3 3 0 0 0-3 3v4" />
+      <path d="m12 3 3 2-3 2" />
+      <path d="m12 21-3-2 3-2" />
+    </svg>
+  );
+}
+
 export function IconArrowDownToLine({ size = 20, ...props }: IconProps) {
   return (
     <svg {...baseSvgProps} width={size} height={size} {...props}>
