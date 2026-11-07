@@ -2,7 +2,13 @@ import { act, createElement, createRef, useImperativeHandle, type Ref } from 're
 import { create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { getCodexIdentityConfuseCompatibility, useVisualConfig } from './useVisualConfig';
+import { DEFAULT_VISUAL_VALUES } from '@/types/visualConfig';
+import {
+  getCodexIdentityConfuseCompatibility,
+  getVisualConfigValidationErrors,
+  useVisualConfig,
+} from './useVisualConfig';
+import { setRuntimeControlsForTests } from '@/utils/quota/runtimeControls';
 
 type UseVisualConfigResult = ReturnType<typeof useVisualConfig>;
 type VisualConfigRuntime = Parameters<typeof useVisualConfig>[0];
@@ -191,12 +197,7 @@ describe('useVisualConfig', () => {
 
   it('does not resurrect a cleared sibling when another field recreates the same v8 parent', () => {
     const harness = mountUseVisualConfig();
-    const yaml = [
-      'observability:',
-      '  logs:',
-      '    logs-max-total-size-mb: 256',
-      '',
-    ].join('\n');
+    const yaml = ['observability:', '  logs:', '    logs-max-total-size-mb: 256', ''].join('\n');
 
     act(() => {
       expect(harness.getCurrent().loadVisualValuesFromYaml(yaml).ok).toBe(true);
@@ -664,9 +665,7 @@ describe('useVisualConfig', () => {
 
     expect(harness.getCurrent().visualValues.disableClaudeCloakMode).toBe(false);
     expect(harness.getCurrent().visualValues.claudeHeaderUserAgent).toBe('canonical-agent');
-    expect(harness.getCurrent().visualValues.claudeHeaderPackageVersion).toBe(
-      'historical-package'
-    );
+    expect(harness.getCurrent().visualValues.claudeHeaderPackageVersion).toBe('historical-package');
     expect(harness.getCurrent().visualValues.claudeHeaderOs).toBe('historical-os');
     expect(harness.getCurrent().visualValues.claudeHeaderRuntimeVersion).toBe('legacy-runtime');
     harness.unmount();
@@ -687,12 +686,8 @@ describe('useVisualConfig', () => {
       expect(historicalOnly.getCurrent().loadVisualValuesFromYaml(historicalYaml).ok).toBe(true);
     });
     expect(historicalOnly.getCurrent().visualValues.disableClaudeCloakMode).toBe(true);
-    expect(historicalOnly.getCurrent().visualValues.claudeHeaderUserAgent).toBe(
-      'historical-only'
-    );
-    expect(
-      historicalOnly.getCurrent().visualValues.claudeHeaderStabilizeDeviceProfile
-    ).toBe(false);
+    expect(historicalOnly.getCurrent().visualValues.claudeHeaderUserAgent).toBe('historical-only');
+    expect(historicalOnly.getCurrent().visualValues.claudeHeaderStabilizeDeviceProfile).toBe(false);
 
     act(() => {
       historicalOnly.getCurrent().setVisualValues({
@@ -727,9 +722,7 @@ describe('useVisualConfig', () => {
       historicalUpdated.oauth?.providers?.claude?.['header-defaults']?.['user-agent']
     ).toBeUndefined();
     expect(
-      historicalUpdated.oauth?.providers?.claude?.['header-defaults']?.[
-        'stabilize-device-profile'
-      ]
+      historicalUpdated.oauth?.providers?.claude?.['header-defaults']?.['stabilize-device-profile']
     ).toBe(false);
     historicalOnly.unmount();
   });
@@ -942,9 +935,7 @@ describe('useVisualConfig', () => {
     });
 
     expect(harness.getCurrent().visualDirty).toBe(false);
-    expect(harness.getCurrent().applyVisualChangesToYaml(initialYaml)).toBe(
-      initialYaml
-    );
+    expect(harness.getCurrent().applyVisualChangesToYaml(initialYaml)).toBe(initialYaml);
     harness.unmount();
   });
 
@@ -967,9 +958,10 @@ describe('useVisualConfig', () => {
       harness.getCurrent().commitApiKeysText('old-key\nnew-key');
     });
 
-    const parsed = parseYaml(
-      harness.getCurrent().applyVisualChangesToYaml(latestYaml)
-    ) as { ['api-keys']?: string[]; ['proxy-url']?: string };
+    const parsed = parseYaml(harness.getCurrent().applyVisualChangesToYaml(latestYaml)) as {
+      ['api-keys']?: string[];
+      ['proxy-url']?: string;
+    };
     expect(parsed['proxy-url']).toBe('http://next-proxy.local:8080');
     expect(parsed['api-keys']).toEqual(['old-key', 'new-key']);
     expect(harness.getCurrent().visualDirty).toBe(true);
@@ -1559,9 +1551,9 @@ describe('useVisualConfig', () => {
       harness.getCurrent().setVisualValues({ redisUsageQueueRetentionSeconds: '0' });
     });
 
-    expect(
-      harness.getCurrent().visualValidationErrors.redisUsageQueueRetentionSeconds
-    ).toBe('retention_seconds_range');
+    expect(harness.getCurrent().visualValidationErrors.redisUsageQueueRetentionSeconds).toBe(
+      'retention_seconds_range'
+    );
     harness.unmount();
   });
 
@@ -1791,13 +1783,7 @@ describe('useVisualConfig', () => {
 
     it('removes the devin map completely when clearing sensitive words and no other fields exist', () => {
       const harness = mountUseVisualConfig();
-      const yaml = [
-        'devin:',
-        '  sensitive-words:',
-        '    - secret',
-        'port: 8080',
-        '',
-      ].join('\n');
+      const yaml = ['devin:', '  sensitive-words:', '    - secret', 'port: 8080', ''].join('\n');
 
       act(() => {
         expect(harness.getCurrent().loadVisualValuesFromYaml(yaml).ok).toBe(true);
@@ -1909,13 +1895,7 @@ describe('useVisualConfig', () => {
 
     it('tracks the dirty lifecycle accurately for devinSensitiveWords', () => {
       const harness = mountUseVisualConfig();
-      const yaml = [
-        'devin:',
-        '  sensitive-words:',
-        '    - foo',
-        '    - bar',
-        '',
-      ].join('\n');
+      const yaml = ['devin:', '  sensitive-words:', '    - foo', '    - bar', ''].join('\n');
 
       act(() => {
         expect(harness.getCurrent().loadVisualValuesFromYaml(yaml).ok).toBe(true);
@@ -1947,6 +1927,51 @@ describe('useVisualConfig', () => {
       expect(harness.getCurrent().visualDirty).toBe(false);
 
       harness.unmount();
+    });
+
+    it('loads and saves the upstream error retry limit while tracking quota cadence as a draft', () => {
+      setRuntimeControlsForTests({ quotaRefreshIntervalMs: 60 * 60_000 });
+      const harness = mountUseVisualConfig();
+      const yaml = [
+        'config-version: 8',
+        'routing:',
+        '  retry:',
+        '    upstream-error-retry-limit: 5',
+        '',
+      ].join('\n');
+
+      act(() => {
+        expect(harness.getCurrent().loadVisualValuesFromYaml(yaml).ok).toBe(true);
+      });
+      expect(harness.getCurrent().visualValues.upstreamErrorRetryLimit).toBe('5');
+      expect(harness.getCurrent().visualValues.quotaRefreshIntervalMinutes).toBe('60');
+      expect(harness.getCurrent().visualDirty).toBe(false);
+
+      act(() => {
+        harness.getCurrent().setVisualValues({
+          upstreamErrorRetryLimit: '-1',
+          quotaRefreshIntervalMinutes: '90',
+        });
+      });
+      expect(harness.getCurrent().visualDirty).toBe(true);
+
+      const updated = parseYaml(harness.getCurrent().applyVisualChangesToYaml(yaml)) as {
+        routing?: { retry?: Record<string, unknown> };
+      };
+      expect(updated.routing?.retry?.['upstream-error-retry-limit']).toBe(-1);
+      expect(updated.routing?.retry?.['quota-refresh-interval-minutes']).toBeUndefined();
+      harness.unmount();
+    });
+
+    it('validates upstream retry limits as integers and quota cadence as non-negative numbers', () => {
+      const values = {
+        ...DEFAULT_VISUAL_VALUES,
+        upstreamErrorRetryLimit: '1.5',
+        quotaRefreshIntervalMinutes: '-1',
+      };
+      const errors = getVisualConfigValidationErrors(values);
+      expect(errors.upstreamErrorRetryLimit).toBe('integer');
+      expect(errors.quotaRefreshIntervalMinutes).toBe('non_negative_number');
     });
   });
 });

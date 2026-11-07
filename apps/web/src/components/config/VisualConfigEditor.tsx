@@ -237,8 +237,16 @@ export function VisualConfigEditor({
     validationErrors?.transientErrorCooldownSeconds
   );
   const requestRetryError = getValidationMessage(t, validationErrors?.requestRetry);
+  const upstreamErrorRetryLimitError = getValidationMessage(
+    t,
+    validationErrors?.upstreamErrorRetryLimit
+  );
   const maxRetryCredentialsError = getValidationMessage(t, validationErrors?.maxRetryCredentials);
   const maxRetryIntervalError = getValidationMessage(t, validationErrors?.maxRetryInterval);
+  const quotaRefreshIntervalMinutesError = getValidationMessage(
+    t,
+    validationErrors?.quotaRefreshIntervalMinutes
+  );
   const authAutoRefreshWorkersError = getValidationMessage(
     t,
     validationErrors?.authAutoRefreshWorkers
@@ -328,6 +336,7 @@ export function VisualConfigEditor({
         icon: IconTrendingUp,
         errorCount: countErrors([
           'requestRetry',
+          'upstreamErrorRetryLimit',
           'maxRetryCredentials',
           'maxRetryInterval',
           'transientErrorCooldownSeconds',
@@ -339,7 +348,7 @@ export function VisualConfigEditor({
         title: t('config_management.visual.sections.quota.title'),
         description: t('config_management.visual.sections.quota.description'),
         icon: IconTimer,
-        errorCount: 0,
+        errorCount: countErrors(['quotaRefreshIntervalMinutes']),
       },
       {
         id: 'streaming',
@@ -736,9 +745,7 @@ export function VisualConfigEditor({
                       variant="secondary"
                       size="xs"
                       disabled={disabled || values.rmSecretKeyAction === 'unchanged'}
-                      onClick={() =>
-                        onChange({ rmSecretKey: '', rmSecretKeyAction: 'unchanged' })
-                      }
+                      onClick={() => onChange({ rmSecretKey: '', rmSecretKeyAction: 'unchanged' })}
                     >
                       {t('config_management.visual.sections.remote.secret_key_keep')}
                     </Button>
@@ -970,12 +977,8 @@ export function VisualConfigEditor({
                 )}
               >
                 <FieldShell
-                  label={t(
-                    'config_management.visual.sections.system.devin_sensitive_words_label'
-                  )}
-                  hint={t(
-                    'config_management.visual.sections.system.devin_sensitive_words_hint'
-                  )}
+                  label={t('config_management.visual.sections.system.devin_sensitive_words_label')}
+                  hint={t('config_management.visual.sections.system.devin_sensitive_words_hint')}
                 >
                   <StringListEditor
                     value={values.devinSensitiveWords}
@@ -1019,6 +1022,19 @@ export function VisualConfigEditor({
                   onChange={(e) => onChange({ requestRetry: e.target.value })}
                   disabled={disabled}
                   error={requestRetryError}
+                />
+                <Input
+                  label={t('config_management.visual.sections.network.upstream_error_retry_limit')}
+                  type="number"
+                  step="1"
+                  placeholder="-1"
+                  value={values.upstreamErrorRetryLimit}
+                  onChange={(e) => onChange({ upstreamErrorRetryLimit: e.target.value })}
+                  disabled={disabled}
+                  hint={t(
+                    'config_management.visual.sections.network.upstream_error_retry_limit_hint'
+                  )}
+                  error={upstreamErrorRetryLimitError}
                 />
                 <Input
                   label={t('config_management.visual.sections.network.max_retry_credentials')}
@@ -1154,9 +1170,7 @@ export function VisualConfigEditor({
                   value={values.gptImage2BaseModel}
                   onChange={(e) => onChange({ gptImage2BaseModel: e.target.value })}
                   disabled={disabled}
-                  hint={t(
-                    'config_management.visual.sections.network.gpt_image_2_base_model_hint'
-                  )}
+                  hint={t('config_management.visual.sections.network.gpt_image_2_base_model_hint')}
                 />
                 <Input
                   label={t('config_management.visual.sections.network.video_result_auth_cache_ttl')}
@@ -1360,7 +1374,14 @@ export function VisualConfigEditor({
                 disabled={disabled}
                 onChange={(quotaAntigravityCredits) => onChange({ quotaAntigravityCredits })}
               />
-              <QuotaRefreshIntervalControl disabled={disabled} />
+              <QuotaRefreshIntervalControl
+                value={values.quotaRefreshIntervalMinutes}
+                disabled={disabled}
+                error={quotaRefreshIntervalMinutesError}
+                onChange={(quotaRefreshIntervalMinutes) =>
+                  onChange({ quotaRefreshIntervalMinutes })
+                }
+              />
             </SectionGrid>
           </ConfigSection>
 

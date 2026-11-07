@@ -35,6 +35,13 @@ const mocks = vi.hoisted(() => ({
   capturedApiKeyOperationEnd: null as (() => void) | null,
   translate: (key: string) => key,
   useRealVisualConfig: false,
+  runtimeControls: {
+    quotaRefreshIntervalMs: 3_600_000,
+    quotaFetchedAtMs: 0,
+    autoStartStopEnabled: false,
+    autoStartStopIds: [] as string[],
+    balanceTexts: {} as Record<string, string>,
+  },
   visualState: {
     apiKeysText: 'sk-old',
     dirty: false,
@@ -87,6 +94,16 @@ vi.mock('@/components/config/VisualConfigEditor', () => ({
       <div data-test="visual-editor">
         <output data-test="api-keys">{values.apiKeysText}</output>
         <button type="button" data-test="enable-debug" onClick={() => onChange({ debug: true })} />
+        <button
+          type="button"
+          data-test="change-quota"
+          onClick={() => onChange({ quotaRefreshIntervalMinutes: '90' })}
+        />
+        <button
+          type="button"
+          data-test="change-upstream-retry"
+          onClick={() => onChange({ upstreamErrorRetryLimit: '3' })}
+        />
         <button
           type="button"
           data-test="enable-commercial"
@@ -291,6 +308,14 @@ vi.mock('@/utils/connection', () => ({
   detectApiBaseFromLocation: () => 'http://panel.local',
 }));
 
+vi.mock('@/utils/quota/runtimeControls', () => ({
+  loadRuntimeControls: vi.fn(async () => mocks.runtimeControls),
+  readRuntimeControls: vi.fn(() => mocks.runtimeControls),
+  writeRuntimeControls: vi.fn(async (next: typeof mocks.runtimeControls) => {
+    mocks.runtimeControls = next;
+  }),
+}));
+
 const { ConfigPage } = await import('./ConfigPage');
 
 const INITIAL_YAML = 'api-keys:\n  - sk-old\n';
@@ -452,6 +477,13 @@ beforeEach(() => {
   });
   mocks.visualState.apiKeysText = 'sk-old';
   mocks.visualState.dirty = false;
+  mocks.runtimeControls = {
+    quotaRefreshIntervalMs: 3_600_000,
+    quotaFetchedAtMs: 0,
+    autoStartStopEnabled: false,
+    autoStartStopIds: [],
+    balanceTexts: {},
+  };
   vi.stubGlobal('window', { location: { reload: mocks.reloadPage } });
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
@@ -558,6 +590,37 @@ describe('ConfigPage v8 API-key persistence with the real visual config hook', (
 });
 
 describe('ConfigPage CPA v8 visual persistence', () => {
+  it('keeps quota refresh edits local until the visual save action', async () => {
+    mocks.useRealVisualConfig = true;
+    await mountPage();
+
+    await click('change-quota');
+    expect(mocks.runtimeControls.quotaRefreshIntervalMs).toBe(3_600_000);
+
+    await clickSave();
+    expect(mocks.runtimeControls.quotaRefreshIntervalMs).toBe(90 * 60_000);
+    expect(mocks.saveConfigYaml).not.toHaveBeenCalled();
+  });
+
+  it('persists the upstream error retry limit through the canonical routing retry path', async () => {
+    mocks.useRealVisualConfig = true;
+    let serverYaml = 'config-version: 8\nrouting:\n  retry: {}\n';
+    mocks.fetchConfigYaml.mockImplementation(async () => serverYaml);
+    mocks.saveConfigYaml.mockImplementation(async (yaml: string) => {
+      serverYaml = yaml;
+    });
+
+    await mountPage();
+    await click('change-upstream-retry');
+    await clickSave();
+    await click('confirm-save');
+
+    const parsed = parseYaml(serverYaml, { merge: true }) as {
+      routing?: { retry?: Record<string, unknown> };
+    };
+    expect(parsed.routing?.retry?.['upstream-error-retry-limit']).toBe(3);
+  });
+
   it('resolves merged commercial mode when deciding the restart warning', async () => {
     mocks.useRealVisualConfig = true;
     let serverYaml = [

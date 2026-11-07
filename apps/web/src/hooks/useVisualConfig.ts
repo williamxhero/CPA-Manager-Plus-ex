@@ -10,6 +10,7 @@ import type {
 } from '@/types/visualConfig';
 import { DEFAULT_VISUAL_VALUES } from '@/types/visualConfig';
 import { normalizeRoutingStrategy } from '@/utils/routingStrategy';
+import { readRuntimeControls } from '@/utils/quota/runtimeControls';
 import {
   arePayloadFilterRulesEqual,
   arePayloadRulesEqual,
@@ -238,6 +239,10 @@ const VISUAL_CONFIG_V8_PATH_MAPPINGS: VisualConfigPathMapping[] = [
   { legacy: ['remote-management'], canonical: ['management'] },
   { legacy: ['force-model-prefix'], canonical: ['routing', 'force-model-prefix'] },
   { legacy: ['request-retry'], canonical: ['routing', 'retry', 'request-retry'] },
+  {
+    legacy: ['upstream-error-retry-limit'],
+    canonical: ['routing', 'retry', 'upstream-error-retry-limit'],
+  },
   {
     legacy: ['max-retry-credentials'],
     canonical: ['routing', 'retry', 'max-retry-credentials'],
@@ -659,6 +664,13 @@ function getIntegerError(value: string): 'integer' | undefined {
   return /^-?\d+$/.test(trimmed) ? undefined : 'integer';
 }
 
+function getNonNegativeNumberError(value: string): 'non_negative_number' | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? undefined : 'non_negative_number';
+}
+
 function getPortError(value: string): 'port_range' | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
@@ -698,8 +710,10 @@ export function getVisualConfigValidationErrors(
     ),
     transientErrorCooldownSeconds: getIntegerError(values.transientErrorCooldownSeconds),
     requestRetry: getNonNegativeIntegerError(values.requestRetry),
+    upstreamErrorRetryLimit: getIntegerError(values.upstreamErrorRetryLimit),
     maxRetryCredentials: getNonNegativeIntegerError(values.maxRetryCredentials),
     maxRetryInterval: getNonNegativeIntegerError(values.maxRetryInterval),
+    quotaRefreshIntervalMinutes: getNonNegativeNumberError(values.quotaRefreshIntervalMinutes),
     authAutoRefreshWorkers: getNonNegativeIntegerError(values.authAutoRefreshWorkers),
     'streaming.keepaliveSeconds': getNonNegativeIntegerError(values.streaming.keepaliveSeconds),
     'streaming.bootstrapRetries': getNonNegativeIntegerError(values.streaming.bootstrapRetries),
@@ -803,6 +817,7 @@ function getNextDirtyFields(
       'disableCooling',
       'saveCooldownStatus',
       'transientErrorCooldownSeconds',
+      'upstreamErrorRetryLimit',
       'disableClaudeCloakMode',
       'disableImageGeneration',
       'gptImage2BaseModel',
@@ -920,6 +935,12 @@ function getNextDirtyFields(
   if (Object.prototype.hasOwnProperty.call(patch, 'requestRetry')) {
     updateDirty('requestRetry', nextValues.requestRetry === baselineValues.requestRetry);
   }
+  if (Object.prototype.hasOwnProperty.call(patch, 'upstreamErrorRetryLimit')) {
+    updateDirty(
+      'upstreamErrorRetryLimit',
+      nextValues.upstreamErrorRetryLimit === baselineValues.upstreamErrorRetryLimit
+    );
+  }
   if (Object.prototype.hasOwnProperty.call(patch, 'maxRetryCredentials')) {
     updateDirty(
       'maxRetryCredentials',
@@ -930,6 +951,12 @@ function getNextDirtyFields(
     updateDirty(
       'maxRetryInterval',
       nextValues.maxRetryInterval === baselineValues.maxRetryInterval
+    );
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'quotaRefreshIntervalMinutes')) {
+    updateDirty(
+      'quotaRefreshIntervalMinutes',
+      nextValues.quotaRefreshIntervalMinutes === baselineValues.quotaRefreshIntervalMinutes
     );
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'wsAuth')) {
@@ -1225,8 +1252,10 @@ export function useVisualConfig(runtime: VisualConfigRuntime = {}) {
         forceModelPrefix: Boolean(readCompat(['force-model-prefix'])),
         passthroughHeaders: Boolean(readCompat(['passthrough-headers'])),
         requestRetry: String(readCompat(['request-retry']) ?? ''),
+        upstreamErrorRetryLimit: String(readCompat(['upstream-error-retry-limit']) ?? '-1'),
         maxRetryCredentials: String(readCompat(['max-retry-credentials']) ?? ''),
         maxRetryInterval: String(readCompat(['max-retry-interval']) ?? ''),
+        quotaRefreshIntervalMinutes: String(readRuntimeControls().quotaRefreshIntervalMs / 60_000),
         disableCooling: Boolean(readCompat(['disable-cooling'])),
         saveCooldownStatus: Boolean(readCompat(['save-cooldown-status'])),
         transientErrorCooldownSeconds: String(
@@ -1733,6 +1762,9 @@ export function useVisualConfig(runtime: VisualConfigRuntime = {}) {
           setCompatBoolean(['passthrough-headers'], values.passthroughHeaders);
         }
         if (isDirty('requestRetry')) setCompatInt(['request-retry'], values.requestRetry);
+        if (isDirty('upstreamErrorRetryLimit')) {
+          setCompatInt(['upstream-error-retry-limit'], values.upstreamErrorRetryLimit);
+        }
         if (isDirty('maxRetryCredentials')) {
           setCompatInt(['max-retry-credentials'], values.maxRetryCredentials);
         }

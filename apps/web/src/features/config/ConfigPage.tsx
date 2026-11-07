@@ -47,6 +47,11 @@ import {
   type ManagerConfigResponse,
 } from '@/services/api/usageService';
 import { detectApiBaseFromLocation } from '@/utils/connection';
+import {
+  loadRuntimeControls,
+  readRuntimeControls,
+  writeRuntimeControls,
+} from '@/utils/quota/runtimeControls';
 import { ManagerConfigPanel } from './components/ManagerConfigPanel';
 import styles from './ConfigPage.module.scss';
 
@@ -341,6 +346,14 @@ function normalizeYamlForVisualDiff(yamlContent: string): string {
   }
 }
 
+function parseQuotaRefreshIntervalMinutes(value: string | undefined): number | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 export function ConfigPage() {
   const { t } = useTranslation();
   const pageTransitionLayer = usePageTransitionLayer();
@@ -438,6 +451,12 @@ export function ConfigPage() {
   const hasVisualValidationErrors =
     activeTab === 'visual' &&
     (Object.values(visualValidationErrors).some(Boolean) || visualHasPayloadValidationErrors);
+  const quotaRefreshIntervalMinutes = parseQuotaRefreshIntervalMinutes(
+    visualValues.quotaRefreshIntervalMinutes
+  );
+  const quotaRuntimeDirty =
+    quotaRefreshIntervalMinutes !== null &&
+    quotaRefreshIntervalMinutes * 60_000 !== readRuntimeControls().quotaRefreshIntervalMs;
   const managerRetentionSeconds =
     managerCPAUsage?.redisUsageQueueRetentionSeconds ||
     Number(visualValues.redisUsageQueueRetentionSeconds) ||
@@ -485,6 +504,7 @@ export function ConfigPage() {
     setLoading(true);
     setError('');
     try {
+      await loadRuntimeControls();
       const data = await configFileApi.fetchConfigYaml();
       setContent(data);
       setDirty(false);
@@ -885,6 +905,18 @@ export function ConfigPage() {
     void loadManagerConfig();
   }, [activeTab, loadManagerConfig]);
 
+  const persistQuotaRefreshInterval = useCallback(async () => {
+    if (!quotaRuntimeDirty) return;
+    if (quotaRefreshIntervalMinutes === null) {
+      throw new Error(t('config_management.visual.validation.non_negative_number'));
+    }
+    await loadRuntimeControls();
+    await writeRuntimeControls({
+      ...readRuntimeControls(),
+      quotaRefreshIntervalMs: quotaRefreshIntervalMinutes * 60_000,
+    });
+  }, [quotaRefreshIntervalMinutes, quotaRuntimeDirty, t]);
+
   const handleConfirmSave = async () => {
     if (
       shouldBlockStaleSourceSave({
@@ -913,11 +945,17 @@ export function ConfigPage() {
         setMergedYaml(nextMergedYaml);
 
         if (nextServerYaml === nextMergedYaml) {
+          await persistQuotaRefreshInterval();
           setDirty(false);
           setDiffModalOpen(false);
           setContent(latestServerYaml);
           loadVisualValuesFromYaml(latestServerYaml);
-          showNotification(t('config_management.diff.no_changes'), 'info');
+          showNotification(
+            quotaRuntimeDirty
+              ? t('config_management.save_success')
+              : t('config_management.diff.no_changes'),
+            quotaRuntimeDirty ? 'success' : 'info'
+          );
         }
         return;
       }
@@ -927,6 +965,7 @@ export function ConfigPage() {
       const commercialModeChanged = previousCommercialMode !== nextCommercialMode;
 
       await configFileApi.saveConfigYaml(mergedYaml);
+      await persistQuotaRefreshInterval();
       const latestContent = await configFileApi.fetchConfigYaml();
       setDirty(false);
       setDiffModalOpen(false);
@@ -1207,6 +1246,7 @@ export function ConfigPage() {
       }
 
       if (diffOriginal === nextMergedYaml) {
+        await persistQuotaRefreshInterval();
         setDirty(false);
         setContent(latestServerYaml);
         setServerYaml(latestServerYaml);
@@ -1214,7 +1254,12 @@ export function ConfigPage() {
         setPreviewServerYaml(latestServerYaml);
         updateSourceSnapshotStale(false);
         loadVisualValuesFromYaml(latestServerYaml);
-        showNotification(t('config_management.diff.no_changes'), 'info');
+        showNotification(
+          quotaRuntimeDirty
+            ? t('config_management.save_success')
+            : t('config_management.diff.no_changes'),
+          quotaRuntimeDirty ? 'success' : 'info'
+        );
         return;
       }
 

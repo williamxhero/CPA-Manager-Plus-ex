@@ -15,8 +15,10 @@ export type VisualConfigFieldPath =
   | 'redisUsageQueueRetentionSeconds'
   | 'transientErrorCooldownSeconds'
   | 'requestRetry'
+  | 'upstreamErrorRetryLimit'
   | 'maxRetryCredentials'
   | 'maxRetryInterval'
+  | 'quotaRefreshIntervalMinutes'
   | 'authAutoRefreshWorkers'
   | 'streaming.keepaliveSeconds'
   | 'streaming.bootstrapRetries'
@@ -25,6 +27,7 @@ export type VisualConfigFieldPath =
 export type VisualConfigValidationErrorCode =
   | 'port_range'
   | 'non_negative_integer'
+  | 'non_negative_number'
   | 'integer'
   | 'retention_seconds_range';
 
@@ -122,8 +125,10 @@ export type VisualConfigValues = {
   forceModelPrefix: boolean;
   passthroughHeaders: boolean;
   requestRetry: string;
+  upstreamErrorRetryLimit: string;
   maxRetryCredentials: string;
   maxRetryInterval: string;
+  quotaRefreshIntervalMinutes: string;
   disableCooling: boolean;
   saveCooldownStatus: boolean;
   transientErrorCooldownSeconds: string;
@@ -200,8 +205,10 @@ export const DEFAULT_VISUAL_VALUES: VisualConfigValues = {
   forceModelPrefix: false,
   passthroughHeaders: false,
   requestRetry: '',
+  upstreamErrorRetryLimit: '-1',
   maxRetryCredentials: '',
   maxRetryInterval: '',
+  quotaRefreshIntervalMinutes: '60',
   disableCooling: false,
   saveCooldownStatus: false,
   transientErrorCooldownSeconds: '',
