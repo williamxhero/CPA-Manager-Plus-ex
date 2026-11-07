@@ -1361,7 +1361,6 @@ export function AccountsPage() {
     savePastedAuthJson,
     handleDelete,
     handleDownload,
-    handleCredentialRefresh,
     toggleSelect,
     selectAllVisible,
     invertVisibleSelection,
@@ -10397,7 +10396,7 @@ export function AccountsPage() {
               label: t('auth_files.credential_refresh_button'),
               icon: <IconRecycle size={15} />,
               onClick: () => {
-                void handleCredentialRefresh(selectedRow.raw);
+                handleReauthAccount(selectedRow.raw);
               },
               disabled: disableControls || configurationSaving || selectedCredentialRefreshing,
             } satisfies DropdownMenuItem,

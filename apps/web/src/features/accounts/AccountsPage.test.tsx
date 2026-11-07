@@ -4029,7 +4029,12 @@ describe('AccountsPage replacement flows', () => {
       refreshItem.onClick();
       await Promise.resolve();
     });
-    expect(mocks.handleCredentialRefresh).toHaveBeenCalledWith(mocks.files[0]);
+    expect(mocks.lastCodexReauthProps?.open).toBe(true);
+    expect(mocks.lastCodexReauthProps?.target).toMatchObject({
+      fileName: mocks.files[0].name,
+      account: mocks.files[0].account,
+    });
+    expect(mocks.handleCredentialRefresh).not.toHaveBeenCalled();
   });
 
   it('offers inline Codex credential refresh after auto start/stop', async () => {
