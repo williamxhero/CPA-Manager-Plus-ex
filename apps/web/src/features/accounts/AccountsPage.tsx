@@ -8822,7 +8822,7 @@ export function AccountsPage() {
           title={t('auth_files.credential_refresh_button')}
           aria-label={t('auth_files.credential_refresh_button')}
         >
-          {!credentialRefreshInProgress ? <IconRefreshCw size={15} /> : null}
+          {!credentialRefreshInProgress ? <IconRotateCcw size={15} /> : null}
         </Button>
       ) : null;
     const reauthButton = needsReauth ? (
@@ -10394,7 +10394,7 @@ export function AccountsPage() {
             {
               key: 'refresh-credential',
               label: t('auth_files.credential_refresh_button'),
-              icon: <IconRefreshCw size={15} />,
+              icon: <IconRotateCcw size={15} />,
               onClick: () => {
                 void handleCredentialRefresh(selectedRow.raw);
               },
