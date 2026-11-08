@@ -346,6 +346,38 @@ function normalizeYamlForVisualDiff(yamlContent: string): string {
   }
 }
 
+function preserveVisualManagementSecretKey(
+  latestServerYaml: string,
+  proposedYaml: string,
+  secretKeyAction: 'unchanged' | 'replace' | 'clear'
+): string {
+  if (secretKeyAction !== 'unchanged') return proposedYaml;
+
+  try {
+    const latest = parseDocument(latestServerYaml, YAML_EFFECTIVE_PARSE_OPTIONS);
+    const proposed = parseDocument(proposedYaml, YAML_EFFECTIVE_PARSE_OPTIONS);
+    if (latest.errors.length > 0 || proposed.errors.length > 0) return proposedYaml;
+
+    const latestManagementPath = latest.hasIn(['management', 'secret-key'])
+      ? ['management', 'secret-key']
+      : latest.hasIn(['remote-management', 'secret-key'])
+        ? ['remote-management', 'secret-key']
+        : null;
+    if (!latestManagementPath) return proposedYaml;
+
+    const proposedManagementPath = proposed.hasIn(['management', 'secret-key'])
+      ? ['management', 'secret-key']
+      : proposed.hasIn(['remote-management', 'secret-key'])
+        ? ['remote-management', 'secret-key']
+        : latestManagementPath;
+    const latestSecretKey = latest.getIn(latestManagementPath, true);
+    proposed.setIn(proposedManagementPath, proposed.createNode(latestSecretKey));
+    return proposed.toString({ indent: 2, lineWidth: 120, minContentWidth: 0 });
+  } catch {
+    return proposedYaml;
+  }
+}
+
 function parseQuotaRefreshIntervalMinutes(value: string | undefined): number | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -1235,7 +1267,13 @@ export function ConfigPage() {
       // In source mode, save exactly what the user edited. In visual mode, preserve
       // unsaved source edits as the visual patch base so backend-only fields survive.
       const nextMergedYaml =
-        activeTab === 'source' ? content : applyVisualChangesToYaml(visualBaseYaml);
+        activeTab === 'source'
+          ? content
+          : preserveVisualManagementSecretKey(
+              latestServerYaml,
+              applyVisualChangesToYaml(visualBaseYaml),
+              visualValues.rmSecretKeyAction
+            );
 
       // In visual mode, applyVisualChangesToYaml re-serializes YAML via parseDocument → toString,
       // which may reformat comments/whitespace. Normalize the server YAML through the same pipeline

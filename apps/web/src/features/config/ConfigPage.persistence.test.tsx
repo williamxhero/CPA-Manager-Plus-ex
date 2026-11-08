@@ -676,6 +676,44 @@ describe('ConfigPage CPA v8 visual persistence', () => {
       'warning'
     );
   });
+
+  it('preserves the latest management secret during a visual save from a stale source draft', async () => {
+    mocks.useRealVisualConfig = true;
+    const oldYaml = [
+      'config-version: 8',
+      'management:',
+      '  secret-key: old-secret',
+      '  allow-remote: false',
+      'upstream:',
+      '  codex:',
+      '    stream-bootstrap-timeout: 20s',
+      '',
+    ].join('\n');
+    const latestYaml = oldYaml.replace('old-secret', 'latest-secret');
+    let serverYaml = oldYaml;
+    let savedYaml = '';
+    mocks.fetchConfigYaml.mockImplementation(async () => serverYaml);
+    mocks.saveConfigYaml.mockImplementation(async (yaml: string) => {
+      savedYaml = yaml;
+      serverYaml = yaml;
+    });
+
+    await mountPage();
+    await clickTab('source');
+    const sourceEditor = renderer?.root.findByProps({ 'data-test': 'source-editor' });
+    await act(async () => {
+      sourceEditor?.props.onChange({ target: { value: `${oldYaml}# source draft\n` } });
+    });
+    await flush();
+    await clickTab('visual');
+
+    serverYaml = latestYaml;
+    await click('enable-debug');
+    await clickSave();
+    await click('confirm-save');
+
+    expect(parseYaml(savedYaml).management['secret-key']).toBe('latest-secret');
+  });
 });
 
 describe('ConfigPage API-key source snapshot safety', () => {
