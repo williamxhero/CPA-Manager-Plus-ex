@@ -280,6 +280,10 @@ const VISUAL_CONFIG_V8_PATH_MAPPINGS: VisualConfigPathMapping[] = [
     canonical: ['oauth', 'providers', 'codex', 'identity-confuse'],
   },
   {
+    legacy: ['codex', 'stream-bootstrap-timeout'],
+    canonical: ['upstream', 'codex', 'stream-bootstrap-timeout'],
+  },
+  {
     legacy: ['disable-claude-cloak-mode'],
     canonical: ['upstream', 'claude', 'disable-claude-cloak-mode'],
   },
@@ -687,6 +691,16 @@ function getRedisUsageQueueRetentionError(value: string): 'retention_seconds_ran
   return parsed >= 1 && parsed <= 3600 ? undefined : 'retention_seconds_range';
 }
 
+function getDurationError(value: string): 'duration' | undefined {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed || ['0', 'none', 'unlimited', 'disabled', 'off', 'never'].includes(trimmed)) {
+    return undefined;
+  }
+  if (/^\d+$/.test(trimmed)) return undefined;
+  if (/^(?:\d+(?:\.\d+)?(?:ns|us|µs|ms|s|m|h))+$/i.test(trimmed)) return undefined;
+  return 'duration';
+}
+
 function parseDisableImageGenerationMode(raw: unknown): DisableImageGenerationMode {
   if (raw === true) return 'true';
   if (typeof raw === 'string') {
@@ -714,6 +728,7 @@ export function getVisualConfigValidationErrors(
     maxRetryCredentials: getNonNegativeIntegerError(values.maxRetryCredentials),
     maxRetryInterval: getNonNegativeIntegerError(values.maxRetryInterval),
     quotaRefreshIntervalMinutes: getNonNegativeNumberError(values.quotaRefreshIntervalMinutes),
+    streamBootstrapTimeout: getDurationError(values.streamBootstrapTimeout),
     authAutoRefreshWorkers: getNonNegativeIntegerError(values.authAutoRefreshWorkers),
     'streaming.keepaliveSeconds': getNonNegativeIntegerError(values.streaming.keepaliveSeconds),
     'streaming.bootstrapRetries': getNonNegativeIntegerError(values.streaming.bootstrapRetries),
@@ -957,6 +972,12 @@ function getNextDirtyFields(
     updateDirty(
       'quotaRefreshIntervalMinutes',
       nextValues.quotaRefreshIntervalMinutes === baselineValues.quotaRefreshIntervalMinutes
+    );
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'streamBootstrapTimeout')) {
+    updateDirty(
+      'streamBootstrapTimeout',
+      nextValues.streamBootstrapTimeout === baselineValues.streamBootstrapTimeout
     );
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'wsAuth')) {
@@ -1319,6 +1340,7 @@ export function useVisualConfig(runtime: VisualConfigRuntime = {}) {
         codexIdentityConfuse: Boolean(
           readCompat(['codex', 'identity-confuse'], [['codex', 'identityConfuse']])
         ),
+        streamBootstrapTimeout: String(readCompat(['codex', 'stream-bootstrap-timeout']) ?? '0'),
         // Runtime support is overlaid on returned visualValues so a late version
         // header can update the UI without reparsing the YAML.
         codexIdentityConfuseSupported: true,
@@ -1889,6 +1911,11 @@ export function useVisualConfig(runtime: VisualConfigRuntime = {}) {
             deleteCompat(codexIdentityConfuseLegacyPath);
           }
           deleteCompatIfMapEmpty(['codex']);
+        }
+
+        if (isDirty('streamBootstrapTimeout')) {
+          ensureCompatMap(['codex']);
+          setCompatString(['codex', 'stream-bootstrap-timeout'], values.streamBootstrapTimeout);
         }
 
         if (isDirty('devinSensitiveWords')) {

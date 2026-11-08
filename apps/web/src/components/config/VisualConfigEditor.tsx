@@ -260,6 +260,10 @@ export function VisualConfigEditor({
     t,
     validationErrors?.['streaming.nonstreamKeepaliveInterval']
   );
+  const streamBootstrapTimeoutError = getValidationMessage(
+    t,
+    validationErrors?.streamBootstrapTimeout
+  );
 
   const handlePayloadDefaultRulesChange = useCallback(
     (payloadDefaultRules: PayloadRule[]) => onChange({ payloadDefaultRules }),
@@ -359,6 +363,7 @@ export function VisualConfigEditor({
           'streaming.keepaliveSeconds',
           'streaming.bootstrapRetries',
           'streaming.nonstreamKeepaliveInterval',
+          'streamBootstrapTimeout',
         ]),
       },
       {
@@ -1445,6 +1450,16 @@ export function VisualConfigEditor({
                   disabled={disabled}
                   hint={t('config_management.visual.sections.streaming.bootstrap_hint')}
                   error={bootstrapRetriesError}
+                />
+                <Input
+                  label={t('config_management.visual.sections.streaming.bootstrap_timeout')}
+                  type="text"
+                  placeholder="5m"
+                  value={values.streamBootstrapTimeout}
+                  onChange={(e) => onChange({ streamBootstrapTimeout: e.target.value })}
+                  disabled={disabled}
+                  hint={t('config_management.visual.sections.streaming.bootstrap_timeout_hint')}
+                  error={streamBootstrapTimeoutError}
                 />
               </SectionGrid>
 

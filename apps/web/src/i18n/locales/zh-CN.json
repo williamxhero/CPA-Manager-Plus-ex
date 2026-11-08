@@ -4449,6 +4449,8 @@
           "keepalive_hint": "设置为 0 或留空表示禁用 keepalive",
           "bootstrap_retries": "Bootstrap 重试次数",
           "bootstrap_hint": "流式传输启动时（首包前）的重试次数",
+          "bootstrap_timeout": "首个输出超时重试",
+          "bootstrap_timeout_hint": "首个业务输出前的等待上限；支持 5m、90s 等时长，0/none 表示不限制。超时后 CPA 会切换凭证重试。",
           "nonstream_keepalive": "非流式 Keepalive 间隔 (秒)",
           "nonstream_keepalive_hint": "非流式响应时每隔 N 秒发送空行以防止空闲超时，设置为 0 或留空表示禁用",
           "disabled": "已禁用"
@@ -4576,6 +4578,7 @@
         "non_negative_integer": "请输入非负整数",
         "non_negative_number": "请输入非负数字",
         "integer": "请输入整数",
+        "duration": "请输入有效时长，例如 5m、90s 或 0",
         "retention_seconds_range": "请输入 1 到 3600 之间的整数",
         "payload_invalid_number": "请输入有效数字",
         "payload_invalid_boolean": "请选择 true 或 false",

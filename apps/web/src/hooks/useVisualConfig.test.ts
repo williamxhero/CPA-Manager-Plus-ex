@@ -1973,5 +1973,41 @@ describe('useVisualConfig', () => {
       expect(errors.upstreamErrorRetryLimit).toBe('integer');
       expect(errors.quotaRefreshIntervalMinutes).toBe('non_negative_number');
     });
+
+    it('loads and saves the stream bootstrap timeout as a duration', () => {
+      const harness = mountUseVisualConfig();
+      const yaml = [
+        'config-version: 8',
+        'upstream:',
+        '  codex:',
+        '    stream-bootstrap-timeout: 20s',
+        '',
+      ].join('\n');
+
+      act(() => {
+        expect(harness.getCurrent().loadVisualValuesFromYaml(yaml).ok).toBe(true);
+      });
+      expect(harness.getCurrent().visualValues.streamBootstrapTimeout).toBe('20s');
+      expect(harness.getCurrent().visualDirty).toBe(false);
+
+      act(() => {
+        harness.getCurrent().setVisualValues({ streamBootstrapTimeout: '5m' });
+      });
+      expect(harness.getCurrent().visualDirty).toBe(true);
+
+      const updated = parseYaml(harness.getCurrent().applyVisualChangesToYaml(yaml)) as {
+        upstream?: { codex?: Record<string, unknown> };
+      };
+      expect(updated.upstream?.codex?.['stream-bootstrap-timeout']).toBe('5m');
+      harness.unmount();
+    });
+
+    it('validates stream bootstrap timeout durations', () => {
+      const invalid = getVisualConfigValidationErrors({
+        ...DEFAULT_VISUAL_VALUES,
+        streamBootstrapTimeout: 'five minutes',
+      });
+      expect(invalid.streamBootstrapTimeout).toBe('duration');
+    });
   });
 });

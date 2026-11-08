@@ -4417,6 +4417,8 @@
           "keepalive_hint": "設定為 0 或留空表示停用 keepalive",
           "bootstrap_retries": "Bootstrap 重試次數",
           "bootstrap_hint": "串流傳輸啟動時（首包前）的重試次數",
+          "bootstrap_timeout": "首個輸出逾時重試",
+          "bootstrap_timeout_hint": "首個業務輸出前的等待上限；支援 5m、90s 等時長，0/none 表示不限制。逾時後 CPA 會切換憑證重試。",
           "nonstream_keepalive": "非串流 Keepalive 間隔（秒）",
           "nonstream_keepalive_hint": "非串流回應時每隔 N 秒發送空行以防止閒置逾時，設定為 0 或留空表示停用",
           "disabled": "已停用"

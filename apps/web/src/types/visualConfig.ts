@@ -19,6 +19,7 @@ export type VisualConfigFieldPath =
   | 'maxRetryCredentials'
   | 'maxRetryInterval'
   | 'quotaRefreshIntervalMinutes'
+  | 'streamBootstrapTimeout'
   | 'authAutoRefreshWorkers'
   | 'streaming.keepaliveSeconds'
   | 'streaming.bootstrapRetries'
@@ -29,6 +30,7 @@ export type VisualConfigValidationErrorCode =
   | 'non_negative_integer'
   | 'non_negative_number'
   | 'integer'
+  | 'duration'
   | 'retention_seconds_range';
 
 export type VisualConfigValidationErrors = Partial<
@@ -129,6 +131,7 @@ export type VisualConfigValues = {
   maxRetryCredentials: string;
   maxRetryInterval: string;
   quotaRefreshIntervalMinutes: string;
+  streamBootstrapTimeout: string;
   disableCooling: boolean;
   saveCooldownStatus: boolean;
   transientErrorCooldownSeconds: string;
@@ -209,6 +212,7 @@ export const DEFAULT_VISUAL_VALUES: VisualConfigValues = {
   maxRetryCredentials: '',
   maxRetryInterval: '',
   quotaRefreshIntervalMinutes: '60',
+  streamBootstrapTimeout: '0',
   disableCooling: false,
   saveCooldownStatus: false,
   transientErrorCooldownSeconds: '',

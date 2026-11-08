@@ -4454,6 +4454,8 @@
           "keepalive_hint": "Set to 0 or leave empty to disable keepalive",
           "bootstrap_retries": "Bootstrap Retries",
           "bootstrap_hint": "Number of retries during stream startup (before first byte)",
+          "bootstrap_timeout": "First Output Retry Timeout",
+          "bootstrap_timeout_hint": "Maximum wait before the first business output. Use durations such as 5m or 90s; 0/none disables the wall-clock limit. CPA switches credentials after timeout.",
           "nonstream_keepalive": "Non-stream Keepalive Interval (seconds)",
           "nonstream_keepalive_hint": "Send blank lines every N seconds for non-streaming responses to prevent idle timeout, set to 0 or leave empty to disable",
           "disabled": "Disabled"
@@ -4581,6 +4583,7 @@
         "non_negative_integer": "Enter a non-negative whole number",
         "non_negative_number": "Enter a non-negative number",
         "integer": "Enter a whole number",
+        "duration": "Enter a valid duration such as 5m, 90s, or 0",
         "retention_seconds_range": "Enter an integer between 1 and 3600",
         "payload_invalid_number": "Enter a valid number",
         "payload_invalid_boolean": "Choose true or false",
