@@ -264,6 +264,12 @@ func (s *Service) read(ctx context.Context, src cq.Source) (Status, error) {
 	if err := s.attachOperation(ctx, &out, true); err != nil {
 		return Status{}, err
 	}
+	s.attachUpstreamQuotaPause(ctx, &out)
+	if out.Enabled && !s.quotaAutoStopReady(ctx, out) {
+		out.State = "pending"
+		out.Reason = "quota_auto_stop_unconfirmed"
+		out.Availability = rc.Capability{State: "unavailable", Reason: out.Reason}
+	}
 	// Capability/network I/O may span an instance switch or credential mutation.
 	// A current selector is not a lease on its earlier issued source binding.
 	current, verifyErr := s.source(ctx, src.AuthIndex)
@@ -340,6 +346,11 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
+	s.wakeWorker()
+	if reason := s.syncQuotaAutoStop(ctx, out); reason != "" {
+		out.Availability = rc.Capability{State: "unavailable", Reason: reason}
+		out.Reason = reason
+	}
 	return out, nil
 }
 
@@ -415,6 +426,7 @@ func (s *Service) localOff(ctx context.Context, q Update) (Status, bool, error) 
 	}
 	err = s.Store.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: out.Generation, Document: string(document)}, *q.ExpectedGeneration)
 	if err == nil {
+		s.wakeWorker()
 		err = s.attachOperation(ctx, &out, false)
 	}
 	return out, true, err

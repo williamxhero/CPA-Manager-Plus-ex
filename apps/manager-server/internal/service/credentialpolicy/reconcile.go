@@ -176,7 +176,12 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 		}
 		return err
 	}
-	reason = s.core.request(ctx, "POST", "operations", desired.Operation, &result)
+	wire := struct {
+		GateOperation
+		ObservedAtMS int64 `json:"observedAtMs,omitempty"`
+		ManualResume bool  `json:"manualResume,omitempty"`
+	}{desired.Operation, desired.Evidence.ObservedAtMS, desired.Evidence.Action == "manual_resume"}
+	reason = s.core.request(ctx, "POST", "operations", wire, &result)
 	if reason != "" {
 		if reason == "gate_operation_invalid" || reason == "gate_request_invalid" {
 			return s.Store.CompleteCredentialPolicyOperation(ctx, record.ID, record.Revision, "conflict", "", reason, lease, s.now().UnixMilli())

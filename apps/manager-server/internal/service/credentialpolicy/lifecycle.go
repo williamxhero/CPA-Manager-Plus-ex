@@ -96,6 +96,7 @@ func (s *Service) Run(ctx context.Context) error {
 			return nil
 		}
 		attempt, cancel := context.WithTimeout(ctx, 15*time.Second)
+		_ = s.SyncQuotaAutoStops(attempt)
 		_ = s.ProcessCompletions(attempt)
 		_ = s.Reconcile(attempt)
 		cancel()
