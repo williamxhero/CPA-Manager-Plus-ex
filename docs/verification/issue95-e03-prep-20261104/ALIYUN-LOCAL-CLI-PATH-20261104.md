@@ -1,4 +1,4 @@
-﻿# Aliyun local CLI path (2026-11-04)
+# Aliyun local CLI path (2026-11-04)
 
 Operator decision: keep Aliyun quota as **local CLI** (`bailian-quota --source bsk`), not OfficialBalance billing AK/SK.
 

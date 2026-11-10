@@ -197,7 +197,7 @@ export const runProviderGo = ({
     for (const module of modules) {
       try {
         const flags = context.forModule(module.dir);
-        const args = [subcommand, ...flags, './...', ...extraArgs];
+        const args = [subcommand, ...flags, ...extraArgs, './...'];
         logger.log(`\n[providers] ${module.id}: ${[goBin, ...args].join(' ')}`);
         context.assertBoundary();
         run(goBin, args, { cwd: path.join(root, module.dir), env: context.env });

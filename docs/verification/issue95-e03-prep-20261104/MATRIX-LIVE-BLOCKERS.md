@@ -1,4 +1,4 @@
-﻿# Matrix live blockers on LocalCPAManagerPlus (2026-11-05)
+# Matrix live blockers on LocalCPAManagerPlus (2026-11-05)
 
 Freeze after #88 S03 night elevated deploy.
 

@@ -1,4 +1,4 @@
-﻿# S04 cleanup candidates
+# S04 cleanup candidates
 
 ## Done (2026-11-04)
 

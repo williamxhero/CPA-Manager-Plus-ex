@@ -29,7 +29,7 @@ describe('CoolingPolicySelect compatibility', () => {
     authState.serverVersion = 'v7.2.92-375-g6039d2c1';
     let renderer!: ReactTestRenderer;
     act(() => {
-      renderer = create(<CoolingPolicySelect value="enabled" onChange={() => {}} />);
+      renderer = create(<CoolingPolicySelect value="enabled" onChange={() => {}} compact />);
     });
 
     const select = renderer.root.findByType(Select);
@@ -48,7 +48,7 @@ describe('CoolingPolicySelect compatibility', () => {
   it('fails closed for an unverified CPA build', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
-      renderer = create(<CoolingPolicySelect value="enabled" onChange={() => {}} />);
+      renderer = create(<CoolingPolicySelect value="enabled" onChange={() => {}} compact />);
     });
 
     const select = renderer.root.findByType(Select);
@@ -89,7 +89,7 @@ describe('CoolingPolicySelect compatibility', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(
-        <CoolingPolicySelect value="inherit" onChange={() => {}} legacyProviderSupported={false} />
+        <CoolingPolicySelect value="inherit" onChange={() => {}} legacyProviderSupported={false} compact />
       );
     });
 
@@ -105,7 +105,7 @@ describe('CoolingPolicySelect compatibility', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(
-        <CoolingPolicySelect value="inherit" onChange={() => {}} legacyProviderSupported={false} />
+        <CoolingPolicySelect value="inherit" onChange={() => {}} legacyProviderSupported={false} compact />
       );
     });
 

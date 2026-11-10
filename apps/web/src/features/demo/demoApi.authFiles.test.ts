@@ -51,7 +51,7 @@ describe('auth file credential refresh demo API', () => {
         base_url: 'https://synthetic-plan.invalid/v1',
         name: 'Synthetic plan',
       };
-      const created = await planCredentialsApi.create(`${provider}-cliproxyapi`, fields, scope);
+      const created = await planCredentialsApi.create(provider === 'qwen' ? 'cpa-credential-qwen' : 'cpa-credential-opencode', fields, scope);
       const fileName = `${created.id}.json`;
       expect(await authFilesApi.downloadJsonObject(fileName, scope)).toEqual({
         type: provider,
@@ -76,7 +76,7 @@ describe('auth file credential refresh demo API', () => {
         expect.objectContaining({ id: provider === 'qwen' ? 'qwen-plus' : 'opencode-go-demo' }),
       ]);
       await expect(
-        planCredentialsApi.create(`${provider}-cliproxyapi`, fields, scope)
+        planCredentialsApi.create(provider === 'qwen' ? 'cpa-credential-qwen' : 'cpa-credential-opencode', fields, scope)
       ).rejects.toThrow('already occupied');
       resetDemoAuthFileConfiguration();
       expect(await authFilesApi.lookup({ name: fileName }, scope)).toEqual([]);
@@ -95,7 +95,7 @@ describe('auth file credential refresh demo API', () => {
         managementKey: 'synthetic-management-key',
       };
       const created = await planCredentialsApi.create(
-        `${provider}-cliproxyapi`,
+        provider === 'qwen' ? 'cpa-credential-qwen' : 'cpa-credential-opencode',
         {
           api_key: `fictional-demo-${provider}-edit-key`,
           base_url: 'https://synthetic-plan.invalid/v1',

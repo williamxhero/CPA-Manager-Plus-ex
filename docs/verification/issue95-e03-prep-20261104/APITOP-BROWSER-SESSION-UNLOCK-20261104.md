@@ -1,4 +1,4 @@
-﻿# api-top browser-session unlock (2026-11-04 ~20:33)
+# api-top browser-session unlock (2026-11-04 ~20:33)
 
 ## Why it looked stopped
 

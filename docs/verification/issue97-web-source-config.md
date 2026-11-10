@@ -1,4 +1,4 @@
-﻿# Issue #97: web source registration and controlled observation slices
+# Issue #97: web source registration and controlled observation slices
 
 These slices add authenticated registration, a read-only BrowserSkill driver
 boundary, and durable observation readback for a declared LAYSO web balance

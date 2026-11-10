@@ -211,8 +211,8 @@ describe('AccountConfigurationTab', () => {
         value: '',
         autoComplete: 'new-password',
         disabled: false,
-        hint: 'accounts.config_replacement_api_key_hint',
       });
+      expect(keyInput?.props.hint).toBeUndefined();
       expect(urlInput?.props).toMatchObject({
         value: 'https://gateway.example/v1',
         placeholder: defaultUrl,
@@ -376,7 +376,7 @@ describe('AccountConfigurationTab', () => {
     const text = readText(renderer.toJSON());
 
     expect(text).toContain('accounts.config_shared_source_read_only');
-    expect(text).toContain('accounts.config_excluded_models_shared_hint');
+    expect(text).not.toContain('accounts.config_excluded_models_shared_hint');
     expect(renderer.root.findAllByType(Input).every((input) => input.props.disabled)).toBe(true);
     expect(
       renderer.root.findAllByType('textarea').every((textarea) => textarea.props.disabled === true)

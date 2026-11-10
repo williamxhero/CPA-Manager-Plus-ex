@@ -1,4 +1,4 @@
-﻿# Loop ticks 3–5 (2026-11-04 ~19:13)
+# Loop ticks 3–5 (2026-11-04 ~19:13)
 
 Merged wake for `AGENT_LOOP_TICK_solve_all` occurrences 3–5 (loop PID **28540**).
 

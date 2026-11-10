@@ -234,7 +234,7 @@ describe('QuotaWindowCard', () => {
     );
   });
 
-  it('renders standard card with incomplete boundary notice for unknown boundary standard window', () => {
+  it('omits interval comparisons when the standard window boundary is unknown', () => {
     const renderer = renderCard(
       makeWindow({
         kind: 'weekly',
@@ -255,7 +255,8 @@ describe('QuotaWindowCard', () => {
     expect(renderer.root.findAllByProps({ 'data-quota-card-mode': 'standard' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-quota-card-mode': 'other' })).toHaveLength(0);
     const cardText = readText(renderer.root);
-    expect(cardText).toContain('accounts.detail_window_boundary_incomplete');
+    expect(renderer.root.findAllByProps({ 'data-quota-usage-period': 'current' })).toHaveLength(0);
+    expect(cardText).not.toContain('accounts.detail_usage_requests');
   });
 
   it('uses semantic colors for the current usage metric icons', () => {
@@ -368,11 +369,10 @@ describe('QuotaWindowCard', () => {
     });
 
     const renderer = renderCard(window);
-    const current = renderer.root.findByProps({ 'data-quota-usage-period': 'current' });
+    expect(renderer.root.findAllByProps({ 'data-quota-usage-period': 'current' })).toHaveLength(0);
     const previous = renderer.root.findByProps({ 'data-quota-usage-period': 'previous' });
 
-    expect(readText(current)).toContain('accounts.detail_current_window_boundary_unconfirmed');
-    expect(readText(current)).not.toContain(formatDisplayRange(currentStartMs, currentEndMs));
+    expect(readText(renderer.root)).not.toContain(formatDisplayRange(currentStartMs, currentEndMs));
     expect(readText(previous)).toContain(formatDisplayRange(previousStartMs, previousEndMs));
   });
 
@@ -539,7 +539,7 @@ describe('QuotaWindowCard', () => {
     );
   });
 
-  it('shows a neutral empty-usage hint when both windows are explicitly empty', () => {
+  it('keeps explicitly empty windows neutral without empty comparison columns', () => {
     const renderer = renderCard(
       makeWindow({
         modelScope: { kind: 'models', models: ['demo-model'], complete: true },
@@ -551,11 +551,12 @@ describe('QuotaWindowCard', () => {
       'model'
     );
 
-    expect(renderer.root.findByProps({ 'data-quota-window-empty': 'true' })).toBeTruthy();
+    expect(renderer.root.findAllByProps({ 'data-quota-usage-period': 'current' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-quota-usage-period': 'previous' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-quota-model-warning': 'true' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-quota-model-comparison': 'true' })).toHaveLength(0);
-    expect(readText(renderer.root)).toContain('accounts.detail_model_window_empty_usage');
+    expect(readText(renderer.root)).not.toContain('accounts.detail_model_window_empty_usage');
   });
 
   it('keeps the empty-usage state neutral only when the snapshot is current', () => {
@@ -679,12 +680,9 @@ describe('QuotaWindowCard', () => {
     );
 
     const comparison = renderer.root.findByProps({ 'data-quota-model-comparison': 'true' });
-    const previous = comparison.findByProps({ 'data-quota-usage-period': 'previous' });
+    expect(comparison.findAllByProps({ 'data-quota-usage-period': 'previous' })).toHaveLength(0);
     const current = comparison.findByProps({ 'data-quota-usage-period': 'current' });
-    const previousText = readText(previous);
     const currentText = readText(current);
-    expect(previousText).toContain('accounts.detail_model_window_empty_usage');
-    expect(previousText).not.toContain('accounts.detail_window_stats_empty');
     expect(currentText).toContain('accounts.detail_usage_requests');
     expect(currentText).toContain('accounts.detail_usage_tokens');
     expect(currentText).toContain('accounts.detail_usage_cost');
@@ -705,10 +703,10 @@ describe('QuotaWindowCard', () => {
     );
 
     const comparison = renderer.root.findByProps({ 'data-quota-model-comparison': 'true' });
-    const current = comparison.findByProps({ 'data-quota-usage-period': 'current' });
-    const currentText = readText(current);
-    expect(currentText).toContain('accounts.detail_model_window_usage_unavailable');
-    expect(currentText).not.toContain('accounts.detail_model_window_empty_usage');
+    expect(comparison.findAllByProps({ 'data-quota-usage-period': 'current' })).toHaveLength(0);
+    const previous = comparison.findByProps({ 'data-quota-usage-period': 'previous' });
+    expect(readText(previous)).toContain('accounts.detail_usage_requests');
+    expect(readText(comparison)).not.toContain('accounts.detail_model_window_empty_usage');
     expect(renderer.root.findAllByProps({ 'data-quota-window-empty': 'true' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
   });
@@ -735,7 +733,7 @@ describe('QuotaWindowCard', () => {
     expect(renderer.root.findAllByProps({ role: 'alert' })).toHaveLength(1);
   });
 
-  it('explains unknown window boundaries without rendering interval usage', () => {
+  it('omits interval usage for unknown window boundaries', () => {
     const renderer = renderCard(
       makeWindow({
         windowMode: 'unknown',
@@ -747,7 +745,7 @@ describe('QuotaWindowCard', () => {
       })
     );
     const text = readText(renderer.root);
-    expect(text).toContain('accounts.detail_window_boundary_incomplete');
+    expect(renderer.root.findAllByProps({ 'data-quota-usage-period': 'current' })).toHaveLength(0);
     expect(text).not.toContain('accounts.detail_window_stats_empty');
     expect(text).not.toContain('accounts.detail_window_requests');
     expect(text).not.toContain('accounts.detail_current_window');

@@ -1,4 +1,4 @@
-﻿# Aliyun deferred for CPA go-live (2026-11-04 ~23:36)
+# Aliyun deferred for CPA go-live (2026-11-04 ~23:36)
 
 Operator: skip Aliyun Bailian CLI quota for now; prioritize other SPECs / CPA online deploy.
 

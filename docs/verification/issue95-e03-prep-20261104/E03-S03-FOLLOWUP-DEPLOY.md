@@ -1,4 +1,4 @@
-﻿# #95 E03 + #88 S03 follow-up deploy (2026-11-04 night)
+# #95 E03 + #88 S03 follow-up deploy (2026-11-04 night)
 
 Authorized: local backup + install; do **not** close issues.
 

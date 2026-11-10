@@ -9287,12 +9287,12 @@ describe('AccountsPage replacement flows', () => {
 
     const renderer = await renderAccountsPage();
 
-    expect(getAccountListItemTexts(renderer)[0]).toContain('middle.json');
+    expect(getAccountListItemTexts(renderer)[0]).toContain('low.json');
 
     await act(async () => {
       findHostButtonByAriaLabel(
         renderer,
-        'accounts.sort_label: accounts.col_recent'
+        'accounts.sort_label: accounts.sort_default'
       ).props.onClick();
     });
     await act(async () => {
@@ -9370,7 +9370,7 @@ describe('AccountsPage replacement flows', () => {
     await act(async () => {
       findHostButtonByAriaLabel(
         renderer,
-        'accounts.sort_label: accounts.col_recent'
+        'accounts.sort_label: accounts.sort_default'
       ).props.onClick();
     });
     await act(async () => {
@@ -9477,7 +9477,7 @@ describe('AccountsPage replacement flows', () => {
     await act(async () => {
       findHostButtonByAriaLabel(
         renderer,
-        'accounts.sort_label: accounts.col_recent'
+        'accounts.sort_label: accounts.sort_default'
       ).props.onClick();
     });
     await act(async () => {
@@ -14040,7 +14040,7 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
 
     expect(treeText(renderer)).toContain('accounts.mobile_filters_button');
-    expect(treeText(renderer)).toContain('accounts.col_recent');
+    expect(treeText(renderer)).toContain('accounts.sort_default');
 
     await act(async () => {
       findButtonByText(renderer, 'accounts.mobile_filters_button').props.onClick();

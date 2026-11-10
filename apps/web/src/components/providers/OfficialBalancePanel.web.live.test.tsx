@@ -1,4 +1,4 @@
-﻿import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { OfficialBalancePanel } from './OfficialBalancePanel';

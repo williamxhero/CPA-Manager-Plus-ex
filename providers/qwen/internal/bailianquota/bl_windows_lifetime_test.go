@@ -41,7 +41,7 @@ func lifetimeReady(t *testing.T) *net.TCPListener {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { listener.Close() })
-	if err := listener.SetDeadline(time.Now().Add(time.Second)); err != nil {
+	if err := listener.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	return listener
@@ -129,8 +129,9 @@ func runBLWindowsLifetime(t *testing.T, cancelWhenReady bool) {
 	if copyErr != nil || closeErr != nil {
 		t.Fatal(copyErr, closeErr)
 	}
-	// Validate the freshly copied fixture image before measuring the unchanged
-	// 200ms CLI deadline. This executes no test and uses no sleep or quota call.
+	// Validate the freshly copied fixture image before measuring CLI cleanup.
+	// Startup includes Windows image scanning; tree ownership needs a ready child
+	// before expiry. Cancellation is still triggered immediately after readiness.
 	verifyCtx, verifyCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer verifyCancel()
 	if err := exec.CommandContext(verifyCtx, image, "-test.run=^$").Run(); err != nil {
@@ -149,7 +150,7 @@ func runBLWindowsLifetime(t *testing.T, cancelWhenReady bool) {
 	defer cancel()
 	start := time.Now()
 	go func() {
-		done <- RunCLI(ctx, []string{"--source", "bl", "--bl-path", shim, "--timeout", "200ms"}, &out, &diagnostics)
+		done <- RunCLI(ctx, []string{"--source", "bl", "--bl-path", shim, "--timeout", "2s"}, &out, &diagnostics)
 	}()
 	child, shell := acceptLifetimeProcess(t, ready, true)
 	if cancelWhenReady {

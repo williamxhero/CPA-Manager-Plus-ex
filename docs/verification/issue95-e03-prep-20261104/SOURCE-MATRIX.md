@@ -1,4 +1,4 @@
-﻿# #95 E01/E03 source matrix freeze (local, 2026-11-04)
+# #95 E01/E03 source matrix freeze (local, 2026-11-04)
 
 Frozen against worktree `spec92/conter-balance-method-map-20261104` tip including
 `40b2cb08`. **Not** a live inventory of a running production host.

@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -1308,7 +1309,7 @@ func TestUsageArchiveServiceRejectsOversizedManifestBeforePublish(t *testing.T) 
 	}
 }
 
-func TestUsageArchiveDetectsPublishedFileReplacement(t *testing.T) {
+func TestUsageArchiveDetectsOrBlocksPublishedFileReplacement(t *testing.T) {
 	directory := t.TempDir()
 	path := filepath.Join(directory, "segment.jsonl.gz")
 	if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
@@ -1324,6 +1325,18 @@ func TestUsageArchiveDetectsPublishedFileReplacement(t *testing.T) {
 		t.Fatalf("write replacement archive file: %v", err)
 	}
 	if err := replaceArchiveFile(replacement, path); err != nil {
+		// Windows rejects replacing a file opened without delete sharing. This
+		// blocks the attack itself; POSIX permits it and must detect the new inode.
+		if runtime.GOOS == "windows" && errors.Is(err, os.ErrPermission) {
+			if err := ensureOpenFileStillPublished(directory, path, info); err != nil {
+				t.Fatalf("original archive identity changed after rejected replacement: %v", err)
+			}
+			payload, readErr := os.ReadFile(path)
+			if readErr != nil || string(payload) != "original" {
+				t.Fatalf("original archive changed after rejected replacement: %q, %v", payload, readErr)
+			}
+			return
+		}
 		t.Fatalf("publish replacement archive file: %v", err)
 	}
 	if err := ensureOpenFileStillPublished(directory, path, info); err == nil {
@@ -2063,7 +2076,7 @@ func assertPrivateArchiveTree(t *testing.T, archiveDirectory string, status Arch
 		if err != nil {
 			t.Fatalf("stat archive directory %s: %v", directory, err)
 		}
-		if !info.IsDir() || info.Mode().Perm() != 0o700 {
+		if !info.IsDir() || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o700) {
 			t.Fatalf("archive directory mode %s = %v", directory, info.Mode())
 		}
 	}
@@ -2074,7 +2087,7 @@ func assertPrivateArchiveTree(t *testing.T, archiveDirectory string, status Arch
 		if err != nil {
 			t.Fatalf("stat archive segment: %v", err)
 		}
-		if !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 {
+		if !info.Mode().IsRegular() || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 			t.Fatalf("archive segment mode = %v", info.Mode())
 		}
 	}
@@ -2083,7 +2096,7 @@ func assertPrivateArchiveTree(t *testing.T, archiveDirectory string, status Arch
 	if err != nil {
 		t.Fatalf("stat archive manifest: %v", err)
 	}
-	if !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 {
+	if !info.Mode().IsRegular() || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("archive manifest mode = %v", info.Mode())
 	}
 }

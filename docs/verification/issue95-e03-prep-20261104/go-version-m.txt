@@ -1,6 +1,6 @@
-﻿D:\WILL\AGENT\CPA\ops\needs-forever-all-specs-20261103\worktrees\manager-canonical82-closing\docs\verification\issue95-e03-prep-20261104\cpa-manager-plus.exe: go1.27.0
+D:\WILL\AGENT\CPA\ops\needs-forever-all-specs-20261103\worktrees\manager-canonical82-closing\docs\verification\issue95-e03-prep-20261104\cpa-manager-plus.exe: go1.27.0
 	path	github.com/seakee/cpa-manager-plus/apps/manager-server/cmd/cpa-manager-plus
-	mod	github.com/seakee/cpa-manager-plus/apps/manager-server	(devel)	
+	mod	github.com/seakee/cpa-manager-plus/apps/manager-server	(devel)
 	dep	github.com/dustin/go-humanize	v1.0.1	h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 	dep	github.com/google/uuid	v1.6.0	h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 	dep	github.com/mattn/go-isatty	v0.0.20	h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=

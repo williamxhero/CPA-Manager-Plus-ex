@@ -1,4 +1,4 @@
-﻿# Loop ticks 24–26 (2026-11-04 ~21:00)
+# Loop ticks 24–26 (2026-11-04 ~21:00)
 
 - /loop PID 28540 still firing `AGENT_LOOP_TICK_solve_all`.
 - Greens held: api-top / code28 / liangrekui / deepseek / deepinfra / wawapii (lastSuccess still success).

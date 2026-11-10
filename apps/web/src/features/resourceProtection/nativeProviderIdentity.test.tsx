@@ -20,6 +20,7 @@ import { ProviderTable } from '@/components/providers/ProviderTable/ProviderTabl
 import { buildProviderRows, type ProviderRow } from '@/components/providers/ProviderTable/rowData';
 import en from '@/i18n/locales/en.json';
 import { useResourceProtection } from './resourceProtection';
+import { ResourceProtectionIndicator } from './ResourceProtectionIndicator';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const id = '11111111-1111-4111-8111-111111111111';
@@ -76,6 +77,10 @@ function Harness({ rows }: { rows: ProviderRow[] }) {
     rows
   );
   return (
+    <>
+      {rows.map((row) => (
+        <ResourceProtectionIndicator key={row.key} {...protection.forProvider(row, rows)} />
+      ))}
     <ProviderTable
       rows={rows}
       resourceProtection={protection.status === 'identity_only' ? 'unbound' : protection.status}
@@ -91,6 +96,7 @@ function Harness({ rows }: { rows: ProviderRow[] }) {
       onToggle={() => {}}
       onPriorityChange={() => {}}
     />
+    </>
   );
 }
 function RoutedEditControls() {

@@ -2,6 +2,47 @@
 
 # CPAMP-EX 主要能力
 
+## 开始使用
+
+Manager 提供 CPA 配置、凭证、余额及自动启停管理；`apps/web` 是面板，`apps/manager-server` 是服务，`providers` 保存纳入统一发布的插件源码。
+
+- 上游使用说明：[README-source.md](README-source.md)。
+- 插件来源及构建边界：[providers/README.md](providers/README.md)。
+- 自动启停将人工禁用与额度暂停分别保存，并核对 Core 实际生效的状态。Core 的 `disable-cooling` 不影响额度耗尽停止。
+
+```powershell
+npm ci
+npm run type-check
+npm test
+npm run build
+Set-Location apps/manager-server
+go test ./...
+go build -o cpa-manager-plus.exe ./cmd/cpa-manager-plus
+```
+
+部分服务集成测试需要指定带 SHA-256 和源码版本的 Core 验收产物；运行条件见对应测试及发布脚本。插件检查需要显式提供兼容 Core 与 Qwen 源码路径。
+
+本项目部署到本机 Windows。构建候选产物后使用 `ops/windows/deploy-cpamp.ps1`，保留部署回执；脚本在健康检查失败时自动回退。
+
+## Documentation and product modes
+
+CPA / CLIProxyAPI management panel. This fork retains the upstream documentation and adds the EX capabilities listed below.
+
+- [Choosing A CPA Panel](apps/docs/en/guide/choosing-a-panel.md)
+- [Capability Matrix](apps/docs/en/reference/capability-matrix.md)
+- [中文文档](apps/docs/guide/choosing-a-panel.md)
+
+| Mode | Purpose |
+| --- | --- |
+| CPAMP Lightweight Panel | Static panel connected to CPA Core. |
+| CPAMP Full Mode | Panel plus Manager Server for persistent management and automation. |
+
+The demo previews the interface with fictional data. It is not a deployment or runtime mode.
+
+Copyright 2026 Seakee. Original license and attribution are retained in [LICENSE](LICENSE).
+
+## Fork 功能记录
+
 本页只列相对上游 seakee/CPA-Manager-Plus 的主要功能。上游面板适合管理 CPA 配置，但插件、凭证、配额和长期运营数据分散在不同工具里；本 fork 把它们收进同一条可验证的管理链路。
 
 - **插件单仓与统一发布**：上游面板与插件源码分开，升级时容易出现版本和构建边界不一致。本 fork 将 OpenCode Go、Qwen 及 bailian-quota CLI 收入 providers/，由同一仓库构建，并用导入边界与 CI 约束来源和发布结果。对应 [issue #5](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/5)、[#6](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/6) 和 [#134](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/134)。
@@ -18,3 +59,5 @@
 本页不替代上游使用文档；部署、配置和完整 API 说明仍以仓库其他文档为准。
 
 > 完成 issue 归档更新时间：2026-11-09 08:34:40 SGT（UTC+08:00）。已列入上述条目的 issue 后续不再重复归档。
+
+Repository tests that exercise the Bash installer require POSIX file permissions and process behavior. On Windows, `npm run test:repo` runs the complete suite in local WSL. Install Node.js and Linux native npm dependencies in that WSL environment first; `CPAMP_TEST_WSL_DISTRO` optionally selects the local distribution.

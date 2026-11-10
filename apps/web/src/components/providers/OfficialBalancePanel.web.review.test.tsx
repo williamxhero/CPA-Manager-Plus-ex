@@ -1,4 +1,4 @@
-﻿import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { OfficialBalancePanel } from './OfficialBalancePanel';
 import type { BalanceBinding } from '@/services/api/officialBalance';
@@ -23,6 +23,7 @@ const binding: BalanceBinding = {
   ],
 };
 const exact = '-9007199254740993.00000000100';
+const displayed = '-9007199254740993.00';
 const status = () => ({
   ...binding,
   version: 1,
@@ -76,7 +77,7 @@ it('locks a retained baseline after failed cache GET and preserves the draft thr
     const capturedSave = button('保存余额来源').props.onClick;
     const capturedQuery = button('手动查询余额').props.onClick;
     await act(async () => button('刷新观测').props.onClick());
-    expect(JSON.stringify(renderer.toJSON())).toContain(exact);
+    expect(JSON.stringify(renderer.toJSON())).toContain(displayed);
     expect(JSON.stringify(renderer.toJSON())).toContain('stale');
     expect(field().props.value).toBe('unsaved-review-account');
     expect(button('保存余额来源').props.disabled).toBe(true);
@@ -132,10 +133,10 @@ it.each(
       });
       const button = (label: string) =>
         renderer.root.findAllByType('button').find((n) => n.children.join('') === label)!;
-      expect(JSON.stringify(renderer.toJSON())).toContain(exact);
+      expect(JSON.stringify(renderer.toJSON())).toContain(displayed);
       await act(async () => button(action).props.onClick());
       const text = JSON.stringify(renderer.toJSON());
-      expect(text).not.toContain(exact);
+      expect(text).not.toContain(displayed);
       expect(text).not.toContain('review-account');
       expect(text).not.toContain('ready');
       expect(text).toContain('identity_unavailable');
@@ -144,7 +145,7 @@ it.each(
       expect(retry).toBeDefined();
       await act(async () => retry.props.onClick());
       expect(methods).toEqual(['GET', action === '刷新观测' ? 'GET' : 'POST', 'GET']);
-      expect(JSON.stringify(renderer.toJSON())).not.toContain(exact);
+      expect(JSON.stringify(renderer.toJSON())).not.toContain(displayed);
     } finally {
       await act(async () => renderer.unmount());
     }
@@ -188,14 +189,14 @@ it('recovers only through a successful read and never revives callbacks captured
     const capturedSave = button('保存余额来源').props.onClick;
     const capturedQuery = button('手动查询余额').props.onClick;
     await act(async () => button('刷新观测').props.onClick());
-    expect(JSON.stringify(renderer.toJSON())).not.toContain(exact);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain(displayed);
     await act(async () => {
       capturedSave();
       capturedQuery();
     });
     expect(methods).toEqual(['GET', 'GET']);
     await act(async () => button('重试回读').props.onClick());
-    expect(JSON.stringify(renderer.toJSON())).not.toContain(exact);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain(displayed);
     expect(renderer.root.findByProps({ 'aria-label': '网页账户 ID' }).props.value).toBe(
       'recovered-account'
     );

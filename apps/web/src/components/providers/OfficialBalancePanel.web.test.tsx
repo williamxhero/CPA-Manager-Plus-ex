@@ -1,4 +1,4 @@
-﻿import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { OfficialBalancePanel } from './OfficialBalancePanel';
 import type { BalanceBinding } from '@/services/api/officialBalance';

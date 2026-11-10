@@ -1,4 +1,4 @@
-﻿# Loop tick status (2026-11-04 17:46:33 +08:00)
+# Loop tick status (2026-11-04 17:46:33 +08:00)
 
 - tip `40b2cb08`
 - panel SHA match art/live `DCB4CF76…`

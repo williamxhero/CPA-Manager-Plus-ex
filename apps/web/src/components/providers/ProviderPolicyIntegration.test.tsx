@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ProviderTable } from './ProviderTable/ProviderTable';
+import { ProviderPolicyControl } from './ProviderPolicyControl';
 import { ProviderDetailDrawer } from './ProviderDetailDrawer/ProviderDetailDrawer';
 import { buildProviderRows } from './ProviderTable/rowData';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
@@ -72,7 +73,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it('wires representative table/detail to the same proven parent, preserving both manual controls and independent OFF', async () => {
+it('wires compact/detail policy controls to the same proven parent, preserving both manual controls and independent OFF', async () => {
   let saved = state;
   const manual = vi.fn();
   const show = vi.fn();
@@ -96,6 +97,9 @@ it('wires representative table/detail to the same proven parent, preserving both
     const shared = { ...connection, revision, onChanged: () => setRevision((value) => value + 1) };
     return (
       <>
+        <ProviderPolicyControl compact connection={shared} row={row} binding={binding}>
+          <span title={row.label}>{row.label}</span>
+        </ProviderPolicyControl>
         <ProviderTable
           rows={[row]}
           resourceProtectionForRow={() => ({ status: 'identity_only', binding })}
@@ -195,7 +199,7 @@ it('detail refuses a policy lookup when officialBalance has no issued parent pro
   expect(fetch).not.toHaveBeenCalled();
 });
 
-// Exercise both real surfaces and the public HTTP boundary; do not mock the hook
+// Exercise both policy control variants and the public HTTP boundary; do not mock the hook
 // or its shared authority registry. Each surface must recover by its own GET.
 async function mountPolicySurfaces() {
   const manual = vi.fn();
@@ -205,6 +209,9 @@ async function mountPolicySurfaces() {
     const shared = { ...connection, revision, onChanged: () => setRevision((value) => value + 1) };
     return (
       <>
+        <ProviderPolicyControl compact connection={shared} row={row} binding={binding}>
+          <span title={row.label}>{row.label}</span>
+        </ProviderPolicyControl>
         <ProviderTable
           rows={[row]}
           resourceProtectionForRow={() => ({ status: 'identity_only', binding })}

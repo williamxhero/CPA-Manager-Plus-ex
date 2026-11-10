@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory=$true)][string]$QuotaExecutable,
     [string]$BlPath = 'C:\ProgramData\bailian-cli\bl.cmd',
     [Parameter(Mandatory=$true)][string]$CacheFile,

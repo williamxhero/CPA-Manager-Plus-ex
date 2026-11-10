@@ -153,7 +153,7 @@
       },
       "consumerSnapshot": {
         "repository": "williamxhero/CPA-Qwen",
-        "commit": "76413510fe5add216968d6b5967cc5c3f7aa9113",
+        "commit": "968bcde31fc6e5d8152ba3a14f6d0acf18690f0b",
         "receipt": "CPA_QWEN_SOURCE.json",
         "verifier": "scripts/verify-manager-snapshot.py",
         "policy": "Complete canonical commit/tree/file hashes; read-only verification before Go; no local maintenance or receipt enrollment."

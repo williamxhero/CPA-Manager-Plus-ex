@@ -62,7 +62,7 @@ describe('provider Go runner (SPEC5-D)', () => {
     }
   });
 
-  it('forwards extra go flags after ./...', () => {
+  it('forwards extra go flags before package paths for both Go commands', () => {
     const calls = [];
     const run = (_command, args) => calls.push(args);
 
@@ -75,7 +75,7 @@ describe('provider Go runner (SPEC5-D)', () => {
       compatibleCoreSource,
     });
 
-    expect(calls.filter((args) => args[0] === 'test').every((args) => args.slice(-3).join(' ') === './... -run TestFoo')).toBe(true);
+    expect(calls.filter((args) => args[0] === 'test').every((args) => args.slice(-3).join(' ') === '-run TestFoo ./...')).toBe(true);
   });
 
   it('attempts every module and reports failures without short-circuiting', () => {

@@ -56,6 +56,8 @@ describe('repository test runner CLI', () => {
         'run',
         'tests/a.test.mjs',
         'tests/z.test.mjs',
+        '--testTimeout',
+        '30000',
         '--exclude',
         'tests/nativeControlScripts.test.mjs',
       ],

@@ -172,24 +172,21 @@ describe('ProviderTable', () => {
     return renderer;
   };
 
-  it('places an unknown automatic protection capability before every name, including disabled rows', () => {
+  it('keeps automatic usage participation separate from manual toggles on every row', () => {
     const rows = buildProviderRows({ ...emptyInput, codex: codexConfigs });
     const renderer = renderTable(rows);
     for (const row of getRows(renderer)) {
-      const indicator = row.findAll((node) => node.type === 'button' &&
-        String(node.props['aria-label']).includes('resource_protection.unknown'));
-      expect(indicator).toHaveLength(1);
-      const identity = row.findAll((node) => node.type === 'div' && node.props.role === 'cell')[1];
-      expect(identity.findAllByType('button')).toContain(indicator[0]);
-      expect(getText(identity)).not.toContain('normal');
-      // Informational tooltip is a sibling of the provider name, never a nested button.
-      expect(indicator[0].findAllByType('button')).toEqual([indicator[0]]);
+      expect(row.findAllByType(ToggleSwitch)).toHaveLength(1);
+      expect(row.findAll((node) => node.type === 'button' &&
+        String(node.props['aria-label']).includes('resource_protection.'))).toHaveLength(0);
+      expect(row.findAll((node) => node.type === 'button' &&
+        node.props['aria-pressed'] !== undefined)).toHaveLength(1);
     }
     act(() => renderer.unmount());
   });
 
   it.each(['unknown', 'unavailable', 'identity_only', 'unsupported_mode'] as const)(
-    'keeps %s capability informational while preserving row keyboard, actions and disabled-row manual toggle',
+    'preserves automatic participation, keyboard actions and manual toggles with %s capability',
     (resourceProtection) => {
       const rows = buildProviderRows({ ...emptyInput, codex: [codexConfigs[1]] });
       const onShowDetail = vi.fn();
@@ -198,23 +195,15 @@ describe('ProviderTable', () => {
       const onDelete = vi.fn();
       const renderer = renderTable(rows, { onShowDetail, onToggle, onEdit, onDelete }, { resourceProtection });
       const row = getRows(renderer)[0];
-      const indicator = row.findAll((node) => node.type === 'button' &&
-        String(node.props['aria-label']).includes(`resource_protection.${resourceProtection}`))[0];
-      // Bubble host events as React would, through the tooltip boundary to the row.
-      const bubble = (name: string, key?: string) => {
-        let stopped = false;
-        let current: ReactTestInstance | null = indicator;
-        while (current && !stopped) {
-          if (typeof current.type === 'string') {
-            current.props[name]?.({ key, target: indicator, currentTarget: current,
-              preventDefault: vi.fn(), stopPropagation: () => { stopped = true; } });
-          }
-          current = current.parent;
-        }
-        expect(stopped).toBe(true);
-      };
-      act(() => { bubble('onClick'); bubble('onKeyDown', 'Enter'); bubble('onKeyDown', ' '); });
-      expect(indicator.props['aria-expanded']).toBe(true);
+      const automatic = row.findAll((node) => node.type === 'button' &&
+        node.props['aria-pressed'] !== undefined)[0];
+      expect(automatic).toBeDefined();
+      const stop = vi.fn();
+      act(() => {
+        automatic.props.onClick();
+        automatic.parent!.parent!.props.onClick({ stopPropagation: stop });
+      });
+      expect(stop).toHaveBeenCalled();
       expect(onShowDetail).not.toHaveBeenCalled();
       expect(row.findAll((node) => node.type === 'span' && node.props.title === rows[0].label)[0].children)
         .toEqual([rows[0].label]);
