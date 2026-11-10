@@ -22,7 +22,8 @@ export interface AccountsWorkspaceUiState {
   layoutMode: AccountsLayoutMode;
 }
 
-const STORAGE_KEY = 'cpa_manager_accounts_workspace_ui_v1';
+const STORAGE_KEY = 'cpa_manager_accounts_workspace_ui_v2';
+const LEGACY_STORAGE_KEY = 'cpa_manager_accounts_workspace_ui_v1';
 const PAGE_SIZES = new Set([10, 20, 50]);
 const SORT_KEYS = new Set([
   'default',
@@ -48,7 +49,7 @@ export const DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE: AccountsWorkspaceUiState = {
   planFilter: 'all',
   quotaBandFilter: 'all',
   operationalFilter: 'all',
-  accountSort: { key: 'recent', direction: 'desc' },
+  accountSort: { key: 'default', direction: 'desc' },
   pageSize: 10,
   accountDisplayMode: 'full',
   layoutMode: 'table',
@@ -98,9 +99,13 @@ export const readAccountsWorkspaceUiState = (): AccountsWorkspaceUiState => {
   }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw
-      ? normalizeAccountsWorkspaceUiState(JSON.parse(raw) as unknown)
-      : DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE;
+    if (raw) return normalizeAccountsWorkspaceUiState(JSON.parse(raw) as unknown);
+    const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!legacy) return DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE;
+    return {
+      ...normalizeAccountsWorkspaceUiState(JSON.parse(legacy) as unknown),
+      accountSort: DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE.accountSort,
+    };
   } catch {
     return DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE;
   }

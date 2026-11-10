@@ -22285,6 +22285,101 @@ describe('AccountsPage replacement flows', () => {
     }
   );
 
+  it.each([true, false])(
+    'adopts scheduled quota results on passive refresh with monitoring available=%s',
+    async (monitoringAvailable) => {
+      vi.useFakeTimers();
+      let visibility: DocumentVisibilityState = 'visible';
+      const events = new EventTarget();
+      vi.stubGlobal('document', {
+        get visibilityState() {
+          return visibility;
+        },
+        addEventListener: events.addEventListener.bind(events),
+        removeEventListener: events.removeEventListener.bind(events),
+      });
+      const file = makeCodexFile('scheduled.json', 'scheduled-auth', 'Scheduled');
+      mocks.files = [file];
+      mocks.panelFeatureAvailability.requestMonitoringAvailable = monitoringAvailable;
+      installCapabilitiesAdapter(async () => capabilitySummary());
+      let usedPercent = 10;
+      let failed = false;
+      const calls: Array<[string, RequestInit | undefined]> = [];
+      const read = vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push([url, init]);
+        if (!url.includes('/credential-quota?')) return Response.json({});
+        if (failed) throw new Error('transient cache read failure');
+        return Response.json({
+          lastSuccess: {
+            observedAtMs: Date.now(),
+            windowsJson: JSON.stringify({
+              windows: [
+                {
+                  name: 'primary',
+                  usedPercent,
+                  remainingFraction: 1 - usedPercent / 100,
+                  limitWindowSeconds: 18000,
+                  resetAt: new Date(Date.now() + 3600_000).toISOString(),
+                },
+              ],
+            }),
+          },
+        });
+      });
+      vi.stubGlobal('fetch', read);
+      const providerRead = vi.spyOn(CODEX_CONFIG, 'fetchQuota');
+      const renderer = await renderAccountsPage();
+      await flushPromises();
+      const quotaReads = () => calls.filter(([url]) => url.includes('/credential-quota?')).length;
+      const windowText = () =>
+        readText(findAccountCardByKey(renderer, getAuthFileSelectionKey(file)));
+      expect(quotaReads()).toBe(1);
+      expect(windowText()).toContain('0.5/5');
+
+      usedPercent = 60; // The server scheduler has written a new observation.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      await flushPromises();
+      expect(quotaReads()).toBe(2);
+      expect(windowText()).toContain('3.0/5');
+
+      failed = true;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      await flushPromises();
+      expect(windowText()).toContain('3.0/5');
+      failed = false;
+      usedPercent = 20;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      await flushPromises();
+      expect(windowText()).toContain('1.0/5');
+
+      visibility = 'hidden';
+      await act(async () => {
+        events.dispatchEvent(new Event('visibilitychange'));
+      });
+      const beforeHidden = quotaReads();
+      usedPercent = 40;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120_000);
+      });
+      expect(quotaReads()).toBe(beforeHidden);
+      visibility = 'visible';
+      await act(async () => {
+        events.dispatchEvent(new Event('visibilitychange'));
+      });
+      await flushPromises();
+      expect(quotaReads()).toBe(beforeHidden + 1);
+      expect(windowText()).toContain('2.0/5');
+      expect(providerRead).not.toHaveBeenCalled();
+      expect(calls.every(([, init]) => init?.method === 'GET')).toBe(true);
+    }
+  );
+
   it.each([7, 0])(
     'ticket93 row refresh uses the quota host subject at query version %s',
     async (queryVersion) => {

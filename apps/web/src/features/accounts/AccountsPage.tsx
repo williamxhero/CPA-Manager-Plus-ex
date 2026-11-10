@@ -189,9 +189,13 @@ import {
 } from '@/features/accounts/model/accountWindowUsageRows';
 import {
   buildAccountQuotaDisplayWindows,
+  isStandardAccountQuotaListWindow,
   type AccountQuotaDisplayWindow,
 } from '@/features/accounts/model/accountQuotaDisplayWindows';
-import { credentialQuotaListWindows } from '@/features/accounts/model/credentialQuotaListWindows';
+import {
+  credentialQuotaListWindows,
+  mergeCredentialQuotaListWindows,
+} from '@/features/accounts/model/credentialQuotaListWindows';
 import {
   buildAccountQuotaWindowDefinitions,
   type AccountQuotaWindowDefinition,
@@ -2442,7 +2446,15 @@ export function AccountsPage() {
     activeView === 'accounts' &&
     managerStorageAvailable &&
     featureAvailability.serverCodexInspectionAvailable;
+  const canReadCredentialQuota =
+    activeView === 'accounts' &&
+    !featureAvailability.checking &&
+    backendCredentialQuota &&
+    Boolean(featureAvailability.managerServiceBase) &&
+    Boolean(managementKey);
   const refreshPassiveAccountsEvidence = useCallback(async () => {
+    // Read scheduler-owned observations; this never starts an upstream query.
+    if (canReadCredentialQuota) setCredentialListRevision((current) => current + 1);
     await Promise.all([
       canLoadHeaderSnapshots ? loadHeaderSnapshots() : Promise.resolve(),
       canLoadInspectionSummary ? loadInspectionSummaryAndSynchronize() : Promise.resolve(),
@@ -2451,6 +2463,7 @@ export function AccountsPage() {
   }, [
     canLoadHeaderSnapshots,
     canLoadInspectionSummary,
+    canReadCredentialQuota,
     loadHeaderSnapshots,
     loadInspectionSummaryAndSynchronize,
   ]);
@@ -2509,7 +2522,7 @@ export function AccountsPage() {
     },
     activeView === 'accounts' &&
       documentVisible &&
-      (canLoadHeaderSnapshots || canLoadInspectionSummary)
+      (canLoadHeaderSnapshots || canLoadInspectionSummary || canReadCredentialQuota)
       ? PASSIVE_ACCOUNTS_EVIDENCE_REFRESH_MS
       : null
   );
@@ -4522,8 +4535,18 @@ export function AccountsPage() {
         'accounts.recommend_reason_recovered'
       );
     });
+    const displayedQuota = new Map<string, number | null>();
+    operationalRows.forEach((row) => {
+      const windows = credentialListWindows.get(row.authIndex);
+      if (!windows?.length) return;
+      const remaining = windows
+        .filter(isStandardAccountQuotaListWindow)
+        .map((window) => window.remainingPercent)
+        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+      displayedQuota.set(row.selectionKey, remaining.length ? Math.min(...remaining) : null);
+    });
     return applyAccountPinnedOrder(
-      sortAccountRows(operationalRows, accountSort, requestEvidenceBySelectionKey),
+      sortAccountRows(operationalRows, accountSort, displayedQuota),
       pinnedKeys
     );
   }, [
@@ -4531,6 +4554,7 @@ export function AccountsPage() {
     actionCandidatesByRowKey,
     baseFilteredRows,
     codexStatusBySelectionKey,
+    credentialListWindows,
     effectiveOperationalFilter,
     pinnedKeys,
     quotaCooldownsByRowKey,
@@ -4895,16 +4919,22 @@ export function AccountsPage() {
   );
   const credentialQuotaTargets = useMemo(
     () =>
-      pageRows
+      rows
         .filter(
           (row) =>
-            (row.provider === OPENCODE_GO_CONFIG.type || row.provider === QWEN_CONFIG.type) &&
+            (row.provider === CODEX_CONFIG.type ||
+              row.provider === OPENCODE_GO_CONFIG.type ||
+              row.provider === QWEN_CONFIG.type) &&
             row.authIndex
         )
         .map((row) => `${row.provider}:${row.authIndex}`)
+        .sort()
         .join('\n'),
-    [pageRows]
+    [rows]
   );
+  useEffect(() => {
+    setCredentialListWindows(new Map());
+  }, [managerConnectionFingerprint]);
   useEffect(() => {
     if (
       !backendCredentialQuota ||
@@ -4919,31 +4949,44 @@ export function AccountsPage() {
       const splitAt = item.indexOf(':');
       return { provider: item.slice(0, splitAt), authIndex: item.slice(splitAt + 1) };
     });
-    void Promise.all(
-      targets.map(async (target) => {
-        try {
-          const quota = await credentialQuotaRequest<CredentialQuotaStatus>(
-            featureAvailability.managerServiceBase,
-            managementKey,
-            'GET',
-            `?authIndex=${encodeURIComponent(target.authIndex)}`,
-            undefined,
-            abort.signal
-          );
-          const source = target.provider === QWEN_CONFIG.type ? 'qwen' : 'opencode-go';
-          return [
-            target.authIndex,
-            credentialQuotaListWindows(quota.lastSuccess?.windowsJson, source),
-          ] as const;
-        } catch {
-          return [target.authIndex, [] as AccountQuotaDisplayWindow[]] as const;
-        }
-      })
-    ).then((rows) => {
+    void mapWithConcurrency(targets, 6, async (target) => {
+      try {
+        const quota = await credentialQuotaRequest<CredentialQuotaStatus>(
+          featureAvailability.managerServiceBase,
+          managementKey,
+          'GET',
+          `?authIndex=${encodeURIComponent(target.authIndex)}`,
+          undefined,
+          abort.signal
+        );
+        const source =
+          target.provider === CODEX_CONFIG.type
+            ? 'codex'
+            : target.provider === QWEN_CONFIG.type
+              ? 'qwen'
+              : 'opencode-go';
+        return [
+          target.authIndex,
+          credentialQuotaListWindows(
+            quota.lastSuccess?.windowsJson,
+            source,
+            quota.lastSuccess?.observedAtMs
+          ),
+        ] as const;
+      } catch {
+        return [target.authIndex, null] as const;
+      }
+    }).then((rows) => {
       if (abort.signal.aborted) return;
-      setCredentialListWindows(
-        new Map(rows.filter((entry): entry is readonly [string, AccountQuotaDisplayWindow[]] => entry[1].length > 0).map((entry) => [entry[0], entry[1]]))
-      );
+      setCredentialListWindows((current) => {
+        const next = new Map<string, AccountQuotaDisplayWindow[]>();
+        rows.forEach(([authIndex, windows]) => {
+          // A temporary cache read failure is not evidence that quota vanished.
+          const retained = windows ?? current.get(authIndex);
+          if (retained?.length) next.set(authIndex, retained);
+        });
+        return next;
+      });
     });
     return () => abort.abort();
   }, [
@@ -4961,8 +5004,14 @@ export function AccountsPage() {
         translateQuotaWindowLabel,
         t,
       });
+      const credential = row.authIndex
+        ? (credentialListWindows.get(String(row.authIndex)) ?? [])
+        : [];
+      if (row.provider === CODEX_CONFIG.type && credential.length > 0) {
+        return mergeCredentialQuotaListWindows(local, credential);
+      }
       if (local.length > 0 || !row.authIndex) return local;
-      return credentialListWindows.get(String(row.authIndex)) ?? local;
+      return credential;
     },
     [baseQuotaStores, credentialListWindows, getDisplayCodexQuota, t, translateQuotaWindowLabel]
   );
@@ -9025,16 +9074,8 @@ export function AccountsPage() {
     const valueText = valueParts ? `${valueParts.prefix} ${valueParts.percent}` : '-';
     const cardTitle = [
       `${readableLabel}: ${valueText}${relativeReset ? ` | ${relativeReset}` : ''}`,
-      hasActual
-        ? `${t('accounts.quota_used_short')} ${formatCompactUsd(
-            windowUsageData.currentCost!
-          )} (${formatCompactNumber(windowUsageData.currentTokens!)} ${t('accounts.history_tokens', { defaultValue: 'tokens' })})`
-        : '',
-      hasForecast
-        ? `${t('accounts.quota_forecast_short')} ${formatCompactUsd(
-            windowUsageData.forecastCost!
-          )} (${formatCompactNumber(windowUsageData.forecastTokens!)} ${t('accounts.history_tokens', { defaultValue: 'tokens' })})`
-        : '',
+      `${t('accounts.quota_used_short')} ${hasActual ? formatCompactUsd(windowUsageData.currentCost!) : '--'} (${hasActual ? formatCompactNumber(windowUsageData.currentTokens!) : '--'} ${t('accounts.history_tokens', { defaultValue: 'tokens' })})`,
+      `${t('accounts.quota_forecast_short')} ${hasForecast ? formatCompactUsd(windowUsageData.forecastCost!) : '--'} (${hasForecast ? formatCompactNumber(windowUsageData.forecastTokens!) : '--'} ${t('accounts.history_tokens', { defaultValue: 'tokens' })})`,
       resetDisplayLabel && resetDisplayLabel !== '-'
         ? `${t('accounts.col_reset')}: ${resetDisplayLabel}`
         : '',
@@ -9087,55 +9128,47 @@ export function AccountsPage() {
           <span className={`${styles.quotaBar} ${barClass}`} style={{ width: `${windowWidth}%` }} />
         </span>
         <span className={styles.quotaWindowUsageLine}>
-          {hasActual ? (
-            <span
-              className={styles.quotaUsageGroup}
-              title={`${t('accounts.quota_used_short')}: ${formatCompactUsd(
-                windowUsageData.currentCost!
-              )} (${formatCompactNumber(windowUsageData.currentTokens!)} tokens)`}
-            >
-              <span className={styles.quotaUsageIcon} aria-label={t('accounts.quota_used_short')}>
-                <IconChartLine size={10} />
-              </span>
-              <span className={styles.quotaWindowCost}>
-                {formatCompactUsd(windowUsageData.currentCost!)}
-              </span>
-              <span className={styles.quotaWindowSlash} aria-hidden="true">
-                /
-              </span>
-              <span className={styles.quotaWindowTokenCompact}>
-                {formatCompactNumber(windowUsageData.currentTokens!)}
-              </span>
+          <span
+            className={styles.quotaUsageGroup}
+            data-account-quota-usage="actual"
+            data-usage-state={hasActual ? 'ready' : 'empty'}
+            title={`${t('accounts.quota_used_short')}: ${hasActual ? formatCompactUsd(windowUsageData.currentCost!) : '--'} (${hasActual ? formatCompactNumber(windowUsageData.currentTokens!) : '--'} tokens)`}
+          >
+            <span className={styles.quotaUsageIcon} aria-label={t('accounts.quota_used_short')}>
+              <IconChartLine size={10} />
             </span>
-          ) : (
-            <span className={styles.quotaSlotEmpty} aria-hidden="true" />
-          )}
-          {hasForecast ? (
-            <span
-              className={styles.quotaForecastGroup}
-              title={`${t('accounts.quota_forecast_short')}: ${formatCompactUsd(
-                windowUsageData.forecastCost!
-              )} (${formatCompactNumber(windowUsageData.forecastTokens!)} tokens)`}
-            >
-              <span
-                className={styles.quotaForecastIcon}
-                aria-label={t('accounts.quota_forecast_short')}
-              >
-                <IconTrendingUp size={10} />
-              </span>
-              <span className={styles.quotaWindowCostPredicted}>
-                {formatCompactUsd(windowUsageData.forecastCost!)}
-              </span>
-              <span className={styles.quotaWindowSlash} aria-hidden="true">
-                /
-              </span>
-              <span className={styles.quotaWindowTokenPredictedCompact}>
-                {formatCompactNumber(windowUsageData.forecastTokens!)}
-              </span>
+            <span className={styles.quotaWindowCost}>
+              {hasActual ? formatCompactUsd(windowUsageData.currentCost!) : '--'}
             </span>
-          ) : (
-            <span className={styles.quotaSlotEmpty} aria-hidden="true" />
-          )}
+            <span className={styles.quotaWindowSlash} aria-hidden="true">
+              /
+            </span>
+            <span className={styles.quotaWindowTokenCompact}>
+              {hasActual ? formatCompactNumber(windowUsageData.currentTokens!) : '--'}
+            </span>
+          </span>
+          <span
+            className={styles.quotaForecastGroup}
+            data-account-quota-usage="forecast"
+            data-usage-state={hasForecast ? 'ready' : 'empty'}
+            title={`${t('accounts.quota_forecast_short')}: ${hasForecast ? formatCompactUsd(windowUsageData.forecastCost!) : '--'} (${hasForecast ? formatCompactNumber(windowUsageData.forecastTokens!) : '--'} tokens)`}
+          >
+            <span
+              className={styles.quotaForecastIcon}
+              aria-label={t('accounts.quota_forecast_short')}
+            >
+              <IconTrendingUp size={10} />
+            </span>
+            <span className={styles.quotaWindowCostPredicted}>
+              {hasForecast ? formatCompactUsd(windowUsageData.forecastCost!) : '--'}
+            </span>
+            <span className={styles.quotaWindowSlash} aria-hidden="true">
+              /
+            </span>
+            <span className={styles.quotaWindowTokenPredictedCompact}>
+              {hasForecast ? formatCompactNumber(windowUsageData.forecastTokens!) : '--'}
+            </span>
+          </span>
           {relativeReset ? (
             <span
               className={styles.quotaWindowResetTime}

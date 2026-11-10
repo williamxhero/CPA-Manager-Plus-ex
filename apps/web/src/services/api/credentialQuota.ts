@@ -38,6 +38,7 @@ export interface CredentialQuotaWindow {
   remainingFraction: number;
   resetAt?: string;
   sourceStatus?: string;
+  limitWindowSeconds?: number;
 }
 export interface QuotaWindows {
   windows: CredentialQuotaWindow[];

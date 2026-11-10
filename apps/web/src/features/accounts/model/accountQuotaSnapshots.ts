@@ -27,6 +27,7 @@ import {
   isCodexKnownScopedProviderWindowId,
   isCodexLegacyAllScopeReplacement,
   isCodexMainProviderWindowId,
+  isCodexMainQuotaModelScope,
   inferCodexQuotaScopeFromProviderWindowId,
   shouldClearInheritedCodexQuotaProgress,
 } from '@/utils/quota/codexQuota';
@@ -783,7 +784,39 @@ export const mergeAccountQuotaSnapshotWindows = (
       definition.modelScope.complete === false ||
       !scopedProviderWindowIds.has(definition.providerWindowId)
   );
+  const liveMainDefinitions = compatibleDefinitions.filter(
+    (definition) =>
+      (options.provider === 'codex' || definition.provider === 'codex') &&
+      definition.observationSource === 'api_query' &&
+      isCodexMainQuotaModelScope(definition.modelScope) &&
+      definition.kind !== 'unknown' &&
+      typeof definition.durationSeconds === 'number' &&
+      definition.durationSeconds > 0 &&
+      typeof definition.observedAtMs === 'number' &&
+      Number.isFinite(definition.observedAtMs) &&
+      definition.observedAtMs > 0
+  );
+  const liveMainIds = new Set(
+    liveMainDefinitions.map((definition) => definition.providerWindowId)
+  );
+  const liveMainObservedAtMs = Math.max(
+    0,
+    ...liveMainDefinitions.map((definition) => definition.observedAtMs ?? 0)
+  );
   const compatibleSnapshots = canonicalSnapshots.filter((snapshot) => {
+    // A late history response must not revive an expired former main window
+    // after a newer API query has established the current window shape.
+    if (
+      options.provider === 'codex' &&
+      isCodexMainQuotaModelScope(snapshotModelScope(snapshot)) &&
+      !liveMainIds.has(snapshot.provider_window_id) &&
+      snapshot.stale &&
+      snapshot.observed_at_ms < liveMainObservedAtMs &&
+      typeof snapshot.cycle_end_ms === 'number' &&
+      snapshot.cycle_end_ms <= liveMainObservedAtMs
+    ) {
+      return false;
+    }
     if (snapshot.model_scope_kind.trim().toLowerCase() !== 'all') return true;
     if (options.provider !== 'codex') return true;
     const isKnownScopedLegacy = isCodexKnownScopedProviderWindowId(snapshot.provider_window_id);

@@ -53,6 +53,7 @@ export type AccountQuotaWindowSource =
 
 export interface AccountQuotaDisplayWindow {
   key: string;
+  providerWindowId?: string;
   label: string;
   kind?: AccountQuotaWindowKind;
   remainingPercent: number | null;

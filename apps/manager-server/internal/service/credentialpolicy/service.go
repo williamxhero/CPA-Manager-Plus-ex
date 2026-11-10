@@ -151,10 +151,14 @@ func (s *Service) Intents(ctx context.Context) ([]Intent, error) {
 	out := make([]Intent, 0, len(rows))
 	for _, row := range rows {
 		var doc struct {
-			AuthIndex string `json:"auth_index"`
-			Enabled   bool   `json:"enabled"`
+			AuthIndex          string `json:"auth_index"`
+			Enabled            bool   `json:"enabled"`
+			AuthorityReboundTo string `json:"authorityReboundTo"`
 		}
-		if json.Unmarshal([]byte(row.Document), &doc) != nil || doc.AuthIndex == "" {
+		// A migrated predecessor is retained for audit, not a second switch.
+		// Its OFF tombstone must not overwrite the current row in clients keyed
+		// by the unchanged runtime auth index.
+		if json.Unmarshal([]byte(row.Document), &doc) != nil || doc.AuthIndex == "" || doc.AuthorityReboundTo != "" {
 			continue
 		}
 		out = append(out, Intent{AuthIndex: doc.AuthIndex, Enabled: doc.Enabled})

@@ -250,6 +250,11 @@ func pluginConfigFields() []pluginapi.ConfigField {
 			Type:        pluginapi.ConfigFieldTypeBoolean,
 			Description: "Allow plain http:// URLs for local testing/mocking (default: false).",
 		},
+		{
+			Name:        "quota-resource-bindings",
+			Type:        pluginapi.ConfigFieldTypeArray,
+			Description: "Explicit CPA resource target bindings enrolled for this OpenCode Go quota source; each entry requires resource-id, identity-version, credential-version, config-version and membership-version.",
+		},
 	}
 }
 

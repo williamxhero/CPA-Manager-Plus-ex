@@ -1640,8 +1640,8 @@ describe('accountRows', () => {
       })
     ).toHaveLength(0);
     expect(sortAccountRows(rows).map((candidate) => candidate.fileName)).toEqual([
-      'antigravity-mixed.json',
       'codex-healthy.json',
+      'antigravity-mixed.json',
     ]);
   });
 

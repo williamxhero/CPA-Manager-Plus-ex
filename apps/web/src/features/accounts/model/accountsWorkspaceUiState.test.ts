@@ -58,4 +58,28 @@ describe('accountsWorkspaceUiState', () => {
       })
     ).toEqual(DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE);
   });
+
+  it('uses quota-based default order and migrates the old recent-request preference once', () => {
+    expect(DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE.accountSort).toEqual({
+      key: 'default',
+      direction: 'desc',
+    });
+    window.localStorage.setItem(
+      'cpa_manager_accounts_workspace_ui_v1',
+      JSON.stringify({
+        ...DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE,
+        search: 'OAI',
+        layoutMode: 'grid',
+        accountSort: { key: 'recent', direction: 'desc' },
+      })
+    );
+    const migrated = readAccountsWorkspaceUiState();
+    expect(migrated).toMatchObject({
+      search: 'OAI',
+      layoutMode: 'grid',
+      accountSort: { key: 'default', direction: 'desc' },
+    });
+    writeAccountsWorkspaceUiState({ ...migrated, accountSort: { key: 'name', direction: 'asc' } });
+    expect(readAccountsWorkspaceUiState().accountSort).toEqual({ key: 'name', direction: 'asc' });
+  });
 });

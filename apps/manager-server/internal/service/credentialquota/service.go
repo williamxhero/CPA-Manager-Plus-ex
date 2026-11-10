@@ -53,12 +53,13 @@ type Query struct {
 	TimeoutMS     int64  `json:"timeoutMs,omitempty"`
 }
 type Window struct {
-	Name              string  `json:"name"`
-	Model             string  `json:"model,omitempty"`
-	UsedPercent       float64 `json:"usedPercent"`
-	RemainingFraction float64 `json:"remainingFraction"`
-	ResetAt           string  `json:"resetAt,omitempty"`
-	SourceStatus      string  `json:"sourceStatus,omitempty"`
+	Name               string  `json:"name"`
+	Model              string  `json:"model,omitempty"`
+	UsedPercent        float64 `json:"usedPercent"`
+	RemainingFraction  float64 `json:"remainingFraction"`
+	ResetAt            string  `json:"resetAt,omitempty"`
+	SourceStatus       string  `json:"sourceStatus,omitempty"`
+	LimitWindowSeconds int64   `json:"limitWindowSeconds,omitempty"`
 }
 type Credits struct {
 	HasCredits          bool   `json:"hasCredits"`

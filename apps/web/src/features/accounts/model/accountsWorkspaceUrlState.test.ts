@@ -95,7 +95,7 @@ describe('accountsWorkspaceUrlState', () => {
     expect(state.healthMode).toBe('local');
     expect(state.statusFilter).toBe('all');
     expect(state.quotaBandFilter).toBe('all');
-    expect(state.accountSort).toEqual({ key: 'recent', direction: 'desc' });
+    expect(state.accountSort).toEqual({ key: 'default', direction: 'desc' });
     expect(state.pageSize).toBe(10);
     expect(state.detailTab).toBe('overview');
     expect(state.editor).toBeNull();

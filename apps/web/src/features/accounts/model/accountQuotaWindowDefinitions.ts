@@ -112,7 +112,7 @@ export const buildAccountQuotaWindowDefinitions = (
         window.cycleEndMs <= nowMs;
       return {
         key: window.key,
-        providerWindowId: window.key,
+        providerWindowId: window.providerWindowId ?? window.key,
         provider: window.source ?? 'summary',
         label: window.label,
         kind: window.kind ?? 'unknown',

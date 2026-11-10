@@ -33,7 +33,6 @@ import {
 import {
   getAccountRequestCredentialEvidence,
   hasAccountQuotaLimitEvidence,
-  isAccountCredentialStatusProblemCurrent,
   isAccountInspectionHealthyEvidence,
   isAccountInspectionActionable,
   isAccountObservedDiagnosticProblemCurrent,
@@ -819,17 +818,17 @@ export const filterAccountRows = (rows: AccountRow[], filters: AccountRowFilters
 export const sortAccountRows = (
   rows: AccountRow[],
   sort?: AccountRowSort,
-  requestEvidenceBySelectionKey?: AccountRequestEvidenceBySelectionKey
+  quotaRemainingBySelectionKey?: ReadonlyMap<string, number | null>
 ): AccountRow[] => {
   const defaultSorted = [...rows].sort((left, right) =>
-    compareDefaultAccountRows(left, right, requestEvidenceBySelectionKey)
+    compareDefaultAccountRows(left, right, quotaRemainingBySelectionKey)
   );
   if (!sort || sort.key === 'default') return defaultSorted;
 
   return defaultSorted.sort((left, right) => {
     const byColumn = compareAccountRowsBySort(left, right, sort);
     return byColumn === 0
-      ? compareDefaultAccountRows(left, right, requestEvidenceBySelectionKey)
+      ? compareDefaultAccountRows(left, right, quotaRemainingBySelectionKey)
       : byColumn;
   });
 };
@@ -983,43 +982,34 @@ const matchesQuotaBand = (row: AccountRow, band: AccountQuotaBand) => {
   return true;
 };
 
-const getRiskRank = (
-  row: AccountRow,
-  requestEvidenceBySelectionKey?: AccountRequestEvidenceBySelectionKey
-) => {
-  const requestEvidenceInput = getRowRequestEvidenceInput(row, requestEvidenceBySelectionKey);
-  const requestEvidence = resolveAccountRequestHealthEvidence(requestEvidenceInput);
-  const currentRequestEvidence = isAccountRequestHealthEvidenceCurrent(row, requestEvidence)
-    ? requestEvidence
-    : null;
-  const authenticationProblem = resolveAccountAuthenticationProblemEvidence(row, requestEvidence);
-  if (authenticationProblem) return 7;
-  if (isAccountInspectionActionable(row, requestEvidence)) return 7;
-  if (row.quota.status === 'exhausted') return 6;
-  if (row.quota.status === 'low') return 5;
-  if (hasAccountQuotaLimitEvidence(row, requestEvidenceInput)) return 5;
-  if (currentRequestEvidence?.kind === 'transient_failure') return 4;
-  if (isAccountQuotaRefreshProblemCurrent(row, requestEvidence)) return 4;
-  if (isAccountObservedDiagnosticProblemCurrent(row, requestEvidence)) return 4;
-  if (hasPartialGroupedQuota(row)) return 3;
-  if (row.disabled) return 2;
-  if (isAccountCredentialStatusProblemCurrent(row, requestEvidence)) return 1;
-  return 0;
-};
-
 const compareDefaultAccountRows = (
   left: AccountRow,
   right: AccountRow,
-  requestEvidenceBySelectionKey?: AccountRequestEvidenceBySelectionKey
+  quotaRemainingBySelectionKey?: ReadonlyMap<string, number | null>
 ) => {
-  const leftRisk = getRiskRank(left, requestEvidenceBySelectionKey);
-  const rightRisk = getRiskRank(right, requestEvidenceBySelectionKey);
-  if (leftRisk !== rightRisk) return rightRisk - leftRisk;
-  if (left.provider !== right.provider) return left.provider.localeCompare(right.provider);
-  return left.fileName.localeCompare(right.fileName, undefined, {
-    numeric: true,
-    sensitivity: 'base',
-  });
+  if (left.disabled !== right.disabled) return left.disabled ? 1 : -1;
+  const byName = () =>
+    compareText(left.accountLabel, right.accountLabel, 'asc') ||
+    compareText(left.fileName, right.fileName, 'asc') ||
+    compareText(left.selectionKey, right.selectionKey, 'asc');
+  if (left.disabled) return byName();
+
+  const remaining = (row: AccountRow): number | null => {
+    const overridden = quotaRemainingBySelectionKey?.has(row.selectionKey) === true;
+    const value = overridden
+      ? quotaRemainingBySelectionKey?.get(row.selectionKey)
+      : row.quota.remainingPercent;
+    if (typeof value === 'number' && Number.isFinite(value))
+      return Math.max(0, Math.min(100, value));
+    return !overridden && row.quota.status === 'exhausted' ? 0 : null;
+  };
+  const leftRemaining = remaining(left);
+  const rightRemaining = remaining(right);
+  // Unknown quota follows confirmed available quota, with exhausted quota last.
+  const rank = (value: number | null) => (value === null ? 1 : value <= 0 ? 2 : 0);
+  const byQuotaState = rank(leftRemaining) - rank(rightRemaining);
+  if (byQuotaState !== 0) return byQuotaState;
+  return (rightRemaining ?? 0) - (leftRemaining ?? 0) || byName();
 };
 
 const getAccountPlanSortRank = (provider: string, planType: string | null): number | null => {

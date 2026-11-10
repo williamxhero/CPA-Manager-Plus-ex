@@ -8,7 +8,7 @@ import {
   summarizeGroupedQuotaAvailability,
   type AccountGroupedQuotaAvailabilitySummary,
 } from './accountQuotaSummary';
-import type { AccountQuotaWindowKind } from './accountQuotaDisplayWindows';
+import type { AccountQuotaWindowKind, AccountQuotaWindowSource } from './accountQuotaDisplayWindows';
 import type { QuotaModelScope, QuotaResetAccuracy } from '@/types';
 import {
   buildAccountRecommendation,
@@ -84,6 +84,8 @@ export interface AccountListQuotaWindowPresentation {
   resetAccuracy: QuotaResetAccuracy;
   groupLabel?: string;
   modelScope?: QuotaModelScope;
+  source?: AccountQuotaWindowSource;
+  observedAtMs?: number | null;
 }
 
 export type AccountListQuotaWindowInput = Omit<
@@ -847,6 +849,24 @@ const resolveHealthStatus = (
     !hasRowAuthenticationEvidence &&
     requestCredentialEvidence?.direction !== 'positive';
   const antigravityAvailability = resolveAntigravityAvailability(row, quotaWindows);
+  const currentCredentialQuotaWindows =
+    row.provider === 'codex'
+      ? quotaWindows.filter(
+          (window) =>
+            window.source === 'codex' &&
+            window.key.startsWith('codex:') &&
+            typeof window.observedAtMs === 'number' &&
+            Number.isFinite(window.observedAtMs)
+        )
+      : [];
+  const hasCurrentAvailableCredentialQuota =
+    currentCredentialQuotaWindows.length > 0 &&
+    currentCredentialQuotaWindows.every(
+      (window) =>
+        typeof window.remainingPercent === 'number' &&
+        Number.isFinite(window.remainingPercent) &&
+        window.remainingPercent > 0
+    );
   const resolveEffectiveQuotaWindowLimitKind = () =>
     antigravityAvailability
       ? antigravityAvailability.state !== 'exhausted'
@@ -936,7 +956,9 @@ const resolveHealthStatus = (
     };
   }
 
-  const codexLimitKind = resolveCodexLimitKind(codexStatus);
+  const codexLimitKind = hasCurrentAvailableCredentialQuota
+    ? null
+    : resolveCodexLimitKind(codexStatus);
   if (codexLimitKind) {
     if (codexLimitKind !== 'unknown') {
       const reset = getResetForLimitKind(codexLimitKind, codexStatus, quotaWindows, {
@@ -1025,7 +1047,10 @@ const resolveHealthStatus = (
     };
   }
 
-  if (row.quota.status === 'exhausted' || row.quota.remainingPercent === 0) {
+  if (
+    !hasCurrentAvailableCredentialQuota &&
+    (row.quota.status === 'exhausted' || row.quota.remainingPercent === 0)
+  ) {
     return {
       status: 'limited',
       tooltipKey: 'accounts.health_tip_limited',
@@ -1253,7 +1278,13 @@ export const buildAccountListItem = (
   );
   const accountQuotaWindows =
     row.provider === 'codex'
-      ? quotaWindows.filter(isCodexMainQuotaWindow)
+      ? quotaWindows.filter(
+          (window) =>
+            isCodexMainQuotaWindow(window) ||
+            (window.source === 'codex' &&
+              typeof window.observedAtMs === 'number' &&
+              Number.isFinite(window.observedAtMs))
+        )
       : row.provider === 'xai' && !isConfirmedPaidXaiPlan(row.planType)
         ? []
         : quotaWindows;

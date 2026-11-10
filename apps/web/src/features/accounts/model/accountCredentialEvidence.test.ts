@@ -1158,6 +1158,51 @@ describe('account credential evidence', () => {
     expect(result?.rateLimitReachedType).toBeUndefined();
   });
 
+  it('lets a newer partial Provider window replace an older Header window for the same scope', () => {
+    const result = reconcileCodexQuotaEvidence({
+      headerQuota: providerQuota({
+        fetchedAtMs: undefined,
+        observedAtMs: 1_000,
+        observedFromUsageHeaders: true,
+        quotaInventoryObserved: false,
+        windows: [
+          {
+            id: 'five-hour',
+            label: 'Five hour',
+            usedPercent: 100,
+            resetLabel: 'old',
+            observedAtMs: 1_000,
+          },
+          {
+            id: 'weekly',
+            label: 'Weekly',
+            usedPercent: 79,
+            resetLabel: 'old',
+            observedAtMs: 1_000,
+          },
+        ],
+      }),
+      providerQuota: {
+        status: 'success',
+        quotaInventoryObserved: false,
+        windows: [
+          {
+            id: 'five-hour',
+            label: 'Five hour',
+            usedPercent: 0,
+            resetLabel: 'new',
+            observedAtMs: 3_000,
+          },
+        ],
+        observedAtMs: 3_000,
+        fetchedAtMs: 3_000,
+      },
+    });
+
+    expect(result?.windows.find((window) => window.id === 'five-hour')?.usedPercent).toBe(0);
+    expect(result?.windows.find((window) => window.id === 'weekly')?.usedPercent).toBe(79);
+  });
+
   it('treats successfully executed inspection actions as handled', () => {
     const handled = inspection({ action: 'enable', actionStatus: 'success' });
 
