@@ -80,15 +80,17 @@ $table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1
   }
 
   @include provider-card-layout {
-    grid-template-columns: 1fr auto auto;
+    // 每行必须同列数，否则整段 grid-template-areas 会被浏览器丢弃，
+    // 窄宽下控件会全部挤到同一块区域。
+    grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-areas:
       'type toggle auto'
-      'identity identity'
-      'balance balance'
-      'url url'
-      'priority models'
-      'recent recent'
-      'actions actions';
+      'identity identity identity'
+      'balance balance balance'
+      'url url url'
+      'priority models models'
+      'recent recent recent'
+      'actions actions actions';
     column-gap: 10px;
     row-gap: 6px;
     padding: $spacing-md;
