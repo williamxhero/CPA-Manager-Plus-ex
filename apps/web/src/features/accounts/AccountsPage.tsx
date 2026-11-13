@@ -5004,7 +5004,8 @@ export function AccountsPage() {
       setCredentialListReady(true);
       return;
     }
-    setCredentialListReady(false);
+    // Keep painting local/previous host windows while the buffer re-read runs.
+    // Only connection fingerprint resets clear the map; never blank the bars.
     const abort = new AbortController();
     const targets = credentialQuotaTargets.split('\n').map((item) => {
       const splitAt = item.indexOf(':');
@@ -5027,28 +5028,28 @@ export function AccountsPage() {
               ? 'qwen'
               : 'opencode-go';
         const observation = selectCredentialQuotaWindowsObservation(quota);
-        return [
-          target.authIndex,
-          credentialQuotaListWindows(
-            observation?.windowsJson,
-            source,
-            observation?.observedAtMs
-          ),
-        ] as const;
-      } catch {
-        return [target.authIndex, null] as const;
-      }
-    }).then((rows) => {
-      if (abort.signal.aborted) return;
-      setCredentialListWindows((current) => {
-        const next = new Map<string, AccountQuotaDisplayWindow[]>();
-        rows.forEach(([authIndex, windows]) => {
-          // A temporary cache read failure is not evidence that quota vanished.
-          const retained = windows ?? current.get(authIndex);
-          if (retained?.length) next.set(authIndex, retained);
+        const windows = credentialQuotaListWindows(
+          observation?.windowsJson,
+          source,
+          observation?.observedAtMs
+        );
+        if (abort.signal.aborted) return;
+        // Paint each host lastSuccess as soon as it arrives; do not wait for the
+        // whole batch before replacing「暂无额度数据」/stale local.
+        setCredentialListWindows((current) => {
+          const next = new Map(current);
+          if (windows.length > 0) {
+            next.set(target.authIndex, windows);
+          } else if (!next.has(target.authIndex)) {
+            // Leave prior host/local paint alone when this read has no windows.
+          }
+          return next;
         });
-        return next;
-      });
+      } catch {
+        // A temporary cache read failure is not evidence that quota vanished.
+      }
+    }).then(() => {
+      if (abort.signal.aborted) return;
       setCredentialListReady(true);
     });
     return () => abort.abort();
@@ -5074,14 +5075,13 @@ export function AccountsPage() {
           row.provider === QWEN_CONFIG.type) &&
         Boolean(row.authIndex);
       if (usesHostCredentialList) {
-        // Wait for host lastSuccess before painting; local persisted exhaustion
-        // must not flash「月耗尽」ahead of the authoritative read.
-        if (!credentialListReady) return [];
         const credential = credentialListWindows.get(String(row.authIndex)) ?? [];
         if (credential.length > 0) {
           return mergeCredentialQuotaListWindows(local, credential);
         }
-        return [];
+        // Host buffer not in yet (or empty): keep local/persisted windows so the
+        // page never flashes「暂无额度数据」while waiting on lastSuccess.
+        return local;
       }
       const credential = row.authIndex
         ? (credentialListWindows.get(String(row.authIndex)) ?? [])
@@ -5092,7 +5092,6 @@ export function AccountsPage() {
     [
       backendCredentialQuota,
       baseQuotaStores,
-      credentialListReady,
       credentialListWindows,
       getDisplayCodexQuota,
       t,

@@ -22342,6 +22342,84 @@ describe('AccountsPage replacement flows', () => {
     }
   );
 
+  it('paints persisted OpenCode windows before host credential-quota settles', async () => {
+    const file: AuthFileItem = {
+      name: 'opencode-cached.json',
+      label: 'OpenCode Cached',
+      provider: 'opencode-go',
+      auth_index: 'cached-go',
+      supports_quota: true,
+      quota_provider: 'opencode-go',
+    };
+    mocks.files = [file];
+    mocks.panelFeatureAvailability.managerServiceAvailable = true;
+    installCapabilitiesAdapter(async () => capabilitySummary());
+    const data = parseOpenCodeGoQuota(
+      {
+        usage: {
+          rolling: { status: 'ok', percent: 20, resets_at: '2099-01-01T00:00:00Z' },
+          weekly: { status: 'ok', percent: 40, resetsAt: '2099-01-07T00:00:00Z' },
+          monthly: { status: 'ok', percent: 10, resets_at: '2099-02-01T00:00:00Z' },
+        },
+      },
+      mocks.t as TFunction
+    );
+    mocks.quotaState.opencodeGoQuota = {
+      [OPENCODE_GO_CONFIG.getStoreKey!(file)]: OPENCODE_GO_CONFIG.buildSuccessState(data, file),
+    };
+    let releaseHost!: () => void;
+    const hostGate = new Promise<void>((resolve) => {
+      releaseHost = resolve;
+    });
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (!String(url).includes('/credential-quota?')) return Response.json({});
+      await hostGate;
+      return Response.json({
+        lastSuccess: {
+          observedAtMs: Date.now(),
+          windowsJson: JSON.stringify({
+            windows: [
+              {
+                name: 'rolling',
+                usedPercent: 20,
+                remainingFraction: 0.8,
+                resetAt: '2099-01-01T00:00:00Z',
+              },
+              {
+                name: 'weekly',
+                usedPercent: 40,
+                remainingFraction: 0.6,
+                resetAt: '2099-01-07T00:00:00Z',
+              },
+              {
+                name: 'monthly',
+                usedPercent: 10,
+                remainingFraction: 0.9,
+                resetAt: '2099-02-01T00:00:00Z',
+              },
+            ],
+          }),
+        },
+      });
+    });
+
+    const renderer = await renderAccountsPage();
+    const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
+    const cardText = readText(card);
+    expect(cardText).not.toContain('accounts.quota_source_none');
+    expect(cardText).toMatch(/rolling|5h|已用|Weekly|Monthly|周|月/i);
+    expect(
+      card.findAll((node) => typeof node.props?.['data-account-quota-window'] === 'string').length
+    ).toBeGreaterThan(0);
+
+    await act(async () => {
+      releaseHost();
+      await Promise.resolve();
+    });
+    await flushPromises();
+    expect(readText(card)).not.toContain('accounts.quota_source_none');
+  });
+
   it.each([true, false])(
     'adopts scheduled quota results on the configured refresh cadence with monitoring available=%s',
     async (monitoringAvailable) => {
