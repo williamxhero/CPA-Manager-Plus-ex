@@ -22,7 +22,7 @@ func TestRuntimeControlsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if missing.QuotaRefreshIntervalMs != 3_600_000 || missing.AutoStartStopEnabled {
+	if missing.QuotaRefreshIntervalMs != 1_800_000 || missing.AutoStartStopEnabled {
 		t.Fatalf("default = %+v", missing)
 	}
 	next := RuntimeControls{

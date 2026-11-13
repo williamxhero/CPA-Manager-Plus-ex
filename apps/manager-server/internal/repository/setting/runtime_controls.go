@@ -24,7 +24,7 @@ type RuntimeControls struct {
 
 func DefaultRuntimeControls() RuntimeControls {
 	return RuntimeControls{
-		QuotaRefreshIntervalMs: 3_600_000,
+		QuotaRefreshIntervalMs: 1_800_000,
 		AutoStartStopIDs:       []string{},
 		BalanceTexts:           map[string]string{},
 	}
@@ -58,7 +58,7 @@ func SaveRuntimeControls(ctx context.Context, db *sql.DB, controls RuntimeContro
 
 func normalizeRuntimeControls(controls RuntimeControls) RuntimeControls {
 	if controls.QuotaRefreshIntervalMs < 0 || controls.QuotaRefreshIntervalMs > 86_400_000 {
-		controls.QuotaRefreshIntervalMs = 3_600_000
+		controls.QuotaRefreshIntervalMs = 1_800_000
 	}
 	if controls.QuotaFetchedAtMs < 0 {
 		controls.QuotaFetchedAtMs = 0

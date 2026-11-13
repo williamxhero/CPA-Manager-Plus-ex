@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   credentialQuotaListWindows,
   mergeCredentialQuotaListWindows,
+  selectCredentialQuotaWindowsObservation,
 } from './credentialQuotaListWindows';
 
 describe('credentialQuotaListWindows', () => {
@@ -175,6 +176,64 @@ describe('credentialQuotaListWindows', () => {
     );
 
     expect(mergeCredentialQuotaListWindows(local, remote)).toEqual(remote);
+  });
+
+  it('selects a depleted attempt over a healthier lastSuccess cache', () => {
+    const depleted = JSON.stringify({
+      windows: [{ name: 'weekly', usedPercent: 100, remainingFraction: 0 }],
+    });
+    const healthy = JSON.stringify({
+      windows: [{ name: 'weekly', usedPercent: 0, remainingFraction: 1 }],
+    });
+    const selected = selectCredentialQuotaWindowsObservation({
+      attempt: { queryStatus: 'success', windowsJson: depleted, observedAtMs: 2_000 },
+      lastSuccess: { queryStatus: 'success', windowsJson: healthy, observedAtMs: 1_000 },
+    });
+    expect(selected).toMatchObject({ windowsJson: depleted, observedAtMs: 2_000 });
+  });
+
+  it('lets a live depleted local window override a healthier host cache', () => {
+    const local = [
+      {
+        key: 'opencode-go:weekly',
+        label: 'weekly',
+        kind: 'weekly' as const,
+        usedPercent: 100,
+        remainingPercent: 0,
+        resetLabel: 'now',
+        resetAccuracy: 'exact' as const,
+        limitWindowSeconds: null,
+        resetAtMs: Date.parse('2026-11-13T02:00:00Z'),
+        fromMs: null,
+        toMs: null,
+        source: 'opencode-go' as const,
+        windowMode: 'calendar' as const,
+        observedAtMs: 2_000,
+        modelScope: { kind: 'all' as const, complete: true },
+      },
+    ];
+    const remote = credentialQuotaListWindows(
+      JSON.stringify({
+        windows: [
+          {
+            name: 'weekly',
+            usedPercent: 0,
+            remainingFraction: 1,
+            resetAt: '2026-11-16T00:00:00Z',
+            sourceStatus: 'ok',
+          },
+        ],
+      }),
+      'opencode-go',
+      1_000
+    );
+
+    const merged = mergeCredentialQuotaListWindows(local, remote);
+    expect(merged.find((window) => window.kind === 'weekly')).toMatchObject({
+      usedPercent: 100,
+      remainingPercent: 0,
+      observedAtMs: 2_000,
+    });
   });
 
   it('replaces stale local OpenCode monthly exhaustion with authoritative lastSuccess windows', () => {

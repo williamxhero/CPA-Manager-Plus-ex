@@ -68,7 +68,11 @@ function displayableBalanceText(text?: string): text is string {
 }
 
 function statusText(status: OfficialBalanceStatus): string | undefined {
-  return observationText(status.lastSuccess) ?? observationText(status.attempt);
+  const attempt = observationText(status.attempt);
+  const lastSuccess = observationText(status.lastSuccess);
+  // A live insufficient reading must win over a healthier cached lastSuccess.
+  if (balanceTextInsufficient(attempt)) return attempt;
+  return lastSuccess ?? attempt;
 }
 
 function isOfficialStatus(value: unknown): value is OfficialBalanceStatus {

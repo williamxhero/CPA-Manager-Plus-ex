@@ -1541,7 +1541,12 @@ describe('AccountsPage replacement flows', () => {
     vi.unstubAllGlobals();
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { setRuntimeControlsForTests } = await import('@/utils/quota/runtimeControls');
+    setRuntimeControlsForTests({
+      quotaRefreshIntervalMs: 1_800_000,
+      quotaFetchedAtMs: 0,
+    });
     mocks.realConfigurationEditor = false;
     mocks.realConfirmation = false;
     useRealNotificationStore.getState().hideConfirmation();
@@ -4759,8 +4764,13 @@ describe('AccountsPage replacement flows', () => {
     expect(visibleRows[0]).not.toContain(expiredFile.name);
   });
 
-  it('polls passive Header evidence only while the accounts view is visible', async () => {
+  it('refreshes Header evidence on the configured cadence only while the accounts view is visible', async () => {
     vi.useFakeTimers();
+    const { setRuntimeControlsForTests } = await import('@/utils/quota/runtimeControls');
+    setRuntimeControlsForTests({
+      quotaRefreshIntervalMs: 60_000,
+      quotaFetchedAtMs: Date.now(),
+    });
     let visibilityState: DocumentVisibilityState = 'visible';
     const documentEvents = new EventTarget();
     vi.stubGlobal('document', {
@@ -4803,12 +4813,23 @@ describe('AccountsPage replacement flows', () => {
       documentEvents.dispatchEvent(new Event('visibilitychange'));
       await Promise.resolve();
     });
+    expect(mocks.getHeaderSnapshots).toHaveBeenCalledTimes(2);
+    expect(mocks.getAccountHistory).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
     expect(mocks.getHeaderSnapshots).toHaveBeenCalledTimes(3);
     expect(mocks.getAccountHistory).toHaveBeenCalledTimes(3);
   });
 
-  it('does not restart an in-flight full history load on passive refresh', async () => {
+  it('does not restart an in-flight full history load on cadence refresh', async () => {
     vi.useFakeTimers();
+    const { setRuntimeControlsForTests } = await import('@/utils/quota/runtimeControls');
+    setRuntimeControlsForTests({
+      quotaRefreshIntervalMs: 60_000,
+      quotaFetchedAtMs: Date.now(),
+    });
     mocks.files = Array.from({ length: 401 }, (_, index) =>
       makeCodexFile(
         `credential-${String(index + 1).padStart(3, '0')}.json`,
@@ -18533,8 +18554,13 @@ describe('AccountsPage replacement flows', () => {
     expect(mocks.loadFiles).toHaveBeenCalledTimes(1);
     expect(listAccountCredentialMutationMarkers('http://cpa-b.local:8317:key-b')).toHaveLength(1);
   });
-  it('polls passive Header and inspection evidence only while the accounts view is visible', async () => {
+  it('refreshes Header and inspection evidence on the configured cadence only while visible', async () => {
     vi.useFakeTimers();
+    const { setRuntimeControlsForTests } = await import('@/utils/quota/runtimeControls');
+    setRuntimeControlsForTests({
+      quotaRefreshIntervalMs: 60_000,
+      quotaFetchedAtMs: Date.now(),
+    });
     let visibilityState: DocumentVisibilityState = 'visible';
     const documentEvents = new EventTarget();
     vi.stubGlobal('document', {
@@ -18577,11 +18603,22 @@ describe('AccountsPage replacement flows', () => {
       documentEvents.dispatchEvent(new Event('visibilitychange'));
       await Promise.resolve();
     });
+    expect(mocks.getHeaderSnapshots).toHaveBeenCalledTimes(2);
+    expect(mocks.listCodexInspectionRuns).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
     expect(mocks.getHeaderSnapshots).toHaveBeenCalledTimes(3);
     expect(mocks.listCodexInspectionRuns).toHaveBeenCalledTimes(3);
   });
   it('synchronizes automatic inspection credential mutations once after completion', async () => {
     vi.useFakeTimers();
+    const { setRuntimeControlsForTests } = await import('@/utils/quota/runtimeControls');
+    setRuntimeControlsForTests({
+      quotaRefreshIntervalMs: 60_000,
+      quotaFetchedAtMs: Date.now(),
+    });
     mocks.panelFeatureAvailability = {
       checking: false,
       managerServiceBase: 'http://manager.local:18317',
@@ -18671,6 +18708,11 @@ describe('AccountsPage replacement flows', () => {
     'retries automatic inspection credential synchronization after a transient %s reload failure',
     async (failedArtifact) => {
       vi.useFakeTimers();
+      const { setRuntimeControlsForTests } = await import('@/utils/quota/runtimeControls');
+      setRuntimeControlsForTests({
+        quotaRefreshIntervalMs: 60_000,
+        quotaFetchedAtMs: Date.now(),
+      });
       mocks.panelFeatureAvailability = {
         checking: false,
         managerServiceBase: 'http://manager.local:18317',
@@ -20091,8 +20133,13 @@ describe('AccountsPage replacement flows', () => {
       expect(restoredText).toMatch(/Weekly|7d/);
     });
 
-    it('refreshes list window usage on passive 60s evidence refresh interval', async () => {
+    it('refreshes list window usage on the configured evidence refresh cadence', async () => {
       vi.useFakeTimers();
+      const { setRuntimeControlsForTests } = await import('@/utils/quota/runtimeControls');
+      setRuntimeControlsForTests({
+        quotaRefreshIntervalMs: 60_000,
+        quotaFetchedAtMs: Date.now(),
+      });
       const file = makeCodexFile('codex-passive.json', 'auth-passive', 'passive@example.com');
       mocks.files = [file];
       mocks.panelFeatureAvailability = {
@@ -20169,8 +20216,13 @@ describe('AccountsPage replacement flows', () => {
       expect(readText(updatedCard)).toContain('80.0K');
     });
 
-    it('keeps trusted list usage visible while a passive refresh is pending or fails', async () => {
+    it('keeps trusted list usage visible while a cadence refresh is pending or fails', async () => {
       vi.useFakeTimers();
+      const { setRuntimeControlsForTests } = await import('@/utils/quota/runtimeControls');
+      setRuntimeControlsForTests({
+        quotaRefreshIntervalMs: 60_000,
+        quotaFetchedAtMs: Date.now(),
+      });
       const file = makeCodexFile('codex-refresh-retain.json', 'auth-retain', 'retain@example.com');
       const stable = makeCodexFile(
         'codex-stable-sibling.json',
@@ -20502,6 +20554,11 @@ describe('AccountsPage replacement flows', () => {
 
     it('retains last verified exact usage when a live list usage request fails silently', async () => {
       vi.useFakeTimers();
+      const { setRuntimeControlsForTests } = await import('@/utils/quota/runtimeControls');
+      setRuntimeControlsForTests({
+        quotaRefreshIntervalMs: 60_000,
+        quotaFetchedAtMs: Date.now(),
+      });
       const file = makeCodexFile(
         'codex-fail-clear.json',
         'auth-fail-clear',
@@ -22286,9 +22343,14 @@ describe('AccountsPage replacement flows', () => {
   );
 
   it.each([true, false])(
-    'adopts scheduled quota results on passive refresh with monitoring available=%s',
+    'adopts scheduled quota results on the configured refresh cadence with monitoring available=%s',
     async (monitoringAvailable) => {
       vi.useFakeTimers();
+      const { setRuntimeControlsForTests } = await import('@/utils/quota/runtimeControls');
+      setRuntimeControlsForTests({
+        quotaRefreshIntervalMs: 30 * 60_000,
+        quotaFetchedAtMs: Date.now(),
+      });
       let visibility: DocumentVisibilityState = 'visible';
       const events = new EventTarget();
       vi.stubGlobal('document', {
@@ -22336,9 +22398,18 @@ describe('AccountsPage replacement flows', () => {
       expect(quotaReads()).toBe(1);
       expect(windowText()).toContain('0.5/5');
 
-      usedPercent = 60; // The server scheduler has written a new observation.
+      // Inside the configured interval: no automatic re-read.
+      usedPercent = 60;
       await act(async () => {
         await vi.advanceTimersByTimeAsync(60_000);
+      });
+      await flushPromises();
+      expect(quotaReads()).toBe(1);
+      expect(windowText()).toContain('0.5/5');
+
+      // Interval elapsed: buffer re-read picks up the scheduler observation.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(29 * 60_000);
       });
       await flushPromises();
       expect(quotaReads()).toBe(2);
@@ -22346,14 +22417,14 @@ describe('AccountsPage replacement flows', () => {
 
       failed = true;
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(60_000);
+        await vi.advanceTimersByTimeAsync(30 * 60_000);
       });
       await flushPromises();
       expect(windowText()).toContain('3.0/5');
       failed = false;
       usedPercent = 20;
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(60_000);
+        await vi.advanceTimersByTimeAsync(30 * 60_000);
       });
       await flushPromises();
       expect(windowText()).toContain('1.0/5');
@@ -22365,12 +22436,18 @@ describe('AccountsPage replacement flows', () => {
       const beforeHidden = quotaReads();
       usedPercent = 40;
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(120_000);
+        await vi.advanceTimersByTimeAsync(60 * 60_000);
       });
       expect(quotaReads()).toBe(beforeHidden);
       visibility = 'visible';
       await act(async () => {
         events.dispatchEvent(new Event('visibilitychange'));
+      });
+      await flushPromises();
+      // Becoming visible does not itself refresh; wait for the cadence.
+      expect(quotaReads()).toBe(beforeHidden);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30 * 60_000);
       });
       await flushPromises();
       expect(quotaReads()).toBe(beforeHidden + 1);

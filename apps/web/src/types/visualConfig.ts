@@ -211,7 +211,7 @@ export const DEFAULT_VISUAL_VALUES: VisualConfigValues = {
   upstreamErrorRetryLimit: '-1',
   maxRetryCredentials: '',
   maxRetryInterval: '',
-  quotaRefreshIntervalMinutes: '60',
+  quotaRefreshIntervalMinutes: '30',
   streamBootstrapTimeout: '0',
   disableCooling: false,
   saveCooldownStatus: false,

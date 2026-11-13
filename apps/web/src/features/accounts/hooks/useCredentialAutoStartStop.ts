@@ -3,6 +3,7 @@ import {
   type CredentialQuotaStatus,
   type QuotaWindows,
 } from '@/services/api/credentialQuota';
+import { selectCredentialQuotaWindowsObservation } from '@/features/accounts/model/credentialQuotaListWindows';
 import { refreshCredentialSource } from '@/services/api/fullRefresh';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -123,9 +124,8 @@ export function useCredentialAutoStartStop(
         abort.signal
       )
         .then((quota) => {
-          const remaining = windowsHaveRemaining(
-            quota.lastSuccess?.windowsJson ?? quota.attempt?.windowsJson
-          );
+          const observation = selectCredentialQuotaWindowsObservation(quota);
+          const remaining = windowsHaveRemaining(observation?.windowsJson);
           if (abort.signal.aborted || current.current !== context || remaining === undefined) return;
           setView((previous) =>
             previous.context === context ? { ...previous, hasRemaining: remaining } : { context, hasRemaining: remaining }

@@ -1,6 +1,6 @@
 import { loadRuntimeControls, readRuntimeControls, writeRuntimeControls } from './runtimeControls';
 
-export const QUOTA_REFRESH_INTERVALS = [0, 300000, 900000, 3600000, 21600000] as const;
+export const QUOTA_REFRESH_INTERVALS = [0, 300000, 900000, 1_800_000, 3600000, 21600000] as const;
 
 export function readQuotaRefreshIntervalMs(): number {
   return readRuntimeControls().quotaRefreshIntervalMs;

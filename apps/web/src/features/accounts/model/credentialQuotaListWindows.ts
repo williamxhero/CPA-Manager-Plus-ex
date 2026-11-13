@@ -131,6 +131,65 @@ export function credentialQuotaListWindows(
   });
 }
 
+const isDepletedQuotaWindow = (window: AccountQuotaDisplayWindow): boolean =>
+  (typeof window.remainingPercent === 'number' &&
+    Number.isFinite(window.remainingPercent) &&
+    window.remainingPercent <= 0) ||
+  (typeof window.usedPercent === 'number' &&
+    Number.isFinite(window.usedPercent) &&
+    window.usedPercent >= 100);
+
+const windowsJsonLooksDepleted = (raw?: string): boolean => {
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw) as { windows?: StoredWindow[] };
+    const windows = Array.isArray(parsed.windows) ? parsed.windows : [];
+    return windows.some(
+      (window) =>
+        (typeof window.remainingFraction === 'number' &&
+          Number.isFinite(window.remainingFraction) &&
+          window.remainingFraction <= 0) ||
+        (typeof window.usedPercent === 'number' &&
+          Number.isFinite(window.usedPercent) &&
+          window.usedPercent >= 100)
+    );
+  } catch {
+    return false;
+  }
+};
+
+/** Prefer a live insufficient attempt over a healthier cached lastSuccess. */
+export function selectCredentialQuotaWindowsObservation(status: {
+  attempt?: { queryStatus?: string; windowsJson?: string; observedAtMs?: number };
+  lastSuccess?: { queryStatus?: string; windowsJson?: string; observedAtMs?: number };
+}): { windowsJson?: string; observedAtMs?: number } | undefined {
+  const attempt =
+    status.attempt?.queryStatus === 'success' && status.attempt.windowsJson
+      ? status.attempt
+      : undefined;
+  const lastSuccess = status.lastSuccess?.windowsJson ? status.lastSuccess : undefined;
+  if (attempt && windowsJsonLooksDepleted(attempt.windowsJson)) return attempt;
+  if (
+    attempt &&
+    (!lastSuccess ||
+      typeof attempt.observedAtMs !== 'number' ||
+      typeof lastSuccess.observedAtMs !== 'number' ||
+      attempt.observedAtMs >= lastSuccess.observedAtMs)
+  ) {
+    return attempt;
+  }
+  return lastSuccess ?? attempt;
+}
+
+const quotaWindowObservedAtMs = (window: AccountQuotaDisplayWindow): number => {
+  const candidates = [window.quotaProgressObservedAtMs, window.observedAtMs];
+  let latest = 0;
+  for (const value of candidates) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > latest) latest = value;
+  }
+  return latest;
+};
+
 export function mergeCredentialQuotaListWindows(
   local: AccountQuotaDisplayWindow[],
   credential: AccountQuotaDisplayWindow[]
@@ -153,14 +212,40 @@ export function mergeCredentialQuotaListWindows(
       scope.complete,
     ]);
   };
+  const sameSlot = (left: AccountQuotaDisplayWindow, right: AccountQuotaDisplayWindow): boolean => {
+    if (left.source === 'codex' || right.source === 'codex') {
+      return codexScope(left) !== null && codexScope(left) === codexScope(right);
+    }
+    return left.kind !== undefined && left.kind === right.kind;
+  };
+  // Newer local observations (including live「额度不足」) beat an older host cache.
+  // Untimestamped local cache must not override a timestamped lastSuccess reading.
+  const preferLocalOverRemote = (
+    localWindow: AccountQuotaDisplayWindow,
+    remoteWindow: AccountQuotaDisplayWindow
+  ): boolean => {
+    const localAt = quotaWindowObservedAtMs(localWindow);
+    const remoteAt = quotaWindowObservedAtMs(remoteWindow);
+    if (localAt > 0 && remoteAt > 0) return localAt >= remoteAt;
+    if (localAt > 0 && remoteAt === 0) return true;
+    if (localAt === 0 && remoteAt > 0) return false;
+    return (
+      isDepletedQuotaWindow(localWindow) &&
+      !isDepletedQuotaWindow(remoteWindow) &&
+      localAt === 0 &&
+      remoteAt === 0
+    );
+  };
+  const mergedRemote = credential.map((remote) => {
+    const override = local.find(
+      (candidate) => sameSlot(candidate, remote) && preferLocalOverRemote(candidate, remote)
+    );
+    return override ?? remote;
+  });
   return [
-    ...credential,
+    ...mergedRemote,
     ...local.filter((window) => {
-      if (
-        credential.some(
-          (remote) => remote.source === 'codex' && codexScope(remote) === codexScope(window)
-        )
-      ) {
+      if (credential.some((remote) => sameSlot(window, remote))) {
         return false;
       }
       if (window.source === 'codex') return true;

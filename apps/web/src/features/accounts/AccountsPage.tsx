@@ -75,7 +75,12 @@ import {
 } from '@/components/quota';
 import { getScopedQuotaState } from '@/components/quota/quotaConfigs';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
-import { useInterval } from '@/hooks/useInterval';
+import {
+  quotaRefreshDelayMs,
+  quotaRefreshDue,
+  readQuotaRefreshIntervalMs,
+} from '@/utils/quota/refreshCadence';
+import { loadRuntimeControls, subscribeRuntimeControls } from '@/utils/quota/runtimeControls';
 import { usePanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability';
 import { useResourceProtection } from '@/features/resourceProtection/resourceProtection';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
@@ -195,6 +200,7 @@ import {
 import {
   credentialQuotaListWindows,
   mergeCredentialQuotaListWindows,
+  selectCredentialQuotaWindowsObservation,
 } from '@/features/accounts/model/credentialQuotaListWindows';
 import {
   formatQuotaRefreshErrorMessage,
@@ -454,7 +460,6 @@ const renderAccountDetailTrigger = ({
 const MAX_CONCURRENT_QUOTA_REFRESHES_PER_PROVIDER = 1;
 const MAX_CONCURRENT_QUOTA_REFRESH_PROVIDERS = 3;
 const MAX_CONCURRENT_ACCOUNT_HISTORY_REQUESTS = 2;
-const PASSIVE_ACCOUNTS_EVIDENCE_REFRESH_MS = 60_000;
 const CREDENTIAL_EVIDENCE_UNIQUE_FILE_NAME_BOUNDARY_PREFIX = 'unique-file-name\u0000';
 const CREDENTIAL_EVIDENCE_SOURCE_FILE_BOUNDARY_PREFIX = 'source-file\u0000';
 const CREDENTIAL_EVIDENCE_PROVIDER_BOUNDARY_PREFIX = 'provider\u0000';
@@ -1470,7 +1475,6 @@ export function AccountsPage() {
   const [documentVisible, setDocumentVisible] = useState(
     () => typeof document === 'undefined' || document.visibilityState !== 'hidden'
   );
-  const previousDocumentVisibleRef = useRef(documentVisible);
   const [healthMode, setHealthMode] = useState<CredentialHealthInspectionMode>(
     () => initialWorkspaceUrlState.current.healthMode
   );
@@ -2461,8 +2465,9 @@ export function AccountsPage() {
     backendCredentialQuota &&
     Boolean(featureAvailability.managerServiceBase) &&
     Boolean(managementKey);
-  const refreshPassiveAccountsEvidence = useCallback(async () => {
-    // Read scheduler-owned observations; this never starts an upstream query.
+  // SPEC #102/#108/#151: only re-read buffer when the configured interval is due
+  // (or the user clicks refresh). Never poll on a fixed 60s / visibility timer.
+  const refreshAccountsEvidenceOnCadence = useCallback(async () => {
     if (canReadCredentialQuota) setCredentialListRevision((current) => current + 1);
     await Promise.all([
       canLoadHeaderSnapshots ? loadHeaderSnapshots() : Promise.resolve(),
@@ -2518,23 +2523,49 @@ export function AccountsPage() {
     return () => document.removeEventListener('visibilitychange', updateVisibility);
   }, []);
 
+  const [runtimeControlsEpoch, setRuntimeControlsEpoch] = useState(0);
   useEffect(() => {
-    const regainedVisibility = documentVisible && !previousDocumentVisibleRef.current;
-    previousDocumentVisibleRef.current = documentVisible;
-    if (!regainedVisibility || activeView !== 'accounts') return;
-    void refreshPassiveAccountsEvidence();
-  }, [activeView, documentVisible, refreshPassiveAccountsEvidence]);
+    void loadRuntimeControls().finally(() => setRuntimeControlsEpoch((value) => value + 1));
+    return subscribeRuntimeControls(() => setRuntimeControlsEpoch((value) => value + 1));
+  }, []);
 
-  useInterval(
-    () => {
-      void refreshPassiveAccountsEvidence();
-    },
-    activeView === 'accounts' &&
-      documentVisible &&
-      (canLoadHeaderSnapshots || canLoadInspectionSummary || canReadCredentialQuota)
-      ? PASSIVE_ACCOUNTS_EVIDENCE_REFRESH_MS
-      : null
-  );
+  useEffect(() => {
+    if (
+      activeView !== 'accounts' ||
+      !documentVisible ||
+      !(canLoadHeaderSnapshots || canLoadInspectionSummary || canReadCredentialQuota)
+    ) {
+      return;
+    }
+    const interval = readQuotaRefreshIntervalMs();
+    // 0 disables automatic refresh. Opening the page only reads buffer once;
+    // the next automatic pass waits for the configured interval.
+    if (interval <= 0) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    const schedule = (delay: number) => {
+      timer = globalThis.setTimeout(() => {
+        void (async () => {
+          await refreshAccountsEvidenceOnCadence();
+          const nextInterval = readQuotaRefreshIntervalMs();
+          if (!cancelled && nextInterval > 0) schedule(nextInterval);
+        })();
+      }, delay);
+    };
+    schedule(quotaRefreshDue() ? interval : (quotaRefreshDelayMs() ?? interval));
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) globalThis.clearTimeout(timer);
+    };
+  }, [
+    activeView,
+    canLoadHeaderSnapshots,
+    canLoadInspectionSummary,
+    canReadCredentialQuota,
+    documentVisible,
+    refreshAccountsEvidenceOnCadence,
+    runtimeControlsEpoch,
+  ]);
 
   useEffect(
     () => () => {
@@ -4995,12 +5026,13 @@ export function AccountsPage() {
             : target.provider === QWEN_CONFIG.type
               ? 'qwen'
               : 'opencode-go';
+        const observation = selectCredentialQuotaWindowsObservation(quota);
         return [
           target.authIndex,
           credentialQuotaListWindows(
-            quota.lastSuccess?.windowsJson,
+            observation?.windowsJson,
             source,
-            quota.lastSuccess?.observedAtMs
+            observation?.observedAtMs
           ),
         ] as const;
       } catch {

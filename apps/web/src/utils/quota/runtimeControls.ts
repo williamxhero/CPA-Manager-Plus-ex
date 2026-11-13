@@ -9,7 +9,7 @@ export interface RuntimeControls {
 }
 
 const DEFAULTS: RuntimeControls = {
-  quotaRefreshIntervalMs: 3_600_000,
+  quotaRefreshIntervalMs: 1_800_000,
   quotaFetchedAtMs: 0,
   autoStartStopEnabled: false,
   autoStartStopIds: [],
@@ -81,7 +81,9 @@ export function runtimeBalancesReady(): boolean {
 
 export function subscribeRuntimeControls(listener: () => void) {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 function notify() {
