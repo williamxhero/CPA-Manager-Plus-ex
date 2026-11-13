@@ -9589,11 +9589,11 @@ describe('AccountsPage replacement flows', () => {
     const renderer = await renderAccountsPage();
     const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
 
-    expect(findQuotaBarByWindow(card, 'billing').props.className).toContain('quotaBarWarn');
+    expect(findQuotaBarByWindow(card, 'billing').props.className).toContain('quotaBarGood');
     expect(findQuotaBarByWindow(card, 'pay-as-you-go').props.className).toContain('quotaBarGood');
   });
 
-  it('keeps retained xAI fallback windows visible with error-tone bars after refresh failure', async () => {
+  it('keeps retained xAI fallback windows visible with remaining-green bars after refresh failure', async () => {
     const file = {
       name: 'xai-retained-error.json',
       type: 'xai',
@@ -9628,8 +9628,8 @@ describe('AccountsPage replacement flows', () => {
     expect(readText(card)).toContain('xai_quota.monthly_credits');
     expect(readText(card)).toContain('xai_quota.pay_as_you_go_label');
     expect(readText(card)).not.toContain('accounts.quota_details_only');
-    expect(findQuotaBarByWindow(card, 'billing').props.className).toContain('quotaBarBad');
-    expect(findQuotaBarByWindow(card, 'pay-as-you-go').props.className).toContain('quotaBarBad');
+    expect(findQuotaBarByWindow(card, 'billing').props.className).toContain('quotaBarGood');
+    expect(findQuotaBarByWindow(card, 'pay-as-you-go').props.className).toContain('quotaBarGood');
   });
 
   it('keeps healthy xAI fallback bars independent from an exhausted hidden product quota', async () => {
@@ -10546,7 +10546,7 @@ describe('AccountsPage replacement flows', () => {
     expect(renderer.root.findAllByProps({ 'data-quota-window-group': 'standard' })).toHaveLength(0);
   });
 
-  it('keeps a retained Antigravity matrix visible with error-tone bars after refresh failure', async () => {
+  it('keeps a retained Antigravity matrix visible with remaining-green bars after refresh failure', async () => {
     const file = {
       name: 'antigravity-retained-error.json',
       type: 'antigravity',
@@ -10627,7 +10627,7 @@ describe('AccountsPage replacement flows', () => {
     );
     expect(quotaBars.length).toBeGreaterThan(0);
     quotaBars.forEach((bar) => {
-      expect(bar.props.className).toContain('quotaBarBad');
+      expect(bar.props.className).toContain('quotaBarGood');
     });
 
     await act(async () => {
@@ -10751,7 +10751,7 @@ describe('AccountsPage replacement flows', () => {
     expect(readText(card)).toContain('Weekly');
     expect(readText(card)).not.toContain('accounts.quota_details_only');
     expect(findQuotaBarByWindow(card, 'gemini-models:gemini-5h').props.className).toContain(
-      'quotaBarWarn'
+      'quotaBarGood'
     );
     expect(findQuotaBarByWindow(card, 'claude-gpt-models:claude-weekly').props.className).toContain(
       'quotaBarGood'

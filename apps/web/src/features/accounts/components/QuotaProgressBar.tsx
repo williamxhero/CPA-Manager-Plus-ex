@@ -8,18 +8,17 @@ export interface QuotaProgressBarProps {
 
 export function QuotaProgressBar({
   percent,
-  highThreshold,
-  mediumThreshold,
+  highThreshold: _highThreshold,
+  mediumThreshold: _mediumThreshold,
 }: QuotaProgressBarProps) {
+  // Remaining-capacity bars stay green for any remaining > 0; depleted is red.
   const normalized = percent === null ? null : Math.min(100, Math.max(0, percent));
   const fillClass =
     normalized === null
       ? styles.fillMedium
-      : normalized >= highThreshold
-        ? styles.fillHigh
-        : normalized >= mediumThreshold
-          ? styles.fillMedium
-          : styles.fillLow;
+      : normalized <= 0
+        ? styles.fillLow
+        : styles.fillHigh;
 
   return (
     <div className={styles.track}>

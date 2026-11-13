@@ -78,10 +78,9 @@ export function credentialQuotaListWindows(
       weekly: 'Weekly',
       monthly: 'Monthly',
     };
-    const remaining =
-      typeof window.remainingFraction === 'number' && Number.isFinite(window.remainingFraction)
-        ? Math.max(0, Math.min(100, window.remainingFraction * 100))
-        : Math.max(0, Math.min(100, 100 - window.usedPercent));
+    // Derive remaining from used% so a stale remainingFraction cannot disagree
+    // with the "已用 x/y" label (e.g. used 0 + remainingFraction 0 → empty red bar).
+    const remaining = Math.max(0, Math.min(100, 100 - window.usedPercent));
     return [
       {
         key: `${source}:${window.model ? `${window.model}:` : ''}${window.name}`,

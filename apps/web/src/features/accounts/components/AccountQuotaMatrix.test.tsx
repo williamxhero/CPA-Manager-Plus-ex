@@ -240,9 +240,9 @@ describe('AccountQuotaMatrix', () => {
     }
   });
 
-  it('keeps neutral, bad, warning, and good quota bar tiers', () => {
+  it('keeps remaining bars green until depleted', () => {
     const renderer = renderMatrix('color-test', {
-      windowKeys: new Set(['neutral', 'bad', 'warn', 'good']),
+      windowKeys: new Set(['neutral', 'bad', 'low', 'good']),
       rows: [
         {
           key: 'five_hour',
@@ -251,12 +251,20 @@ describe('AccountQuotaMatrix', () => {
             {
               groupLabel: 'Neutral',
               displayLabel: 'Neutral',
-              window: makeQuotaWindow({ key: 'neutral', remainingPercent: null }),
+              window: makeQuotaWindow({
+                key: 'neutral',
+                remainingPercent: null,
+                usedPercent: null,
+              }),
             },
             {
               groupLabel: 'Bad',
               displayLabel: 'Bad',
-              window: makeQuotaWindow({ key: 'bad', remainingPercent: 0 }),
+              window: makeQuotaWindow({
+                key: 'bad',
+                remainingPercent: 0,
+                usedPercent: 100,
+              }),
             },
           ],
         },
@@ -265,14 +273,22 @@ describe('AccountQuotaMatrix', () => {
           label: '7D',
           cells: [
             {
-              groupLabel: 'Warn',
-              displayLabel: 'Warn',
-              window: makeQuotaWindow({ key: 'warn', remainingPercent: 19 }),
+              groupLabel: 'Low',
+              displayLabel: 'Low',
+              window: makeQuotaWindow({
+                key: 'low',
+                remainingPercent: 19,
+                usedPercent: 81,
+              }),
             },
             {
               groupLabel: 'Good',
               displayLabel: 'Good',
-              window: makeQuotaWindow({ key: 'good', remainingPercent: 20 }),
+              window: makeQuotaWindow({
+                key: 'good',
+                remainingPercent: 20,
+                usedPercent: 80,
+              }),
             },
           ],
         },
@@ -292,15 +308,16 @@ describe('AccountQuotaMatrix', () => {
 
     expect(findBarClass('five_hour:Neutral')).toContain('quotaBarNeutral');
     expect(findBarClass('five_hour:Bad')).toContain('quotaBarBad');
-    expect(findBarClass('weekly:Warn')).toContain('quotaBarWarn');
+    expect(findBarClass('weekly:Low')).toContain('quotaBarGood');
     expect(findBarClass('weekly:Good')).toContain('quotaBarGood');
   });
 
   it.each([
-    [undefined, 'quotaBarWarn', 'quotaBarGood'],
-    ['bad', 'quotaBarBad', 'quotaBarBad'],
+    [undefined, 'quotaBarGood', 'quotaBarGood'],
+    // Known remaining paints green even when credential status is error.
+    ['bad', 'quotaBarGood', 'quotaBarGood'],
     // Known remaining still colors the bar when credential status is only unknown/loading.
-    ['neutral', 'quotaBarWarn', 'quotaBarGood'],
+    ['neutral', 'quotaBarGood', 'quotaBarGood'],
   ] as const)(
     'applies %s lifecycle override without hiding known remaining colors',
     (override, lowClass, highClass) => {

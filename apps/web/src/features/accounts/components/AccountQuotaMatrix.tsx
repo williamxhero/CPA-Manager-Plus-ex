@@ -5,6 +5,10 @@ import {
   type AntigravityQuotaMatrix,
 } from '@/features/accounts/model/accountsPagePresentation';
 import { useTranslation } from 'react-i18next';
+import {
+  resolveQuotaBarRemainingPercent,
+  resolveQuotaBarTone,
+} from '../model/quotaBarPresentation';
 import { formatQuotaUnitFraction } from '../model/quotaUnitFraction';
 import styles from '../AccountsPage.module.scss';
 
@@ -14,26 +18,19 @@ interface AccountQuotaMatrixProps {
   lifecycleBarOverride?: AccountQuotaLifecycleBarOverride;
 }
 
-const getRemainingPercentBarClass = (remainingPercent: number | null) => {
-  if (remainingPercent === null) return styles.quotaBarNeutral;
-  if (remainingPercent <= 0) return styles.quotaBarBad;
-  if (remainingPercent < 20) return styles.quotaBarWarn;
-  return styles.quotaBarGood;
-};
+const quotaBarToneClass = {
+  good: styles.quotaBarGood,
+  warn: styles.quotaBarWarn,
+  bad: styles.quotaBarBad,
+  neutral: styles.quotaBarNeutral,
+} as const;
 
 const getMatrixBarClass = (
   remainingPercent: number | null,
-  lifecycleBarOverride: AccountQuotaLifecycleBarOverride
-) => {
-  if (lifecycleBarOverride === 'bad') return styles.quotaBarBad;
-  // Remaining readings paint the bar; unknown/loading credential status must
-  // not force a neutral fill over a known remaining percent.
-  if (remainingPercent !== null && Number.isFinite(remainingPercent)) {
-    return getRemainingPercentBarClass(remainingPercent);
-  }
-  if (lifecycleBarOverride === 'neutral') return styles.quotaBarNeutral;
-  return getRemainingPercentBarClass(remainingPercent);
-};
+  lifecycleBarOverride: AccountQuotaLifecycleBarOverride,
+  usedPercent?: number | null
+) =>
+  quotaBarToneClass[resolveQuotaBarTone(remainingPercent, lifecycleBarOverride, usedPercent)];
 
 export function AccountQuotaMatrix({
   accountKey,
@@ -52,7 +49,10 @@ export function AccountQuotaMatrix({
           <span className={styles.quotaMatrixWindowLabel}>{matrixRow.label}</span>
           <span className={styles.quotaMatrixCells}>
             {matrixRow.cells.map((cell) => {
-              const windowRemaining = cell.window.remainingPercent;
+              const windowRemaining = resolveQuotaBarRemainingPercent(
+                cell.window.remainingPercent,
+                cell.window.usedPercent
+              );
               const windowWidth = Math.max(0, Math.min(100, windowRemaining ?? 0));
               const resetDisplay = formatQuotaResetDisplay(
                 cell.window.resetAtMs,
@@ -86,8 +86,9 @@ export function AccountQuotaMatrix({
                   >
                     <span
                       className={`${styles.quotaBar} ${getMatrixBarClass(
-                        windowRemaining,
-                        lifecycleBarOverride
+                        cell.window.remainingPercent,
+                        lifecycleBarOverride,
+                        cell.window.usedPercent
                       )}`}
                       style={{ width: `${windowWidth}%` }}
                     />

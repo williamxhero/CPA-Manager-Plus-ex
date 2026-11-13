@@ -1047,8 +1047,16 @@ const resolveHealthStatus = (
     };
   }
 
+  // Host/list windows that still show remaining capacity outrank a stale
+  // credential-level exhausted summary (e.g. persisted OpenCode monthly cache).
+  const windowsShowAvailableQuota = hasKnownAvailableQuota(
+    row,
+    quotaWindows,
+    antigravityAvailability
+  );
   if (
     !hasCurrentAvailableCredentialQuota &&
+    !windowsShowAvailableQuota &&
     (row.quota.status === 'exhausted' || row.quota.remainingPercent === 0)
   ) {
     return {

@@ -250,6 +250,10 @@ import {
 } from '@/features/accounts/model/accountSubscriptionPresentation';
 import { resolveAccountQuotaWindowUsageAndForecast } from '@/features/accounts/model/accountQuotaWindowUsagePresentation';
 import { formatQuotaUnitFraction } from '@/features/accounts/model/quotaUnitFraction';
+import {
+  resolveQuotaBarRemainingPercent,
+  resolveQuotaBarTone,
+} from '@/features/accounts/model/quotaBarPresentation';
 import { formatCompactNumber, formatCompactUsd, formatUsd } from '@/utils/usage';
 import { resolveCredentialIdentity } from '@/utils/authFileCredentialIdentity';
 import {
@@ -1249,27 +1253,21 @@ const getHealthStatusClass = (status: AccountListHealthStatusKey) => {
   }
 };
 
-const getWindowRemainingBarClass = (remainingPercent: number | null) => {
-  if (remainingPercent === null) return styles.quotaBarNeutral;
-  if (remainingPercent <= 0) return styles.quotaBarBad;
-  if (remainingPercent < 20) return styles.quotaBarWarn;
-  return styles.quotaBarGood;
-};
+const quotaBarToneClass = {
+  good: styles.quotaBarGood,
+  warn: styles.quotaBarWarn,
+  bad: styles.quotaBarBad,
+  neutral: styles.quotaBarNeutral,
+} as const;
 
 const getFallbackWindowBarClass = (
   lifecycleBarOverride: AccountQuotaLifecycleBarOverride,
-  remainingPercent: number | null
-) => {
-  if (lifecycleBarOverride === 'bad') return styles.quotaBarBad;
-  // Progress bars encode remaining capacity (used 0% → 100% green fill).
-  // A credential-level unknown/loading placeholder must not gray out windows
-  // that already have an authoritative remaining reading.
-  if (remainingPercent !== null && Number.isFinite(remainingPercent)) {
-    return getWindowRemainingBarClass(remainingPercent);
-  }
-  if (lifecycleBarOverride === 'neutral') return styles.quotaBarNeutral;
-  return getWindowRemainingBarClass(remainingPercent);
-};
+  remainingPercent: number | null,
+  usedPercent?: number | null
+) =>
+  quotaBarToneClass[
+    resolveQuotaBarTone(remainingPercent, lifecycleBarOverride, usedPercent)
+  ];
 
 const resolveAccountQuotaSnapshotLabel = (
   snapshot: AccountQuotaSnapshotWindow,
@@ -1322,6 +1320,7 @@ export function AccountsPage() {
   const [credentialListWindows, setCredentialListWindows] = useState<
     Map<string, AccountQuotaDisplayWindow[]>
   >(new Map());
+  const [credentialListReady, setCredentialListReady] = useState(false);
   const [credentialListRevision, setCredentialListRevision] = useState(0);
   const credentialQuotaRevision = useAccountCredentialMutationRevisionStore((state) =>
     Object.values(state.events)
@@ -4218,11 +4217,22 @@ export function AccountsPage() {
     return { codexQuotaBySelectionKey, codexHeaderSnapshotBySelectionKey };
   }, [files, getDisplayCodexHeaderSnapshot, getDisplayCodexQuota]);
 
+  // Host credential-quota is authoritative for OpenCode/Qwen. Hide persisted
+  // local exhaustion until that read settles so health cannot flash「月耗尽」.
+  const accountRowQuotaStores = useMemo(() => {
+    if (!backendCredentialQuota || credentialListReady) return baseQuotaStores;
+    return {
+      ...baseQuotaStores,
+      opencodeGoQuota: {},
+      qwenQuota: {},
+    };
+  }, [backendCredentialQuota, baseQuotaStores, credentialListReady]);
+
   const rows = useMemo(
     () =>
       buildAccountRows(
         files,
-        baseQuotaStores,
+        accountRowQuotaStores,
         effectiveInspectionResults,
         accountQuotaOverrides,
         freshAccountInspectionBySelectionKey,
@@ -4231,7 +4241,7 @@ export function AccountsPage() {
       ),
     [
       accountQuotaOverrides,
-      baseQuotaStores,
+      accountRowQuotaStores,
       files,
       credentialEvidenceBoundariesBySelectionKey,
       credentialStatusBoundaries,
@@ -4944,16 +4954,26 @@ export function AccountsPage() {
   );
   useEffect(() => {
     setCredentialListWindows(new Map());
-  }, [managerConnectionFingerprint]);
+    setCredentialListReady(!backendCredentialQuota);
+  }, [backendCredentialQuota, managerConnectionFingerprint]);
   useEffect(() => {
     if (
       !backendCredentialQuota ||
       !featureAvailability.managerServiceBase ||
-      !managementKey ||
-      !credentialQuotaTargets
+      !managementKey
     ) {
+      setCredentialListReady(true);
       return;
     }
+    if (!credentialQuotaTargets) {
+      return;
+    }
+    if (!credentialQuotaTargets.trim()) {
+      setCredentialListWindows(new Map());
+      setCredentialListReady(true);
+      return;
+    }
+    setCredentialListReady(false);
     const abort = new AbortController();
     const targets = credentialQuotaTargets.split('\n').map((item) => {
       const splitAt = item.indexOf(':');
@@ -4997,6 +5017,7 @@ export function AccountsPage() {
         });
         return next;
       });
+      setCredentialListReady(true);
     });
     return () => abort.abort();
   }, [
@@ -5014,21 +5035,37 @@ export function AccountsPage() {
         translateQuotaWindowLabel,
         t,
       });
+      const usesHostCredentialList =
+        backendCredentialQuota &&
+        (row.provider === CODEX_CONFIG.type ||
+          row.provider === OPENCODE_GO_CONFIG.type ||
+          row.provider === QWEN_CONFIG.type) &&
+        Boolean(row.authIndex);
+      if (usesHostCredentialList) {
+        // Wait for host lastSuccess before painting; local persisted exhaustion
+        // must not flash「月耗尽」ahead of the authoritative read.
+        if (!credentialListReady) return [];
+        const credential = credentialListWindows.get(String(row.authIndex)) ?? [];
+        if (credential.length > 0) {
+          return mergeCredentialQuotaListWindows(local, credential);
+        }
+        return [];
+      }
       const credential = row.authIndex
         ? (credentialListWindows.get(String(row.authIndex)) ?? [])
         : [];
-      if (
-        credential.length > 0 &&
-        (row.provider === CODEX_CONFIG.type ||
-          row.provider === OPENCODE_GO_CONFIG.type ||
-          row.provider === QWEN_CONFIG.type)
-      ) {
-        return mergeCredentialQuotaListWindows(local, credential);
-      }
       if (local.length > 0 || !row.authIndex) return local;
       return credential;
     },
-    [baseQuotaStores, credentialListWindows, getDisplayCodexQuota, t, translateQuotaWindowLabel]
+    [
+      backendCredentialQuota,
+      baseQuotaStores,
+      credentialListReady,
+      credentialListWindows,
+      getDisplayCodexQuota,
+      t,
+      translateQuotaWindowLabel,
+    ]
   );
   const buildCodexSnapshotDefinitions = useCallback(
     (row: AccountRow, quota: CodexQuotaState | undefined): AccountQuotaWindowDefinition[] =>
@@ -9080,13 +9117,20 @@ export function AccountsPage() {
     quotaLifecycleBarOverride: AccountQuotaLifecycleBarOverride,
     extraMeta?: React.ReactNode
   ) => {
-    const windowRemaining = window.remainingPercent;
+    const windowRemaining = resolveQuotaBarRemainingPercent(
+      window.remainingPercent,
+      window.usedPercent
+    );
     const windowWidth = Math.max(0, Math.min(100, windowRemaining ?? 0));
     const resetLabel = window.resetLabel && window.resetLabel !== '-' ? window.resetLabel : '';
     const resetDisplayLabel = formatQuotaResetDisplay(window.resetAtMs, resetLabel, i18n.language);
     const relativeReset = formatQuotaResetRelative(window.resetAtMs, resetLabel, i18n.language);
     const readableLabel = getQuotaWindowReadableLabel(window, t);
-    const barClass = getFallbackWindowBarClass(quotaLifecycleBarOverride, windowRemaining);
+    const barClass = getFallbackWindowBarClass(
+      quotaLifecycleBarOverride,
+      window.remainingPercent,
+      window.usedPercent
+    );
     const windowUsageData = resolveAccountQuotaWindowUsageAndForecast(
       row,
       window,

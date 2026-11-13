@@ -436,6 +436,48 @@ describe('accountListPresentation', () => {
     expect(refreshItem.recommendation.reasonKey).toBe('accounts.recommend_reason_error');
   });
 
+  it('lets host windows with remaining capacity outrank a stale exhausted quota summary', () => {
+    const item = buildAccountListItem(
+      makeRow({
+        provider: 'opencode-go',
+        fileName: 'opencode-go-key.json',
+        quota: {
+          status: 'exhausted',
+          remainingPercent: 0,
+          usedPercent: 100,
+          source: 'cache',
+        },
+      }),
+      {
+        quotaWindows: [
+          {
+            key: 'opencode-go:monthly',
+            label: 'monthly',
+            kind: 'monthly',
+            remainingPercent: 100,
+            usedPercent: 0,
+            resetLabel: '-',
+            resetAtMs: null,
+            source: 'opencode-go',
+          },
+          {
+            key: 'opencode-go:weekly',
+            label: 'weekly',
+            kind: 'weekly',
+            remainingPercent: 100,
+            usedPercent: 0,
+            resetLabel: '-',
+            resetAtMs: null,
+            source: 'opencode-go',
+          },
+        ],
+      }
+    );
+
+    expect(item.health.status).toBe('available');
+    expect(item.health.status).not.toBe('monthly_exhausted');
+  });
+
   it('presents runtime and explicit provider quota signals as limited', () => {
     const runtimeQuotaItem = buildAccountListItem(
       makeRow({
