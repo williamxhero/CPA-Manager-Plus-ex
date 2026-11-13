@@ -5007,7 +5007,12 @@ export function AccountsPage() {
       const credential = row.authIndex
         ? (credentialListWindows.get(String(row.authIndex)) ?? [])
         : [];
-      if (row.provider === CODEX_CONFIG.type && credential.length > 0) {
+      if (
+        credential.length > 0 &&
+        (row.provider === CODEX_CONFIG.type ||
+          row.provider === OPENCODE_GO_CONFIG.type ||
+          row.provider === QWEN_CONFIG.type)
+      ) {
         return mergeCredentialQuotaListWindows(local, credential);
       }
       if (local.length > 0 || !row.authIndex) return local;

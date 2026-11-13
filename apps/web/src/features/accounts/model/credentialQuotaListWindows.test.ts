@@ -176,4 +176,77 @@ describe('credentialQuotaListWindows', () => {
 
     expect(mergeCredentialQuotaListWindows(local, remote)).toEqual(remote);
   });
+
+  it('replaces stale local OpenCode monthly exhaustion with authoritative lastSuccess windows', () => {
+    const local = [
+      {
+        key: 'opencode-go:monthly',
+        label: 'monthly',
+        kind: 'monthly' as const,
+        usedPercent: 100,
+        remainingPercent: 0,
+        resetLabel: '2026-11-06T10:14:55Z',
+        resetAccuracy: 'exact' as const,
+        limitWindowSeconds: null,
+        resetAtMs: Date.parse('2026-11-06T10:14:55Z'),
+        fromMs: null,
+        toMs: null,
+        source: 'opencode-go' as const,
+        windowMode: 'calendar' as const,
+        modelScope: { kind: 'all' as const, complete: true },
+      },
+      {
+        key: 'opencode-go:weekly',
+        label: 'weekly',
+        kind: 'weekly' as const,
+        usedPercent: 0,
+        remainingPercent: 100,
+        resetLabel: '2026-11-16T00:00:00Z',
+        resetAccuracy: 'exact' as const,
+        limitWindowSeconds: null,
+        resetAtMs: Date.parse('2026-11-16T00:00:00Z'),
+        fromMs: null,
+        toMs: null,
+        source: 'opencode-go' as const,
+        windowMode: 'calendar' as const,
+        modelScope: { kind: 'all' as const, complete: true },
+      },
+    ];
+    const remote = credentialQuotaListWindows(
+      JSON.stringify({
+        windows: [
+          {
+            name: 'rolling',
+            usedPercent: 0,
+            remainingFraction: 1,
+            resetAt: '2026-11-13T05:30:04.213Z',
+            sourceStatus: 'ok',
+          },
+          {
+            name: 'weekly',
+            usedPercent: 0,
+            remainingFraction: 1,
+            resetAt: '2026-11-16T00:00:00Z',
+            sourceStatus: 'ok',
+          },
+          {
+            name: 'monthly',
+            usedPercent: 0,
+            remainingFraction: 1,
+            resetAt: '2026-12-13T00:27:12Z',
+            sourceStatus: 'ok',
+          },
+        ],
+      }),
+      'opencode-go',
+      1_794_529_804_000
+    );
+
+    const merged = mergeCredentialQuotaListWindows(local, remote);
+    expect(merged).toEqual(remote);
+    expect(merged.find((window) => window.kind === 'monthly')).toMatchObject({
+      usedPercent: 0,
+      remainingPercent: 100,
+    });
+  });
 });
