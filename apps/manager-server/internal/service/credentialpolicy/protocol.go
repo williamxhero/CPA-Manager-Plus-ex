@@ -70,12 +70,10 @@ func (g GateSnapshot) Confirms(op GateOperation, result GateResult) bool {
 			continue
 		}
 		if !reflect.DeepEqual(gate.Targets, op.Targets) {
-			for _, a := range gate.Targets {
-				for _, b := range op.Targets {
-					if a.ResourceID == b.ResourceID {
-						return false
-					}
-				}
+			// A drifted same-slot row is still owned. Clear must remove it; pause
+			// readback cannot treat the replacement as currently applied.
+			if sameGateResourceIDs(gate.Targets, op.Targets) {
+				return false
 			}
 			continue
 		}
@@ -88,4 +86,9 @@ func (g GateSnapshot) Confirms(op GateOperation, result GateResult) bool {
 		found = true
 	}
 	return op.Action == "pause" && found || op.Action == "clear" && !found
+}
+
+func sameGateResourceIDs(a, b []rc.Target) bool {
+	// Parent credential slot owns the pause even when projection membership changed.
+	return len(a) > 0 && len(b) > 0 && a[0].ResourceID != "" && a[0].ResourceID == b[0].ResourceID
 }

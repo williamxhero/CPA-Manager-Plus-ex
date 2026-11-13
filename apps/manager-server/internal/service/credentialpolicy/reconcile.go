@@ -143,11 +143,23 @@ func (s *Service) reconcileOne(ctx context.Context, record store.CredentialPolic
 	if desired.Operation.Action == "clear" {
 		owned := false
 		for _, gate := range ledger.Gates {
-			if gate.Owner == record.Owner && gate.Model == desired.Operation.Model && reflect.DeepEqual(gate.Targets, source.Targets) {
-				if gate.Applicability != "current" || gate.Reason != desired.Operation.Reason || record.Automatic && gate.SourceVersion != source.SourceVersion {
+			if gate.Owner != record.Owner || gate.Model != desired.Operation.Model || gate.Reason != desired.Operation.Reason {
+				continue
+			}
+			if !sameGateResourceIDs(gate.Targets, source.Targets) {
+				continue
+			}
+			switch gate.Applicability {
+			case "current":
+				if record.Automatic && gate.SourceVersion != source.SourceVersion {
 					return save("owned_pause_evidence_mismatch")
 				}
 				owned = true
+			case "reconciliation_required":
+				// Lifecycle drift must remain clearable after quota recovers.
+				owned = true
+			default:
+				return save("owned_pause_evidence_mismatch")
 			}
 		}
 		if !owned {

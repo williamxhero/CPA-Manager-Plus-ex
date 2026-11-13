@@ -75,12 +75,15 @@ func (s *Service) Resume(ctx context.Context, q ResumeRequest) (Status, error) {
 		owned := false
 		pauseReason := "authenticated_management_resume"
 		for _, row := range ledger.Gates {
-			if row.Owner == state.Owner && row.Model == "" && reflect.DeepEqual(row.Targets, source.Targets) {
-				if row.Applicability != "current" {
-					return Status{}, ErrIdentity
-				}
+			if row.Owner != state.Owner || row.Model != "" || !sameGateResourceIDs(row.Targets, source.Targets) {
+				continue
+			}
+			switch row.Applicability {
+			case "current", "reconciliation_required":
 				owned = true
 				pauseReason = row.Reason
+			default:
+				return Status{}, ErrIdentity
 			}
 		}
 		op := GateOperation{Version: 1, OpID: q.OpID, ExpectedGateRevision: ledger.GateRevision, Binding: source.Binding, AuthIndex: source.AuthIndex, SourceVersion: source.SourceVersion, Subject: "credential", Owner: state.Owner, Action: "clear", Reason: pauseReason, EvidenceID: uuid.NewSHA1(uuid.NameSpaceOID, []byte("authenticated-resume:"+q.OpID)).String()}
