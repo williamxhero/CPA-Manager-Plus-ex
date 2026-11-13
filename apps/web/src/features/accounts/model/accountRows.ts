@@ -24,6 +24,7 @@ import {
   readAuthFileCreatedAtMs,
   readAuthFileCredentialRefreshAtMs,
   readAuthFileUpdatedAtMs,
+  resolveAccountDefaultSortTotal,
   resolveAccountQuota,
   type AccountQuotaOverrides,
   type AccountQuotaSortDirection,
@@ -994,22 +995,20 @@ const compareDefaultAccountRows = (
     compareText(left.selectionKey, right.selectionKey, 'asc');
   if (left.disabled) return byName();
 
-  const remaining = (row: AccountRow): number | null => {
+  const total = (row: AccountRow): number | null => {
     const overridden = quotaRemainingBySelectionKey?.has(row.selectionKey) === true;
-    const value = overridden
-      ? quotaRemainingBySelectionKey?.get(row.selectionKey)
-      : row.quota.remainingPercent;
-    if (typeof value === 'number' && Number.isFinite(value))
-      return Math.max(0, Math.min(100, value));
-    return !overridden && row.quota.status === 'exhausted' ? 0 : null;
+    return resolveAccountDefaultSortTotal(
+      row.quota,
+      overridden ? (quotaRemainingBySelectionKey?.get(row.selectionKey) ?? null) : undefined
+    );
   };
-  const leftRemaining = remaining(left);
-  const rightRemaining = remaining(right);
-  // Unknown quota follows confirmed available quota, with exhausted quota last.
+  const leftTotal = total(left);
+  const rightTotal = total(right);
+  // Unknown total follows confirmed capacity (windows and/or Credits); empty last.
   const rank = (value: number | null) => (value === null ? 1 : value <= 0 ? 2 : 0);
-  const byQuotaState = rank(leftRemaining) - rank(rightRemaining);
+  const byQuotaState = rank(leftTotal) - rank(rightTotal);
   if (byQuotaState !== 0) return byQuotaState;
-  return (rightRemaining ?? 0) - (leftRemaining ?? 0) || byName();
+  return (rightTotal ?? 0) - (leftTotal ?? 0) || byName();
 };
 
 const getAccountPlanSortRank = (provider: string, planType: string | null): number | null => {

@@ -128,6 +128,53 @@ export function credentialHasRemainingQuota(quota: AccountQuotaSummary): boolean
   return typeof quota.remainingPercent === 'number' && quota.remainingPercent > 0;
 }
 
+/** Credits balance as a finite non-negative amount; unlimited → +Infinity. */
+export function credentialCreditsSortAmount(quota: {
+  creditsUnlimited?: boolean | null;
+  creditsOverageLimitReached?: boolean | null;
+  creditsBalance?: string | null;
+}): number {
+  if (quota.creditsOverageLimitReached) return 0;
+  if (quota.creditsUnlimited) return Number.POSITIVE_INFINITY;
+  if (typeof quota.creditsBalance !== 'string') return 0;
+  const amount = Number(quota.creditsBalance);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
+/**
+ * Default-list "总量": Credits absolute balance plus window remaining percent.
+ * Credits dominate Codex rows with wallet balance; window remaining still ranks
+ * providers without Credits. Null means unknown (no confirmed windows or Credits).
+ */
+export function resolveAccountDefaultSortTotal(
+  quota: Pick<
+    AccountQuotaSummary,
+    | 'remainingPercent'
+    | 'status'
+    | 'creditsUnlimited'
+    | 'creditsOverageLimitReached'
+    | 'creditsBalance'
+  >,
+  displayedWindowRemaining?: number | null
+): number | null {
+  const overridden = displayedWindowRemaining !== undefined;
+  const windowRaw = overridden ? displayedWindowRemaining : quota.remainingPercent;
+  let windowRemaining: number | null;
+  if (typeof windowRaw === 'number' && Number.isFinite(windowRaw)) {
+    windowRemaining = Math.max(0, Math.min(100, windowRaw));
+  } else if (!overridden && quota.status === 'exhausted') {
+    windowRemaining = 0;
+  } else {
+    windowRemaining = null;
+  }
+  const credits = credentialCreditsSortAmount(quota);
+  if (credits > 0) {
+    return credits + (windowRemaining ?? 0);
+  }
+  if (windowRemaining !== null) return windowRemaining;
+  return null;
+}
+
 export interface AccountGroupedQuotaWindowInput {
   groupLabel?: string;
   kind?: string;

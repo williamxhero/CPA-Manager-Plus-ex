@@ -131,13 +131,18 @@ export function credentialQuotaListWindows(
   });
 }
 
-const isDepletedQuotaWindow = (window: AccountQuotaDisplayWindow): boolean =>
+export const isDepletedQuotaWindow = (window: AccountQuotaDisplayWindow): boolean =>
   (typeof window.remainingPercent === 'number' &&
     Number.isFinite(window.remainingPercent) &&
     window.remainingPercent <= 0) ||
   (typeof window.usedPercent === 'number' &&
     Number.isFinite(window.usedPercent) &&
     window.usedPercent >= 100);
+
+/** True when any known window is already empty — stale local paint must not flash this. */
+export const quotaDisplayWindowsLookDepleted = (
+  windows: AccountQuotaDisplayWindow[]
+): boolean => windows.some(isDepletedQuotaWindow);
 
 const windowsJsonLooksDepleted = (raw?: string): boolean => {
   if (!raw) return false;

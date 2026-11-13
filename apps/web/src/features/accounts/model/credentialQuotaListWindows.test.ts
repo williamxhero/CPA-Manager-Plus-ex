@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   credentialQuotaListWindows,
   mergeCredentialQuotaListWindows,
+  quotaDisplayWindowsLookDepleted,
   selectCredentialQuotaWindowsObservation,
 } from './credentialQuotaListWindows';
 
@@ -234,6 +235,45 @@ describe('credentialQuotaListWindows', () => {
       remainingPercent: 0,
       observedAtMs: 2_000,
     });
+  });
+
+  it('detects depleted display windows used to suppress stale first paint', () => {
+    expect(
+      quotaDisplayWindowsLookDepleted([
+        {
+          key: 'opencode-go:monthly',
+          label: 'monthly',
+          kind: 'monthly',
+          usedPercent: 100,
+          remainingPercent: 0,
+          resetLabel: '',
+          resetAccuracy: 'exact',
+          limitWindowSeconds: null,
+          resetAtMs: null,
+          fromMs: null,
+          toMs: null,
+          source: 'opencode-go',
+        },
+      ])
+    ).toBe(true);
+    expect(
+      quotaDisplayWindowsLookDepleted([
+        {
+          key: 'opencode-go:weekly',
+          label: 'weekly',
+          kind: 'weekly',
+          usedPercent: 10,
+          remainingPercent: 90,
+          resetLabel: '',
+          resetAccuracy: 'exact',
+          limitWindowSeconds: null,
+          resetAtMs: null,
+          fromMs: null,
+          toMs: null,
+          source: 'opencode-go',
+        },
+      ])
+    ).toBe(false);
   });
 
   it('replaces stale local OpenCode monthly exhaustion with authoritative lastSuccess windows', () => {

@@ -22420,6 +22420,86 @@ describe('AccountsPage replacement flows', () => {
     expect(readText(card)).not.toContain('accounts.quota_source_none');
   });
 
+  it('does not flash persisted OpenCode monthly exhaustion before host credential-quota settles', async () => {
+    const file: AuthFileItem = {
+      name: 'opencode-stale-exhausted.json',
+      label: 'OpenCode Stale',
+      provider: 'opencode-go',
+      auth_index: 'stale-go',
+      supports_quota: true,
+      quota_provider: 'opencode-go',
+    };
+    mocks.files = [file];
+    mocks.panelFeatureAvailability.managerServiceAvailable = true;
+    installCapabilitiesAdapter(async () => capabilitySummary());
+    const data = parseOpenCodeGoQuota(
+      {
+        usage: {
+          rolling: { status: 'ok', percent: 0, resets_at: '2099-01-01T00:00:00Z' },
+          weekly: { status: 'ok', percent: 0, resetsAt: '2099-01-07T00:00:00Z' },
+          monthly: { status: 'exhausted', percent: 100, resets_at: '2099-02-01T00:00:00Z' },
+        },
+      },
+      mocks.t as TFunction
+    );
+    mocks.quotaState.opencodeGoQuota = {
+      [OPENCODE_GO_CONFIG.getStoreKey!(file)]: OPENCODE_GO_CONFIG.buildSuccessState(data, file),
+    };
+    let releaseHost!: () => void;
+    const hostGate = new Promise<void>((resolve) => {
+      releaseHost = resolve;
+    });
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (!String(url).includes('/credential-quota?')) return Response.json({});
+      await hostGate;
+      return Response.json({
+        lastSuccess: {
+          observedAtMs: Date.now(),
+          windowsJson: JSON.stringify({
+            windows: [
+              {
+                name: 'rolling',
+                usedPercent: 0,
+                remainingFraction: 1,
+                resetAt: '2099-01-01T00:00:00Z',
+              },
+              {
+                name: 'weekly',
+                usedPercent: 0,
+                remainingFraction: 1,
+                resetAt: '2099-01-07T00:00:00Z',
+              },
+              {
+                name: 'monthly',
+                usedPercent: 0,
+                remainingFraction: 1,
+                resetAt: '2099-02-01T00:00:00Z',
+              },
+            ],
+          }),
+        },
+      });
+    });
+
+    const renderer = await renderAccountsPage();
+    const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
+    expect(readText(card)).not.toContain('accounts.health_monthly_exhausted');
+    expect(readText(card)).not.toContain('accounts.health_weekly_exhausted');
+    expect(
+      card.findAll((node) => typeof node.props?.['data-account-quota-window'] === 'string')
+    ).toHaveLength(0);
+
+    await act(async () => {
+      releaseHost();
+      await Promise.resolve();
+    });
+    await flushPromises();
+    expect(readText(card)).not.toContain('accounts.health_monthly_exhausted');
+    expect(
+      card.findAll((node) => typeof node.props?.['data-account-quota-window'] === 'string').length
+    ).toBeGreaterThan(0);
+  });
+
   it.each([true, false])(
     'adopts scheduled quota results on the configured refresh cadence with monitoring available=%s',
     async (monitoringAvailable) => {

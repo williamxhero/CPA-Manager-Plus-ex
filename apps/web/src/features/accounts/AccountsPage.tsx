@@ -200,6 +200,7 @@ import {
 import {
   credentialQuotaListWindows,
   mergeCredentialQuotaListWindows,
+  quotaDisplayWindowsLookDepleted,
   selectCredentialQuotaWindowsObservation,
 } from '@/features/accounts/model/credentialQuotaListWindows';
 import {
@@ -4588,13 +4589,16 @@ export function AccountsPage() {
     });
     const displayedQuota = new Map<string, number | null>();
     operationalRows.forEach((row) => {
-      const windows = credentialListWindows.get(row.authIndex);
-      if (!windows?.length) return;
+      const windows = row.authIndex
+        ? (credentialListWindows.get(String(row.authIndex)) ?? [])
+        : [];
+      if (!windows.length) return;
+      // Max remaining: one spent window must not wipe Credits/total ranking.
       const remaining = windows
         .filter(isStandardAccountQuotaListWindow)
         .map((window) => window.remainingPercent)
         .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-      displayedQuota.set(row.selectionKey, remaining.length ? Math.min(...remaining) : null);
+      displayedQuota.set(row.selectionKey, remaining.length ? Math.max(...remaining) : null);
     });
     return applyAccountPinnedOrder(
       sortAccountRows(operationalRows, accountSort, displayedQuota),
@@ -5079,8 +5083,10 @@ export function AccountsPage() {
         if (credential.length > 0) {
           return mergeCredentialQuotaListWindows(local, credential);
         }
-        // Host buffer not in yet (or empty): keep local/persisted windows so the
-        // page never flashes「暂无额度数据」while waiting on lastSuccess.
+        // Host buffer not in yet: paint healthy local remaining so bars are not
+        // blank, but never paint stale local exhaustion ahead of lastSuccess
+        // (that flash is「月耗尽」→「可用」).
+        if (quotaDisplayWindowsLookDepleted(local)) return [];
         return local;
       }
       const credential = row.authIndex

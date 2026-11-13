@@ -75,4 +75,25 @@ describe('default credential display order', () => {
       sortAccountRows([wxh, hm], undefined, displayedQuota).map((row) => row.accountLabel)
     ).toEqual(['OAI-WXH', 'OAI-HM']);
   });
+
+  it('ranks Codex Credits into the default total ahead of window-only remaining', () => {
+    const openCode = account('OpenCode', 100);
+    const hm = account('OAI-HM', 0);
+    hm.quota.creditsBalance = '0';
+    const wxh = account('OAI-WXH', 0);
+    wxh.quota.creditsBalance = '18313.07';
+    expect(sortAccountRows([openCode, hm, wxh]).map((row) => row.accountLabel)).toEqual([
+      'OAI-WXH',
+      'OpenCode',
+      'OAI-HM',
+    ]);
+    const displayedQuota = new Map([
+      ['OpenCode', 100],
+      ['OAI-HM', 0],
+      ['OAI-WXH', 0],
+    ]);
+    expect(
+      sortAccountRows([openCode, hm, wxh], undefined, displayedQuota).map((row) => row.accountLabel)
+    ).toEqual(['OAI-WXH', 'OpenCode', 'OAI-HM']);
+  });
 });
