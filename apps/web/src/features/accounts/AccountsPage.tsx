@@ -197,6 +197,10 @@ import {
   mergeCredentialQuotaListWindows,
 } from '@/features/accounts/model/credentialQuotaListWindows';
 import {
+  formatQuotaRefreshErrorMessage,
+  resolveQuotaRefreshErrorCode,
+} from '@/features/accounts/model/quotaRefreshErrorMessage';
+import {
   buildAccountQuotaWindowDefinitions,
   type AccountQuotaWindowDefinition,
 } from '@/features/accounts/model/accountQuotaWindowDefinitions';
@@ -1257,6 +1261,12 @@ const getFallbackWindowBarClass = (
   remainingPercent: number | null
 ) => {
   if (lifecycleBarOverride === 'bad') return styles.quotaBarBad;
+  // Progress bars encode remaining capacity (used 0% → 100% green fill).
+  // A credential-level unknown/loading placeholder must not gray out windows
+  // that already have an authoritative remaining reading.
+  if (remainingPercent !== null && Number.isFinite(remainingPercent)) {
+    return getWindowRemainingBarClass(remainingPercent);
+  }
   if (lifecycleBarOverride === 'neutral') return styles.quotaBarNeutral;
   return getWindowRemainingBarClass(remainingPercent);
 };
@@ -6704,11 +6714,11 @@ export function AccountsPage() {
       if (backendCredentialQuota) {
         if (!row.authIndex || !featureAvailability.managerServiceBase)
           return { status: 'error', error: 'current_credential_source_unavailable' };
-        try {
+        const refreshViaCommonChannel = async (): Promise<AccountQuotaRefreshOutcome> => {
           // Policy subjectId is a local persistence key, not query authority.
           // Read the public host-issued quota descriptor before common refresh.
           const quota = await credentialQuotaRequest<CredentialQuotaStatus>(
-            featureAvailability.managerServiceBase,
+            featureAvailability.managerServiceBase!,
             managementKey,
             'GET',
             `?authIndex=${encodeURIComponent(String(row.authIndex))}`
@@ -6720,7 +6730,7 @@ export function AccountsPage() {
             !quota.sourceId
           )
             return { status: 'error', error: 'identity_or_source_changed' };
-          await refreshCredentialSource(featureAvailability.managerServiceBase, managementKey, {
+          await refreshCredentialSource(featureAvailability.managerServiceBase!, managementKey, {
             scope: quota.scope,
             targets: quota.targets,
             authIndex: quota.auth_index ?? String(row.authIndex),
@@ -6731,14 +6741,31 @@ export function AccountsPage() {
           });
           setCredentialListRevision((value) => value + 1);
           return { status: 'success' };
+        };
+        try {
+          return await refreshViaCommonChannel();
         } catch (error) {
-          return {
-            status: 'error',
-            error:
-              error instanceof Error && error.message
-                ? error.message
-                : 'common_refresh_unavailable',
-          };
+          const message =
+            error instanceof Error && error.message
+              ? error.message
+              : 'common_refresh_unavailable';
+          // Transient inventory/job races after plugin or Core restarts often
+          // surface as common_refresh_unavailable; one short retry recovers them.
+          if (resolveQuotaRefreshErrorCode(message) === 'common_refresh_unavailable') {
+            try {
+              await new Promise((resolve) => window.setTimeout(resolve, 400));
+              return await refreshViaCommonChannel();
+            } catch (retryError) {
+              return {
+                status: 'error',
+                error:
+                  retryError instanceof Error && retryError.message
+                    ? retryError.message
+                    : message,
+              };
+            }
+          }
+          return { status: 'error', error: message };
         }
       }
       if (row.runtimeOnly || !isQuotaRefreshSupportedProvider(row.provider)) {
@@ -6988,7 +7015,10 @@ export function AccountsPage() {
             const name = accountDisplayMode === 'full' ? rawName : maskQuotaAccountText(rawName);
             if (firstError?.status === 'error') {
               showNotification(
-                t('accounts.quota_refresh_failed', { name, message: firstError.error }),
+                t('accounts.quota_refresh_failed', {
+                  name,
+                  message: formatQuotaRefreshErrorMessage(firstError.error, t),
+                }),
                 'error'
               );
             } else {
@@ -7002,7 +7032,7 @@ export function AccountsPage() {
               t('accounts.quota_refresh_result_with_error', {
                 success: successCount,
                 total: totalCount,
-                message: firstError.error,
+                message: formatQuotaRefreshErrorMessage(firstError.error, t),
               }),
               successCount === 0 ? 'error' : 'warning'
             );

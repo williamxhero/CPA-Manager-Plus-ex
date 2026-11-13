@@ -299,9 +299,10 @@ describe('AccountQuotaMatrix', () => {
   it.each([
     [undefined, 'quotaBarWarn', 'quotaBarGood'],
     ['bad', 'quotaBarBad', 'quotaBarBad'],
-    ['neutral', 'quotaBarNeutral', 'quotaBarNeutral'],
+    // Known remaining still colors the bar when credential status is only unknown/loading.
+    ['neutral', 'quotaBarWarn', 'quotaBarGood'],
   ] as const)(
-    'applies %s lifecycle override before window color thresholds',
+    'applies %s lifecycle override without hiding known remaining colors',
     (override, lowClass, highClass) => {
       const renderer = renderMatrix(
         `lifecycle-${override ?? 'none'}`,

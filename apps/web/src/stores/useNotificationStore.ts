@@ -24,6 +24,22 @@ interface ConfirmationOptions extends ConfirmationStepOptions {
   secondConfirmation?: ConfirmationStepOptions;
 }
 
+interface NotificationDismissState {
+  remainingMs: number;
+  startedAtMs: number;
+}
+
+const dismissTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const dismissStates = new Map<string, NotificationDismissState>();
+
+const clearDismissTimer = (id: string) => {
+  const timer = dismissTimers.get(id);
+  if (timer) {
+    clearTimeout(timer);
+    dismissTimers.delete(id);
+  }
+};
+
 interface NotificationState {
   notifications: Notification[];
   confirmation: {
@@ -34,6 +50,8 @@ interface NotificationState {
   };
   showNotification: (message: string, type?: NotificationType, duration?: number) => void;
   removeNotification: (id: string) => void;
+  pauseNotificationDismiss: (id: string) => void;
+  resumeNotificationDismiss: (id: string) => void;
   clearAll: () => void;
   showConfirmation: (options: ConfirmationOptions) => void;
   hideConfirmation: () => void;
@@ -41,95 +59,137 @@ interface NotificationState {
   advanceConfirmation: () => void;
 }
 
-export const useNotificationStore = create<NotificationState>((set, get) => ({
-  notifications: [],
-  confirmation: {
-    isOpen: false,
-    isLoading: false,
-    step: 1,
-    options: null,
-  },
-
-  showNotification: (message, type = 'info', duration = NOTIFICATION_DURATION_MS) => {
-    const id = generateId();
-    const notification: Notification = {
+export const useNotificationStore = create<NotificationState>((set, get) => {
+  const scheduleDismiss = (id: string, remainingMs: number) => {
+    clearDismissTimer(id);
+    if (remainingMs <= 0) {
+      dismissStates.delete(id);
+      get().removeNotification(id);
+      return;
+    }
+    dismissStates.set(id, { remainingMs, startedAtMs: Date.now() });
+    dismissTimers.set(
       id,
-      message,
-      type,
-      duration,
-    };
-
-    set((state) => ({
-      notifications: [...state.notifications, notification],
-    }));
-
-    // 自动移除通知
-    if (duration > 0) {
       setTimeout(() => {
+        dismissTimers.delete(id);
+        dismissStates.delete(id);
         set((state) => ({
           notifications: state.notifications.filter((n) => n.id !== id),
         }));
-      }, duration);
-    }
-  },
+      }, remainingMs)
+    );
+  };
 
-  removeNotification: (id) => {
-    set((state) => ({
-      notifications: state.notifications.filter((n) => n.id !== id),
-    }));
-  },
+  return {
+    notifications: [],
+    confirmation: {
+      isOpen: false,
+      isLoading: false,
+      step: 1,
+      options: null,
+    },
 
-  clearAll: () => {
-    set({ notifications: [] });
-  },
+    showNotification: (message, type = 'info', duration = NOTIFICATION_DURATION_MS) => {
+      const id = generateId();
+      const notification: Notification = {
+        id,
+        message,
+        type,
+        duration,
+      };
 
-  showConfirmation: (options) => {
-    const active = get().confirmation;
-    if (active.isOpen && active.options) {
-      if (active.isLoading) {
-        options.onCancel?.();
-        return;
+      set((state) => ({
+        notifications: [...state.notifications, notification],
+      }));
+
+      if (duration > 0) {
+        scheduleDismiss(id, duration);
       }
-      active.options.onCancel?.();
-    }
-    set({
-      confirmation: {
-        isOpen: true,
-        isLoading: false,
-        step: 1,
-        options,
-      },
-    });
-  },
+    },
 
-  hideConfirmation: () => {
-    set((state) => ({
-      confirmation: {
-        ...state.confirmation,
-        isOpen: false,
-        isLoading: false,
-        step: 1,
-        options: null, // Cleanup
-      },
-    }));
-  },
+    removeNotification: (id) => {
+      clearDismissTimer(id);
+      dismissStates.delete(id);
+      set((state) => ({
+        notifications: state.notifications.filter((n) => n.id !== id),
+      }));
+    },
 
-  setConfirmationLoading: (loading) => {
-    set((state) => ({
-      confirmation: {
-        ...state.confirmation,
-        isLoading: loading,
-      },
-    }));
-  },
+    pauseNotificationDismiss: (id) => {
+      const timer = dismissTimers.get(id);
+      const state = dismissStates.get(id);
+      if (!timer || !state) return;
+      clearDismissTimer(id);
+      const elapsed = Date.now() - state.startedAtMs;
+      dismissStates.set(id, {
+        remainingMs: Math.max(0, state.remainingMs - elapsed),
+        startedAtMs: 0,
+      });
+    },
 
-  advanceConfirmation: () => {
-    set((state) => ({
-      confirmation: {
-        ...state.confirmation,
-        isLoading: false,
-        step: 2,
-      },
-    }));
-  },
-}));
+    resumeNotificationDismiss: (id) => {
+      const state = dismissStates.get(id);
+      if (!state) return;
+      if (dismissTimers.has(id)) return;
+      scheduleDismiss(id, state.remainingMs > 0 ? state.remainingMs : 0);
+    },
+
+    clearAll: () => {
+      for (const id of [...dismissTimers.keys()]) {
+        clearDismissTimer(id);
+      }
+      dismissStates.clear();
+      set({ notifications: [] });
+    },
+
+    showConfirmation: (options) => {
+      const active = get().confirmation;
+      if (active.isOpen && active.options) {
+        if (active.isLoading) {
+          options.onCancel?.();
+          return;
+        }
+        active.options.onCancel?.();
+      }
+      set({
+        confirmation: {
+          isOpen: true,
+          isLoading: false,
+          step: 1,
+          options,
+        },
+      });
+    },
+
+    hideConfirmation: () => {
+      set((state) => ({
+        confirmation: {
+          ...state.confirmation,
+          isOpen: false,
+          isLoading: false,
+          step: 1,
+          options: null, // Cleanup
+        },
+      }));
+    },
+
+    setConfirmationLoading: (loading) => {
+      set((state) => ({
+        confirmation: {
+          ...state.confirmation,
+          isLoading: loading,
+        },
+      }));
+    },
+
+    advanceConfirmation: () => {
+      set((state) => ({
+        confirmation: {
+          ...state.confirmation,
+          isLoading: false,
+          step: 2,
+        },
+      }));
+    },
+  };
+});

@@ -399,6 +399,14 @@ textarea {
     font-weight: 500;
   }
 
+  .notification-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .action-btn,
   .close-btn {
     display: inline-flex;
     align-items: center;

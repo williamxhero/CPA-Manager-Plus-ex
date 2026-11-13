@@ -26,6 +26,11 @@ const getMatrixBarClass = (
   lifecycleBarOverride: AccountQuotaLifecycleBarOverride
 ) => {
   if (lifecycleBarOverride === 'bad') return styles.quotaBarBad;
+  // Remaining readings paint the bar; unknown/loading credential status must
+  // not force a neutral fill over a known remaining percent.
+  if (remainingPercent !== null && Number.isFinite(remainingPercent)) {
+    return getRemainingPercentBarClass(remainingPercent);
+  }
   if (lifecycleBarOverride === 'neutral') return styles.quotaBarNeutral;
   return getRemainingPercentBarClass(remainingPercent);
 };

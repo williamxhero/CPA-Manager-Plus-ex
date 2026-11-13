@@ -206,7 +206,9 @@ func TestCompatExactIDs(t *testing.T) {
 		"muse-spark-1.3-contributor-free": RouteResponses,
 		"space-bunny-free":                RouteChatCompletions,
 		// Chat Completions.
-		"glm-5.3":           RouteChatCompletions,
+		"beam-free":               RouteChatCompletions,
+		"iceman-contributor-free": RouteChatCompletions,
+		"glm-5.3":                 RouteChatCompletions,
 		"glm-5.2":           RouteChatCompletions,
 		"glm-5.1":           RouteChatCompletions,
 		"kimi-k3":           RouteChatCompletions,
@@ -220,13 +222,14 @@ func TestCompatExactIDs(t *testing.T) {
 		"hy4-preview":       RouteChatCompletions,
 		"longcat-2.0":       RouteChatCompletions,
 		// Messages.
-		"minimax-m3":   RouteMessages,
-		"minimax-m2.7": RouteMessages,
-		"minimax-m2.5": RouteMessages,
-		"qwen3.8-max":  RouteMessages,
-		"qwen3.7-max":  RouteMessages,
-		"qwen3.7-plus": RouteMessages,
-		"qwen3.6-plus": RouteMessages,
+		"claude-haiku-5-5": RouteMessages,
+		"minimax-m3":       RouteMessages,
+		"minimax-m2.7":     RouteMessages,
+		"minimax-m2.5":     RouteMessages,
+		"qwen3.8-max":      RouteMessages,
+		"qwen3.7-max":      RouteMessages,
+		"qwen3.7-plus":     RouteMessages,
+		"qwen3.6-plus":     RouteMessages,
 	}
 	var sb strings.Builder
 	sb.WriteString(`{"data":[`)
@@ -268,6 +271,9 @@ func TestCompatPrefixFallback(t *testing.T) {
 		"hy3-extreme":    RouteChatCompletions,
 		"hy4-turbo":      RouteChatCompletions,
 		"longcat-max":    RouteChatCompletions,
+		"beam-x":         RouteChatCompletions,
+		"iceman-x":       RouteChatCompletions,
+		"claude-opus-x":  RouteMessages,
 		"GLM-5.2":        RouteChatCompletions,
 		"DeepSeek-V4-X":  RouteChatCompletions,
 		"HY3":            RouteChatCompletions,
@@ -296,6 +302,45 @@ func TestCompatPrefixFallback(t *testing.T) {
 		if want := cases[mo.UpstreamID]; mo.Protocol != want {
 			t.Errorf("%s: Protocol = %q, want %q", mo.UpstreamID, mo.Protocol, want)
 		}
+	}
+}
+
+func TestUpstreamAPIRouteAndModernCatalogShape(t *testing.T) {
+	// Live OpenCode catalogs advertise protocol under `api` and use name/limit/
+	// modalities instead of the older flat fields. Models without a known
+	// prefix (or with only an api hint) must still become routable.
+	body := `{"data":[
+		{"id":"beam-free","name":"Beam Free","limit":{"context":1048576,"output":131072},"modalities":{"input":["text"],"output":["text"]},"api":{"chat-completions":{}}},
+		{"id":"claude-haiku-5-5","name":"Claude Haiku 5.5","limit":{"context":1000000,"output":128000},"api":{"messages":{}}},
+		{"id":"iceman-contributor-free","name":"Iceman Contributor Free","api":{"chat-completions":{}}},
+		{"id":"mystery-with-api","name":"Mystery","api":{"responses":{}}},
+		{"id":"mystery-no-hint"}
+	]}`
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(body)}}
+	m := newManager(testCfg(), fc)
+	mustRefresh(t, m)
+
+	beam := findModel(t, m.Models(), "beam-free")
+	if beam.DisplayName != "Beam Free" || beam.Protocol != RouteChatCompletions ||
+		beam.ContextLimit != 1048576 || beam.OutputLimit != 131072 ||
+		len(beam.InputModes) != 1 || beam.InputModes[0] != "text" {
+		t.Fatalf("beam mapping wrong: %+v", beam)
+	}
+	claude := findModel(t, m.Models(), "claude-haiku-5-5")
+	if claude.DisplayName != "Claude Haiku 5.5" || claude.Protocol != RouteMessages {
+		t.Fatalf("claude mapping wrong: %+v", claude)
+	}
+	iceman := findModel(t, m.Models(), "iceman-contributor-free")
+	if iceman.Protocol != RouteChatCompletions {
+		t.Fatalf("iceman protocol = %q", iceman.Protocol)
+	}
+	mystery := findModel(t, m.Models(), "mystery-with-api")
+	if mystery.Protocol != RouteResponses {
+		t.Fatalf("api hint should route mystery-with-api: %+v", mystery)
+	}
+	unsup := m.Unsupported()
+	if len(unsup) != 1 || unsup[0].UpstreamID != "mystery-no-hint" {
+		t.Fatalf("unsupported = %+v, want only mystery-no-hint", unsup)
 	}
 }
 

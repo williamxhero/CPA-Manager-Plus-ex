@@ -78,10 +78,12 @@ export async function fullRefreshRequest<T>(
       signal,
     }
   );
-  if (!response.ok)
-    throw new Error(
-      response.status === 409 ? 'identity_or_source_changed' : 'common_refresh_unavailable'
-    );
+  if (!response.ok) {
+    if (response.status === 409) throw new Error('identity_or_source_changed');
+    // Keep a stable machine-readable prefix so the UI can localize it, and
+    // append the HTTP status for diagnosis instead of a bare opaque token.
+    throw new Error(`common_refresh_unavailable:${response.status}`);
+  }
   return response.json() as Promise<T>;
 }
 // Polling observes ONE explicitly requested backend job. It never schedules

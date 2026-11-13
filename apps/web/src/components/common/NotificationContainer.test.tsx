@@ -6,6 +6,8 @@ const { mocks } = vi.hoisted(() => ({
   mocks: {
     notifications: [] as Notification[],
     removeNotification: vi.fn(),
+    pauseNotificationDismiss: vi.fn(),
+    resumeNotificationDismiss: vi.fn(),
     portalTarget: null as unknown,
   },
 }));
@@ -32,11 +34,15 @@ vi.mock('@/stores', () => ({
     selector?: (state: {
       notifications: Notification[];
       removeNotification: typeof mocks.removeNotification;
+      pauseNotificationDismiss: typeof mocks.pauseNotificationDismiss;
+      resumeNotificationDismiss: typeof mocks.resumeNotificationDismiss;
     }) => unknown
   ) => {
     const state = {
       notifications: mocks.notifications,
       removeNotification: mocks.removeNotification,
+      pauseNotificationDismiss: mocks.pauseNotificationDismiss,
+      resumeNotificationDismiss: mocks.resumeNotificationDismiss,
     };
     return selector ? selector(state) : state;
   },
@@ -44,6 +50,7 @@ vi.mock('@/stores', () => ({
 
 vi.mock('@/components/ui/icons', () => ({
   IconX: () => null,
+  IconCopy: () => null,
 }));
 
 import { NotificationContainer } from './NotificationContainer';
@@ -59,6 +66,8 @@ describe('NotificationContainer', () => {
     vi.useFakeTimers();
     mocks.notifications = [];
     mocks.removeNotification.mockReset();
+    mocks.pauseNotificationDismiss.mockReset();
+    mocks.resumeNotificationDismiss.mockReset();
     mocks.portalTarget = null;
 
     const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
@@ -122,10 +131,77 @@ describe('NotificationContainer', () => {
     });
 
     await act(async () => {
-      renderer!.root.findByProps({ className: 'close-btn' }).props.onClick();
+      const closeButton = renderer!.root.find(
+        (node) =>
+          typeof node.props.className === 'string' &&
+          node.props.className.includes('close-btn')
+      );
+      closeButton.props.onClick();
       vi.advanceTimersByTime(300);
     });
 
     expect(mocks.removeNotification).toHaveBeenCalledWith('notification-1');
+  });
+
+  it('pauses auto-dismiss while hovered and resumes after leave', async () => {
+    mocks.notifications = [
+      {
+        id: 'notification-1',
+        message: 'Saved',
+        type: 'success',
+      },
+    ];
+
+    await act(async () => {
+      renderer = create(<NotificationContainer />);
+      await Promise.resolve();
+    });
+
+    const notification = renderer!.root.find(
+      (node) =>
+        typeof node.props.className === 'string' &&
+        node.props.className.includes('notification success')
+    );
+    await act(async () => {
+      notification.props.onMouseEnter();
+      notification.props.onMouseLeave();
+    });
+    expect(mocks.pauseNotificationDismiss).toHaveBeenCalledWith('notification-1');
+    expect(mocks.resumeNotificationDismiss).toHaveBeenCalledWith('notification-1');
+  });
+
+  it('exposes a copy action to the left of close', async () => {
+    mocks.notifications = [
+      {
+        id: 'notification-1',
+        message: 'copy me',
+        type: 'error',
+      },
+    ];
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    await act(async () => {
+      renderer = create(<NotificationContainer />);
+      await Promise.resolve();
+    });
+
+    const actions = renderer!.root.find(
+      (node) =>
+        typeof node.props.className === 'string' &&
+        node.props.className.includes('notification-actions')
+    );
+    const buttons = actions.findAllByType('button');
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0].props['aria-label']).toBe('common.copy');
+    expect(buttons[1].props.className).toContain('close-btn');
+
+    await act(async () => {
+      await buttons[0].props.onClick();
+    });
+    expect(writeText).toHaveBeenCalledWith('copy me');
   });
 });

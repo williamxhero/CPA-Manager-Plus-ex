@@ -86,20 +86,37 @@ type HostClient interface {
 	Do(ctx context.Context, req pluginapi.HTTPRequest) (pluginapi.HTTPResponse, error)
 }
 
-// rawModel tolerantly decodes one catalog entry; unknown fields —
-// including protocol/endpoint fields the catalog does not provide and
-// reasoning/tool_calling flags the plugin does not act on — are ignored via
-// json tags. Modality metadata accepts both spellings.
+// rawModel tolerantly decodes one catalog entry. Upstream currently ships
+// both the older flat fields (display_name / context_length / *_modes) and the
+// newer nested shape (name / limit / modalities / api); unknown keys —
+// including reasoning/tool_calling flags the plugin does not act on — are
+// ignored via json tags.
 type rawModel struct {
-	ID               string       `json:"id"`
-	DisplayName      string       `json:"display_name"`
-	ContextLength    int64        `json:"context_length"`
-	MaxOutputTokens  int64        `json:"max_output_tokens"`
-	InputModes       []string     `json:"input_modes"`
-	OutputModes      []string     `json:"output_modes"`
-	InputModalities  []string     `json:"input_modalities"`
-	OutputModalities []string     `json:"output_modalities"`
-	Thinking         *rawThinking `json:"thinking"`
+	ID               string                     `json:"id"`
+	Name             string                     `json:"name"`
+	DisplayName      string                     `json:"display_name"`
+	ContextLength    int64                      `json:"context_length"`
+	MaxOutputTokens  int64                      `json:"max_output_tokens"`
+	Limit            *rawLimit                  `json:"limit"`
+	InputModes       []string                   `json:"input_modes"`
+	OutputModes      []string                   `json:"output_modes"`
+	InputModalities  []string                   `json:"input_modalities"`
+	OutputModalities []string                   `json:"output_modalities"`
+	Modalities       *rawModalities             `json:"modalities"`
+	API              map[string]json.RawMessage `json:"api"`
+	Thinking         *rawThinking               `json:"thinking"`
+}
+
+// rawLimit decodes the nested limit object from newer OpenCode catalogs.
+type rawLimit struct {
+	Context int64 `json:"context"`
+	Output  int64 `json:"output"`
+}
+
+// rawModalities decodes the nested modalities object from newer catalogs.
+type rawModalities struct {
+	Input  []string `json:"input"`
+	Output []string `json:"output"`
 }
 
 // rawThinking tolerantly decodes the optional per-model thinking object;
@@ -128,6 +145,9 @@ var prefixRoutes = []struct {
 	{"deepseek", RouteChatCompletions},
 	{"minimax", RouteMessages},
 	{"longcat", RouteChatCompletions},
+	{"claude", RouteMessages},
+	{"beam", RouteChatCompletions},
+	{"iceman", RouteChatCompletions},
 	{"grok", RouteResponses},
 	{"gpt", RouteResponses},
 	{"kimi", RouteChatCompletions},
@@ -303,9 +323,26 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 		}
 		inputModes := firstNonEmpty(e.InputModes, e.InputModalities)
 		outputModes := firstNonEmpty(e.OutputModes, e.OutputModalities)
+		if e.Modalities != nil {
+			inputModes = firstNonEmpty(inputModes, e.Modalities.Input)
+			outputModes = firstNonEmpty(outputModes, e.Modalities.Output)
+		}
 		display := e.DisplayName
 		if display == "" {
+			display = e.Name
+		}
+		if display == "" {
 			display = e.ID
+		}
+		contextLimit := e.ContextLength
+		outputLimit := e.MaxOutputTokens
+		if e.Limit != nil {
+			if contextLimit == 0 {
+				contextLimit = e.Limit.Context
+			}
+			if outputLimit == 0 {
+				outputLimit = e.Limit.Output
+			}
 		}
 		rec := ModelRecord{
 			PublicID:     config.PublicID(m.cfg, e.ID),
@@ -313,8 +350,8 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 			DisplayName:  display,
 			Protocol:     route,
 			EndpointPath: endpoint,
-			ContextLimit: e.ContextLength,
-			OutputLimit:  e.MaxOutputTokens,
+			ContextLimit: contextLimit,
+			OutputLimit:  outputLimit,
 			InputModes:   inputModes,
 			OutputModes:  outputModes,
 			Thinking:     normalizeThinking(e.Thinking),
@@ -362,8 +399,8 @@ func (m *Manager) protocolEnabled(r Route) bool {
 	return true
 }
 
-// resolve applies route priority strictly: user override, compatibility
-// table (family prefix), none (arch §5).
+// resolve applies route priority strictly: user override, upstream catalog
+// api hint, compatibility table (family prefix), none (arch §5).
 func (m *Manager) resolve(e rawModel) (Route, string, bool, string) {
 	if o, ok := m.cfg.RouteOverrides[e.ID]; ok {
 		// Spec 04 §5: an override MUST be visible in diagnostics. Load
@@ -372,6 +409,9 @@ func (m *Manager) resolve(e rawModel) (Route, string, bool, string) {
 		return Route(o.Protocol), o.Endpoint, true, fmt.Sprintf(
 			"model %q routed via user override (%s %s)", e.ID, o.Protocol, o.Endpoint)
 	}
+	if route, ok := routeFromUpstreamAPI(e.API); ok {
+		return route, "", true, ""
+	}
 	id := strings.ToLower(e.ID)
 	for _, p := range prefixRoutes {
 		if strings.HasPrefix(id, p.prefix) {
@@ -379,6 +419,22 @@ func (m *Manager) resolve(e rawModel) (Route, string, bool, string) {
 		}
 	}
 	return "", "", false, ""
+}
+
+// routeFromUpstreamAPI maps the catalog's `api` object keys
+// (chat-completions / messages / responses) onto a Route. Newer OpenCode
+// catalogs advertise the protocol here; when multiple keys appear, prefer
+// responses, then messages, then chat-completions for a stable choice.
+func routeFromUpstreamAPI(api map[string]json.RawMessage) (Route, bool) {
+	if len(api) == 0 {
+		return "", false
+	}
+	for _, route := range []Route{RouteResponses, RouteMessages, RouteChatCompletions} {
+		if _, ok := api[string(route)]; ok {
+			return route, true
+		}
+	}
+	return "", false
 }
 
 // JoinUpstreamURL joins the configured base-url onto an endpoint path and
