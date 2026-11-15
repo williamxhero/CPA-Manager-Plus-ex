@@ -26,6 +26,96 @@ describe('credentialQuotaListWindows', () => {
     ]);
   });
 
+  it('treats Codex rate-limited used=0 remainingFraction=0 as depleted, not full', () => {
+    const windows = credentialQuotaListWindows(
+      JSON.stringify({
+        windows: [
+          {
+            name: 'primary',
+            usedPercent: 0,
+            remainingFraction: 0,
+            resetAt: '2026-11-14T22:07:42Z',
+            sourceStatus: 'rate-limited',
+            limitWindowSeconds: 18000,
+          },
+          {
+            name: 'secondary',
+            usedPercent: 100,
+            remainingFraction: 0,
+            resetAt: '2026-11-16T13:50:52Z',
+            sourceStatus: 'rate-limited',
+            limitWindowSeconds: 604800,
+          },
+        ],
+      }),
+      'codex',
+      1_794_683_272_000
+    );
+    expect(windows).toEqual([
+      expect.objectContaining({
+        kind: 'five_hour',
+        usedPercent: 100,
+        remainingPercent: 0,
+      }),
+      expect.objectContaining({
+        kind: 'weekly',
+        usedPercent: 100,
+        remainingPercent: 0,
+      }),
+    ]);
+  });
+
+  it('does not let one local Codex 5h replace both remote duration slots', () => {
+    const local = [
+      {
+        key: 'five-hour',
+        label: '5h',
+        kind: 'five_hour' as const,
+        usedPercent: 0,
+        remainingPercent: 100,
+        resetLabel: '2026-11-15T16:07:00Z',
+        resetAccuracy: 'exact' as const,
+        limitWindowSeconds: 18000,
+        resetAtMs: Date.parse('2026-11-15T16:07:00Z'),
+        fromMs: null,
+        toMs: null,
+        source: 'codex' as const,
+        modelScope: { kind: 'family' as const, key: 'codex_main', complete: true },
+        observedAtMs: 2_000,
+        quotaProgressObservedAtMs: 2_000,
+      },
+    ];
+    const remote = credentialQuotaListWindows(
+      JSON.stringify({
+        windows: [
+          {
+            name: 'primary',
+            usedPercent: 0,
+            remainingFraction: 0,
+            resetAt: '2026-11-14T22:07:42Z',
+            limitWindowSeconds: 18000,
+          },
+          {
+            name: 'secondary',
+            usedPercent: 100,
+            remainingFraction: 0,
+            resetAt: '2026-11-16T13:50:52Z',
+            limitWindowSeconds: 604800,
+          },
+        ],
+      }),
+      'codex',
+      1_000
+    );
+    const merged = mergeCredentialQuotaListWindows(local, remote);
+    expect(merged.map((window) => window.kind).sort()).toEqual(['five_hour', 'weekly']);
+    expect(merged.filter((window) => window.kind === 'five_hour')).toHaveLength(1);
+    expect(merged.find((window) => window.kind === 'weekly')).toMatchObject({
+      usedPercent: 100,
+      remainingPercent: 0,
+    });
+  });
+
   it('replaces the same Codex main scope without duplicating its weekly window', () => {
     const local = [
       {

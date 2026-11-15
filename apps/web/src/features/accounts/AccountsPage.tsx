@@ -204,6 +204,10 @@ import {
   selectCredentialQuotaWindowsObservation,
 } from '@/features/accounts/model/credentialQuotaListWindows';
 import {
+  loadCredentialQuotaWindowCache,
+  saveCredentialQuotaWindowCache,
+} from '@/features/accounts/model/credentialQuotaWindowCache';
+import {
   formatQuotaRefreshErrorMessage,
   resolveQuotaRefreshErrorCode,
 } from '@/features/accounts/model/quotaRefreshErrorMessage';
@@ -1270,10 +1274,7 @@ const getFallbackWindowBarClass = (
   lifecycleBarOverride: AccountQuotaLifecycleBarOverride,
   remainingPercent: number | null,
   usedPercent?: number | null
-) =>
-  quotaBarToneClass[
-    resolveQuotaBarTone(remainingPercent, lifecycleBarOverride, usedPercent)
-  ];
+) => quotaBarToneClass[resolveQuotaBarTone(remainingPercent, lifecycleBarOverride, usedPercent)];
 
 const resolveAccountQuotaSnapshotLabel = (
   snapshot: AccountQuotaSnapshotWindow,
@@ -1323,10 +1324,40 @@ export function AccountsPage() {
     () => createCodexInspectionConnectionFingerprint(apiBase, managementKey) ?? '',
     [apiBase, managementKey]
   );
-  const [credentialListWindows, setCredentialListWindows] = useState<
-    Map<string, AccountQuotaDisplayWindow[]>
-  >(new Map());
-  const [credentialListReady, setCredentialListReady] = useState(false);
+  const [credentialListWindowState, setCredentialListWindowState] = useState<{
+    scope: string;
+    windows: Map<string, AccountQuotaDisplayWindow[]>;
+  }>(() => ({
+    scope: connectionFingerprint,
+    windows: loadCredentialQuotaWindowCache(connectionFingerprint),
+  }));
+  // Host lastSuccess is the account quota buffer. Reuse the previous read on
+  // first paint so a hard refresh cannot flash a stale local snapshot.
+  const credentialListWindows = useMemo(
+    () =>
+      credentialListWindowState.scope === connectionFingerprint
+        ? credentialListWindowState.windows
+        : loadCredentialQuotaWindowCache(connectionFingerprint),
+    [connectionFingerprint, credentialListWindowState]
+  );
+  const commitCredentialListWindows = useCallback(
+    (
+      updater: (
+        current: Map<string, AccountQuotaDisplayWindow[]>
+      ) => Map<string, AccountQuotaDisplayWindow[]>
+    ) => {
+      setCredentialListWindowState((current) => {
+        const base =
+          current.scope === connectionFingerprint
+            ? current.windows
+            : loadCredentialQuotaWindowCache(connectionFingerprint);
+        const windows = updater(base);
+        saveCredentialQuotaWindowCache(connectionFingerprint, windows);
+        return { scope: connectionFingerprint, windows };
+      });
+    },
+    [connectionFingerprint]
+  );
   const [credentialListRevision, setCredentialListRevision] = useState(0);
   const credentialQuotaRevision = useAccountCredentialMutationRevisionStore((state) =>
     Object.values(state.events)
@@ -1401,6 +1432,9 @@ export function AccountsPage() {
     );
 
   const backendCredentialQuota = Boolean(featureAvailability.managerServiceAvailable);
+  // While the panel probe is still running the embedded manager is the expected
+  // authority; do not let a persisted local quota snapshot paint as final.
+  const hostCredentialQuotaExpected = featureAvailability.checking || backendCredentialQuota;
 
   const [oauthViewMode, setOauthViewMode] = useState<'diagram' | 'list'>('list');
   const oauthState = useAuthFilesOauth({
@@ -2434,6 +2468,8 @@ export function AccountsPage() {
           : loadFiles(),
       loadHeaderSnapshots(),
     ]);
+    // Manual refresh re-reads the host buffer; it never starts an upstream query.
+    setCredentialListRevision((current) => current + 1);
     setAccountHistoryAutoRefreshRevision((current) => current + 1);
   }, [
     refreshResourceProtection,
@@ -4249,16 +4285,17 @@ export function AccountsPage() {
     return { codexQuotaBySelectionKey, codexHeaderSnapshotBySelectionKey };
   }, [files, getDisplayCodexHeaderSnapshot, getDisplayCodexQuota]);
 
-  // Host credential-quota is authoritative for OpenCode/Qwen. Hide persisted
-  // local exhaustion until that read settles so health cannot flash「月耗尽」.
+  // Host credential-quota is authoritative for OpenCode/Qwen. A persisted
+  // local snapshot must never supply their health or ordering: it can predate
+  // the host lastSuccess and flash「月耗尽」. Host windows still paint the bars.
   const accountRowQuotaStores = useMemo(() => {
-    if (!backendCredentialQuota || credentialListReady) return baseQuotaStores;
+    if (!hostCredentialQuotaExpected) return baseQuotaStores;
     return {
       ...baseQuotaStores,
       opencodeGoQuota: {},
       qwenQuota: {},
     };
-  }, [backendCredentialQuota, baseQuotaStores, credentialListReady]);
+  }, [baseQuotaStores, hostCredentialQuotaExpected]);
 
   const rows = useMemo(
     () =>
@@ -4589,9 +4626,7 @@ export function AccountsPage() {
     });
     const displayedQuota = new Map<string, number | null>();
     operationalRows.forEach((row) => {
-      const windows = row.authIndex
-        ? (credentialListWindows.get(String(row.authIndex)) ?? [])
-        : [];
+      const windows = row.authIndex ? (credentialListWindows.get(String(row.authIndex)) ?? []) : [];
       if (!windows.length) return;
       // Max remaining: one spent window must not wipe Credits/total ranking.
       const remaining = windows
@@ -4988,28 +5023,14 @@ export function AccountsPage() {
     [rows]
   );
   useEffect(() => {
-    setCredentialListWindows(new Map());
-    setCredentialListReady(!backendCredentialQuota);
-  }, [backendCredentialQuota, managerConnectionFingerprint]);
-  useEffect(() => {
-    if (
-      !backendCredentialQuota ||
-      !featureAvailability.managerServiceBase ||
-      !managementKey
-    ) {
-      setCredentialListReady(true);
+    if (!backendCredentialQuota || !featureAvailability.managerServiceBase || !managementKey) {
       return;
     }
     if (!credentialQuotaTargets) {
       return;
     }
-    if (!credentialQuotaTargets.trim()) {
-      setCredentialListWindows(new Map());
-      setCredentialListReady(true);
-      return;
-    }
-    // Keep painting local/previous host windows while the buffer re-read runs.
-    // Only connection fingerprint resets clear the map; never blank the bars.
+    // Keep painting the persisted host read while the buffer re-read runs.
+    // Only a connection change invalidates it; never blank the bars.
     const abort = new AbortController();
     const targets = credentialQuotaTargets.split('\n').map((item) => {
       const splitAt = item.indexOf(':');
@@ -5039,26 +5060,21 @@ export function AccountsPage() {
         );
         if (abort.signal.aborted) return;
         // Paint each host lastSuccess as soon as it arrives; do not wait for the
-        // whole batch before replacing「暂无额度数据」/stale local.
-        setCredentialListWindows((current) => {
+        // whole batch before replacing the persisted read.
+        commitCredentialListWindows((current) => {
+          if (windows.length === 0) return current;
           const next = new Map(current);
-          if (windows.length > 0) {
-            next.set(target.authIndex, windows);
-          } else if (!next.has(target.authIndex)) {
-            // Leave prior host/local paint alone when this read has no windows.
-          }
+          next.set(target.authIndex, windows);
           return next;
         });
       } catch {
         // A temporary cache read failure is not evidence that quota vanished.
       }
-    }).then(() => {
-      if (abort.signal.aborted) return;
-      setCredentialListReady(true);
     });
     return () => abort.abort();
   }, [
     backendCredentialQuota,
+    commitCredentialListWindows,
     credentialListRevision,
     credentialQuotaTargets,
     featureAvailability.managerServiceBase,
@@ -5073,7 +5089,7 @@ export function AccountsPage() {
         t,
       });
       const usesHostCredentialList =
-        backendCredentialQuota &&
+        hostCredentialQuotaExpected &&
         (row.provider === CODEX_CONFIG.type ||
           row.provider === OPENCODE_GO_CONFIG.type ||
           row.provider === QWEN_CONFIG.type) &&
@@ -5096,10 +5112,10 @@ export function AccountsPage() {
       return credential;
     },
     [
-      backendCredentialQuota,
       baseQuotaStores,
       credentialListWindows,
       getDisplayCodexQuota,
+      hostCredentialQuotaExpected,
       t,
       translateQuotaWindowLabel,
     ]
@@ -6820,9 +6836,7 @@ export function AccountsPage() {
           return await refreshViaCommonChannel();
         } catch (error) {
           const message =
-            error instanceof Error && error.message
-              ? error.message
-              : 'common_refresh_unavailable';
+            error instanceof Error && error.message ? error.message : 'common_refresh_unavailable';
           // Transient inventory/job races after plugin or Core restarts often
           // surface as common_refresh_unavailable; one short retry recovers them.
           if (resolveQuotaRefreshErrorCode(message) === 'common_refresh_unavailable') {
@@ -6833,9 +6847,7 @@ export function AccountsPage() {
               return {
                 status: 'error',
                 error:
-                  retryError instanceof Error && retryError.message
-                    ? retryError.message
-                    : message,
+                  retryError instanceof Error && retryError.message ? retryError.message : message,
               };
             }
           }
@@ -10236,8 +10248,13 @@ export function AccountsPage() {
 
                     {renderAccountHistory(row, ctx)}
 
-                    <div className={styles.accountCardCredits} data-account-credits={row.selectionKey}>
-                      {row.provider === CODEX_CONFIG.type ? formatCredentialCredits(row.quota) : '—'}
+                    <div
+                      className={styles.accountCardCredits}
+                      data-account-credits={row.selectionKey}
+                    >
+                      {row.provider === CODEX_CONFIG.type
+                        ? formatCredentialCredits(row.quota)
+                        : '—'}
                     </div>
 
                     {(() => {

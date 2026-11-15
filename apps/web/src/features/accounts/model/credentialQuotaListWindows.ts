@@ -16,6 +16,7 @@ type StoredWindow = {
   resetAt?: string;
   limitWindowSeconds?: number;
   model?: string;
+  sourceStatus?: string;
 };
 
 const kinds: Record<string, AccountQuotaWindowKind> = {
@@ -78,9 +79,19 @@ export function credentialQuotaListWindows(
       weekly: 'Weekly',
       monthly: 'Monthly',
     };
-    // Derive remaining from used% so a stale remainingFraction cannot disagree
-    // with the "已用 x/y" label (e.g. used 0 + remainingFraction 0 → empty red bar).
-    const remaining = Math.max(0, Math.min(100, 100 - window.usedPercent));
+    // Prefer used% for the label, but Codex WHAM can report usedPercent=0 with
+    // remainingFraction=0 while rate-limited — that slot is empty, not full.
+    const usedFromPercent = Math.max(0, Math.min(100, window.usedPercent));
+    let remaining = Math.max(0, Math.min(100, 100 - usedFromPercent));
+    let usedPercent = usedFromPercent;
+    if (
+      typeof window.remainingFraction === 'number' &&
+      Number.isFinite(window.remainingFraction) &&
+      window.remainingFraction <= 0
+    ) {
+      remaining = 0;
+      usedPercent = Math.max(usedFromPercent, 100);
+    }
     return [
       {
         key: `${source}:${window.model ? `${window.model}:` : ''}${window.name}`,
@@ -95,7 +106,7 @@ export function credentialQuotaListWindows(
         label: codex ? (durationLabels[kind] ?? window.name) : (labels[window.name] ?? window.name),
         kind,
         remainingPercent: remaining,
-        usedPercent: window.usedPercent,
+        usedPercent,
         resetLabel: window.resetAt ?? '',
         resetAccuracy: 'exact' as const,
         limitWindowSeconds: seconds,
@@ -219,7 +230,24 @@ export function mergeCredentialQuotaListWindows(
   };
   const sameSlot = (left: AccountQuotaDisplayWindow, right: AccountQuotaDisplayWindow): boolean => {
     if (left.source === 'codex' || right.source === 'codex') {
-      return codexScope(left) !== null && codexScope(left) === codexScope(right);
+      if (codexScope(left) === null || codexScope(left) !== codexScope(right)) return false;
+      const leftKnown = Boolean(left.kind && left.kind !== 'unknown');
+      const rightKnown = Boolean(right.kind && right.kind !== 'unknown');
+      // Distinct duration slots (5h vs weekly) must not collapse — scope-only matching
+      // lets one local 5h replace both remotes and paints two「5h」.
+      if (leftKnown && rightKnown) return left.kind === right.kind;
+      const leftSeconds = left.limitWindowSeconds;
+      const rightSeconds = right.limitWindowSeconds;
+      if (
+        typeof leftSeconds === 'number' &&
+        typeof rightSeconds === 'number' &&
+        leftSeconds > 0 &&
+        rightSeconds > 0
+      ) {
+        return leftSeconds === rightSeconds;
+      }
+      // Incomplete upstream primary (unknown kind / no duration) still shares main scope.
+      return true;
     }
     return left.kind !== undefined && left.kind === right.kind;
   };

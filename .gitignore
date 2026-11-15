@@ -50,6 +50,9 @@ TODO.md
 # Local temp scratch files
 .tmp-*
 
+# Local deployment build staging
+/ops/windows/artifacts/
+
 # Provider plugin imports (SPEC5-A): keep plugin build outputs and workspace junk
 # out of git. Paths that still arrive through `git subtree` must be removed in a
 # maintenance commit; see docs/providers-layout-contract.md.

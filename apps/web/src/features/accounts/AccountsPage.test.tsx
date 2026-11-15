@@ -65,6 +65,7 @@ import { CODEX_RATE_LIMIT_RESET_CREDITS_URL, type CodexQuotaData } from '@/utils
 import { buildKimiQuotaRows } from '@/utils/quota/builders';
 import { parseOpenCodeGoQuota } from '@/utils/quota/opencodeGoQuota';
 import { parseQwenQuota } from '@/utils/quota/qwenQuota';
+import { saveCredentialQuotaWindowCache } from './model/credentialQuotaWindowCache';
 import type { TFunction } from 'i18next';
 import type {
   CredentialInspectionSnapshot,
@@ -612,6 +613,7 @@ const { mocks } = vi.hoisted(() => {
         if (key === 'auth_files.codex_plan_filter_unknown') return 'Unknown plan';
         if (key === 'accounts.detail_used' && mocks.language === 'zh-CN') return '已用';
         if (!options) return key;
+        if (options.defaultValue === '') return '';
         const parts: string[] = [];
         if (typeof options.name === 'string') parts.push(options.name);
         if (typeof options.count === 'number') parts.push(String(options.count));
@@ -762,7 +764,9 @@ vi.mock('@/features/authFiles/hooks/useAuthFilesModels', () => ({
 
 vi.mock('@/features/authFiles/hooks/useAuthFileConfigurationEditor', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@/features/authFiles/hooks/useAuthFileConfigurationEditor')>();
+    await importOriginal<
+      typeof import('@/features/authFiles/hooks/useAuthFileConfigurationEditor')
+    >();
   const useConfigurationEditor = (
     options: Parameters<typeof actual.useAuthFileConfigurationEditor>[0]
   ) => {
@@ -1772,9 +1776,9 @@ describe('AccountsPage replacement flows', () => {
       );
       expect(document.activeElement === configTab.instance).toBe(true);
       await dom.pressKey(configTab, 'ArrowRight');
-      expect(renderer.root.findByProps({ id: 'accounts-detail-tab-models' }).props['aria-selected']).toBe(
-        true
-      );
+      expect(
+        renderer.root.findByProps({ id: 'accounts-detail-tab-models' }).props['aria-selected']
+      ).toBe(true);
     }
   );
 
@@ -4103,9 +4107,9 @@ describe('AccountsPage replacement flows', () => {
     );
 
     expect(refreshButton.props.disabled).toBe(true);
-    expect(refreshButton.findAll((node) => node.props.className === 'loading-spinner')).toHaveLength(
-      1
-    );
+    expect(
+      refreshButton.findAll((node) => node.props.className === 'loading-spinner')
+    ).toHaveLength(1);
   });
 
   it('confirms before leaving a dirty configuration tab', async () => {
@@ -22236,7 +22240,7 @@ describe('AccountsPage replacement flows', () => {
       expect(fullSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('increments getAccountWindowUsage after 60s fake timer without requesting provider quota or reset details', async () => {
+    it('increments getAccountWindowUsage on the configured cadence without requesting provider quota or reset details', async () => {
       vi.useFakeTimers();
       try {
         const file = makeCodexFile('codex-passive.json', 'auth-p-1', 'passive@example.com');
@@ -22284,9 +22288,9 @@ describe('AccountsPage replacement flows', () => {
           ([call]) => call?.url === CODEX_RATE_LIMIT_RESET_CREDITS_URL
         ).length;
 
-        // Advance 60s
+        // Advance to the configured 30m cadence; no passive 60s polling.
         await act(async () => {
-          vi.advanceTimersByTime(60_000);
+          vi.advanceTimersByTime(30 * 60_000);
           await Promise.resolve();
         });
         await flushPromises();
@@ -22495,6 +22499,215 @@ describe('AccountsPage replacement flows', () => {
     });
     await flushPromises();
     expect(readText(card)).not.toContain('accounts.health_monthly_exhausted');
+    expect(
+      card.findAll((node) => typeof node.props?.['data-account-quota-window'] === 'string').length
+    ).toBeGreaterThan(0);
+  });
+
+  it('paints the persisted host buffer before the manager probe settles', async () => {
+    const file: AuthFileItem = {
+      name: 'opencode-cached-host.json',
+      label: 'OpenCode Cached Host',
+      provider: 'opencode-go',
+      auth_index: 'cached-host-go',
+      supports_quota: true,
+      quota_provider: 'opencode-go',
+    };
+    mocks.files = [file];
+    mocks.panelFeatureAvailability = {
+      checking: true,
+      managerServiceAvailable: false,
+      managerServiceBase: '',
+      requestMonitoringAvailable: false,
+      serverCodexInspectionAvailable: false,
+    };
+    const data = parseOpenCodeGoQuota(
+      {
+        usage: {
+          rolling: { status: 'ok', percent: 0, resets_at: '2099-01-01T00:00:00Z' },
+          weekly: { status: 'ok', percent: 0, resetsAt: '2099-01-07T00:00:00Z' },
+          monthly: { status: 'exhausted', percent: 100, resets_at: '2099-02-01T00:00:00Z' },
+        },
+      },
+      mocks.t as TFunction
+    );
+    mocks.quotaState.opencodeGoQuota = {
+      [OPENCODE_GO_CONFIG.getStoreKey!(file)]: {
+        ...OPENCODE_GO_CONFIG.buildSuccessState(data, file),
+        fetchedAtMs: Date.now() - 24 * 60 * 60_000,
+      },
+    };
+    const storage = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, String(value));
+      },
+      removeItem: (key: string) => {
+        storage.delete(key);
+      },
+      clear: () => storage.clear(),
+      key: (index: number) => Array.from(storage.keys())[index] ?? null,
+      get length() {
+        return storage.size;
+      },
+    } satisfies Storage);
+    const scope = createCodexInspectionConnectionFingerprint(mocks.apiBase, mocks.managementKey)!;
+    const observedAtMs = Date.now();
+    saveCredentialQuotaWindowCache(
+      scope,
+      new Map([
+        [
+          'cached-host-go',
+          [
+            {
+              key: 'opencode-go:rolling',
+              label: 'rolling',
+              kind: 'five_hour',
+              remainingPercent: 96,
+              usedPercent: 4,
+              resetLabel: '2099-01-01T00:00:00Z',
+              resetAccuracy: 'exact',
+              limitWindowSeconds: null,
+              resetAtMs: Date.now() + 60 * 60_000,
+              fromMs: null,
+              toMs: null,
+              source: 'opencode-go',
+              windowMode: 'rolling',
+              observedAtMs,
+              quotaProgressObservedAtMs: observedAtMs,
+            },
+            {
+              key: 'opencode-go:weekly',
+              label: 'weekly',
+              kind: 'weekly',
+              remainingPercent: 89,
+              usedPercent: 11,
+              resetLabel: '2099-01-07T00:00:00Z',
+              resetAccuracy: 'exact',
+              limitWindowSeconds: null,
+              resetAtMs: Date.now() + 7 * 24 * 60 * 60_000,
+              fromMs: null,
+              toMs: null,
+              source: 'opencode-go',
+              windowMode: 'calendar',
+              observedAtMs,
+              quotaProgressObservedAtMs: observedAtMs,
+            },
+            {
+              key: 'opencode-go:monthly',
+              label: 'monthly',
+              kind: 'monthly',
+              remainingPercent: 95,
+              usedPercent: 5,
+              resetLabel: '2099-02-01T00:00:00Z',
+              resetAccuracy: 'exact',
+              limitWindowSeconds: null,
+              resetAtMs: Date.now() + 30 * 24 * 60 * 60_000,
+              fromMs: null,
+              toMs: null,
+              source: 'opencode-go',
+              windowMode: 'calendar',
+              observedAtMs,
+              quotaProgressObservedAtMs: observedAtMs,
+            },
+          ],
+        ],
+      ])
+    );
+
+    const renderer = await renderAccountsPage();
+    const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
+    const cardText = readText(card);
+    expect(cardText).not.toContain('accounts.health_monthly_exhausted');
+    expect(cardText).toContain('accounts.health_available');
+    expect(cardText).not.toContain('accounts.quota_source_none');
+    expect(
+      card.findAll((node) => typeof node.props?.['data-account-quota-window'] === 'string').length
+    ).toBeGreaterThan(0);
+  });
+
+  it('hides stale local exhaustion until the host buffer answers the probe', async () => {
+    const file: AuthFileItem = {
+      name: 'opencode-checking.json',
+      label: 'OpenCode Checking',
+      provider: 'opencode-go',
+      auth_index: 'checking-go',
+      supports_quota: true,
+      quota_provider: 'opencode-go',
+    };
+    mocks.files = [file];
+    mocks.panelFeatureAvailability = {
+      checking: true,
+      managerServiceAvailable: false,
+      managerServiceBase: '',
+      requestMonitoringAvailable: false,
+      serverCodexInspectionAvailable: false,
+    };
+    const data = parseOpenCodeGoQuota(
+      {
+        usage: {
+          rolling: { status: 'ok', percent: 0, resets_at: '2099-01-01T00:00:00Z' },
+          weekly: { status: 'ok', percent: 0, resetsAt: '2099-01-07T00:00:00Z' },
+          monthly: { status: 'exhausted', percent: 100, resets_at: '2099-02-01T00:00:00Z' },
+        },
+      },
+      mocks.t as TFunction
+    );
+    mocks.quotaState.opencodeGoQuota = {
+      [OPENCODE_GO_CONFIG.getStoreKey!(file)]: OPENCODE_GO_CONFIG.buildSuccessState(data, file),
+    };
+
+    const renderer = await renderAccountsPage();
+    const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
+    expect(readText(card)).not.toContain('accounts.health_monthly_exhausted');
+    expect(readText(card)).not.toContain('accounts.health_weekly_exhausted');
+
+    mocks.panelFeatureAvailability = {
+      checking: false,
+      managerServiceAvailable: true,
+      managerServiceBase: 'http://manager.local:18317',
+      requestMonitoringAvailable: false,
+      serverCodexInspectionAvailable: false,
+    };
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (!String(url).includes('/credential-quota?')) return Response.json({});
+      return Response.json({
+        lastSuccess: {
+          observedAtMs: Date.now(),
+          windowsJson: JSON.stringify({
+            windows: [
+              {
+                name: 'rolling',
+                usedPercent: 4,
+                remainingFraction: 0.96,
+                resetAt: '2099-01-01T00:00:00Z',
+              },
+              {
+                name: 'weekly',
+                usedPercent: 11,
+                remainingFraction: 0.89,
+                resetAt: '2099-01-07T00:00:00Z',
+              },
+              {
+                name: 'monthly',
+                usedPercent: 5,
+                remainingFraction: 0.95,
+                resetAt: '2099-02-01T00:00:00Z',
+              },
+            ],
+          }),
+        },
+      });
+    });
+    await act(async () => {
+      renderer.update(<AccountsPage />);
+      await Promise.resolve();
+    });
+    await flushPromises();
+
+    expect(readText(card)).not.toContain('accounts.health_monthly_exhausted');
+    expect(readText(card)).toContain('accounts.health_available');
     expect(
       card.findAll((node) => typeof node.props?.['data-account-quota-window'] === 'string').length
     ).toBeGreaterThan(0);
