@@ -1521,6 +1521,7 @@
     "view_mode_switcher": "Режим отображения",
     "priority_edit": "Редактировать приоритет",
     "quota_reset_credits_unit": "сбросов",
+    "quota_reset_credits_tooltip": "Доступно сбросов: {{count}}. Израсходовать один можно только после исчерпания окна.",
     "note_placeholder_empty": "Заметка",
     "note_edit": "Редактировать заметку",
     "note_update_failed": "Не удалось обновить заметку",

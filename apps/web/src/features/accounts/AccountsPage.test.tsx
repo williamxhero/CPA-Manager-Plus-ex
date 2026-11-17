@@ -754,7 +754,7 @@ vi.mock('@/features/authFiles/hooks/useAuthFilesModels', () => ({
     modelDefinitionsError: null,
     modelsFileName: '',
     modelsFileType: '',
-    modelsSelectionKey: getAuthFileSelectionKey(mocks.files[0]),
+    modelsSelectionKey: mocks.files[0] ? getAuthFileSelectionKey(mocks.files[0]) : '',
     modelsError: null,
     showModels: mocks.showModels,
     refreshModels: mocks.refreshModels,
@@ -19215,7 +19215,7 @@ describe('AccountsPage replacement flows', () => {
   });
 
   describe('codex reset credits presentation in quota track header', () => {
-    it('displays reset credits on the first quota window header when available', async () => {
+    it('renders one labeled reset-credit pill in the first quota window header', async () => {
       const targetFile = mocks.files[0];
       const targetSelectionKey = `codex.json\u0000auth-1`;
       const now = Date.now();
@@ -19256,12 +19256,23 @@ describe('AccountsPage replacement flows', () => {
 
       expect(resetCreditsNodes).toHaveLength(1);
       const node = resetCreditsNodes[0];
-      expect(readText(node.props.children)).toContain('2');
-      expect(node.props.title).toBeUndefined();
+      expect(readText(node)).toContain('2');
+      expect(readText(node)).toContain('accounts.quota_reset_credits_unit');
+      expect(node.props['data-account-reset-credits-label']).toBe(targetSelectionKey);
+      // The pill sits in the same header slot the compact count used: only the
+      // first quota window carries it, and it stays non-interactive because the
+      // whole quota cell opens the detail drawer.
+      const windowCards = renderer.root.findAll(
+        (windowNode) => typeof windowNode.props?.['data-account-quota-window'] === 'string'
+      );
+      expect(windowCards.length).toBeGreaterThan(1);
+      const holders = windowCards.filter((card) =>
+        readText(card).includes('accounts.quota_reset_credits_unit')
+      );
+      expect(holders).toHaveLength(1);
       expect(node.props.role).toBeUndefined();
       expect(node.props.tabIndex).toBeUndefined();
       expect(node.props.onClick).toBeUndefined();
-      expect(node.props.onKeyDown).toBeUndefined();
     });
 
     it('does not display reset credits when count is 0 or null', async () => {
@@ -22379,31 +22390,36 @@ describe('AccountsPage replacement flows', () => {
       if (!String(url).includes('/credential-quota?')) return Response.json({});
       await hostGate;
       return Response.json({
-        lastSuccess: {
-          observedAtMs: Date.now(),
-          windowsJson: JSON.stringify({
-            windows: [
-              {
-                name: 'rolling',
-                usedPercent: 20,
-                remainingFraction: 0.8,
-                resetAt: '2099-01-01T00:00:00Z',
-              },
-              {
-                name: 'weekly',
-                usedPercent: 40,
-                remainingFraction: 0.6,
-                resetAt: '2099-01-07T00:00:00Z',
-              },
-              {
-                name: 'monthly',
-                usedPercent: 10,
-                remainingFraction: 0.9,
-                resetAt: '2099-02-01T00:00:00Z',
-              },
-            ],
-          }),
-        },
+        statuses: [
+          {
+            auth_index: file.auth_index ?? file.authIndex,
+            lastSuccess: {
+              observedAtMs: Date.now(),
+              windowsJson: JSON.stringify({
+                windows: [
+                  {
+                    name: 'rolling',
+                    usedPercent: 20,
+                    remainingFraction: 0.8,
+                    resetAt: '2099-01-01T00:00:00Z',
+                  },
+                  {
+                    name: 'weekly',
+                    usedPercent: 40,
+                    remainingFraction: 0.6,
+                    resetAt: '2099-01-07T00:00:00Z',
+                  },
+                  {
+                    name: 'monthly',
+                    usedPercent: 10,
+                    remainingFraction: 0.9,
+                    resetAt: '2099-02-01T00:00:00Z',
+                  },
+                ],
+              }),
+            },
+          },
+        ],
       });
     });
 
@@ -22457,31 +22473,36 @@ describe('AccountsPage replacement flows', () => {
       if (!String(url).includes('/credential-quota?')) return Response.json({});
       await hostGate;
       return Response.json({
-        lastSuccess: {
-          observedAtMs: Date.now(),
-          windowsJson: JSON.stringify({
-            windows: [
-              {
-                name: 'rolling',
-                usedPercent: 0,
-                remainingFraction: 1,
-                resetAt: '2099-01-01T00:00:00Z',
-              },
-              {
-                name: 'weekly',
-                usedPercent: 0,
-                remainingFraction: 1,
-                resetAt: '2099-01-07T00:00:00Z',
-              },
-              {
-                name: 'monthly',
-                usedPercent: 0,
-                remainingFraction: 1,
-                resetAt: '2099-02-01T00:00:00Z',
-              },
-            ],
-          }),
-        },
+        statuses: [
+          {
+            auth_index: file.auth_index ?? file.authIndex,
+            lastSuccess: {
+              observedAtMs: Date.now(),
+              windowsJson: JSON.stringify({
+                windows: [
+                  {
+                    name: 'rolling',
+                    usedPercent: 0,
+                    remainingFraction: 1,
+                    resetAt: '2099-01-01T00:00:00Z',
+                  },
+                  {
+                    name: 'weekly',
+                    usedPercent: 0,
+                    remainingFraction: 1,
+                    resetAt: '2099-01-07T00:00:00Z',
+                  },
+                  {
+                    name: 'monthly',
+                    usedPercent: 0,
+                    remainingFraction: 1,
+                    resetAt: '2099-02-01T00:00:00Z',
+                  },
+                ],
+              }),
+            },
+          },
+        ],
       });
     });
 
@@ -22673,31 +22694,36 @@ describe('AccountsPage replacement flows', () => {
     vi.stubGlobal('fetch', async (url: string) => {
       if (!String(url).includes('/credential-quota?')) return Response.json({});
       return Response.json({
-        lastSuccess: {
-          observedAtMs: Date.now(),
-          windowsJson: JSON.stringify({
-            windows: [
-              {
-                name: 'rolling',
-                usedPercent: 4,
-                remainingFraction: 0.96,
-                resetAt: '2099-01-01T00:00:00Z',
-              },
-              {
-                name: 'weekly',
-                usedPercent: 11,
-                remainingFraction: 0.89,
-                resetAt: '2099-01-07T00:00:00Z',
-              },
-              {
-                name: 'monthly',
-                usedPercent: 5,
-                remainingFraction: 0.95,
-                resetAt: '2099-02-01T00:00:00Z',
-              },
-            ],
-          }),
-        },
+        statuses: [
+          {
+            auth_index: file.auth_index ?? file.authIndex,
+            lastSuccess: {
+              observedAtMs: Date.now(),
+              windowsJson: JSON.stringify({
+                windows: [
+                  {
+                    name: 'rolling',
+                    usedPercent: 4,
+                    remainingFraction: 0.96,
+                    resetAt: '2099-01-01T00:00:00Z',
+                  },
+                  {
+                    name: 'weekly',
+                    usedPercent: 11,
+                    remainingFraction: 0.89,
+                    resetAt: '2099-01-07T00:00:00Z',
+                  },
+                  {
+                    name: 'monthly',
+                    usedPercent: 5,
+                    remainingFraction: 0.95,
+                    resetAt: '2099-02-01T00:00:00Z',
+                  },
+                ],
+              }),
+            },
+          },
+        ],
       });
     });
     await act(async () => {
@@ -22711,6 +22737,329 @@ describe('AccountsPage replacement flows', () => {
     expect(
       card.findAll((node) => typeof node.props?.['data-account-quota-window'] === 'string').length
     ).toBeGreaterThan(0);
+  });
+
+  it('shows the host Codex reset-credit count in manager-service mode', async () => {
+    const file = makeCodexFile('host-reset-credits.json', 'host-reset-credits', 'host@example.com');
+    mocks.files = [file];
+    mocks.panelFeatureAvailability = {
+      checking: false,
+      managerServiceAvailable: true,
+      managerServiceBase: 'http://manager.local:18317',
+      requestMonitoringAvailable: false,
+      serverCodexInspectionAvailable: false,
+    };
+    const observedAtMs = Date.now();
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (!String(url).includes('/credential-quota?')) return Response.json({});
+      return Response.json({
+        statuses: [
+          {
+            auth_index: file.auth_index ?? file.authIndex,
+            lastSuccess: {
+              observedAtMs,
+              windowsJson: JSON.stringify({
+                windows: [
+                  {
+                    name: 'primary',
+                    usedPercent: 4,
+                    remainingFraction: 0.96,
+                    limitWindowSeconds: 604800,
+                    resetAt: new Date(observedAtMs + 3_600_000).toISOString(),
+                  },
+                ],
+                resetCredits: { availableCount: 1, applicableAvailableCount: 0 },
+              }),
+            },
+          },
+        ],
+      });
+    });
+
+    const renderer = await renderAccountsPage();
+    await flushPromises();
+    const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
+    const resetCreditBadges = card.findAll(
+      (node) => node.props?.['data-account-reset-credits'] !== undefined
+    );
+    expect(resetCreditBadges.length).toBeGreaterThan(0);
+    expect(readText(resetCreditBadges[0])).toContain('1');
+    expect(readText(resetCreditBadges[0])).toContain('accounts.quota_reset_credits_unit');
+    // Table density needs the labeled pill: the inline window count is too easy
+    // to miss when the credentials list is the only surface in use.
+    const labeled = card.findAll(
+      (node) => node.props?.['data-account-reset-credits-label'] !== undefined
+    );
+    expect(labeled.length).toBeGreaterThan(0);
+    expect(readText(labeled[0])).toContain('1');
+    expect(readText(labeled[0])).toContain('accounts.quota_reset_credits_unit');
+  });
+
+  it('keeps host reset-credit badges on remount before any cache read settles', async () => {
+    const files = [
+      makeCodexFile('first.json', 'first-auth', 'First'),
+      makeCodexFile('second.json', 'second-auth', 'Second'),
+    ];
+    mocks.files = files;
+    mocks.panelFeatureAvailability = {
+      checking: false,
+      managerServiceAvailable: true,
+      managerServiceBase: 'http://manager.local:18317',
+      requestMonitoringAvailable: false,
+      serverCodexInspectionAvailable: false,
+    };
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        values.set(key, value);
+      },
+      removeItem: (key: string) => {
+        values.delete(key);
+      },
+      clear: () => values.clear(),
+      key: (index: number) => Array.from(values.keys())[index] ?? null,
+      get length() {
+        return values.size;
+      },
+    } satisfies Storage);
+    const observedAtMs = Date.now();
+    const observation = {
+      observedAtMs,
+      windowsJson: JSON.stringify({
+        windows: [
+          {
+            name: 'primary',
+            usedPercent: 10,
+            remainingFraction: 0.9,
+            limitWindowSeconds: 604800,
+            resetAt: new Date(observedAtMs + 3_600_000).toISOString(),
+          },
+        ],
+        resetCredits: { availableCount: 1, applicableAvailableCount: 0 },
+      }),
+    };
+    let holdReads = false;
+    const calls: Array<[string, RequestInit | undefined]> = [];
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      calls.push([String(url), init]);
+      if (!String(url).includes('/credential-quota?')) return Response.json({});
+      if (holdReads) return new Promise<Response>(() => {});
+      // Old single reads are supplied too, so failure isolates lost first-paint
+      // evidence rather than merely the change to the batch response contract.
+      return Response.json({
+        lastSuccess: observation,
+        statuses: files.map((file) => ({
+          auth_index: file.authIndex,
+          lastSuccess: observation,
+        })),
+      });
+    });
+    const first = await renderAccountsPage();
+    await flushPromises();
+    expect(
+      first.root.findAll((node) => node.props?.['data-account-reset-credits'] !== undefined)
+    ).toHaveLength(2);
+    await act(async () => {
+      first.unmount();
+    });
+    holdReads = true;
+    calls.length = 0;
+    // The quota store is intentionally empty: only the durable host read can
+    // paint the two badges while all new network responses are still blocked.
+    mocks.quotaState.codexQuota = {};
+    const reloaded = await renderAccountsPage();
+    for (const file of files) {
+      const card = findAccountCardByKey(reloaded, getAuthFileSelectionKey(file));
+      const badges = card.findAll(
+        (node) => node.props?.['data-account-reset-credits'] !== undefined
+      );
+      expect(badges).toHaveLength(1);
+      expect(readText(badges[0])).toContain('1');
+    }
+    expect(
+      calls.filter(([url]) => url.includes('/credential-quota?')).map(([url]) => url.split('?')[1])
+    ).toEqual(['statuses=1']);
+    expect(calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+    expect(mocks.apiRequest).not.toHaveBeenCalled();
+  });
+
+  it('keeps cached window cost and forecast on reload before monitoring reads settle', async () => {
+    const file = makeCodexFile('window-cache.json', 'window-cache-auth', 'Window');
+    mocks.files = [file];
+    mocks.panelFeatureAvailability = { checking: false, managerServiceBase: 'http://manager.local:18317', requestMonitoringAvailable: true, serverCodexInspectionAvailable: false };
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } });
+    const resetAtMs = Date.now() + 3600_000;
+    mocks.quotaState.codexQuota = buildCredentialScopedQuotaRecord(file, {
+      status: 'success', windows: [{ id: 'five-hour', label: 'Five hours', usedPercent: 40, resetLabel: new Date(resetAtMs).toISOString(), resetAtMs, resetAccuracy: 'exact', limitWindowSeconds: 18000, modelScope: CODEX_MAIN_SCOPE }],
+    });
+    mocks.getAccountWindowUsage.mockImplementation(async (_base, _key, request) => ({
+      generated_at_ms: Date.now(), items: request.windows.map((w) => ({ ...w, matched: true, total_requests: 10, success_calls: 10, failure_calls: 0, total_tokens: 50_000, total_cost: 0.5, success_rate: 1, last_seen_ms: Date.now() - 6 * 60_000, scope_match_status: 'complete', unmatched_requests: 0, sync_status: 'ready' })),
+    }));
+    const first = await renderAccountsPage();
+    await flushPromises();
+    expect(readText(findAccountCardByKey(first, getAuthFileSelectionKey(file)))).toContain('$0.50');
+    await act(async () => { first.unmount(); });
+    mocks.getAccountWindowUsage.mockImplementation(() => new Promise(() => {}));
+    const reloaded = await renderAccountsPage();
+    const card = findAccountCardByKey(reloaded, getAuthFileSelectionKey(file));
+    expect(readText(card)).toContain('$0.50');
+    expect(readText(card)).toContain('50.0K');
+  });
+
+  it('does not resurrect an invalidated reset allowance from older quota snapshots', async () => {
+    const file = makeCodexFile('consumed.json', 'consumed-auth', 'Consumed');
+    mocks.files = [file];
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        values.set(key, value);
+      },
+    });
+    const scope = createCodexInspectionConnectionFingerprint(mocks.apiBase, mocks.managementKey)!;
+    const { loadCredentialQuotaReadCache, saveCredentialQuotaReadCache } =
+      await import('./model/credentialQuotaWindowCache');
+    const cache = loadCredentialQuotaReadCache(scope);
+    cache.resetCreditInvalidations.set('consumed-auth', 200);
+    saveCredentialQuotaReadCache(scope, cache);
+    mocks.quotaState.codexQuota = buildCredentialScopedQuotaRecord(file, {
+      status: 'success',
+      windows: [
+        makeCodexQuotaWindow({ id: 'weekly', label: 'Weekly', usedPercent: 10, resetLabel: '3d' }),
+      ],
+      rateLimitResetCreditsAvailableCount: 1,
+      resetCreditsCountEvidenceAtMs: 100,
+    });
+    const renderer = await renderAccountsPage();
+    expect(
+      renderer.root.findAll((node) => node.props?.['data-account-reset-credits'] !== undefined)
+    ).toHaveLength(0);
+  });
+
+  it('keeps historical metrics on reload while monitoring cache reads are pending', async () => {
+    const file = mocks.files[0];
+    const selectionKey = getAuthFileSelectionKey(file);
+    mocks.panelFeatureAvailability = {
+      checking: false,
+      managerServiceBase: 'http://manager.local:18317',
+      requestMonitoringAvailable: true,
+      serverCodexInspectionAvailable: false,
+    };
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        values.set(key, value);
+      },
+      removeItem: (key: string) => {
+        values.delete(key);
+      },
+      clear: () => values.clear(),
+      key: (i: number) => Array.from(values.keys())[i] ?? null,
+      get length() {
+        return values.size;
+      },
+    } satisfies Storage);
+    mocks.getAccountHistory.mockResolvedValue(
+      makeAccountHistoryResponse([
+        {
+          row_key: selectionKey,
+          account_key: 'test-account',
+          matched: true,
+          total_requests: 12,
+          success_calls: 10,
+          failure_calls: 2,
+          total_tokens: 1200,
+          total_cost: 0.12,
+          success_rate: 10 / 12,
+          first_seen_ms: 1,
+          last_seen_ms: 2,
+          sync_status: 'ready',
+        },
+      ])
+    );
+    const first = await renderAccountsPage();
+    await flushPromises();
+    expect(readText(findAccountDetailRegion(first, selectionKey, 'history'))).toContain('$0.12');
+    await act(async () => {
+      first.unmount();
+    });
+    mocks.getAccountHistory.mockImplementation(() => new Promise(() => {}));
+    mocks.files = [];
+    mocks.authFilesLoading = true;
+    const reloaded = await renderAccountsPage();
+    mocks.files = [file];
+    mocks.authFilesLoading = false;
+    await act(async () => {
+      reloaded.update(<AccountsPage />);
+    });
+    expect(readText(findAccountDetailRegion(reloaded, selectionKey, 'history'))).toContain('$0.12');
+  });
+
+  it('offers the Codex reset action in manager-service mode and verifies live first', async () => {
+    const file = makeCodexFile('host-reset-action.json', 'host-reset-action', 'host@example.com');
+    mocks.files = [file];
+    mocks.panelFeatureAvailability = {
+      checking: false,
+      managerServiceAvailable: true,
+      managerServiceBase: 'http://manager.local:18317',
+      requestMonitoringAvailable: false,
+      serverCodexInspectionAvailable: false,
+    };
+    const observedAtMs = Date.now();
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (!String(url).includes('/credential-quota?')) return Response.json({});
+      return Response.json({
+        statuses: [
+          {
+            auth_index: file.auth_index ?? file.authIndex,
+            lastSuccess: {
+              observedAtMs,
+              windowsJson: JSON.stringify({
+                windows: [
+                  {
+                    name: 'primary',
+                    usedPercent: 4,
+                    remainingFraction: 0.96,
+                    limitWindowSeconds: 604800,
+                    resetAt: new Date(observedAtMs + 3_600_000).toISOString(),
+                  },
+                ],
+                resetCredits: { availableCount: 1, applicableAvailableCount: 0 },
+              }),
+            },
+          },
+        ],
+      });
+    });
+    mocks.apiRequest.mockResolvedValue({
+      statusCode: 200,
+      hasStatusCode: true,
+      header: {},
+      body: { available_count: 1, credits: [] },
+      bodyText: '{"available_count":1,"credits":[]}',
+    });
+
+    const renderer = await renderAccountsPage();
+    await flushPromises();
+    await openCodexQuotaTab(renderer, 'host-reset-action.json');
+
+    const resetAction = renderer.root.findByProps({ 'data-quota-reset-action': 'true' });
+    expect(resetAction.props.disabled).toBe(false);
+
+    await act(async () => {
+      resetAction.props.onClick();
+    });
+    await flushPromises();
+
+    const verificationCalls = mocks.apiRequest.mock.calls.filter(
+      ([call]) => call?.url === CODEX_RATE_LIMIT_RESET_CREDITS_URL
+    );
+    expect(verificationCalls.length).toBeGreaterThan(0);
+    expect(mocks.showConfirmation).toHaveBeenCalledTimes(1);
+    expect(mocks.consumeResetCredit).not.toHaveBeenCalled();
   });
 
   it.each([true, false])(
@@ -22743,20 +23092,25 @@ describe('AccountsPage replacement flows', () => {
         if (!url.includes('/credential-quota?')) return Response.json({});
         if (failed) throw new Error('transient cache read failure');
         return Response.json({
-          lastSuccess: {
-            observedAtMs: Date.now(),
-            windowsJson: JSON.stringify({
-              windows: [
-                {
-                  name: 'primary',
-                  usedPercent,
-                  remainingFraction: 1 - usedPercent / 100,
-                  limitWindowSeconds: 18000,
-                  resetAt: new Date(Date.now() + 3600_000).toISOString(),
-                },
-              ],
-            }),
-          },
+          statuses: [
+            {
+              auth_index: file.authIndex,
+              lastSuccess: {
+                observedAtMs: Date.now(),
+                windowsJson: JSON.stringify({
+                  windows: [
+                    {
+                      name: 'primary',
+                      usedPercent,
+                      remainingFraction: 1 - usedPercent / 100,
+                      limitWindowSeconds: 18000,
+                      resetAt: new Date(Date.now() + 3600_000).toISOString(),
+                    },
+                  ],
+                }),
+              },
+            },
+          ],
         });
       });
       vi.stubGlobal('fetch', read);

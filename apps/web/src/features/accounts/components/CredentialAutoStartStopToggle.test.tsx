@@ -528,6 +528,45 @@ it('keeps the power button gray when off and colors it from remaining quota when
   await act(async () => empty.unmount());
 });
 
+it('uses the parent cached quota without per-credential reads on mount or revision changes', async () => {
+  const request = vi.fn(async (url: string) => {
+    if (url.includes('view=intents')) return intent('a', true);
+    return Response.json({
+      lastSuccess: {
+        windowsJson: JSON.stringify({ windows: [{ remainingFraction: 1 }] }),
+      },
+    });
+  });
+  vi.stubGlobal('fetch', request);
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(
+      <CredentialAutoStartStopToggle
+        managerServiceBase="http://fixture"
+        managementKey="test"
+        authIndex="a"
+        revision={1}
+        hasQuota={true}
+      />
+    );
+  });
+  expect(power(renderer).props['data-auto-quota']).toBe('present');
+  await act(async () => {
+    renderer.update(
+      <CredentialAutoStartStopToggle
+        managerServiceBase="http://fixture"
+        managementKey="test"
+        authIndex="a"
+        revision={2}
+        hasQuota={false}
+      />
+    );
+  });
+  expect(power(renderer).props['data-auto-quota']).toBe('absent');
+  expect(request.mock.calls.filter(([url]) => url.includes('/credential-quota'))).toEqual([]);
+  await act(async () => renderer.unmount());
+});
+
 it('treats exhausted quota as empty and any remaining window as present', () => {
   expect(
     credentialHasRemainingQuota({

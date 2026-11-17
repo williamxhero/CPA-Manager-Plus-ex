@@ -1,9 +1,3 @@
-import {
-  credentialQuotaRequest,
-  type CredentialQuotaStatus,
-  type QuotaWindows,
-} from '@/services/api/credentialQuota';
-import { selectCredentialQuotaWindowsObservation } from '@/features/accounts/model/credentialQuotaListWindows';
 import { refreshCredentialSource } from '@/services/api/fullRefresh';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -17,42 +11,6 @@ import {
 } from '@/services/api/credentialPolicy';
 
 const intentLoads = new Map<string, Promise<Map<string, boolean>>>();
-
-function observedCreditsRemain(raw: string): boolean {
-  try {
-    const parsed = JSON.parse(raw) as {
-      credits?: {
-        unlimited?: boolean;
-        overageLimitReached?: boolean;
-        balance?: string;
-      };
-    };
-    const credits = parsed.credits;
-    if (!credits || credits.overageLimitReached) return false;
-    if (credits.unlimited) return true;
-    if (typeof credits.balance !== 'string' || !credits.balance.trim()) return false;
-    const amount = Number(credits.balance);
-    return Number.isFinite(amount) && amount > 0;
-  } catch {
-    return false;
-  }
-}
-
-function windowsHaveRemaining(raw?: string): boolean | undefined {
-  if (!raw) return undefined;
-  try {
-    const parsed = JSON.parse(raw) as QuotaWindows;
-    if (!Array.isArray(parsed.windows) || parsed.windows.length === 0) return undefined;
-    return (
-      observedCreditsRemain(raw) ||
-      parsed.windows.some(
-        (window) => typeof window.remainingFraction === 'number' && window.remainingFraction > 0
-      )
-    );
-  } catch {
-    return undefined;
-  }
-}
 
 function loadIntents(base: string, managementKey: string) {
   const key = `${base}\n${managementKey}`;
@@ -91,7 +49,6 @@ export function useCredentialAutoStartStop(
     data?: CredentialPolicyStatus;
     busy?: boolean;
     error?: string;
-    hasRemaining?: boolean;
   }>({ context });
   const data = view.context === context ? view.data : undefined;
   const busy = view.context === context && view.busy;
@@ -115,36 +72,18 @@ export function useCredentialAutoStartStop(
         .catch(() => {
           /* The icon stays at its last known value. A click loads the full status. */
         });
-      void credentialQuotaRequest<CredentialQuotaStatus>(
-        base,
-        managementKey,
-        'GET',
-        `?authIndex=${encodeURIComponent(authIndex)}`,
-        undefined,
-        abort.signal
-      )
-        .then((quota) => {
-          const observation = selectCredentialQuotaWindowsObservation(quota);
-          const remaining = windowsHaveRemaining(observation?.windowsJson);
-          if (abort.signal.aborted || current.current !== context || remaining === undefined) return;
-          setView((previous) =>
-            previous.context === context ? { ...previous, hasRemaining: remaining } : { context, hasRemaining: remaining }
-          );
-        })
-        .catch(() => {
-          /* Color falls back to the page quota summary. */
-        });
+      // Quota color comes from the parent's shared cached read. The icon must
+      // not start another source inventory per credential on mount/revision.
     }
     return () => {
       abort.abort();
     };
   }, [context, base, managementKey, authIndex]);
-  const hasRemaining = view.context === context ? view.hasRemaining : undefined;
   const persist = async (enabled: boolean, resume = false) => {
     if (pending.current || current.current !== context) return;
     pending.current = true;
     const paint = (next?: CredentialPolicyStatus, busy?: boolean, error?: string) => {
-      if (current.current === context) setView({ context, data: next, busy, error, hasRemaining });
+      if (current.current === context) setView({ context, data: next, busy, error });
     };
     paint({ ...(data ?? ({} as CredentialPolicyStatus)), enabled }, true);
     let status = data?.subjectId ? data : undefined;
@@ -280,7 +219,6 @@ export function useCredentialAutoStartStop(
   return {
     data,
     busy,
-    hasRemaining,
     refresh,
     error: view.context === context ? view.error : undefined,
     setEnabled: (v: boolean) => persist(v),

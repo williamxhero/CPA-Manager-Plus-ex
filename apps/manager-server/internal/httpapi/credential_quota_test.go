@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -140,6 +142,92 @@ func TestCredentialQuotaRejectsStaleIssuedIdentityBeforeUpstreamQuery(t *testing
 		if path == "/v8/management/credential-quota/query" {
 			t.Fatal("stale host-issued identity reached the upstream query endpoint")
 		}
+	}
+}
+
+func TestCredentialQuotaBatchStatusesReadOnly(t *testing.T) {
+	server, paths := sourceViewContractServer(t, sourceViewContractCase{})
+	var source cq.Source
+	if err := json.Unmarshal([]byte(sourceViewSource), &source); err != nil {
+		t.Fatal(err)
+	}
+	ids, _ := json.Marshal([]string{source.Scope.InstanceID, source.Scope.InstanceIncarnation, source.Targets[0].ResourceID, source.Targets[0].Incarnation})
+	sum := sha256.Sum256(ids)
+	id := hex.EncodeToString(sum[:])
+	observation := `{"queryId":"batch-test-job","queryStatus":"success","observedAtMs":100,"windowsJson":"{\"resetCredits\":{\"availableCount\":1,\"applicableAvailableCount\":0}}"}`
+	st := server.AppContext().CredentialQuotaService.Store
+	ctx := context.Background()
+	if err := st.BeginCredentialQuota(ctx, store.CredentialQuotaRecord{ID: id, Version: 1, Source: sourceViewSource, Attempt: observation}, 0, "batch-test-job", `{}`, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.CompleteCredentialQuota(ctx, id, 1, "batch-test-job", observation, `{}`, true); err != nil {
+		t.Fatal(err)
+	}
+	rr := testutil.Request(t, server.Handler(), "GET", "/usage-service/credential-quota?statuses=1", "", testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var response struct {
+		Statuses []cq.Status `json:"statuses"`
+	}
+	testutil.DecodeJSON(t, rr, &response)
+	if len(response.Statuses) != 1 || response.Statuses[0].AuthIndex != "0123456789abcdef" {
+		t.Fatalf("batch status missing: %s", rr.Body.String())
+	}
+	if response.Statuses[0].LastSuccess == nil || !strings.Contains(response.Statuses[0].LastSuccess.WindowsJSON, `"availableCount":1`) {
+		t.Fatalf("batch dropped persisted evidence: %s", rr.Body.String())
+	}
+	counts := map[string]int{}
+	for _, path := range paths() {
+		counts[path]++
+	}
+	if counts["/v8/management/credential-quota/sources"] != 2 || counts["/v8/management/resources"] != 2 {
+		t.Fatalf("batch must share one opening and one closing inventory: %v", counts)
+	}
+	for _, path := range paths() {
+		if path == "/v8/management/credential-quota/query" {
+			t.Fatal("batch read started an upstream query")
+		}
+	}
+}
+
+func TestCredentialQuotaBatchStatusesClosingFence(t *testing.T) {
+	for _, kind := range []string{"capability", "source", "connection"} {
+		t.Run(kind, func(t *testing.T) {
+			options := sourceViewContractCase{}
+			switch kind {
+			case "capability":
+				options.caps = func(n int) string {
+					if n >= 3 {
+						return strings.Replace(sourceViewCaps("true"), `"scoped_query":true`, `"scoped_query":false`, 1)
+					}
+					return sourceViewCaps("true")
+				}
+			case "source":
+				options.view = func(n int) string {
+					if n >= 2 {
+						return strings.ReplaceAll(sourceViewEnvelope, strings.Repeat("a", 64), strings.Repeat("b", 64))
+					}
+					return sourceViewEnvelope
+				}
+			case "connection":
+				views := 0
+				options.onView = func(db *store.Store) {
+					views++
+					if views == 2 {
+						if err := db.SaveManagerConfig(context.Background(), store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: "http://127.0.0.1:1", ManagementKey: "changed-contract-key"}}); err != nil {
+							t.Error(err)
+						}
+					}
+				}
+			}
+			server, paths := sourceViewContractServer(t, options)
+			rr := testutil.Request(t, server.Handler(), "GET", "/usage-service/credential-quota?statuses=1", "", testutil.AdminKey)
+			testutil.RequireStatus(t, rr, http.StatusConflict)
+			for _, path := range paths() {
+				if path == "/v8/management/credential-quota/query" {
+					t.Fatal("closing fence started a provider query")
+				}
+			}
+		})
 	}
 }
 

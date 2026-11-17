@@ -3,6 +3,8 @@ import type { AccountQuotaDisplayWindow } from './accountQuotaDisplayWindows';
 import {
   loadCredentialQuotaWindowCache,
   saveCredentialQuotaWindowCache,
+  loadCredentialQuotaReadCache,
+  saveCredentialQuotaReadCache,
 } from './credentialQuotaWindowCache';
 
 const STORAGE_KEY = 'cpa.accounts.credential-quota-windows.v1';
@@ -84,6 +86,77 @@ describe('credentialQuotaWindowCache', () => {
     const loaded = loadCredentialQuotaWindowCache('scope-a');
     expect(loaded.get('go-1')).toHaveLength(1);
     expect(loaded.get('go-1')?.[0].key).toBe('opencode-go:monthly');
+  });
+
+  it('round-trips count-only evidence including zero without inventing an expiry', () => {
+    installStorage();
+    const cache = loadCredentialQuotaReadCache('scope-a');
+    cache.resetCredits.set('codex', {
+      availableCount: 1,
+      applicableAvailableCount: 0,
+      observedAtMs: 100,
+    });
+    saveCredentialQuotaReadCache('scope-a', cache);
+    expect(loadCredentialQuotaReadCache('scope-a').resetCredits.get('codex')).toEqual({
+      availableCount: 1,
+      applicableAvailableCount: 0,
+      observedAtMs: 100,
+    });
+    expect(loadCredentialQuotaReadCache('scope-b').resetCredits.size).toBe(0);
+    cache.resetCredits.set('codex', {
+      availableCount: 0,
+      applicableAvailableCount: null,
+      observedAtMs: 200,
+    });
+    saveCredentialQuotaReadCache('scope-a', cache);
+    expect(loadCredentialQuotaReadCache('scope-a').resetCredits.get('codex')?.availableCount).toBe(
+      0
+    );
+  });
+
+  it('keeps reset invalidation across reload and rejects older pre-consumption evidence', () => {
+    installStorage();
+    const cache = loadCredentialQuotaReadCache('scope-a');
+    cache.resetCreditInvalidations.set('codex', 200);
+    cache.resetCredits.set('codex', {
+      availableCount: 1,
+      applicableAvailableCount: 0,
+      observedAtMs: 100,
+    });
+    saveCredentialQuotaReadCache('scope-a', cache);
+    const loaded = loadCredentialQuotaReadCache('scope-a');
+    expect(loaded.resetCreditInvalidations.get('codex')).toBe(200);
+    expect(loaded.resetCredits.has('codex')).toBe(false);
+  });
+
+  it('preserves new fields when an older window-only writer saves its projection', () => {
+    installStorage();
+    const cache = loadCredentialQuotaReadCache('scope-a');
+    cache.resetCredits.set('codex', {
+      availableCount: 1,
+      applicableAvailableCount: null,
+      observedAtMs: 100,
+    });
+    saveCredentialQuotaReadCache('scope-a', cache);
+    saveCredentialQuotaWindowCache('scope-a', new Map([['go-1', [windowFixture]]]));
+    expect(loadCredentialQuotaReadCache('scope-a').resetCredits.size).toBe(1);
+    expect(loadCredentialQuotaReadCache('scope-a').windows.size).toBe(1);
+  });
+
+  it('rejects malformed persisted reset evidence without breaking other windows', () => {
+    const values = installStorage();
+    saveCredentialQuotaWindowCache('scope-a', new Map([['go-1', [windowFixture]]]));
+    const state = JSON.parse(values.get(STORAGE_KEY)!);
+    state.scopes['scope-a'].resetCredits = [
+      null,
+      ['negative', { availableCount: -1 }],
+      ['fraction', { availableCount: 0.5 }],
+      ['huge', { availableCount: 1001 }],
+      ['str', { availableCount: '1' }],
+    ];
+    values.set(STORAGE_KEY, JSON.stringify(state));
+    expect(loadCredentialQuotaReadCache('scope-a').resetCredits.size).toBe(0);
+    expect(loadCredentialQuotaReadCache('scope-a').windows.size).toBe(1);
   });
 
   it('ignores malformed or unreadable entries', () => {

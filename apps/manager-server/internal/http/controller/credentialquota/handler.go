@@ -36,6 +36,10 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		if strings.HasPrefix(r.URL.Path, "/usage-service/credential-quota/jobs/") {
 			out, err = h.App.CredentialQuotaService.Job(ctx, strings.TrimPrefix(r.URL.Path, "/usage-service/credential-quota/jobs/"))
+		} else if r.URL.Query().Get("statuses") == "1" {
+			var statuses []svc.Status
+			statuses, err = h.App.CredentialQuotaService.Statuses(ctx)
+			out = map[string]any{"statuses": statuses}
 		} else if index := r.URL.Query().Get("authIndex"); index != "" {
 			out, err = h.App.CredentialQuotaService.Status(ctx, index)
 		} else {

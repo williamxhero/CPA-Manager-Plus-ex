@@ -1543,6 +1543,7 @@
     "view_mode_switcher": "视图模式",
     "priority_edit": "编辑优先级",
     "quota_reset_credits_unit": "次重置",
+    "quota_reset_credits_tooltip": "重置额度：可用 {{count}} 次，窗口耗尽后可消耗 1 次立即重置",
     "note_placeholder_empty": "备注",
     "note_edit": "编辑备注",
     "note_update_failed": "更新备注失败",

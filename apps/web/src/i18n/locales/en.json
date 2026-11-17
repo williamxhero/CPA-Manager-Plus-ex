@@ -1545,6 +1545,7 @@
     "view_mode_switcher": "View mode",
     "priority_edit": "Edit priority",
     "quota_reset_credits_unit": "resets",
+    "quota_reset_credits_tooltip": "Reset allowance: {{count}} available. A window must be exhausted before one credit can be consumed.",
     "note_placeholder_empty": "Note",
     "note_edit": "Edit note",
     "note_update_failed": "Failed to update note",

@@ -199,13 +199,17 @@ import {
 } from '@/features/accounts/model/accountQuotaDisplayWindows';
 import {
   credentialQuotaListWindows,
+  credentialQuotaResetCredits,
   mergeCredentialQuotaListWindows,
+  mergeHostCodexResetCredits,
   quotaDisplayWindowsLookDepleted,
   selectCredentialQuotaWindowsObservation,
 } from '@/features/accounts/model/credentialQuotaListWindows';
 import {
-  loadCredentialQuotaWindowCache,
-  saveCredentialQuotaWindowCache,
+  loadCredentialQuotaReadCache,
+  saveCredentialQuotaReadCache,
+  type CredentialQuotaReadCache,
+  type ScopedAccountHistory,
 } from '@/features/accounts/model/credentialQuotaWindowCache';
 import {
   formatQuotaRefreshErrorMessage,
@@ -1324,36 +1328,31 @@ export function AccountsPage() {
     () => createCodexInspectionConnectionFingerprint(apiBase, managementKey) ?? '',
     [apiBase, managementKey]
   );
-  const [credentialListWindowState, setCredentialListWindowState] = useState<{
-    scope: string;
-    windows: Map<string, AccountQuotaDisplayWindow[]>;
-  }>(() => ({
+  const [credentialListReadState, setCredentialListReadState] = useState(() => ({
     scope: connectionFingerprint,
-    windows: loadCredentialQuotaWindowCache(connectionFingerprint),
+    cache: loadCredentialQuotaReadCache(connectionFingerprint),
   }));
-  // Host lastSuccess is the account quota buffer. Reuse the previous read on
-  // first paint so a hard refresh cannot flash a stale local snapshot.
-  const credentialListWindows = useMemo(
+  // One complete, durable host projection for first paint. Counts cannot lag
+  // behind windows just because a new page has not finished its read-only GET.
+  const credentialListRead = useMemo(
     () =>
-      credentialListWindowState.scope === connectionFingerprint
-        ? credentialListWindowState.windows
-        : loadCredentialQuotaWindowCache(connectionFingerprint),
-    [connectionFingerprint, credentialListWindowState]
+      credentialListReadState.scope === connectionFingerprint
+        ? credentialListReadState.cache
+        : loadCredentialQuotaReadCache(connectionFingerprint),
+    [connectionFingerprint, credentialListReadState]
   );
-  const commitCredentialListWindows = useCallback(
-    (
-      updater: (
-        current: Map<string, AccountQuotaDisplayWindow[]>
-      ) => Map<string, AccountQuotaDisplayWindow[]>
-    ) => {
-      setCredentialListWindowState((current) => {
+  const credentialListWindows = credentialListRead.windows;
+  const credentialListResetCredits = credentialListRead.resetCredits;
+  const commitCredentialListRead = useCallback(
+    (updater: (current: CredentialQuotaReadCache) => CredentialQuotaReadCache) => {
+      setCredentialListReadState((current) => {
         const base =
           current.scope === connectionFingerprint
-            ? current.windows
-            : loadCredentialQuotaWindowCache(connectionFingerprint);
-        const windows = updater(base);
-        saveCredentialQuotaWindowCache(connectionFingerprint, windows);
-        return { scope: connectionFingerprint, windows };
+            ? current.cache
+            : loadCredentialQuotaReadCache(connectionFingerprint);
+        const cache = updater(base);
+        saveCredentialQuotaReadCache(connectionFingerprint, cache);
+        return { scope: connectionFingerprint, cache };
       });
     },
     [connectionFingerprint]
@@ -1611,13 +1610,15 @@ export function AccountsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(() => initialWorkspaceUrlState.current.pageSize);
   const [usageRows, setUsageRows] = useState<UsageValueRow[]>([]);
-  type ScopedAccountHistory = {
-    item: MonitoringAccountHistoryItem;
-    identitySignature: string;
-  };
-  const [accountHistoryByRowKey, setAccountHistoryByRowKey] = useState<
-    Map<string, ScopedAccountHistory>
-  >(() => new Map());
+  const accountHistoryByRowKey = credentialListRead.history;
+  const setAccountHistoryByRowKey = useCallback(
+    (
+      updater: (current: Map<string, ScopedAccountHistory>) => Map<string, ScopedAccountHistory>
+    ) => {
+      commitCredentialListRead((current) => ({ ...current, history: updater(current.history) }));
+    },
+    [commitCredentialListRead]
+  );
   const [accountHistoryLoading, setAccountHistoryLoading] = useState(false);
   const [accountHistoryErrorsByRowKey, setAccountHistoryErrorsByRowKey] = useState<
     Map<string, string>
@@ -1625,14 +1626,17 @@ export function AccountsPage() {
   const [accountWindowUsageByKey, setAccountWindowUsageByKey] = useState<
     Map<string, MonitoringAccountWindowUsageItem>
   >(() => new Map());
-  const [listWindowUsageByKey, setListWindowUsageByKey] = useState<
-    Map<string, MonitoringAccountWindowUsageItem>
-  >(() => new Map());
-  const [listWindowUsageQueryContext, setListWindowUsageQueryContext] = useState<{
-    pageKeys: string[];
-    identityByRowKey: Map<string, string>;
-    asOfMs: number;
-  } | null>(null);
+  const listWindowUsageByKey = useMemo(
+    () =>
+      credentialListRead.listWindowUsage?.items ??
+      new Map<string, MonitoringAccountWindowUsageItem>(),
+    [credentialListRead.listWindowUsage]
+  );
+  const listWindowUsageQueryContext = credentialListRead.listWindowUsage?.context ?? null;
+  const clearListWindowUsage = useCallback(
+    () => commitCredentialListRead((current) => ({ ...current, listWindowUsage: null })),
+    [commitCredentialListRead]
+  );
   const [accountWindowUsageQueryContext, setAccountWindowUsageQueryContext] = useState<{
     rowKey: string;
     identitySignature: string;
@@ -2395,13 +2399,13 @@ export function AccountsPage() {
     setQuotaCooldowns(new Map());
     setAccountActionCandidates([]);
     setHeaderSnapshotLoadedKey('');
-    setAccountHistoryByRowKey((current) => (current.size === 0 ? current : new Map()));
+    // A capability probe is not evidence that the saved data disappeared.
+    // On a real connection change the composite read is already scope-isolated.
     setAccountHistoryLoading(false);
     setAccountHistoryErrorsByRowKey((current) => (current.size === 0 ? current : new Map()));
     setHistoryRefreshing(false);
     setQuotaSnapshotWindowsByRowKey((current) => (current.size === 0 ? current : new Map()));
     setAccountWindowUsageByKey((current) => (current.size === 0 ? current : new Map()));
-    setListWindowUsageByKey((current) => (current.size === 0 ? current : new Map()));
     setAccountWindowUsageQueryContext(null);
     setAccountWindowUsageError('');
     setUsageRows([]);
@@ -4072,12 +4076,39 @@ export function AccountsPage() {
     ]
   );
   const getDisplayCodexResetEvidenceQuota = useCallback(
-    (row: AccountRow): CodexQuotaState | undefined =>
-      mergeCodexResetCreditsFromQuotaSnapshots(
-        getDisplayCodexQuota(row.raw),
-        quotaSnapshotWindowsByRowKey.get(row.selectionKey) ?? []
-      ),
-    [getDisplayCodexQuota, quotaSnapshotWindowsByRowKey]
+    (row: AccountRow): CodexQuotaState | undefined => {
+      const merged = mergeHostCodexResetCredits(
+        mergeCodexResetCreditsFromQuotaSnapshots(
+          getDisplayCodexQuota(row.raw),
+          quotaSnapshotWindowsByRowKey.get(row.selectionKey) ?? []
+        ),
+        row.provider === CODEX_CONFIG.type && row.authIndex
+          ? credentialListResetCredits.get(String(row.authIndex))
+          : undefined
+      );
+      const invalidatedAt = row.authIndex
+        ? credentialListRead.resetCreditInvalidations.get(String(row.authIndex))
+        : undefined;
+      if (
+        merged &&
+        invalidatedAt !== undefined &&
+        (merged.resetCreditsCountEvidenceAtMs ?? 0) <= invalidatedAt
+      ) {
+        return {
+          ...merged,
+          rateLimitResetCreditsAvailableCount: null,
+          rateLimitResetCredits: [],
+          resetCreditsDetailStale: true,
+        };
+      }
+      return merged;
+    },
+    [
+      credentialListRead.resetCreditInvalidations,
+      credentialListResetCredits,
+      getDisplayCodexQuota,
+      quotaSnapshotWindowsByRowKey,
+    ]
   );
   const getQuotaSnapshotObservation = useCallback(
     (row: AccountRow): AccountQuotaSnapshotObservationInput | undefined => {
@@ -5036,45 +5067,65 @@ export function AccountsPage() {
       const splitAt = item.indexOf(':');
       return { provider: item.slice(0, splitAt), authIndex: item.slice(splitAt + 1) };
     });
-    void mapWithConcurrency(targets, 6, async (target) => {
-      try {
-        const quota = await credentialQuotaRequest<CredentialQuotaStatus>(
-          featureAvailability.managerServiceBase,
-          managementKey,
-          'GET',
-          `?authIndex=${encodeURIComponent(target.authIndex)}`,
-          undefined,
-          abort.signal
-        );
-        const source =
-          target.provider === CODEX_CONFIG.type
-            ? 'codex'
-            : target.provider === QWEN_CONFIG.type
-              ? 'qwen'
-              : 'opencode-go';
-        const observation = selectCredentialQuotaWindowsObservation(quota);
-        const windows = credentialQuotaListWindows(
-          observation?.windowsJson,
-          source,
-          observation?.observedAtMs
-        );
-        if (abort.signal.aborted) return;
-        // Paint each host lastSuccess as soon as it arrives; do not wait for the
-        // whole batch before replacing the persisted read.
-        commitCredentialListWindows((current) => {
-          if (windows.length === 0) return current;
-          const next = new Map(current);
-          next.set(target.authIndex, windows);
+    void credentialQuotaRequest<{ statuses: CredentialQuotaStatus[] }>(
+      featureAvailability.managerServiceBase,
+      managementKey,
+      'GET',
+      '?statuses=1',
+      undefined,
+      abort.signal
+    )
+      .then(({ statuses }) => {
+        if (abort.signal.aborted || !Array.isArray(statuses)) return;
+        const byIndex = new Map(statuses.map((status) => [status.auth_index, status]));
+        // All rows and all evidence fields commit together; no per-row GET or
+        // half-populated rendering while N independent inventories finish.
+        commitCredentialListRead((current) => {
+          const next = {
+            ...current,
+            windows: new Map(current.windows),
+            resetCredits: new Map(current.resetCredits),
+          };
+          for (const target of targets) {
+            const quota = byIndex.get(target.authIndex);
+            if (!quota) continue;
+            const source =
+              target.provider === CODEX_CONFIG.type
+                ? 'codex'
+                : target.provider === QWEN_CONFIG.type
+                  ? 'qwen'
+                  : 'opencode-go';
+            const observation = selectCredentialQuotaWindowsObservation(quota);
+            const windows = credentialQuotaListWindows(
+              observation?.windowsJson,
+              source,
+              observation?.observedAtMs
+            );
+            if (windows.length > 0) next.windows.set(target.authIndex, windows);
+            const resetCredits =
+              source === 'codex'
+                ? credentialQuotaResetCredits(observation?.windowsJson, observation?.observedAtMs)
+                : null;
+            const boundary = current.resetCreditInvalidations.get(target.authIndex);
+            const previousAt = current.resetCredits.get(target.authIndex)?.observedAtMs ?? 0;
+            if (
+              resetCredits &&
+              (boundary === undefined || (resetCredits.observedAtMs ?? 0) > boundary) &&
+              (resetCredits.observedAtMs ?? 0) >= previousAt
+            ) {
+              next.resetCredits.set(target.authIndex, resetCredits);
+            }
+          }
           return next;
         });
-      } catch {
+      })
+      .catch(() => {
         // A temporary cache read failure is not evidence that quota vanished.
-      }
-    });
+      });
     return () => abort.abort();
   }, [
     backendCredentialQuota,
-    commitCredentialListWindows,
+    commitCredentialListRead,
     credentialListRevision,
     credentialQuotaTargets,
     featureAvailability.managerServiceBase,
@@ -5950,7 +6001,6 @@ export function AccountsPage() {
 
   const loadCodexResetCreditDetails = useCallback(
     (row: AccountRow): Promise<CodexResetCreditsData | null> => {
-      if (backendCredentialQuota) return Promise.resolve(null);
       const storeKey = CODEX_CONFIG.getStoreKey?.(row.raw) ?? row.fileName;
       const existing = codexResetCreditDetailRequestsRef.current.get(storeKey);
       if (existing?.isCurrent()) return existing.promise;
@@ -6083,7 +6133,7 @@ export function AccountsPage() {
       });
       return requestPromise;
     },
-    [backendCredentialQuota, authFilesRequestScope, connectionFingerprint, setCodexQuota, t]
+    [authFilesRequestScope, connectionFingerprint, setCodexQuota, t]
   );
 
   useEffect(() => {
@@ -6456,6 +6506,9 @@ export function AccountsPage() {
       const controllerRef = mergeResult ? accountHistoryTargetAbortRef : accountHistoryAutoAbortRef;
       const managerServiceBase = featureAvailability.managerServiceBase;
       const outcomes = new Map<string, AccountHistoryLoadOutcome>();
+      // Empty files during initial hydration are not a confirmed empty inventory.
+      // Do not evict a complete first-paint cache before loadFiles has returned.
+      if (initialLoading) return outcomes;
       if (!mergeResult) {
         const activeRowKeys = new Set(entries.map((entry) => entry.rowKey));
         accountHistoryRequestVersionsRef.current = retainAccountHistoryRowKeys(
@@ -6652,6 +6705,8 @@ export function AccountsPage() {
       accountHistoryAutoContextKey,
       accountHistoryIdentityByRowKey,
       accountHistoryTargets,
+      initialLoading,
+      setAccountHistoryByRowKey,
       featureAvailability.checking,
       featureAvailability.managerServiceBase,
       featureAvailability.requestMonitoringAvailable,
@@ -7005,7 +7060,6 @@ export function AccountsPage() {
       t,
       authFilesRequestScope,
       baseQuotaStores,
-      credentialProtection,
     ]
   );
 
@@ -7343,8 +7397,8 @@ export function AccountsPage() {
       !featureAvailability.requestMonitoringAvailable ||
       pageRows.length === 0
     ) {
-      setListWindowUsageByKey((current) => (current.size === 0 ? current : new Map()));
-      setListWindowUsageQueryContext(null);
+      // Keep durable presentation during capability checks; identity and cycle
+      // filters below still reject a different credential or window generation.
       return;
     }
 
@@ -7357,12 +7411,7 @@ export function AccountsPage() {
     );
 
     if (queryTargets.length === 0) {
-      setListWindowUsageByKey((current) => (current.size === 0 ? current : new Map()));
-      setListWindowUsageQueryContext({
-        pageKeys: currentPageKeys,
-        identityByRowKey: new Map(listWindowUsageIdentityByRowKey),
-        asOfMs: queryAsOfMs,
-      });
+      clearListWindowUsage();
       return;
     }
 
@@ -7381,12 +7430,17 @@ export function AccountsPage() {
         controller.signal
       );
       if (!isCurrentRequest()) return;
-      setListWindowUsageQueryContext({
-        pageKeys: currentPageKeys,
-        identityByRowKey: new Map(listWindowUsageIdentityByRowKey),
-        asOfMs: queryAsOfMs,
-      });
-      setListWindowUsageByKey(buildAccountWindowUsageByKey(queryTargets, response.items ?? []));
+      commitCredentialListRead((current) => ({
+        ...current,
+        listWindowUsage: {
+          items: buildAccountWindowUsageByKey(queryTargets, response.items ?? []),
+          context: {
+            pageKeys: currentPageKeys,
+            identityByRowKey: new Map(listWindowUsageIdentityByRowKey),
+            asOfMs: queryAsOfMs,
+          },
+        },
+      }));
     } catch {
       // Keep the last successful usage while this refresh fails. The existing
       // target-range filter still rejects changed credentials or quota cycles.
@@ -7407,6 +7461,8 @@ export function AccountsPage() {
     managementKey,
     managerStorageAvailable,
     pageRows,
+    clearListWindowUsage,
+    commitCredentialListRead,
   ]);
 
   useEffect(() => {
@@ -7423,8 +7479,11 @@ export function AccountsPage() {
 
   const canResetCodexQuota = useCallback(
     (row: AccountRow) => {
-      if (backendCredentialQuota || row.provider !== CODEX_CONFIG.type || row.runtimeOnly)
-        return false;
+      // Manager-service mode used to hide the action because the host owns the
+      // persisted observation. The mutation still runs through Core's api-call
+      // proxy with live verification, so the action stays available and the host
+      // observation is refreshed right after a successful consume.
+      if (row.provider !== CODEX_CONFIG.type || row.runtimeOnly) return false;
       if (normalizeAuthIndex(row.raw['auth_index'] ?? row.raw.authIndex) === null) return false;
       const evidence = getDisplayCodexResetEvidenceQuota(row);
       return (
@@ -7432,7 +7491,7 @@ export function AccountsPage() {
         (evidence?.rateLimitResetCredits?.length ?? 0) > 0
       );
     },
-    [backendCredentialQuota, getDisplayCodexResetEvidenceQuota]
+    [getDisplayCodexResetEvidenceQuota]
   );
 
   const resetCodexQuotaForRow = useCallback(
@@ -7570,6 +7629,19 @@ export function AccountsPage() {
             };
           });
         });
+        if (row.authIndex) {
+          const authIndex = String(row.authIndex);
+          const observedAtMs =
+            fresh.resetCreditsCountEvidenceAtMs ?? fresh.observedAtMs ?? Date.now();
+          commitCredentialListRead((current) => ({
+            ...current,
+            resetCredits: new Map(current.resetCredits).set(authIndex, {
+              availableCount: verifiedCount,
+              applicableAvailableCount: null,
+              observedAtMs,
+            }),
+          }));
+        }
         if (verifiedCount <= 0) {
           endResetTransaction();
           showNotification(t('codex_quota.reset_no_credits', { name: displayName }), 'info');
@@ -7637,6 +7709,17 @@ export function AccountsPage() {
             if (outcome !== 'reset' && outcome !== 'already_redeemed') {
               endResetTransaction();
               if (outcome === 'no_credit') {
+                if (row.authIndex) {
+                  const authIndex = String(row.authIndex);
+                  commitCredentialListRead((current) => ({
+                    ...current,
+                    resetCredits: new Map(current.resetCredits).set(authIndex, {
+                      availableCount: 0,
+                      applicableAvailableCount: null,
+                      observedAtMs: Date.now(),
+                    }),
+                  }));
+                }
                 commitIfQuotaCacheCurrent(cacheGeneration, () => {
                   setCodexQuota((prev) => {
                     const current = getScopedQuotaState(CODEX_CONFIG, prev, row.raw);
@@ -7730,6 +7813,24 @@ export function AccountsPage() {
                 };
               });
             });
+            // Persist the mutation boundary as well: a reload or a late host
+            // response must never resurrect the pre-consumption allowance.
+            if (row.authIndex) {
+              const authIndex = String(row.authIndex);
+              const invalidatedAt = Date.now();
+              commitCredentialListRead((current) => {
+                const resetCredits = new Map(current.resetCredits);
+                resetCredits.delete(authIndex);
+                return {
+                  ...current,
+                  resetCredits,
+                  resetCreditInvalidations: new Map(current.resetCreditInvalidations).set(
+                    authIndex,
+                    invalidatedAt
+                  ),
+                };
+              });
+            }
             // A consumed credit invalidates any pre-mutation dedicated reads.
             beginAccountQuotaRequest(
               quotaRequestVersionsRef.current,
@@ -7782,28 +7883,36 @@ export function AccountsPage() {
             let quotaRefreshSuccess = false;
             let quotaHealthy = false;
             try {
-              if (backendCredentialQuota) throw new Error('common_refresh_required');
-              const data = await CODEX_CONFIG.fetchQuota(row.raw, t, authFilesRequestScope);
-              const healthState = CODEX_CONFIG.buildSuccessState(data, row.raw);
-              quotaHealthy =
-                data.windows.some(
-                  (window) =>
-                    typeof window.usedPercent === 'number' && Number.isFinite(window.usedPercent)
-                ) && isKnownHealthyCodexQuota(healthState);
-              if (isPostMutationVerificationCurrent()) {
-                commitIfQuotaCacheCurrent(cacheGeneration, () => {
-                  setCodexQuota((prev) => {
-                    const currentState = getScopedQuotaState(CODEX_CONFIG, prev, row.raw);
-                    const nextState = CODEX_CONFIG.buildSuccessState(data, row.raw, currentState);
-                    return {
-                      ...prev,
-                      [storeKey]: nextState,
-                    };
+              if (backendCredentialQuota) {
+                // The host owns the persisted observation in manager-service mode,
+                // so the post-mutation verification is a host refresh: it stores
+                // the consumed count and feeds the badge from the same evidence.
+                const outcome = await refreshQuotaForRow(row, 'summary');
+                quotaRefreshSuccess =
+                  isPostMutationVerificationCurrent() && outcome.status === 'success';
+              } else {
+                const data = await CODEX_CONFIG.fetchQuota(row.raw, t, authFilesRequestScope);
+                const healthState = CODEX_CONFIG.buildSuccessState(data, row.raw);
+                quotaHealthy =
+                  data.windows.some(
+                    (window) =>
+                      typeof window.usedPercent === 'number' && Number.isFinite(window.usedPercent)
+                  ) && isKnownHealthyCodexQuota(healthState);
+                if (isPostMutationVerificationCurrent()) {
+                  commitIfQuotaCacheCurrent(cacheGeneration, () => {
+                    setCodexQuota((prev) => {
+                      const currentState = getScopedQuotaState(CODEX_CONFIG, prev, row.raw);
+                      const nextState = CODEX_CONFIG.buildSuccessState(data, row.raw, currentState);
+                      return {
+                        ...prev,
+                        [storeKey]: nextState,
+                      };
+                    });
                   });
-                });
+                }
+                quotaRefreshSuccess = isPostMutationVerificationCurrent();
+                if (!quotaRefreshSuccess) quotaHealthy = false;
               }
-              quotaRefreshSuccess = isPostMutationVerificationCurrent();
-              if (!quotaRefreshSuccess) quotaHealthy = false;
             } catch (refreshErr) {
               console.warn(
                 '[Accounts] Failed to refresh quota after consuming reset credit:',
@@ -7893,9 +8002,11 @@ export function AccountsPage() {
       featureAvailability.managerServiceBase,
       invalidateCodexCredentialStatusForSelectionKeys,
       loadCodexResetCreditDetails,
+      commitCredentialListRead,
       loadFiles,
       loadQuotaCooldowns,
       managementKey,
+      refreshQuotaForRow,
       setCodexQuota,
       showConfirmation,
       showNotification,
@@ -8973,7 +9084,12 @@ export function AccountsPage() {
         managerServiceBase={featureAvailability.managerServiceBase ?? ''}
         managementKey={managementKey}
         authIndex={row.authIndex || undefined}
-        hasQuota={credentialHasRemainingQuota(row.quota)}
+        hasQuota={
+          credentialHasRemainingQuota(row.quota) ||
+          buildQuotaDisplayWindows(row).some(
+            (window) => typeof window.remainingPercent === 'number' && window.remainingPercent > 0
+          )
+        }
         revision={`${credentialQuotaRevision}:${managerConnectionFingerprint}:${JSON.stringify(credentialProtection(row.authIndex).binding ?? null)}`}
       />
     );
@@ -9228,6 +9344,11 @@ export function AccountsPage() {
                 <span
                   className={styles.quotaWindowResetCredits}
                   data-account-reset-credits={row.selectionKey}
+                  data-account-reset-credits-label={row.selectionKey}
+                  title={t('accounts.quota_reset_credits_tooltip', {
+                    count: codexResetCreditsCount ?? 0,
+                    defaultValue: '重置额度：可用 {{count}} 次，窗口耗尽后可消耗 1 次立即重置',
+                  })}
                 >
                   <span className={styles.quotaWindowResetCreditsIcon} aria-hidden="true">
                     <IconRotateCcw size={11} strokeWidth={2.4} />
@@ -9235,6 +9356,9 @@ export function AccountsPage() {
                   <strong className={styles.quotaWindowResetCreditsCount}>
                     {codexResetCreditsCount}
                   </strong>
+                  <span className={styles.quotaWindowResetCreditsLabel}>
+                    {t('accounts.quota_reset_credits_unit', { defaultValue: '次重置' })}
+                  </span>
                 </span>
                 <span className={styles.quotaWindowSep} aria-hidden="true" />
               </>

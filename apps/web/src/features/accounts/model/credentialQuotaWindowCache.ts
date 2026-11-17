@@ -1,4 +1,26 @@
 import type { AccountQuotaDisplayWindow } from './accountQuotaDisplayWindows';
+import type { CredentialQuotaResetCreditsEvidence } from './credentialQuotaListWindows';
+import type {
+  MonitoringAccountHistoryItem,
+  MonitoringAccountWindowUsageItem,
+} from '@/services/api/usageService';
+
+export interface ScopedAccountHistory {
+  item: MonitoringAccountHistoryItem;
+  identitySignature: string;
+}
+export interface ListWindowUsageRead {
+  items: Map<string, MonitoringAccountWindowUsageItem>;
+  context: { pageKeys: string[]; identityByRowKey: Map<string, string>; asOfMs: number };
+}
+
+export interface CredentialQuotaReadCache {
+  windows: Map<string, AccountQuotaDisplayWindow[]>;
+  resetCredits: Map<string, CredentialQuotaResetCreditsEvidence>;
+  resetCreditInvalidations: Map<string, number>;
+  history: Map<string, ScopedAccountHistory>;
+  listWindowUsage: ListWindowUsageRead | null;
+}
 
 const STORAGE_KEY = 'cpa.accounts.credential-quota-windows.v1';
 const STORAGE_VERSION = 1;
@@ -8,6 +30,13 @@ const MAX_ENTRIES_PER_SCOPE = 512;
 interface StoredScope {
   updatedAtMs: number;
   entries: Array<[string, AccountQuotaDisplayWindow[]]>;
+  resetCredits?: Array<[string, CredentialQuotaResetCreditsEvidence]>;
+  resetCreditInvalidations?: Array<[string, number]>;
+  history?: Array<[string, ScopedAccountHistory]>;
+  listWindowUsage?: {
+    items: Array<[string, MonitoringAccountWindowUsageItem]>;
+    context: { pageKeys: string[]; identityByRowKey: Array<[string, string]>; asOfMs: number };
+  } | null;
 }
 
 interface StoredState {
@@ -134,28 +163,154 @@ export const loadCredentialQuotaWindowCache = (
   return result;
 };
 
-export const saveCredentialQuotaWindowCache = (
+// Count-only evidence belongs to the same connection-scoped first-paint read
+// as windows. Never persist credit ids, tokens or invented expiry dates.
+export const loadCredentialQuotaReadCache = (scopeKey: string): CredentialQuotaReadCache => {
+  const result: CredentialQuotaReadCache = {
+    windows: loadCredentialQuotaWindowCache(scopeKey),
+    resetCredits: new Map(),
+    resetCreditInvalidations: new Map(),
+    history: new Map(),
+    listWindowUsage: null,
+  };
+  const scope = readStoredState().scopes[scopeKey.trim()];
+  if (!scope) return result;
+  if (Array.isArray(scope.history)) {
+    for (const entry of scope.history.slice(0, MAX_ENTRIES_PER_SCOPE)) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+      const [rowKey, scoped] = entry;
+      if (
+        typeof rowKey !== 'string' ||
+        !scoped ||
+        typeof scoped.identitySignature !== 'string' ||
+        !scoped.item ||
+        scoped.item.row_key !== rowKey ||
+        typeof scoped.item.matched !== 'boolean' ||
+        !Number.isFinite(scoped.item.total_requests)
+      )
+        continue;
+      result.history.set(rowKey, scoped);
+    }
+  }
+  const usage = scope.listWindowUsage;
+  if (
+    usage &&
+    Array.isArray(usage.items) &&
+    Array.isArray(usage.context?.pageKeys) &&
+    Array.isArray(usage.context?.identityByRowKey) &&
+    Number.isFinite(usage.context.asOfMs)
+  ) {
+    result.listWindowUsage = {
+      items: new Map(
+        usage.items
+          .slice(0, MAX_ENTRIES_PER_SCOPE)
+          .filter(
+            (entry) =>
+              Array.isArray(entry) &&
+              entry.length === 2 &&
+              typeof entry[0] === 'string' &&
+              entry[1] &&
+              Number.isFinite(entry[1].from_ms) &&
+              Number.isFinite(entry[1].to_ms)
+          )
+      ),
+      context: {
+        pageKeys: usage.context.pageKeys.filter((key) => typeof key === 'string'),
+        identityByRowKey: new Map(
+          usage.context.identityByRowKey.filter(
+            (entry) =>
+              Array.isArray(entry) &&
+              entry.length === 2 &&
+              entry.every((value) => typeof value === 'string')
+          )
+        ),
+        asOfMs: usage.context.asOfMs,
+      },
+    };
+  }
+  if (Array.isArray(scope.resetCreditInvalidations)) {
+    for (const entry of scope.resetCreditInvalidations.slice(0, MAX_ENTRIES_PER_SCOPE)) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+      const index = readString(entry[0]);
+      const at = readNumberOrNull(entry[1]);
+      if (index && at !== null && at > 0) result.resetCreditInvalidations.set(index, at);
+    }
+  }
+  if (Array.isArray(scope.resetCredits)) {
+    for (const entry of scope.resetCredits.slice(0, MAX_ENTRIES_PER_SCOPE)) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+      const index = readString(entry[0]);
+      const credit = entry[1];
+      if (!index || !credit || typeof credit !== 'object') continue;
+      const count = readNumberOrNull(credit.availableCount);
+      if (count === null || !Number.isSafeInteger(count) || count < 0 || count > 1000) continue;
+      const at = readNumberOrNull(credit.observedAtMs);
+      const invalidatedAt = result.resetCreditInvalidations.get(index);
+      if (invalidatedAt !== undefined && (at === null || at <= invalidatedAt)) continue;
+      const applicable = readNumberOrNull(credit.applicableAvailableCount);
+      result.resetCredits.set(index, {
+        availableCount: count,
+        applicableAvailableCount:
+          applicable !== null &&
+          Number.isSafeInteger(applicable) &&
+          applicable >= 0 &&
+          applicable <= count
+            ? applicable
+            : null,
+        observedAtMs: at !== null && at > 0 ? at : null,
+      });
+    }
+  }
+  return result;
+};
+
+export const saveCredentialQuotaReadCache = (
   scopeKey: string,
-  windowsByAuthIndex: ReadonlyMap<string, AccountQuotaDisplayWindow[]>
+  cache: CredentialQuotaReadCache
 ): void => {
   const normalizedScopeKey = scopeKey.trim();
   const storage = getStorage();
   if (!normalizedScopeKey || !storage) return;
   const state = readStoredState();
-  if (windowsByAuthIndex.size === 0) {
+  if (
+    cache.windows.size === 0 &&
+    cache.resetCredits.size === 0 &&
+    cache.resetCreditInvalidations.size === 0 &&
+    cache.history.size === 0 &&
+    !cache.listWindowUsage
+  ) {
     if (!state.scopes[normalizedScopeKey]) return;
     delete state.scopes[normalizedScopeKey];
   } else {
     const entries: Array<[string, AccountQuotaDisplayWindow[]]> = Array.from(
-      windowsByAuthIndex.entries()
+      cache.windows.entries()
     )
       .filter(([authIndex, windows]) => authIndex.trim().length > 0 && windows.length > 0)
       .slice(0, MAX_ENTRIES_PER_SCOPE);
-    if (entries.length === 0) {
-      delete state.scopes[normalizedScopeKey];
-    } else {
-      state.scopes[normalizedScopeKey] = { updatedAtMs: Date.now(), entries };
-    }
+    state.scopes[normalizedScopeKey] = {
+      updatedAtMs: Date.now(),
+      entries,
+      resetCredits: Array.from(cache.resetCredits.entries()).slice(0, MAX_ENTRIES_PER_SCOPE),
+      resetCreditInvalidations: Array.from(cache.resetCreditInvalidations.entries()).slice(
+        0,
+        MAX_ENTRIES_PER_SCOPE
+      ),
+      history: Array.from(cache.history.entries()).slice(0, MAX_ENTRIES_PER_SCOPE),
+      listWindowUsage: cache.listWindowUsage
+        ? {
+            items: Array.from(cache.listWindowUsage.items.entries()).slice(
+              0,
+              MAX_ENTRIES_PER_SCOPE
+            ),
+            context: {
+              ...cache.listWindowUsage.context,
+              identityByRowKey: Array.from(
+                cache.listWindowUsage.context.identityByRowKey.entries()
+              ),
+            },
+          }
+        : null,
+    };
   }
   const retainedScopes = Object.entries(state.scopes)
     .filter(
@@ -173,3 +328,11 @@ export const saveCredentialQuotaWindowCache = (
     // The in-memory host read still paints this session; storage is a first-paint cache.
   }
 };
+
+// Compatibility writer for callers that only have window evidence. Do not erase
+// count evidence merely because an older caller updates its window projection.
+export const saveCredentialQuotaWindowCache = (
+  scopeKey: string,
+  windows: Map<string, AccountQuotaDisplayWindow[]>
+): void =>
+  saveCredentialQuotaReadCache(scopeKey, { ...loadCredentialQuotaReadCache(scopeKey), windows });

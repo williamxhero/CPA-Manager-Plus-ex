@@ -4,6 +4,7 @@ import {
   type AccountQuotaWindowKind,
   type AccountQuotaWindowSource,
 } from './accountQuotaDisplayWindows';
+import type { CodexQuotaState } from '@/types';
 import {
   inferCodexQuotaScopeFromProviderWindowId,
   isCodexMainQuotaModelScope,
@@ -150,10 +151,8 @@ export const isDepletedQuotaWindow = (window: AccountQuotaDisplayWindow): boolea
     Number.isFinite(window.usedPercent) &&
     window.usedPercent >= 100);
 
-/** True when any known window is already empty — stale local paint must not flash this. */
-export const quotaDisplayWindowsLookDepleted = (
-  windows: AccountQuotaDisplayWindow[]
-): boolean => windows.some(isDepletedQuotaWindow);
+/** True when any known window is already empty — stale local paint must not flash this. */ export const quotaDisplayWindowsLookDepleted =
+  (windows: AccountQuotaDisplayWindow[]): boolean => windows.some(isDepletedQuotaWindow);
 
 const windowsJsonLooksDepleted = (raw?: string): boolean => {
   if (!raw) return false;
@@ -289,4 +288,81 @@ export function mergeCredentialQuotaListWindows(
       );
     }),
   ];
+}
+
+/**
+ * Count-only reset-credit evidence carried by a host credential observation.
+ * The host usage read never includes credit ids or expiries, so none are
+ * invented here.
+ */
+export type CredentialQuotaResetCreditsEvidence = {
+  availableCount: number;
+  applicableAvailableCount: number | null;
+  observedAtMs: number | null;
+};
+
+const readResetCreditCount = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+
+export function credentialQuotaResetCredits(
+  raw: string | undefined,
+  observedAtMs?: number | null
+): CredentialQuotaResetCreditsEvidence | null {
+  if (!raw) return null;
+  let parsed: { resetCredits?: { availableCount?: unknown; applicableAvailableCount?: unknown } };
+  try {
+    parsed = JSON.parse(raw) as typeof parsed;
+  } catch {
+    return null;
+  }
+  const availableCount = readResetCreditCount(parsed.resetCredits?.availableCount);
+  if (availableCount === null) return null;
+  const applicable = readResetCreditCount(parsed.resetCredits?.applicableAvailableCount);
+  return {
+    availableCount,
+    applicableAvailableCount:
+      applicable !== null && applicable <= availableCount ? applicable : null,
+    observedAtMs:
+      typeof observedAtMs === 'number' && Number.isFinite(observedAtMs) && observedAtMs > 0
+        ? observedAtMs
+        : null,
+  };
+}
+
+/**
+ * Applies host reset-credit evidence to a credential's display quota. Fresher
+ * local count evidence wins; the merged state carries the count only, so the
+ * reset-records panel must keep showing whatever credit details it already has.
+ */
+export function mergeHostCodexResetCredits(
+  quota: CodexQuotaState | undefined,
+  evidence: CredentialQuotaResetCreditsEvidence | undefined
+): CodexQuotaState | undefined {
+  if (!evidence) return quota;
+  const evidenceAtMs = evidence.observedAtMs ?? 0;
+  const localCountAtMs = quota?.resetCreditsCountEvidenceAtMs ?? 0;
+  if (quota && localCountAtMs > evidenceAtMs) return quota;
+  // A consumption invalidates the allowance before the host re-read lands. Keep
+  // that unknown state instead of resurrecting an older host count.
+  const mutatedUnknown =
+    quota?.resetCreditsDetailStale === true &&
+    (quota.rateLimitResetCreditsAvailableCount ?? null) === null &&
+    (quota.resetCreditsEvidenceAtMs ?? 0) > evidenceAtMs;
+  if (mutatedUnknown) return quota;
+  if (
+    quota &&
+    quota.rateLimitResetCreditsAvailableCount === evidence.availableCount &&
+    localCountAtMs >= evidenceAtMs
+  ) {
+    return quota;
+  }
+  const base: CodexQuotaState = quota ?? { status: 'success', windows: [] };
+  const evidenceAt = evidenceAtMs > 0 ? evidenceAtMs : null;
+  return {
+    ...base,
+    rateLimitResetCreditsAvailableCount: evidence.availableCount,
+    resetCreditsCountSource: 'summary',
+    resetCreditsEvidenceAtMs: Math.max(base.resetCreditsEvidenceAtMs ?? 0, evidenceAtMs) || null,
+    resetCreditsCountEvidenceAtMs: evidenceAt,
+  };
 }

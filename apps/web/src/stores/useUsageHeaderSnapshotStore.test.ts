@@ -26,6 +26,7 @@ describe('useUsageHeaderSnapshotStore', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('builds an opaque, normalized connection scope', () => {
@@ -56,6 +57,31 @@ describe('useUsageHeaderSnapshotStore', () => {
       loadedAtMs: 0,
       contentRevision: '',
     });
+  });
+
+  it('restores the last header read before a reloaded page receives a network response', () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        values.set(key, value);
+      },
+    });
+    useUsageHeaderSnapshotStore.getState().activateScope('scope-a');
+    useUsageHeaderSnapshotStore.getState().commitResponse('scope-a', response('cached', 20));
+    useUsageHeaderSnapshotStore.setState({
+      scopeKey: '',
+      items: [],
+      generatedAtMs: 0,
+      loadedAtMs: 0,
+      contentRevision: '',
+    });
+    useUsageHeaderSnapshotStore.getState().activateScope('scope-a');
+    expect(useUsageHeaderSnapshotStore.getState().items).toEqual([
+      { event_hash: 'cached', timestamp_ms: 20 },
+    ]);
+    useUsageHeaderSnapshotStore.getState().activateScope('scope-b');
+    expect(useUsageHeaderSnapshotStore.getState().items).toEqual([]);
   });
 
   it('rejects a stale response from a previous scope', () => {

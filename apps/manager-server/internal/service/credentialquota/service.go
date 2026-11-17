@@ -67,21 +67,30 @@ type Credits struct {
 	Balance             string `json:"balance,omitempty"`
 	OverageLimitReached bool   `json:"overageLimitReached"`
 }
+
+// ResetCredits is Core's Codex one-time rate-limit reset allowance. It is
+// count-only evidence: expiry belongs to the dedicated reset-credit endpoint,
+// which this query does not call.
+type ResetCredits struct {
+	AvailableCount           int  `json:"availableCount"`
+	ApplicableAvailableCount *int `json:"applicableAvailableCount,omitempty"`
+}
 type CoreObservation struct {
 	Binding
-	SourceVersion       string   `json:"sourceVersion"`
-	ProtocolVersion     int      `json:"protocolVersion"`
-	TimestampProvenance string   `json:"timestampProvenance"`
-	ReceivedAtMS        int64    `json:"receivedAtMs"`
-	Protocol            string   `json:"protocol"`
-	QueryStatus         string   `json:"queryStatus"`
-	ErrorCode           string   `json:"errorCode,omitempty"`
-	ObservedAtMS        int64    `json:"observedAtMs"`
-	Windows             []Window `json:"windows,omitempty"`
-	Credits             *Credits `json:"credits,omitempty"`
-	Complete            bool     `json:"complete"`
-	AccountProvenance   string   `json:"accountProvenance"`
-	RecoveryEligible    bool     `json:"recoveryEligible"`
+	SourceVersion       string        `json:"sourceVersion"`
+	ProtocolVersion     int           `json:"protocolVersion"`
+	TimestampProvenance string        `json:"timestampProvenance"`
+	ReceivedAtMS        int64         `json:"receivedAtMs"`
+	Protocol            string        `json:"protocol"`
+	QueryStatus         string        `json:"queryStatus"`
+	ErrorCode           string        `json:"errorCode,omitempty"`
+	ObservedAtMS        int64         `json:"observedAtMs"`
+	Windows             []Window      `json:"windows,omitempty"`
+	Credits             *Credits      `json:"credits,omitempty"`
+	ResetCredits        *ResetCredits `json:"resetCredits,omitempty"`
+	Complete            bool          `json:"complete"`
+	AccountProvenance   string        `json:"accountProvenance"`
+	RecoveryEligible    bool          `json:"recoveryEligible"`
 }
 type Status struct {
 	Source
@@ -300,6 +309,30 @@ func (s *Service) Status(ctx context.Context, index string) (Status, error) {
 	return s.read(ctx, source)
 }
 
+// Statuses reads all persisted quota observations against a shared authenticated
+// inventory, then closes the identity/connection fence. These constant-cost
+// inventories never start a provider query or create a refresh task.
+func (s *Service) Statuses(ctx context.Context) ([]Status, error) {
+	n := s.Identity.Inventory(ctx, true)
+	out, err := s.InventoryStatuses(ctx, n)
+	if err != nil {
+		return nil, err
+	}
+	current := s.Identity.Inventory(ctx, true)
+	if current.Snapshot == nil || current.Snapshot.Scope != n.Snapshot.Scope || current.CredentialQuery != n.CredentialQuery || !s.Identity.SameInventoryConnection(n, current) {
+		return nil, ErrIdentity
+	}
+	before, err := sourcesFromInventory(n)
+	if err != nil {
+		return nil, err
+	}
+	after, err := sourcesFromInventory(current)
+	if err != nil || !reflect.DeepEqual(before, after) {
+		return nil, ErrIdentity
+	}
+	return out, nil
+}
+
 // InventoryStatuses validates the complete consumer contract once, then reads
 // only stored observations for this one read-only inventory. No supplied source
 // or status can authorize Start/worker I/O; those paths still negotiate live.
@@ -489,6 +522,16 @@ func valid(r CoreObservation, s Source) bool {
 	}
 	if !same(r.Binding, s.Binding) || r.SourceVersion != s.SourceVersion || r.Protocol != s.Protocol || r.AccountProvenance != s.AccountProvenance || len(r.Windows) > 128 {
 		return false
+	}
+	if r.ResetCredits != nil {
+		// The allowance is Codex-only and bounded; anything else is not evidence
+		// this host is allowed to publish under a Codex window observation.
+		if r.Protocol != "codex-oauth-wham" || r.ResetCredits.AvailableCount < 0 || r.ResetCredits.AvailableCount > 1000 {
+			return false
+		}
+		if applicable := r.ResetCredits.ApplicableAvailableCount; applicable != nil && (*applicable < 0 || *applicable > r.ResetCredits.AvailableCount) {
+			return false
+		}
 	}
 	switch r.QueryStatus {
 	case "success", "auth_error", "rate_limited", "network_error", "parse_error", "needs_configuration", "unsupported":

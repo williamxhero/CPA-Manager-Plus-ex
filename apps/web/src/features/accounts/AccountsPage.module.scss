@@ -839,7 +839,9 @@
     flex-shrink: 0;
     opacity: 0.65;
     color: var(--accounts-muted);
-    transition: opacity 0.14s ease, color 0.14s ease;
+    transition:
+      opacity 0.14s ease,
+      color 0.14s ease;
   }
 
   .accountGridCardNoteText {
@@ -854,7 +856,9 @@
     font-style: normal;
     opacity: 0.7;
     user-select: none;
-    transition: color 0.14s ease, opacity 0.14s ease;
+    transition:
+      color 0.14s ease,
+      opacity 0.14s ease;
   }
 }
 
@@ -896,7 +900,6 @@
   }
 }
 
-
 .accountGridCardRecentStatus {
   display: flex;
   flex-direction: column;
@@ -907,7 +910,9 @@
   border-top: 1px solid color-mix(in srgb, var(--accounts-border) 60%, transparent);
   box-sizing: border-box;
   cursor: pointer;
-  transition: color 0.15s ease, opacity 0.15s ease;
+  transition:
+    color 0.15s ease,
+    opacity 0.15s ease;
 
   &:hover {
     .accountGridCardRecentStatusTitleGroup {
@@ -1220,7 +1225,6 @@
   .accountCardHeader {
     display: none;
   }
-
 }
 
 .accountCardSelected {
@@ -1712,7 +1716,10 @@
   padding: 1px 5px;
   margin: -1px -5px;
   font-family: inherit;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 
   &:hover:not(:disabled) {
     background: color-mix(in srgb, var(--primary-color) 10%, transparent);
@@ -1750,7 +1757,9 @@
   border-radius: 4px;
   outline: none;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 20%, transparent);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 
   &:focus {
     border-color: var(--primary-color);
@@ -2130,13 +2139,16 @@
   align-items: center;
   gap: 2.5px;
   color: var(--primary-color);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   user-select: none;
   border-radius: 3px;
-  padding: 1px 3px;
+  padding: 1px 4px;
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .quotaWindowResetCreditsIcon {
@@ -2152,10 +2164,17 @@
 }
 
 .quotaWindowResetCreditsCount {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 750;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+
+.quotaWindowResetCreditsLabel {
+  font-size: 10px;
+  font-weight: 550;
+  line-height: 1;
+  opacity: 0.9;
 }
 
 .quotaWindowUsageLine {

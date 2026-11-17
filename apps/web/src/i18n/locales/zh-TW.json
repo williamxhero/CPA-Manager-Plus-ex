@@ -1515,6 +1515,7 @@
     "view_mode_switcher": "檢視模式",
     "priority_edit": "編輯優先順序",
     "quota_reset_credits_unit": "次重置",
+    "quota_reset_credits_tooltip": "重置額度：可用 {{count}} 次，視窗耗盡後可消耗 1 次立即重置",
     "note_placeholder_empty": "備註",
     "note_edit": "編輯備註",
     "note_update_failed": "更新備註失敗",

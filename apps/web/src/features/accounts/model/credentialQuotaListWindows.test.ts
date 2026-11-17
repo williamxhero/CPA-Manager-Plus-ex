@@ -1,10 +1,140 @@
 import { describe, expect, it } from 'vitest';
 import {
   credentialQuotaListWindows,
+  credentialQuotaResetCredits,
   mergeCredentialQuotaListWindows,
+  mergeHostCodexResetCredits,
   quotaDisplayWindowsLookDepleted,
   selectCredentialQuotaWindowsObservation,
 } from './credentialQuotaListWindows';
+import type { CodexQuotaState } from '@/types';
+
+describe('credentialQuotaResetCredits', () => {
+  it('reads a host count without inventing credit details', () => {
+    const evidence = credentialQuotaResetCredits(
+      JSON.stringify({
+        windows: [],
+        resetCredits: { availableCount: 1, applicableAvailableCount: 0 },
+      }),
+      5_000
+    );
+    expect(evidence).toEqual({
+      availableCount: 1,
+      applicableAvailableCount: 0,
+      observedAtMs: 5_000,
+    });
+  });
+
+  it('rejects malformed, fractional and negative counts', () => {
+    for (const resetCredits of [
+      { availableCount: '1' },
+      { availableCount: 1.5 },
+      { availableCount: -1 },
+      {},
+      undefined,
+    ]) {
+      expect(
+        credentialQuotaResetCredits(JSON.stringify({ windows: [], resetCredits }), 5_000)
+      ).toBeNull();
+    }
+    expect(credentialQuotaResetCredits(undefined, 5_000)).toBeNull();
+    expect(credentialQuotaResetCredits('not-json', 5_000)).toBeNull();
+  });
+
+  it('keeps the granted count when applicable evidence cannot be reconciled', () => {
+    const evidence = credentialQuotaResetCredits(
+      JSON.stringify({ resetCredits: { availableCount: 1, applicableAvailableCount: 2 } })
+    );
+    expect(evidence).toEqual({
+      availableCount: 1,
+      applicableAvailableCount: null,
+      observedAtMs: null,
+    });
+  });
+});
+
+describe('mergeHostCodexResetCredits', () => {
+  const quota = (overrides: Partial<CodexQuotaState> = {}): CodexQuotaState => ({
+    status: 'success',
+    windows: [],
+    ...overrides,
+  });
+
+  it('publishes the host count while preserving existing credit details', () => {
+    const detail = {
+      id: 'credit-a',
+      status: 'available' as const,
+      grantedAt: '2026-11-12T21:31:10Z',
+      expiresAt: '2026-12-12T21:31:10Z',
+    };
+    const merged = mergeHostCodexResetCredits(
+      quota({ rateLimitResetCredits: [detail], rateLimitResetCreditsAvailableCount: 1 }),
+      { availableCount: 2, applicableAvailableCount: 0, observedAtMs: 5_000 }
+    );
+    expect(merged?.rateLimitResetCreditsAvailableCount).toBe(2);
+    expect(merged?.rateLimitResetCredits).toEqual([detail]);
+    expect(merged?.resetCreditsCountEvidenceAtMs).toBe(5_000);
+    expect(merged?.resetCreditsCountSource).toBe('summary');
+  });
+
+  it('clears the count when the host reports the allowance as consumed', () => {
+    const merged = mergeHostCodexResetCredits(
+      quota({ rateLimitResetCreditsAvailableCount: 1, resetCreditsCountEvidenceAtMs: 1_000 }),
+      { availableCount: 0, applicableAvailableCount: null, observedAtMs: 5_000 }
+    );
+    expect(merged?.rateLimitResetCreditsAvailableCount).toBe(0);
+  });
+
+  it('never lets an older host read overwrite fresher local evidence', () => {
+    const local = quota({
+      rateLimitResetCreditsAvailableCount: 3,
+      resetCreditsCountEvidenceAtMs: 9_000,
+    });
+    const merged = mergeHostCodexResetCredits(local, {
+      availableCount: 0,
+      applicableAvailableCount: null,
+      observedAtMs: 5_000,
+    });
+    expect(merged).toBe(local);
+  });
+
+  it('does not fabricate windows when the credential has no local quota state', () => {
+    const merged = mergeHostCodexResetCredits(undefined, {
+      availableCount: 1,
+      applicableAvailableCount: null,
+      observedAtMs: 5_000,
+    });
+    expect(merged).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        windows: [],
+        rateLimitResetCreditsAvailableCount: 1,
+        resetCreditsCountEvidenceAtMs: 5_000,
+      })
+    );
+    expect(merged?.rateLimitResetCredits).toBeUndefined();
+  });
+
+  it('keeps the post-consumption unknown state instead of resurrecting an older host count', () => {
+    const mutated = quota({
+      rateLimitResetCreditsAvailableCount: null,
+      resetCreditsDetailStale: true,
+      resetCreditsCountEvidenceAtMs: null,
+      resetCreditsEvidenceAtMs: 9_000,
+    });
+    const merged = mergeHostCodexResetCredits(mutated, {
+      availableCount: 1,
+      applicableAvailableCount: 0,
+      observedAtMs: 5_000,
+    });
+    expect(merged).toBe(mutated);
+  });
+
+  it('leaves the quota untouched without host evidence', () => {
+    const local = quota({ rateLimitResetCreditsAvailableCount: 1 });
+    expect(mergeHostCodexResetCredits(local, undefined)).toBe(local);
+  });
+});
 
 describe('credentialQuotaListWindows', () => {
   it('uses the actual seven-day duration for a sole Codex primary window', () => {
