@@ -26,7 +26,7 @@ go build -o cpa-manager-plus.exe ./cmd/cpa-manager-plus
 
 ## Documentation and product modes
 
-CPA / CLIProxyAPI management panel. This fork retains the upstream documentation and adds the EX capabilities listed below.
+CPA / CLIProxyAPI management panel. The upstream documentation now lives at [cpamp-hq/docs](https://github.com/cpamp-hq/docs). This fork retains its local guides for EX-specific deployment and provider behavior; the legacy Pages workflow follows the upstream static redirects.
 
 - [Choosing A CPA Panel](apps/docs/en/guide/choosing-a-panel.md)
 - [Capability Matrix](apps/docs/en/reference/capability-matrix.md)
