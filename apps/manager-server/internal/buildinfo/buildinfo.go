@@ -1,5 +1,6 @@
 // Package buildinfo contains release identity injected by official builds.
 package buildinfo
 
-var Version = "dev"
+// Version is the composed {source}+{ex} identity; -ldflags -X still wins.
+var Version = generatedVersion
 var SourceCommit = "unknown"
