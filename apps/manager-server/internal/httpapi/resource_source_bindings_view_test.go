@@ -228,9 +228,10 @@ func TestQuotaSourceBindingsViewProjectionIsPrivateCopyAndNotCached(t *testing.T
 }
 
 type sourceViewContractCase struct {
-	caps   func(int) string
-	view   func(int) string
-	onView func(*store.Store)
+	caps     func(int) string
+	view     func(int) string
+	snapshot string
+	onView   func(*store.Store)
 }
 
 func sourceViewContractServer(t *testing.T, options sourceViewContractCase) (*Server, func() []string) {
@@ -261,7 +262,11 @@ func sourceViewContractServer(t *testing.T, options sourceViewContractCase) (*Se
 			}
 			w.Write([]byte(body))
 		case "/v8/management/resources":
-			w.Write([]byte(testSnapshotJSON))
+			body := testSnapshotJSON
+			if options.snapshot != "" {
+				body = options.snapshot
+			}
+			w.Write([]byte(body))
 		case "/v8/management/credential-quota/sources":
 			if options.onView != nil {
 				options.onView(db)

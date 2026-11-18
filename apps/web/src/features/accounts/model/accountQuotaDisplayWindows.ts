@@ -22,6 +22,7 @@ import {
   isCodexMainQuotaModelScope,
 } from '@/utils/quota/codexQuota';
 import type { AccountRow } from './accountRows';
+import { applyOpenCodeQuotaObservation } from './opencodeQuotaObservation';
 import {
   hasConfirmedXaiBillingEntitlement,
   isExplicitFreeXaiPlan,
@@ -514,10 +515,11 @@ const buildClaudeQuotaDisplayWindows = (
   row: AccountRow,
   options: BuildAccountQuotaDisplayWindowsOptions
 ): AccountQuotaDisplayWindow[] => {
-  const quota = getCredentialScopedQuotaState(
+  const cached = getCredentialScopedQuotaState(
     row.provider === 'opencode-go' ? options.stores.opencodeGoQuota ?? {} : options.stores.claudeQuota,
     row.raw
   );
+  const quota = row.provider === 'opencode-go' ? applyOpenCodeQuotaObservation(row.raw, cached) : cached;
   if (!quota) return [];
   const windows =
     quota.windows?.map((window) =>

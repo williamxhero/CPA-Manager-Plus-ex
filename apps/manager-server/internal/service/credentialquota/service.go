@@ -327,10 +327,28 @@ func (s *Service) Statuses(ctx context.Context) ([]Status, error) {
 		return nil, err
 	}
 	after, err := sourcesFromInventory(current)
-	if err != nil || !reflect.DeepEqual(before, after) {
+	if err != nil || !sameSourceSet(before, after) {
 		return nil, ErrIdentity
 	}
 	return out, nil
+}
+
+// Core may enumerate sources in map order. Compare the complete descriptors as
+// a multiset: ordering is not identity, but every field and duplicate still is.
+func sameSourceSet(before, after []Source) bool {
+	if len(before) != len(after) {
+		return false
+	}
+	canonical := func(sources []Source) []string {
+		values := make([]string, len(sources))
+		for i, source := range sources {
+			data, _ := json.Marshal(source)
+			values[i] = string(data)
+		}
+		sort.Strings(values)
+		return values
+	}
+	return reflect.DeepEqual(canonical(before), canonical(after))
 }
 
 // InventoryStatuses validates the complete consumer contract once, then reads

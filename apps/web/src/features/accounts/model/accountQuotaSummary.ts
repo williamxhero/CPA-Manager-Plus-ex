@@ -31,6 +31,7 @@ import {
 import { getCredentialScopedQuotaState } from '@/utils/quota/credentialScope';
 import { isCodexMainQuotaModelScope, isCodexMainQuotaWindow } from '@/utils/quota/codexQuota';
 import { resolveAuthFilePlanType, resolveAntigravityPlanType } from '@/utils/plans';
+import { applyOpenCodeQuotaObservation } from './opencodeQuotaObservation';
 
 export type AccountQuotaStatus =
   | 'unknown'
@@ -1133,9 +1134,10 @@ export const resolveAccountQuota = (
   }
 
   if (provider === 'claude' || provider === 'opencode-go') {
-    const quota = getCredentialScopedQuotaState(
+    const cached = getCredentialScopedQuotaState(
       provider === 'opencode-go' ? stores.opencodeGoQuota ?? {} : stores.claudeQuota, file
     );
+    const quota = provider === 'opencode-go' ? applyOpenCodeQuotaObservation(file, cached) : cached;
     if (!quota) return emptyQuota(filePlanType);
     if (quota.status === 'loading') return loadingQuota(quota.planType ?? filePlanType);
     if (quota.status === 'error')
