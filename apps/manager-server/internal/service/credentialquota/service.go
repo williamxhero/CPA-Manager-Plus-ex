@@ -233,12 +233,12 @@ func sourcesFromInventory(n *rc.Negotiated) ([]Source, error) {
 		if !found {
 			return nil, ErrIdentity
 		}
-		if source.State == "ready" && source.Protocol != "codex-oauth-wham" && source.Protocol != "opencode-go-usage" && source.Protocol != "qwen-coding-plan-cli" {
+		if source.State == "ready" && source.Protocol != "codex-oauth-wham" && source.Protocol != "opencode-go-usage" && source.Protocol != "qwen-coding-plan-cli" && source.Protocol != "antigravity-oauth-quota-summary" {
 			return nil, ErrIdentity
 		}
 		for _, row := range n.Snapshot.Resources {
 			if row.ResourceID == source.Targets[0].ResourceID && source.State == "ready" {
-				if source.Protocol == "codex-oauth-wham" && row.Family != "codex" || source.Protocol == "opencode-go-usage" && row.Family != "opencode-go" || source.Protocol == "qwen-coding-plan-cli" && row.Family != "qwen" {
+				if source.Protocol == "codex-oauth-wham" && row.Family != "codex" || source.Protocol == "opencode-go-usage" && row.Family != "opencode-go" || source.Protocol == "qwen-coding-plan-cli" && row.Family != "qwen" || source.Protocol == "antigravity-oauth-quota-summary" && row.Family != "antigravity" {
 					return nil, ErrIdentity
 				}
 			}
@@ -541,6 +541,11 @@ func valid(r CoreObservation, s Source) bool {
 	if r.QueryStatus != "success" {
 		return !r.RecoveryEligible
 	}
+	// The summary does not prove complete model coverage and must never become
+	// automatic pause/resume evidence. It remains useful for quota display.
+	if r.Protocol == "antigravity-oauth-quota-summary" && (r.Complete || r.RecoveryEligible) {
+		return false
+	}
 	if !validProvenance(r.Protocol, r.AccountProvenance, r.TimestampProvenance) || r.ReceivedAtMS < r.ObservedAtMS-60000 || r.ReceivedAtMS > time.Now().Add(time.Minute).UnixMilli() {
 		return false
 	}
@@ -601,6 +606,8 @@ func validProvenance(protocol, account, timestamp string) bool {
 	switch protocol {
 	case "codex-oauth-wham":
 		return account == "selected_oauth_account" && timestamp == "upstream_http_date"
+	case "antigravity-oauth-quota-summary":
+		return account == "selected_oauth_project" && timestamp == "upstream_http_date"
 	case "opencode-go-usage":
 		return account == "selected_key_subscription" && timestamp == "upstream_http_date"
 	case "qwen-coding-plan-cli":

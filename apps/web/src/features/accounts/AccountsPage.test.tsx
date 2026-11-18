@@ -22739,6 +22739,56 @@ describe('AccountsPage replacement flows', () => {
     ).toBeGreaterThan(0);
   });
 
+  it('shows persisted Antigravity host quota groups in manager-service mode', async () => {
+    const file = {
+      ...makeCodexFile('antigravity-host.json', 'ag-host', 'ag@example.com'),
+      type: 'antigravity',
+      provider: 'antigravity',
+    };
+    mocks.files = [file];
+    mocks.panelFeatureAvailability = {
+      checking: false,
+      managerServiceAvailable: true,
+      managerServiceBase: 'http://manager.local:18317',
+      requestMonitoringAvailable: false,
+      serverCodexInspectionAvailable: false,
+    };
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (!String(url).includes('/credential-quota?')) return Response.json({});
+      return Response.json({
+        statuses: [
+          {
+            auth_index: 'ag-host',
+            lastSuccess: {
+              observedAtMs: Date.now(),
+              windowsJson: JSON.stringify({
+                windows: [
+                  {
+                    name: 'weekly',
+                    model: 'Gemini Models',
+                    usedPercent: 25,
+                    remainingFraction: 0.75,
+                    resetAt: '2099-01-07T00:00:00Z',
+                    limitWindowSeconds: 604800,
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      });
+    });
+    const direct = vi.spyOn(ANTIGRAVITY_CONFIG, 'fetchQuota');
+    const renderer = await renderAccountsPage();
+    await flushPromises();
+    const card = findAccountCardByKey(renderer, getAuthFileSelectionKey(file));
+    expect(
+      card.findAll((node) => typeof node.props?.['data-account-quota-window'] === 'string').length
+    ).toBeGreaterThan(0);
+    expect(readText(card)).toContain('Gemini Weekly');
+    expect(direct).not.toHaveBeenCalled();
+  });
+
   it('shows the host Codex reset-credit count in manager-service mode', async () => {
     const file = makeCodexFile('host-reset-credits.json', 'host-reset-credits', 'host@example.com');
     mocks.files = [file];
@@ -23182,11 +23232,21 @@ describe('AccountsPage replacement flows', () => {
     }
   );
 
-  it.each([7, 0])(
-    'ticket93 row refresh uses the quota host subject at query version %s',
-    async (queryVersion) => {
+  it.each([
+    ['codex', 7],
+    ['codex', 0],
+    ['antigravity', 0],
+  ] as const)(
+    'ticket93 %s row refresh uses the quota host subject at query version %s',
+    async (provider, queryVersion) => {
       const authIndex = '0123456789abcdef';
-      mocks.files = [makeCodexFile('bound.json', authIndex, 'bound@example.com')];
+      mocks.files = [
+        {
+          ...makeCodexFile('bound.json', authIndex, 'bound@example.com'),
+          type: provider,
+          provider,
+        },
+      ];
       const scope = {
         instance_id: '11111111-1111-4111-8111-111111111111',
         instance_incarnation: '22222222-2222-4222-8222-222222222222',
@@ -23270,7 +23330,10 @@ describe('AccountsPage replacement flows', () => {
           );
         })
       );
-      const direct = vi.spyOn(CODEX_CONFIG, 'fetchQuota');
+      const direct = vi.spyOn(
+        provider === 'antigravity' ? ANTIGRAVITY_CONFIG : CODEX_CONFIG,
+        'fetchQuota'
+      );
       const renderer = await renderAccountsPage();
       await act(async () => {
         findAccountCardButtonByAriaLabel(

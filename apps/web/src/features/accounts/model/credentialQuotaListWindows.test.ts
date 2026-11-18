@@ -9,6 +9,37 @@ import {
 } from './credentialQuotaListWindows';
 import type { CodexQuotaState } from '@/types';
 
+describe('Antigravity host quota windows', () => {
+  it('preserves group and duration without claiming complete model coverage', () => {
+    const windows = credentialQuotaListWindows(
+      JSON.stringify({
+        windows: [
+          {
+            name: 'weekly',
+            model: 'Gemini Models',
+            usedPercent: 25,
+            remainingFraction: 0.75,
+            resetAt: '2026-12-01T00:00:00Z',
+            limitWindowSeconds: 604800,
+          },
+        ],
+      }),
+      'antigravity',
+      5_000
+    );
+    expect(windows).toHaveLength(1);
+    expect(windows[0]).toMatchObject({
+      source: 'antigravity',
+      kind: 'weekly',
+      label: 'Weekly',
+      groupLabel: 'Gemini Models',
+      remainingPercent: 75,
+      modelScope: { kind: 'family', key: 'Gemini Models', complete: false },
+      observedAtMs: 5_000,
+    });
+  });
+});
+
 describe('credentialQuotaResetCredits', () => {
   it('reads a host count without inventing credit details', () => {
     const evidence = credentialQuotaResetCredits(

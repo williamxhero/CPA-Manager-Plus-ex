@@ -42,7 +42,7 @@ const labels: Record<string, string> = {
 
 export function credentialQuotaListWindows(
   raw: string | undefined,
-  source: Extract<AccountQuotaWindowSource, 'codex' | 'opencode-go' | 'qwen'>,
+  source: Extract<AccountQuotaWindowSource, 'codex' | 'opencode-go' | 'qwen' | 'antigravity'>,
   observedAtMs?: number | null
 ): AccountQuotaDisplayWindow[] {
   if (!raw) return [];
@@ -104,7 +104,15 @@ export function credentialQuotaListWindows(
               ? 'five-hour'
               : kind
             : undefined,
-        label: codex ? (durationLabels[kind] ?? window.name) : (labels[window.name] ?? window.name),
+        label:
+          codex || source === 'antigravity'
+            ? (durationLabels[kind] ?? window.name)
+            : (labels[window.name] ?? window.name),
+        ...(source === 'antigravity'
+          ? {
+              groupLabel: window.model,
+            }
+          : {}),
         kind,
         remainingPercent: remaining,
         usedPercent,
@@ -127,11 +135,14 @@ export function credentialQuotaListWindows(
               ? 'rolling'
               : 'calendar'
           : (modes[window.name as keyof typeof modes] ?? 'fixed'),
-        modelScope: codex
-          ? window.model
-            ? { kind: 'models' as const, models: [window.model], complete: true }
-            : inferCodexQuotaScopeFromProviderWindowId(window.name)
-          : undefined,
+        modelScope:
+          source === 'antigravity'
+            ? { kind: 'family' as const, key: window.model, complete: false }
+            : codex
+              ? window.model
+                ? { kind: 'models' as const, models: [window.model], complete: true }
+                : inferCodexQuotaScopeFromProviderWindowId(window.name)
+              : undefined,
         observedAtMs:
           typeof observedAtMs === 'number' && Number.isFinite(observedAtMs) ? observedAtMs : null,
         quotaProgressObservedAtMs:

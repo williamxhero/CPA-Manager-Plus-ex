@@ -5045,6 +5045,7 @@ export function AccountsPage() {
           (row) =>
             (row.provider === CODEX_CONFIG.type ||
               row.provider === OPENCODE_GO_CONFIG.type ||
+              row.provider === ANTIGRAVITY_CONFIG.type ||
               row.provider === QWEN_CONFIG.type) &&
             row.authIndex
         )
@@ -5094,7 +5095,9 @@ export function AccountsPage() {
                 ? 'codex'
                 : target.provider === QWEN_CONFIG.type
                   ? 'qwen'
-                  : 'opencode-go';
+                  : target.provider === ANTIGRAVITY_CONFIG.type
+                    ? 'antigravity'
+                    : 'opencode-go';
             const observation = selectCredentialQuotaWindowsObservation(quota);
             const windows = credentialQuotaListWindows(
               observation?.windowsJson,
@@ -5143,11 +5146,13 @@ export function AccountsPage() {
         hostCredentialQuotaExpected &&
         (row.provider === CODEX_CONFIG.type ||
           row.provider === OPENCODE_GO_CONFIG.type ||
+          row.provider === ANTIGRAVITY_CONFIG.type ||
           row.provider === QWEN_CONFIG.type) &&
         Boolean(row.authIndex);
       if (usesHostCredentialList) {
         const credential = credentialListWindows.get(String(row.authIndex)) ?? [];
         if (credential.length > 0) {
+          if (row.provider === ANTIGRAVITY_CONFIG.type) return credential;
           return mergeCredentialQuotaListWindows(local, credential);
         }
         // Host buffer not in yet: paint healthy local remaining so bars are not
@@ -7247,7 +7252,10 @@ export function AccountsPage() {
         const name = accountDisplayMode === 'full' ? rawName : maskQuotaAccountText(rawName);
         if (result.status === 'error') {
           showNotification(
-            t('accounts.quota_refresh_failed', { name, message: result.error }),
+            t('accounts.quota_refresh_failed', {
+              name,
+              message: formatQuotaRefreshErrorMessage(result.error, t),
+            }),
             'error'
           );
         } else if (result.status === 'success') {
