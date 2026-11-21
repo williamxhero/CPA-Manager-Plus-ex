@@ -2843,7 +2843,7 @@ describe('maintenance workspace navigation and continuous operations', () => {
         updated_at_ms: 1_700_000_000_000,
         expires_at_ms: 1_700_000_000_000,
       };
-      mocks.getUsageImportSession.mockResolvedValueOnce(session);
+      mocks.getUsageImportSession.mockResolvedValue(session);
 
       let renderer!: ReactTestRenderer;
       await act(async () => {
