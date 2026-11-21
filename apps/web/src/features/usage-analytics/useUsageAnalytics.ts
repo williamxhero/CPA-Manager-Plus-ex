@@ -775,7 +775,7 @@ export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
     setSelectedBucketMs(null);
     setSelectedHeatmapDateKey(USAGE_HEATMAP_ALL_DATES_KEY);
     setSelectedHeatmapCell(null);
-  }, []);
+  }, [setSelectedBucketMs, setSelectedHeatmapCell, setSelectedHeatmapDateKey]);
 
   const setFilters = useCallback(
     (patch: Partial<UsageAnalyticsFiltersState>) => {
@@ -817,44 +817,32 @@ export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
     ]
   );
 
-  const resetFilters = useCallback(() => {
-    setFiltersState(USAGE_ANALYTICS_DEFAULT_FILTERS);
-    if (!workspace) writeUsageAnalyticsUiState({ filters: USAGE_ANALYTICS_DEFAULT_FILTERS });
-    setSelectedBucketMs(null);
-    setSelectedHeatmapDateKey(USAGE_HEATMAP_ALL_DATES_KEY);
-    setSelectedHeatmapCell(null);
-  }, [workspace]);
+  const resetFilters = useCallback(
+    () => setFilters(USAGE_ANALYTICS_DEFAULT_FILTERS),
+    [setFilters]
+  );
 
-  const clearFilter = useCallback((key: UsageSelectedFilterKey) => {
-    setFiltersState((current) => {
-      const next = {
-        ...current,
-        [key]: 'all',
-      };
-      if (!workspace) writeUsageAnalyticsUiState({ filters: next });
-      return next;
-    });
-    setSelectedBucketMs(null);
-    setSelectedHeatmapDateKey(USAGE_HEATMAP_ALL_DATES_KEY);
-    setSelectedHeatmapCell(null);
-  }, [workspace]);
+  const clearFilter = useCallback(
+    (key: UsageSelectedFilterKey) => setFilters({ [key]: 'all' }),
+    [setFilters]
+  );
 
   const selectBucket = useCallback((point: UsageTimelinePoint | null) => {
     setSelectedBucketMs(point?.bucketMs ?? null);
-  }, []);
+  }, [setSelectedBucketMs]);
 
   const selectHeatmapCell = useCallback((cell: UsageHeatmapCellSelection | null) => {
     setSelectedHeatmapCell(cell);
     setSelectedHeatmapDateKey(USAGE_HEATMAP_ALL_DATES_KEY);
-  }, []);
+  }, [setSelectedHeatmapCell, setSelectedHeatmapDateKey]);
 
   const selectHeatmapDate = useCallback((key: string) => {
     setSelectedHeatmapDateKey(key || USAGE_HEATMAP_ALL_DATES_KEY);
-  }, []);
+  }, [setSelectedHeatmapDateKey]);
 
   const selectApiKeyHash = useCallback((hash: string) => {
     setSelectedApiKeyHash(getSelectableApiKeyHash(hash));
-  }, []);
+  }, [setSelectedApiKeyHash]);
 
   const refresh = useCallback(() => {
     setNowMs(Date.now());
@@ -884,6 +872,7 @@ export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
     selectedApiKeyTimelineAnalytics,
     selectedCredentialTimelineAnalytics,
     selectedHeatmapDate,
+    setNowMs,
   ]);
 
   return {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
-import { createElement } from 'react';
+import { createElement, useEffect } from 'react';
 import {
   createWorkspaceConnectionState,
   useWorkspaceConnectionGeneration,
@@ -20,7 +20,10 @@ describe('workspace connection state', () => {
     const filters = createWorkspaceConnectionState<string>();
     let scope = -1;
     const Reader = () => {
-      scope = useWorkspaceConnectionGeneration();
+      const generation = useWorkspaceConnectionGeneration();
+      useEffect(() => {
+        scope = generation;
+      }, [generation]);
       return null;
     };
     let renderer!: ReturnType<typeof create>;
