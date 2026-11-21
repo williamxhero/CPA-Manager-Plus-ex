@@ -267,14 +267,11 @@ describe('UsageMaintenanceTransferView', () => {
     mocks.getUsageImportSession.mockReturnValueOnce(firstDetail.promise);
     await act(async () => findButton(renderer, 'Refresh sessions')!.props.onClick());
     expect(drawerText()).toContain('older.jsonl');
-    firstDetail.resolve(session);
-    await flush();
-    const detail = deferred<UsageImportSession>();
-    mocks.getUsageImportSession.mockReturnValueOnce(detail.promise);
     mocks.listUsageImportSessions.mockResolvedValueOnce(sessionList());
     await act(async () => findButton(renderer, 'Refresh sessions')!.props.onClick());
+    expect(mocks.getUsageImportSession).toHaveBeenCalledTimes(1);
     expect(drawerText()).toContain('older.jsonl');
-    detail.resolve({ ...session, filename: 'updated.jsonl' });
+    firstDetail.resolve({ ...session, filename: 'updated.jsonl' });
     await flush();
     expect(drawerText()).toContain('updated.jsonl');
     act(() => renderer.unmount());

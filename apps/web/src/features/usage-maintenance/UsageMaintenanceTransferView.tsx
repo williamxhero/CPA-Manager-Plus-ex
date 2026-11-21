@@ -213,6 +213,7 @@ export function UsageMaintenanceTransferView({
   const pendingImportRef = useRef(pendingImport);
   const panelRef = useRef(panel);
   const [detailSession, setDetailSession] = useState<UsageImportSession | null>(null);
+  const [detailRetry, setDetailRetry] = useState(0);
   const [detailFailure, setDetailFailure] = useState<{ id: string; message: string } | null>(null);
   const detailError = detailFailure?.id === selectedSessionId ? detailFailure.message : null;
   useLayoutEffect(() => {
@@ -301,14 +302,17 @@ export function UsageMaintenanceTransferView({
     };
   }, [loadSessions, refreshToken, visible]);
 
+  const listedSession = sessionList?.sessions.find((item) => item.id === selectedSessionId);
+  const hasListedSession = Boolean(listedSession);
   useEffect(() => {
-    if (!visible || !selectedSessionId || !serviceBase) return;
-    const listedSession = sessionList?.sessions.find((item) => item.id === selectedSessionId);
     if (listedSession) {
       setDetailSession(listedSession);
       setDetailFailure(null);
-      return;
     }
+  }, [listedSession]);
+
+  useEffect(() => {
+    if (!visible || !selectedSessionId || !serviceBase || hasListedSession) return;
     const controller = new AbortController();
     void usageServiceApi
       .getUsageImportSession(serviceBase, selectedSessionId, managementKey, controller.signal)
@@ -324,7 +328,7 @@ export function UsageMaintenanceTransferView({
           setDetailFailure({ id: selectedSessionId, message: formatImportError(cause, t) });
       });
     return () => controller.abort();
-  }, [selectedSessionId, sessionList, serviceBase, managementKey, t, visible]);
+  }, [detailRetry, hasListedSession, selectedSessionId, serviceBase, managementKey, t, visible]);
 
   const shouldPoll = Boolean(
     activeTask?.progress.phase === 'processing' ||
@@ -1001,7 +1005,7 @@ export function UsageMaintenanceTransferView({
               {detailError ? (
                 <div className={styles.error} role="alert">
                   {detailError}
-                  <Button variant="secondary" onClick={() => void loadSessions(true)}>
+                  <Button variant="secondary" onClick={() => setDetailRetry((value) => value + 1)}>
                     {t('common.retry')}
                   </Button>
                 </div>
@@ -1085,7 +1089,7 @@ export function UsageMaintenanceTransferView({
             <div className={styles.drawerBody}>
               <p>{detailError ?? t('common.loading')}</p>
               {detailError ? (
-                <Button variant="secondary" onClick={() => void loadSessions(true)}>
+                <Button variant="secondary" onClick={() => setDetailRetry((value) => value + 1)}>
                   <IconRefreshCw size={16} />
                   {t('common.retry')}
                 </Button>
