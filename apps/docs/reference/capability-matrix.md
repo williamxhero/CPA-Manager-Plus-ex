@@ -11,7 +11,7 @@ description: 对比 CPAMP 轻量面板和完整模式支持的管理、监控、
 
 | 能力                                      | CPAMP 轻量面板        | CPAMP 完整模式  |
 | ----------------------------------------- | --------------------- | --------------- |
-| CPA 配置、Provider、凭证管理、OAuth、日志 | ✅                    | ✅              |
+| CPA 配置、付费接入管理、额度接入管理、OAuth、日志 | ✅                    | ✅              |
 | 插件管理和插件页面                        | 取决于 CPA 与插件路径 | ✅              |
 | 浏览器本地账号检查                        | ✅                    | ✅              |
 | SQLite 请求历史                           | ❌                    | ✅              |
@@ -67,6 +67,6 @@ Docker 和原生包提供相同的完整模式能力，只是安装方式不同�
 ## 相关文档
 
 - [账号巡检](../manual/codex-inspection.md)
-- [凭证管理与账号状态](../manual/accounts.md)
+- [额度接入管理与账号状态](../manual/accounts.md)
 - [账号处理队列](../manual/account-actions.md)
 - [Manager Server 指南](../operations/manager-server.md)

@@ -73,7 +73,7 @@ http://<cpa-host>:8317/management.html
 ```
 
 3. 使用 CPA Management Key 登录。
-4. 确认 Dashboard、配置中心、Provider、凭证管理、OAuth 和日志能够正常读取。
+4. 确认 Dashboard、配置中心、付费接入管理、额度接入管理、OAuth 和日志能够正常读取。
 
 CPA 首次访问时会从指定 GitHub 仓库的最新 Release 查找名为 `management.html` 的资源，并缓存到 CPA 工作目录。
 
@@ -99,7 +99,7 @@ rm static/management.html
 
 | 能力                                       | CPAMP 轻量面板                  |
 | ------------------------------------------ | ------------------------------- |
-| CPA 配置、Provider、凭证管理、OAuth 和日志 | 支持                            |
+| CPA 配置、付费接入管理、额度接入管理、OAuth 和日志 | 支持                            |
 | API Key、模型别名、优先级和插件管理        | 支持，取决于 CPA API 与插件路径 |
 | 浏览器本地账号检查                         | 支持页面提供的本地能力          |
 | SQLite 请求历史与请求监控                  | 不支持                          |

@@ -375,7 +375,7 @@ Manager Server 在整个生命周期内都会持有 `<数据库绝对路径>.man
 | `PUT /usage-service/config`                                      | 保存 CPAMP 配置，必要时重启采集器。                           |
 | `GET /usage-service/account-processing-policy`                   | 读取账号处理队列和自动禁用策略。                              |
 | `PATCH /usage-service/account-processing-policy`                 | 更新账号处理策略；被环境变量锁定的字段不能通过接口修改。      |
-| `GET /usage-service/quota-cooldowns`                             | 读取当前活跃的配额冷却，用于凭证管理展示恢复提示。            |
+| `GET /usage-service/quota-cooldowns`                             | 读取当前活跃的配额冷却，用于额度接入管理展示恢复提示。            |
 | `POST /setup`                                                    | 首次 setup。                                                  |
 | `GET /v0/management/usage`                                       | 兼容 usage data。                                             |
 | `GET /v0/management/usage/export`                                | 流式导出当前 raw usage events 的完整稳定 snapshot JSONL；不受 `USAGE_QUERY_LIMIT` 限制。已删除 raw 的 archive segment 不会自动合并回此文件。 |

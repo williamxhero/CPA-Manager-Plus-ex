@@ -32,7 +32,7 @@ Before connecting Claude Code:
 - OAuth or auth file setup is complete.
 - The client uses the CPA public address and a normal API Key.
 
-OAuth success only means authentication completed. If requests still fail, check account state in Accounts first, then read the Monitoring failure summary.
+OAuth success only means authentication completed. If requests still fail, check account state in Quota Access Management first, then read the Monitoring failure summary.
 
 ## OpenCode And General OpenAI Clients
 

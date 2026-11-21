@@ -61,8 +61,8 @@ xAI 巡检优先使用不发送模型推理请求的只读证据：
 
 ## 与其他页面的关系
 
-- 配额窗口和冷却：[凭证管理](./accounts.md)
+- 配额窗口和冷却：[额度接入管理](./accounts.md)
 - OAuth 重新授权：[OAuth 登录](./oauth.md)
-- 凭证状态：[凭证管理](./accounts.md)
+- 凭证状态：[额度接入管理](./accounts.md)
 - 反复认证失败：[账号处理队列](./account-actions.md)
 - 单条失败证据：[请求监控](./monitoring.md)

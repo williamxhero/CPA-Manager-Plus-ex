@@ -1,13 +1,13 @@
 ---
-title: AI Provider Management
+title: Paid Access Management
 description: Manage Gemini, Codex, Claude, Vertex, xAI, Meta / Muse, and OpenAI-compatible CPA providers with priorities, weights, models, proxies, headers, and key testing.
 ---
 
-# AI Provider Management
+# Paid Access Management
 
-The AI Providers page controls how CPA routes client requests to upstream model services. These are CPA provider settings, not the CPAMP admin login or CPA Management Key.
+The Paid Access Management page controls how CPA routes client requests to upstream model services. These are CPA provider settings, not the CPAMP admin login or CPA Management Key.
 
-Open the [AI Providers Demo](https://seakee.github.io/CPA-Manager-Plus/#/demo/ai-providers) to inspect fictional configuration without contacting a real provider.
+Open the [Paid Access Management Demo](https://seakee.github.io/CPA-Manager-Plus/#/demo/ai-providers) to inspect fictional configuration without contacting a real provider.
 
 ## Most Common Workflow
 
@@ -48,7 +48,7 @@ The panel manages CPA `xai-api-key` entries, including:
 - Provider priority, weight, and enabled state.
 - Provider test actions for credential and model access.
 
-An xAI API key is different from an xAI/Grok OAuth credential. See [OAuth Login](./oauth.md), [Accounts](./accounts.md), and [Account Inspection](./codex-inspection.md) for OAuth, billing evidence, and account health.
+An xAI API key is different from an xAI/Grok OAuth credential. See [OAuth Login](./oauth.md), [Quota Access Management](./accounts.md), and [Account Inspection](./codex-inspection.md) for OAuth, billing evidence, and account health.
 
 ## Meta / Muse API Keys
 
@@ -59,7 +59,7 @@ The panel manages CPA `meta-api-key` entries for Meta model inference:
 - Existing provider controls cover API keys, proxy, custom headers, model mapping/exclusions, priority, weight, enablement, cooldown, and retries.
 - Muse / Meta OAuth DCA credentials remain strictly separate from inference API keys.
 
-Do not place a `dca:` or `Bearer dca:` credential in the API key field or a custom `Authorization` header. CPAMP rejects that credential mix before network access. Use [OAuth Login](./oauth.md) and [Accounts](./accounts.md) for account login and quota.
+Do not place a `dca:` or `Bearer dca:` credential in the API key field or a custom `Authorization` header. CPAMP rejects that credential mix before network access. Use [OAuth Login](./oauth.md) and [Quota Access Management](./accounts.md) for account login and quota.
 
 Full Muse / Meta provider management requires CPA `v7.3.4+`.
 
@@ -85,7 +85,7 @@ CPAMP uses targeted update APIs where available and refreshes configuration cach
 1. Send a low-cost real request.
 2. Confirm provider, model, account, and status in Monitoring.
 3. If cost is missing, check [Model Prices](./model-prices.md).
-4. For credential or quota failures, check [Accounts](./accounts.md) and the [Account Action Queue](./account-actions.md).
+4. For credential or quota failures, check [Quota Access Management](./accounts.md) and the [Account Action Queue](./account-actions.md).
 5. If no event appears, troubleshoot collection before repeatedly changing the provider.
 
 ## Configuration Boundaries

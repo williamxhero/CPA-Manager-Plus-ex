@@ -324,12 +324,37 @@ const resolveXaiHealthEvidence = (
   return 'unknown';
 };
 
+// Inspection messages are persisted by both the browser and Manager Server. Localize
+// only the known wayfinding copy at read time; keep unrelated diagnostics intact.
+export const formatInspectionWayfinding = (message: string, t: TFunction): string => {
+  switch (message) {
+    case '同一认证文件下存在多个不同建议动作，文件级处理已阻止，请到凭证管理中手动处理':
+      return t('monitoring.codex_inspection_wayfinding_mixed_actions');
+    case '该建议动作需要到凭证管理中人工处理':
+      return t('monitoring.codex_inspection_wayfinding_manual_action');
+    default: {
+      const prefix = '自动禁用所有权保存失败，且禁用回滚失败：';
+      const suffix = '；请到凭证管理中手动恢复';
+      if (message.startsWith(prefix) && message.endsWith(suffix)) {
+        return t('monitoring.codex_inspection_wayfinding_manual_restore', {
+          reason: message.slice(prefix.length, -suffix.length),
+        });
+      }
+      return message;
+    }
+  }
+};
+
 export const formatInspectionLogDetail = (detail: unknown, t: TFunction): string => {
-  if (typeof detail === 'string') return detail;
+  if (typeof detail === 'string') return formatInspectionWayfinding(detail, t);
   if (detail === null || detail === undefined) return '';
   if (typeof detail === 'object' && !Array.isArray(detail)) {
     const record = detail as Record<string, unknown>;
     const normalized = { ...record };
+    for (const key of ['reason', 'error', 'message']) {
+      const value = record[key];
+      if (typeof value === 'string') normalized[key] = formatInspectionWayfinding(value, t);
+    }
     if (isCodexInspectionActionValue(record.action)) {
       normalized.action = formatActionLabel(record.action, t);
     }
@@ -339,6 +364,9 @@ export const formatInspectionLogDetail = (detail: unknown, t: TFunction): string
         const actionError = item as Record<string, unknown>;
         return {
           ...actionError,
+          ...(typeof actionError.error === 'string'
+            ? { error: formatInspectionWayfinding(actionError.error, t) }
+            : {}),
           ...(isCodexInspectionActionValue(actionError.action)
             ? { action: formatActionLabel(actionError.action, t) }
             : {}),
@@ -479,7 +507,9 @@ export const formatServerCodexInspectionLogSummary = (
   }
   if (matchesServerLogEvent(entry.message, '加载认证文件列表失败')) {
     return t('monitoring.codex_inspection_log_auth_files_failed', {
-      message: readServerLogString(record, 'error', 'reason') || t('common.unknown_error'),
+      message:
+        formatInspectionWayfinding(readServerLogString(record, 'error', 'reason'), t) ||
+        t('common.unknown_error'),
     });
   }
   if (matchesServerLogEvent(entry.message, '凭证健康巡检已取消')) {
@@ -510,7 +540,9 @@ export const formatServerCodexInspectionLogSummary = (
       {
         account: readServerLogString(record, 'displayAccount', 'fileName') || '-',
         action: formatServerLogAction(record, t),
-        message: readServerLogString(record, 'reason', 'error') || t('common.unknown_error'),
+        message:
+          formatInspectionWayfinding(readServerLogString(record, 'reason', 'error'), t) ||
+          t('common.unknown_error'),
       }
     );
   }
@@ -612,7 +644,7 @@ export const formatServerCodexInspectionLogSummary = (
       message: readServerLogString(record, 'error', 'reason') || t('common.unknown_error'),
     });
   }
-  return formatServerCodexInspectionLogMessage(entry.message, t);
+  return formatInspectionWayfinding(formatServerCodexInspectionLogMessage(entry.message, t), t);
 };
 
 export const normalizeInspectionLogLevel = (value: unknown): CodexInspectionLogLevel => {
@@ -640,10 +672,15 @@ export const toLocalInspectionLogViewEntry = (
   t: TFunction
 ): InspectionLogViewEntry => {
   const detail = formatInspectionLogDetail(entry.detail, t);
+  const error = entry.detail?.error;
+  const message =
+    typeof error === 'string' && error && entry.message.endsWith(error)
+      ? entry.message.slice(0, -error.length) + formatInspectionWayfinding(error, t)
+      : formatInspectionWayfinding(entry.message, t);
   return {
     id: entry.id,
     level: entry.level,
-    message: entry.message,
+    message,
     timestamp: entry.timestamp,
     ...(detail ? { detail } : {}),
   };
@@ -1084,7 +1121,7 @@ export const summarizeInspectionError = (
   const trimmed = raw.trim();
   if (!trimmed) return '';
   if (trimmed.length <= 120 && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-    return trimmed;
+    return formatInspectionWayfinding(trimmed, t);
   }
   return t('monitoring.codex_inspection_error_summary_response');
 };

@@ -979,6 +979,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
                     }
                     onClick={() => setSidebarOpen(false)}
                     title={item.label}
+                    aria-label={!showSidebarLabels ? item.label : undefined}
                   >
                     <span className="nav-icon">{item.icon}</span>
                     {showSidebarLabels && <span className="nav-label">{item.label}</span>}

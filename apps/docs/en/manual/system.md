@@ -2,7 +2,7 @@
 
 System shows what runtime the panel is connected to, which models are visible, and which basic details to collect before troubleshooting.
 
-Use [Logs](./logs.md) for log content. Use [Monitoring](./monitoring.md), [Usage Analytics](./usage-analytics.md), and [Accounts](./accounts.md) for requests, cost, and account state.
+Use [Logs](./logs.md) for log content. Use [Monitoring](./monitoring.md), [Usage Analytics](./usage-analytics.md), and [Quota Access Management](./accounts.md) for requests, cost, and account state.
 
 ## Main Content
 
@@ -20,7 +20,7 @@ Use the model list to answer:
 1. Which models the runtime currently exposes.
 2. Which provider or configuration a model comes from.
 
-If a client fails to request a model, first check whether the model is visible here. If it is not, inspect [AI Providers](./ai-providers.md) and model rules.
+If a client fails to request a model, first check whether the model is visible here. If it is not, inspect [Paid Access Management](./ai-providers.md) and model rules.
 
 A visible model does not guarantee requests will succeed. Auth, quota, upstream state, and routing rules can still fail.
 

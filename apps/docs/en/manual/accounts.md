@@ -1,15 +1,15 @@
 ---
-title: Accounts And Credential Health
-description: Manage CPA credentials, account health, quota windows, inspection results, cooldowns, and safe bulk actions in the unified Accounts workspace.
+title: Quota Access Management and Credential Health
+description: Manage CPA credentials, account health, quota windows, inspection results, cooldowns, and safe bulk actions in Quota Access Management.
 ---
 
-# Accounts And Credential Health
+# Quota Access Management and Credential Health
 
-`/accounts` is CPAMP's unified credential-management entry. It combines the former auth-file, account-quota, and inspection state into one workspace that answers: which accounts exist, whether they are enabled, whether they can serve requests now, and which accounts need reauthentication or manual review.
+`/accounts` is CPAMP's Quota Access Management page. It combines the former auth-file, account-quota, and inspection state into one workspace that answers: which accounts exist, whether they are enabled, whether they can serve requests now, and which accounts need reauthentication or manual review.
 
-Use [OAuth Login](./oauth.md) to add OAuth accounts. Import, editing, status decisions, and troubleshooting after the credential is saved belong in Accounts.
+Use [OAuth Login](./oauth.md) to add OAuth accounts. Import, editing, status decisions, and troubleshooting after the credential is saved belong in Quota Access Management.
 
-Open the unified [Accounts Demo](https://seakee.github.io/CPA-Manager-Plus/#/demo/accounts) to inspect fictional credentials, quota, inspection, and automation state.
+Open the unified [Quota Access Management Demo](https://seakee.github.io/CPA-Manager-Plus/#/demo/accounts) to inspect fictional credentials, quota, inspection, and automation state.
 
 ## What To Check First
 
@@ -54,7 +54,7 @@ Account state may come from:
 - Failure summaries such as `usage_limit_reached`, HTTP `401`, `402`, or `429`.
 - Manager Server quota cooldowns and account-action candidates.
 
-Provider quota refresh remains explicit. Opening Accounts, reading history, or passively loading Header evidence does not poll upstream quota endpoints. Muse / Meta quota refresh reads the DCA from the current physical auth file and asks Meta through CPA; the DCA is never used as an inference API key.
+Provider quota refresh remains explicit. Opening Quota Access Management, reading history, or passively loading Header evidence does not poll upstream quota endpoints. Muse / Meta quota refresh reads the DCA from the current physical auth file and asks Meta through CPA; the DCA is never used as an inference API key.
 
 CPAMP reconciles evidence by credential identity and observation time. Newer healthy evidence can supersede older reauth, quota-limit, cooldown, and action-candidate state; a newer `401` or explicit quota exhaustion remains authoritative. After reauthentication, inspection and quota evidence from the replaced credential cannot reattach to the new credential.
 
@@ -82,7 +82,7 @@ Quota cooldown is for clear quota exhaustion, not expired login, upstream bans, 
 4. Check [Account Action Queue](./account-actions.md) for pending candidates.
 5. If quota is unavailable, confirm whether the provider supports active lookup or only passive Header observation.
 
-Use [Usage Analytics](./usage-analytics.md) for cost breakdowns; cost is not part of credential management.
+Use [Usage Analytics](./usage-analytics.md) for cost breakdowns; cost is not part of Quota Access Management.
 
 ## Security Notes
 

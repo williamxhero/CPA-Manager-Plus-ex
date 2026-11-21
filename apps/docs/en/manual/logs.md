@@ -27,7 +27,7 @@ If request logging is enabled, CPA's separate error-request log list may be empt
 1. Get the approximate time from Monitoring or the page error.
 2. Refresh logs and locate the same time window.
 3. Copy sanitized error lines, status codes, and upstream summaries.
-4. If logs point to auth or quota, continue with [Accounts](./accounts.md).
+4. If logs point to auth or quota, continue with [Quota Access Management](./accounts.md).
 5. If logs point to plugins, continue with [Plugin Management](./plugins.md) and check resource paths.
 
 ## Do Not Share

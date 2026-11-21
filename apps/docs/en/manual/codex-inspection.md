@@ -61,8 +61,8 @@ All restores follow “the owner that disabled is the owner that may restore”:
 
 ## Related Pages
 
-- Quota windows and cooldowns: [Accounts](./accounts.md)
+- Quota windows and cooldowns: [Quota Access Management](./accounts.md)
 - OAuth reauthorization: [OAuth Login](./oauth.md)
-- Credential state: [Accounts](./accounts.md)
+- Credential state: [Quota Access Management](./accounts.md)
 - Repeated credential failures: [Account Action Queue](./account-actions.md)
 - Individual request evidence: [Monitoring](./monitoring.md)

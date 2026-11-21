@@ -60,6 +60,6 @@ Prefer the CPAMP interface for daily work. Edit CPA `config.yaml` directly only 
 ## Next Steps
 
 - Install: [Quick Start](./getting-started.md)
-- Add model services: [AI Providers](../manual/ai-providers.md)
+- Add model services: [Paid Access Management](../manual/ai-providers.md)
 - Configure clients: [Client Configuration](../gateway/clients.md)
 - Monitoring has no data: [Monitoring Has No Data](../troubleshooting/request-monitoring.md)

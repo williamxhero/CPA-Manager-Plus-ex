@@ -60,11 +60,11 @@ describe('accounts workspace wiring', () => {
   });
 
   it.each([
-    [en, 'Credential Management', 'Credential List'],
-    [ru, 'Управление учётными данными', 'Список учётных данных'],
-    [zhCN, '凭证管理', '凭证列表'],
-    [zhTW, '憑證管理', '憑證清單'],
-  ])('uses credential terminology and omits removed workspace copy', (locale, title, list) => {
+    [en, 'Quota Access Management', 'Credential List'],
+    [ru, 'Управление доступом по квоте', 'Список учётных данных'],
+    [zhCN, '额度接入管理', '凭证列表'],
+    [zhTW, '額度接入管理', '憑證清單'],
+  ])('names the quota access workspace and retains credential terminology for its list', (locale, title, list) => {
     expect(locale.nav.accounts).toBe(title);
     expect(locale.accounts.title).toBe(title);
     expect(locale.accounts.tab_accounts).toBe(list);

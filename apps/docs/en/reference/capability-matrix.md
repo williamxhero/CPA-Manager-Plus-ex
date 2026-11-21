@@ -11,7 +11,7 @@ Use this page to confirm which features each usage option provides and what evid
 
 | Capability                                       | CPAMP Lightweight Panel     | CPAMP Full Mode |
 | ------------------------------------------------ | --------------------------- | --------------- |
-| CPA config, providers, Accounts, OAuth, and logs | ✅                          | ✅              |
+| CPA config, Paid Access Management, Quota Access Management, OAuth, and logs | ✅                          | ✅              |
 | Plugin management and plugin pages               | Depends on CPA/plugin paths | ✅              |
 | Browser-local account checks                     | ✅                          | ✅              |
 | SQLite request history                           | ❌                          | ✅              |
@@ -67,6 +67,6 @@ Full Muse / Meta support requires CPA `v7.3.4+`. OAuth DCA credentials and `meta
 ## Related Guides
 
 - [Account Inspection](../manual/codex-inspection.md)
-- [Accounts And Credential Health](../manual/accounts.md)
+- [Quota Access Management and Credential Health](../manual/accounts.md)
 - [Account Action Queue](../manual/account-actions.md)
 - [Manager Server Guide](../operations/manager-server.md)

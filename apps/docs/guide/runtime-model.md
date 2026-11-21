@@ -60,6 +60,6 @@ CPAMP 完整模式
 ## 下一步
 
 - 安装：[快速开始](./getting-started.md)
-- 添加模型服务：[AI 提供商](../manual/ai-providers.md)
+- 添加模型服务：[付费接入管理](../manual/ai-providers.md)
 - 配置客户端：[客户端接入](../gateway/clients.md)
 - 监控没有数据：[请求监控为空](../troubleshooting/request-monitoring.md)

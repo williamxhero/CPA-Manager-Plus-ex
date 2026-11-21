@@ -1,6 +1,6 @@
 # Configuration
 
-Configuration changes connections, request monitoring, and CPA system settings. Use [AI Providers](./ai-providers.md) to add model services, and use [OAuth Login](./oauth.md) or [Accounts](./accounts.md) to add accounts.
+Configuration changes connections, request monitoring, and CPA system settings. Use [Paid Access Management](./ai-providers.md) to add model services, and use [OAuth Login](./oauth.md) or [Quota Access Management](./accounts.md) to add accounts.
 
 | What you want to do                     | Area to use                              |
 | --------------------------------------- | ---------------------------------------- |
@@ -60,12 +60,12 @@ routing:
 
 CPA first selects the highest currently available `priority` tier, then applies weighted round robin to credentials in that tier. An omitted `weight` defaults to `1`. Weights must be integers with a maximum of `1,000,000`; non-positive values exclude the credential while this strategy is active. Clearing a weight in CPAMP removes the explicit `weight` field and restores the default of `1`.
 
-The strategy and weight fields require a CPA build that supports weighted routing. Older CPA versions may ignore or reject them. After upgrading CPA, set credential weights in [AI Providers](./ai-providers.md) or [Accounts](./accounts.md). Use multiple independent requests when checking the distribution; session affinity can keep one session bound to an existing credential.
+The strategy and weight fields require a CPA build that supports weighted routing. Older CPA versions may ignore or reject them. After upgrading CPA, set credential weights in [Paid Access Management](./ai-providers.md) or [Quota Access Management](./accounts.md). Use multiple independent requests when checking the distribution; session affinity can keep one session bound to an existing credential.
 
 ## Verify After Saving
 
 1. Return to Dashboard and check connection and collector state.
-2. Open [AI Providers](./ai-providers.md) and confirm provider entries are still present.
+2. Open [Paid Access Management](./ai-providers.md) and confirm provider entries are still present.
 3. Send a low-cost request.
 4. Open [Monitoring](./monitoring.md) and confirm the event appears.
 5. If the change affects usage data, refresh [Usage Analytics](./usage-analytics.md).

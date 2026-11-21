@@ -1,13 +1,13 @@
 ---
-title: AI 提供商管理
+title: 付费接入管理
 description: 在 CPA Manager Plus 中管理 Gemini、Codex、Claude、Vertex、xAI、Meta / Muse 和 OpenAI-compatible Provider，配置优先级、权重、模型、代理、Header 与密钥测试。
 ---
 
-# AI 提供商管理
+# 付费接入管理
 
-AI 提供商页面决定 CPA 如何把客户端请求路由到上游模型服务。这里配置的是 CPA Provider，不是 CPAMP 管理员登录，也不是 CPA Management Key。
+付费接入管理页面决定 CPA 如何把客户端请求路由到上游模型服务。这里配置的是 CPA Provider，不是 CPAMP 管理员登录，也不是 CPA Management Key。
 
-打开 [AI Providers Demo](https://seakee.github.io/CPA-Manager-Plus/#/demo/ai-providers) 可以查看虚构配置，不会连接真实 Provider。
+打开 [付费接入管理演示](https://seakee.github.io/CPA-Manager-Plus/#/demo/ai-providers) 可以查看虚构配置，不会连接真实 Provider。
 
 ## 最常用流程
 
@@ -48,7 +48,7 @@ AI 提供商页面决定 CPA 如何把客户端请求路由到上游模型服务
 - Provider 优先级、权重和启用状态。
 - 通过 Provider 测试入口验证密钥和模型访问。
 
-xAI API Key 与 xAI/Grok OAuth 凭证不是同一种凭证。OAuth 登录、billing 证据和账号巡检请分别查看 [OAuth 登录](./oauth.md)、[凭证管理](./accounts.md) 和[账号巡检](./codex-inspection.md)。
+xAI API Key 与 xAI/Grok OAuth 凭证不是同一种凭证。OAuth 登录、billing 证据和账号巡检请分别查看 [OAuth 登录](./oauth.md)、[额度接入管理](./accounts.md) 和[账号巡检](./codex-inspection.md)。
 
 ## Meta / Muse API Key
 
@@ -59,7 +59,7 @@ xAI API Key 与 xAI/Grok OAuth 凭证不是同一种凭证。OAuth 登录、bill
 - 支持 API Key、代理、自定义 Header、模型映射/排除、优先级、权重、启停、冷却与重试等现有 Provider 能力。
 - Muse / Meta OAuth 的 DCA 凭证与推理 API Key 严格分离。
 
-不要把 `dca:` 或 `Bearer dca:` 凭证填入 API Key 或自定义 `Authorization` Header。CPAMP 会在发起网络请求前拒绝这类混用。账号登录与配额请使用 [OAuth 登录](./oauth.md) 和[凭证管理](./accounts.md)。
+不要把 `dca:` 或 `Bearer dca:` 凭证填入 API Key 或自定义 `Authorization` Header。CPAMP 会在发起网络请求前拒绝这类混用。账号登录与配额请使用 [OAuth 登录](./oauth.md) 和[额度接入管理](./accounts.md)。
 
 完整 Muse / Meta Provider 管理需要 CPA `v7.3.4+`。
 
@@ -85,7 +85,7 @@ Provider 表格支持直接调整优先级。数值只影响 CPA 当前支持的
 1. 发一条低成本真实请求。
 2. 在请求监控确认 Provider、模型、账号和状态码。
 3. 如果成本为空，检查[模型价格](./model-prices.md)。
-4. 如果像认证或额度问题，检查[凭证管理](./accounts.md)和[账号处理队列](./account-actions.md)。
+4. 如果像认证或额度问题，检查[额度接入管理](./accounts.md)和[账号处理队列](./account-actions.md)。
 5. 如果页面没有请求事件，先排查采集链路，而不是反复修改 Provider。
 
 ## 配置边界

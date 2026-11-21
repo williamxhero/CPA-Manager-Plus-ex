@@ -31,8 +31,8 @@ const zhSidebar: DefaultTheme.Sidebar = [
     text: '日常使用',
     items: [
       { text: '仪表盘', link: '/manual/dashboard' },
-      { text: 'AI 提供商', link: '/manual/ai-providers' },
-      { text: '凭证管理', link: '/manual/accounts' },
+      { text: '付费接入管理', link: '/manual/ai-providers' },
+      { text: '额度接入管理', link: '/manual/accounts' },
       { text: 'OAuth 登录', link: '/manual/oauth' },
       { text: '请求监控', link: '/manual/monitoring' },
       { text: '用量分析', link: '/manual/usage-analytics' },
@@ -97,8 +97,8 @@ const enSidebar: DefaultTheme.Sidebar = [
     text: 'Daily Use',
     items: [
       { text: 'Dashboard', link: '/en/manual/dashboard' },
-      { text: 'AI Providers', link: '/en/manual/ai-providers' },
-      { text: 'Accounts', link: '/en/manual/accounts' },
+      { text: 'Paid Access Management', link: '/en/manual/ai-providers' },
+      { text: 'Quota Access Management', link: '/en/manual/accounts' },
       { text: 'OAuth Login', link: '/en/manual/oauth' },
       { text: 'Monitoring', link: '/en/manual/monitoring' },
       { text: 'Usage Analytics', link: '/en/manual/usage-analytics' },

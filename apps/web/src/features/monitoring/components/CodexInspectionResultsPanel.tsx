@@ -14,6 +14,7 @@ import {
   type CodexInspectionPaginationState,
   formatActionLabel,
   formatCurrentStateLabel,
+  formatInspectionWayfinding,
   getInspectionProbePresentation,
   getVisibleActionFilters,
   shouldShowInspectionConclusionReason,
@@ -236,13 +237,13 @@ export function CodexInspectionResultsPanel({
                   t,
                 })?.shortLabel;
                 const quotaWindows = item.quotaWindows ?? [];
-                const errorText = item.errorDetail || item.error;
+                const errorText = formatInspectionWayfinding(item.errorDetail || item.error || '', t);
                 const errorSummary = summarizeInspectionError(item, t, {
                   xaiInferenceEnabled,
                 });
                 const conclusionReason = item.actionReason?.startsWith('monitoring.')
                   ? t(item.actionReason)
-                  : item.actionReason;
+                  : formatInspectionWayfinding(item.actionReason || '', t);
                 const probe = getInspectionProbePresentation(item, {
                   xaiInferenceEnabled,
                 });

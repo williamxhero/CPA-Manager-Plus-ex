@@ -73,7 +73,7 @@ http://<cpa-host>:8317/management.html
 ```
 
 3. Log in with the CPA Management Key.
-4. Confirm that Dashboard, Configuration, Providers, Accounts, OAuth, and Logs load correctly.
+4. Confirm that Dashboard, Configuration, Paid Access Management, Quota Access Management, OAuth, and Logs load correctly.
 
 On first access, CPA checks the latest Release in the configured GitHub repository for an asset named `management.html` and caches it in the CPA working directory.
 
@@ -99,7 +99,7 @@ With `disable-auto-update-panel: true`, CPA downloads the panel only when the ca
 
 | Capability                                                   | CPAMP Lightweight Panel                             |
 | ------------------------------------------------------------ | --------------------------------------------------- |
-| CPA config, providers, Accounts, OAuth, and logs             | Supported                                           |
+| CPA config, Paid Access Management, Quota Access Management, OAuth, and logs             | Supported                                           |
 | API keys, model aliases, priorities, and plugin management   | Supported when exposed by CPA APIs and plugin paths |
 | Browser-local account checks                                 | Supported where the page provides a local workflow  |
 | SQLite request history and request monitoring                | Not supported                                       |

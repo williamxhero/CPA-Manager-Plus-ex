@@ -43,6 +43,7 @@ import {
   filterInspectionResults,
   formatActionLabel,
   formatInspectionLogsForClipboard,
+  formatInspectionWayfinding,
   formatPercent,
   formatTimestamp,
   getActionFilterCounts,
@@ -2230,6 +2231,7 @@ export function ServerCodexInspectionPage({
       const actionStatus = normalizeServerCodexInspectionActionStatus(source);
       const terminalStatusLabel = formatServerTerminalActionStatusLabel(source, t);
       const actionError = source.actionError?.trim() ?? '';
+      const actionErrorLabel = formatInspectionWayfinding(actionError, t);
       const needsReview = actionStatus === 'needs_review' || mixedActionIds.has(source.id);
       const hasFileLevelAction = isActionableServerCodexInspectionResult(source);
       const pendingReauth = isPendingServerReauthResult(source);
@@ -2247,9 +2249,9 @@ export function ServerCodexInspectionPage({
           {terminalStatusLabel ? (
             <span className={styles.primaryReason}>{terminalStatusLabel}</span>
           ) : null}
-          {actionError ? (
-            <small className={styles.primaryReason} title={actionError}>
-              {actionError}
+          {actionErrorLabel ? (
+            <small className={styles.primaryReason} title={actionErrorLabel}>
+              {actionErrorLabel}
             </small>
           ) : null}
           {canonicalExecutableIds.has(source.id) ? (

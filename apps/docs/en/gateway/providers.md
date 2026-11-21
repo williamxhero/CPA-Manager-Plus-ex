@@ -1,17 +1,17 @@
 # Providers And Compatibility Reference
 
-To add, edit, or test a model service, go directly to [AI Providers](../manual/ai-providers.md). This page is a reference for how provider families and client interfaces relate.
+To add, edit, or test a model service, go directly to [Paid Access Management](../manual/ai-providers.md). This page is a reference for how provider families and client interfaces relate.
 
 ## Common Providers
 
 | Provider type     | Common use                                  | Related pages                               |
 | ----------------- | ------------------------------------------- | ------------------------------------------- |
-| Codex             | Codex CLI, accounts, and quota              | AI Providers, Accounts, Inspection          |
-| Claude            | Claude Code and compatible calls            | AI Providers, Accounts, Monitoring          |
-| OpenAI-compatible | Relays, self-hosted, or compatible services | AI Providers, Model Prices, Usage Analytics |
-| Gemini / Vertex   | Google models and project credentials       | AI Providers, OAuth, Accounts               |
-| xAI / Grok        | API key or OAuth accounts                   | AI Providers, Accounts, Inspection          |
-| Muse / Meta       | Device Flow account or `meta-api-key` inference provider | AI Providers, OAuth, Accounts     |
+| Codex             | Codex CLI, accounts, and quota              | Paid Access Management, Quota Access Management, Inspection          |
+| Claude            | Claude Code and compatible calls            | Paid Access Management, Quota Access Management, Monitoring          |
+| OpenAI-compatible | Relays, self-hosted, or compatible services | Paid Access Management, Model Prices, Usage Analytics |
+| Gemini / Vertex   | Google models and project credentials       | Paid Access Management, OAuth, Quota Access Management               |
+| xAI / Grok        | API key or OAuth accounts                   | Paid Access Management, Quota Access Management, Inspection          |
+| Muse / Meta       | Device Flow account or `meta-api-key` inference provider | Paid Access Management, OAuth, Quota Access Management     |
 
 When adding a provider, confirm four things first: base URL, authentication method, model names used by clients, and the account or auth file binding.
 
@@ -19,7 +19,7 @@ Muse / Meta requires an extra credential distinction: OAuth Device Flow produces
 
 ## When Requests Fail
 
-1. Run an available model or key test from AI Providers.
+1. Run an available model or key test from Paid Access Management.
 2. Check whether the auth file is disabled or out of quota.
 3. Send a low-cost real request.
 4. Read the status code and sanitized failure summary in Monitoring.

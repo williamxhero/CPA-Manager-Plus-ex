@@ -1,3 +1,5 @@
+import { createInstance } from 'i18next';
+import en from '@/i18n/locales/en.json';
 import type { ComponentProps } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
@@ -220,6 +222,22 @@ describe('CodexInspectionResultsPanel', () => {
     );
 
     expect(stateChip.props.className).toContain(inspectionStyles.stateDisabled);
+  });
+
+  it('points historical manual-review reasons at the quota access page in the selected language', async () => {
+    const oldReason =
+      '同一认证文件下存在多个不同建议动作，文件级处理已阻止，请到凭证管理中手动处理';
+    const instance = createInstance();
+    const translate = await instance.init({ lng: 'en', resources: { en: { translation: en } } });
+    const renderer = renderPanel(
+      createItem({ action: 'disable', actionReason: oldReason }),
+      { t: translate }
+    );
+    const visibleText = collectText(renderer);
+    expect(visibleText).toContain(
+      'This authentication file has conflicting suggested actions. File-level actions were blocked; resolve the conflict in Quota Access Management.'
+    );
+    expect(visibleText).not.toContain(oldReason);
   });
 
   it('localizes keyed conclusion reasons without repeating a conclusion heading', () => {
