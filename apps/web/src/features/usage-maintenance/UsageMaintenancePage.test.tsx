@@ -5,6 +5,7 @@ import type {
   UsageArchiveList,
   UsageArchivePreview,
   UsageArchiveRunSummary,
+  UsageImportSession,
   UsageMaintenanceStatus,
 } from '@/services/api/usageService';
 import en from '@/i18n/locales/en.json';
@@ -34,6 +35,8 @@ const { mocks } = vi.hoisted(() => {
       getUsageMaintenance: vi.fn(),
       getUsageArchive: vi.fn(),
       listUsageArchives: vi.fn(),
+      listUsageImportSessions: vi.fn(),
+      getUsageImportSession: vi.fn(),
       previewUsageArchive: vi.fn(),
       createUsageArchive: vi.fn(),
       resumeUsageArchive: vi.fn(),
@@ -156,6 +159,8 @@ vi.mock('@/services/api/usageService', () => ({
     getUsageMaintenance: mocks.getUsageMaintenance,
     getUsageArchive: mocks.getUsageArchive,
     listUsageArchives: mocks.listUsageArchives,
+    listUsageImportSessions: mocks.listUsageImportSessions,
+    getUsageImportSession: mocks.getUsageImportSession,
     previewUsageArchive: mocks.previewUsageArchive,
     createUsageArchive: mocks.createUsageArchive,
     resumeUsageArchive: mocks.resumeUsageArchive,
@@ -2806,6 +2811,69 @@ describe('maintenance workspace navigation and continuous operations', () => {
       events.dispatchEvent(new Event('hashchange'));
     };
   };
+
+  it.each(['listUsageArchives', 'getUsageMaintenance'] as const)(
+    'restores an import session bookmark after the capability probe when %s fails',
+    async (failedRead) => {
+      installHash('#/usage-maintenance?tab=transfer&panel=import-session&session=import-bookmark');
+      const probe = deferred<void>();
+      const archiveRead = deferred<never>();
+      mocks.probeUsageMaintenance.mockReturnValueOnce(probe.promise);
+      mocks.getUsageMaintenance.mockResolvedValueOnce(maintenance());
+      mocks.listUsageArchives.mockResolvedValueOnce({ runs: [] });
+      mocks[failedRead].mockReset().mockReturnValueOnce(archiveRead.promise);
+      mocks.listUsageImportSessions.mockResolvedValueOnce({
+        sessions: [],
+        total: 0,
+        status_counts: {},
+        active_sessions: 0,
+        max_sessions: 2,
+        chunk_size_bytes: 1024,
+        disk_quota_bytes: 8192,
+        ttl_seconds: 3600,
+      });
+      const session: UsageImportSession = {
+        id: 'import-bookmark',
+        filename: 'bookmarked-import.jsonl',
+        status: 'completed',
+        size_bytes: 100,
+        received_bytes: 100,
+        chunk_size_bytes: 1024,
+        created_at_ms: 1_700_000_000_000,
+        updated_at_ms: 1_700_000_000_000,
+        expires_at_ms: 1_700_000_000_000,
+      };
+      mocks.getUsageImportSession.mockResolvedValueOnce(session);
+
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(<UsageMaintenancePage />);
+        renderers.add(renderer);
+      });
+      expect(mocks.listUsageImportSessions).not.toHaveBeenCalled();
+      expect(mocks.getUsageImportSession).not.toHaveBeenCalled();
+
+      await act(async () => probe.resolve());
+      expect(mocks.getUsageImportSession).toHaveBeenCalledWith(
+        'http://manager-a.local:18317',
+        'import-bookmark',
+        'management-key-a',
+        expect.any(AbortSignal)
+      );
+      const readDetails = () =>
+        getText(renderer.root.findByProps({ 'data-testid': 'maintenance-drawer' }));
+      expect(readDetails()).toContain('bookmarked-import.jsonl');
+
+      await act(async () => archiveRead.reject(new Error('Archive query failed')));
+      expect(readDetails()).toContain('bookmarked-import.jsonl');
+      expect(
+        renderer.root
+          .findAllByProps({ role: 'alert' })
+          .some((alert) => getText(alert).includes('Archive query failed'))
+      ).toBe(true);
+      expect(findButtons(renderer, 'New archive')).toHaveLength(0);
+    }
+  );
 
   it('restores a record drawer from the URL using reads only, including forged action parameters', async () => {
     installHash('#/usage-maintenance?tab=history&run=route-record&panel=run&action=delete');
