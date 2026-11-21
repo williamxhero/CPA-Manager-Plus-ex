@@ -77,6 +77,7 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   parsePath: (await importOriginal<typeof import('react-router-dom')>()).parsePath,
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
   useNavigate: () => mocks.noop,
+  useResolvedPath: (to: string) => ({ pathname: to.split(/[?#]/, 1)[0] }),
   useLocation: () => ({ search: mocks.params.toString(), hash: '' }),
   useSearchParams: () => [mocks.params, mocks.noop],
   useParams: () => ({ pluginId: 'retained-plugin', menuIndex: '0' }),
