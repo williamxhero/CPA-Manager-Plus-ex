@@ -19,10 +19,8 @@ import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
 import { useAccountCredentialMutationRevisionStore } from '@/stores/useAccountCredentialMutationRevisionStore';
-import {
-  createWorkspaceConnectionState,
-  useWorkspaceConnectionGeneration,
-} from '@/stores/workspaceConnectionState';
+import { createWorkspaceConnectionState } from '@/stores/workspaceConnectionState';
+import { useWorkspaceConnectionRoute } from '@/hooks/useWorkspaceConnectionRoute';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
@@ -1312,9 +1310,15 @@ const resolveAccountQuotaSnapshotLabel = (
 };
 
 const accountsWorkspaceState = createWorkspaceConnectionState<AccountsWorkspaceUiState>();
+const accountConnectionParameters = new Set([
+  'search', 'provider', 'status', 'plan', 'quota', 'operation',
+  'account', 'tab', 'editor', 'editorProvider',
+]);
 
 export function AccountsPage({ workspaceNavigation = false }: { workspaceNavigation?: boolean } = {}) {
-  const generation = useWorkspaceConnectionGeneration();
+  const { generation, stale } =
+    useWorkspaceConnectionRoute(workspaceNavigation, accountConnectionParameters);
+  if (stale) return null;
   return (
     <AccountsPageInner
       key={workspaceNavigation ? generation : 'standalone'}

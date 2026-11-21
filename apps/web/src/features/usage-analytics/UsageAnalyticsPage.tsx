@@ -92,7 +92,8 @@ import {
   type UsageTrendMetricKey,
 } from './usageAnalyticsModel';
 import { useUsageAnalytics } from './useUsageAnalytics';
-import { useWorkspaceConnectionGeneration } from '@/stores/workspaceConnectionState';
+import { useWorkspaceConnectionRoute } from '@/hooks/useWorkspaceConnectionRoute';
+import { usageAnalyticsFilterKeys } from './usageAnalyticsUiState';
 import { UsageSummarySection } from './components/UsageSummaryCards';
 import {
   buildUsageEntitySummaryCards,
@@ -3992,10 +3993,14 @@ function DetailPanel({
   );
 }
 
+const usageConnectionParameters = new Set<string>(usageAnalyticsFilterKeys);
+
 export function RoutedUsageAnalyticsPage() {
   const { search } = useLocation();
   const availability = usePanelFeatureAvailability();
-  const connectionGeneration = useWorkspaceConnectionGeneration();
+  const { generation: connectionGeneration, stale } =
+    useWorkspaceConnectionRoute(true, usageConnectionParameters);
+  if (stale) return null;
   return (
     <UsageAnalyticsPageInner
       key={connectionGeneration}
