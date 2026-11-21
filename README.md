@@ -4,11 +4,11 @@
 
 ## 开始使用
 
-Manager 提供 CPA 配置、凭证、余额及自动启停管理；`apps/web` 是面板，`apps/manager-server` 是服务，`providers` 保存纳入统一发布的插件源码。
+Manager 提供 CPA 配置、付费接入管理和额度接入管理；`apps/web` 是面板，`apps/manager-server` 是服务，`providers` 保存纳入统一发布的插件源码。
 
 - 上游使用说明：[README-source.md](README-source.md)。
 - 插件来源及构建边界：[providers/README.md](providers/README.md)。
-- 自动启停将人工禁用与额度暂停分别保存，并核对 Core 实际生效的状态。Core 的 `disable-cooling` 不影响额度耗尽停止。
+- 关掉浏览器也会定期刷新额度及余额；可信重置时间到点会额外复查受影响的接入，手动刷新可以共用正在执行的查询。只有 Core 能根据新证据解除自动暂停，手动停用仍须由管理员解除。
 
 ```powershell
 npm ci
@@ -51,6 +51,7 @@ Copyright 2026 Seakee. Original license and attribution are retained in [LICENSE
 - **请求、成本与排行分析**：上游的请求信息难以支撑长期成本核算和跨维度比较。本 fork 将请求历史、双成本、时间窗口、Provider/凭证/Key/渠道维度和排行统一到持久化分析中，保留可追溯的价格快照。
 - **余额工具目录与有效余额门槛**：上游不同 Provider 的余额来源、安装方式和共享钱包口径分散，容易把单 Key 额度或不完整余额当成可恢复证据。本 fork 以余额工具目录统一安装和调用，并按 API Key 额度与全站余额的最小值确定有效余额。对应 [issue #133](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/133) 和 [issue #141](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/141)。
 - **人工关闭与自动暂停分离**：上游共用 disabled 状态，额度保护可能覆盖人工意图，重启或回退还可能错误放行。本 fork 保存独立自动暂停、真实 Core 门禁、协调状态和统一 UI 展示，只有新鲜可信余额超过阈值才恢复自身策略；额度耗尽和 provider reset 复查失败时 fail-closed。对应 [issue #13](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/13)、[#27](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/27)、[#66](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/66)、[#79](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/79)、[#82](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/82)、[#83](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/83) 和 [#84](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/84)。
+- **小时刷新、到点复查与凭证提前续期**：可靠来源的自动检查不会跳过手动停用的接入。复查失败保留上次成功结果和已确认的暂停；凭证网络故障与明确需要重新登录分别显示。对应父项目 [#58](https://github.com/williamxhero/CPA/issues/58)。
 - **安全门禁与受控恢复**：上游缺少对 Provider 资金状态、凭证迁移和配额恢复的统一门禁。本 fork 在管理端加入资源能力、身份围栏、资金证据和恢复状态，先验证来源与主体，再允许刷新、自动启停或恢复动作。完整本机验收见 [issue #95](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/95)。
 - **无 API 来源的只读网页额度闭环**：上游管理面通常只能读取 API/CLI 提供的额度，遇到没有公开接口的来源就无法形成可审计的刷新结果。本 fork 增加只读网页额度查询、缓存、失败分类和本机闭环验收。对应 [issue #97](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/97)。
 - **Keeper 实时接入与 EX 品牌**：上游无法在 Keeper 订阅期间同时兼容 HTTP 采集，采集器断线后也可能长期停在无效的 HTTP 空拉路径，且没有清晰区分本 fork 的发布物。本 fork 保留订阅与 HTTP 双通道用量接入、自动重连和 EX 资产标识。对应 [issue #7](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/7)、[#17](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/17) 和 [#86](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/86)。
