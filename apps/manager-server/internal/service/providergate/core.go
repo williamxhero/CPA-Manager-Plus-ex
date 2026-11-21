@@ -83,6 +83,9 @@ func (s session) request(ctx context.Context, method, path string, body, out any
 	if res.StatusCode == 404 && method == "GET" && strings.HasPrefix(path, "operations/") {
 		return errOperationMissing
 	}
+	if method == "POST" && path == "providers/funding" && (res.StatusCode == 404 || res.StatusCode == 422) {
+		return ErrFundingObservationUnsupported
+	}
 	if res.StatusCode != 200 {
 		return ErrUnavailable
 	}

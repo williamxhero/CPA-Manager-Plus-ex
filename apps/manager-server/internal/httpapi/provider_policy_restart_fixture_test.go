@@ -50,7 +50,7 @@ type policyUnsentCore struct {
 	denyDeepSeekConnects       atomic.Int64
 }
 
-func newPolicyUnsentCore(t *testing.T) *policyUnsentCore {
+func newPolicyUnsentCore(t *testing.T, extraRoutes ...string) *policyUnsentCore {
 	t.Helper()
 	binary := os.Getenv("PROVIDER82_CORE_BINARY")
 	if binary == "" {
@@ -94,7 +94,7 @@ func newPolicyUnsentCore(t *testing.T) *policyUnsentCore {
 	// deny proxy below; official balance DNS/TLS/dialing is independently pinned
 	// to policyMoneyNetwork. Neither controlled network forwards to the Internet.
 	document := fmt.Sprintf("config-version: 8\nserver: {host: 127.0.0.1, port: %d}\nmanagement: {secret-key: MONEY-CORE-MANAGEMENT, disable-control-panel: true, disable-auto-update-panel: true}\noauth: {auth-dir: %q}\nresource-catalog: {enabled: true}\naccess: {api-keys: [MONEY-CLIENT]}\nplugins: {enabled: false}\napi-keys:\n  openai-compatibility:\n    - name: money-provider\n      base-url: https://api.deepseek.com/v1\n      models: [{name: controlled-model}]\n      keys: [{api-key: MONEY-SYNTHETIC-INFERENCE}]\n", port, filepath.ToSlash(filepath.Join(dir, "auth")))
-	if err := os.WriteFile(path, []byte(document), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(document+strings.Join(extraRoutes, "")), 0600); err != nil {
 		t.Fatal(err)
 	}
 	c := &policyUnsentCore{t: t, base: fmt.Sprintf("http://127.0.0.1:%d", port), binary: binary, path: path, dir: dir, digest: digest, commit: commit}
@@ -183,30 +183,34 @@ func (w *policyUnsentWire) snapshot() (attempted, forwarded [][]byte, accepted [
 }
 
 type policyUnsentFixture struct {
-	t          *testing.T
-	core       *policyUnsentCore
-	wire       *policyUnsentWire
-	bridge     *httptest.Server
-	cfg        config.Config
-	protector  *security.Protector
-	db         *store.Store
-	manager    *Server
-	network    balance.NetworkOptions
-	amount     atomic.Value
-	queries    atomic.Int64
-	completed  chan string
-	state      pp.Status
-	version    int64
-	runPolicy  bool
-	stopPolicy func()
+	t            *testing.T
+	core         *policyUnsentCore
+	wire         *policyUnsentWire
+	bridge       *httptest.Server
+	cfg          config.Config
+	protector    *security.Protector
+	db           *store.Store
+	manager      *Server
+	network      balance.NetworkOptions
+	amount       atomic.Value
+	queries      atomic.Int64
+	completed    chan string
+	state        pp.Status
+	version      int64
+	runPolicy    bool
+	stopPolicy   func()
+	withFallback bool
 }
 
 func newPolicyUnsentFixture(t *testing.T, runPolicy ...bool) *policyUnsentFixture {
 	t.Helper()
-	f := &policyUnsentFixture{t: t, core: newPolicyUnsentCore(t), wire: &policyUnsentWire{}, cfg: testutil.NewConfig(t), runPolicy: true}
-	if len(runPolicy) != 0 {
-		f.runPolicy = runPolicy[0]
-	}
+	run := len(runPolicy) == 0 || runPolicy[0]
+	return newPolicyFixture(t, run, false, true)
+}
+
+func newPolicyFixture(t *testing.T, run, withFallback, enabled bool, extraRoutes ...string) *policyUnsentFixture {
+	t.Helper()
+	f := &policyUnsentFixture{t: t, core: newPolicyUnsentCore(t, extraRoutes...), wire: &policyUnsentWire{}, cfg: testutil.NewConfig(t), runPolicy: run, withFallback: withFallback}
 	target, err := url.Parse(f.core.base)
 	if err != nil {
 		t.Fatal(err)
@@ -304,7 +308,9 @@ func newPolicyUnsentFixture(t *testing.T, runPolicy ...bool) *policyUnsentFixtur
 	f.openManager()
 	f.readIssuedBinding()
 	f.configureOfficial()
-	f.update(true)
+	if enabled {
+		f.update(true)
+	}
 	return f
 }
 
@@ -391,7 +397,7 @@ func (f *policyUnsentFixture) readIssuedBinding() {
 	}
 	providers := []rc.Row{}
 	for _, row := range n.Snapshot.Resources {
-		if row.Kind == "provider" {
+		if row.Kind == "provider" && (!f.withFallback || len(row.Members) == 1) {
 			providers = append(providers, row)
 		}
 	}

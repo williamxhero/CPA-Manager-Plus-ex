@@ -164,7 +164,10 @@ func (s *Service) binding(ctx context.Context, id string) (Binding, bool, error)
 	if s.Identity == nil || uuid.Validate(id) != nil {
 		return Binding{}, false, ErrIdentity
 	}
-	n := s.Identity.Inventory(ctx, true)
+	return bindingFromInventory(s.Identity.Inventory(ctx, true), id)
+}
+
+func bindingFromInventory(n *rc.Negotiated, id string) (Binding, bool, error) {
 	if n == nil || n.Snapshot == nil || !n.Snapshot.Complete || n.Identity.State != "available" {
 		return Binding{}, false, ErrIdentity
 	}

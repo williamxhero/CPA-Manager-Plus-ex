@@ -53,7 +53,7 @@ func queryDeepSeek(ctx context.Context, t QueryTarget, credential string, n Netw
 			ToppedUp *string `json:"topped_up_balance"`
 		} `json:"balance_infos"`
 	}
-	if json.Unmarshal(body, &data) != nil || data.Available == nil || len(data.Balances) == 0 || len(data.Balances) > 32 {
+	if !newAPIUnambiguousJSON(body) || json.Unmarshal(body, &data) != nil || data.Available == nil || len(data.Balances) == 0 || len(data.Balances) > 32 {
 		return fail("parse_error", "INVALID_BALANCE")
 	}
 	values := make([]CurrencyBalance, 0, len(data.Balances))

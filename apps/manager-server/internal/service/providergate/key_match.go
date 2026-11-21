@@ -2,9 +2,11 @@ package providergate
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/google/uuid"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 )
 
@@ -116,4 +118,57 @@ func (s *Service) MatchQueryKey(ctx context.Context, b Binding, sourceVersion, i
 		return false, err
 	}
 	return matched, nil
+}
+
+var ErrFundingObservationUnsupported = errors.New("funding observation unavailable on this source")
+
+// PublishFundingReading asks Core to evaluate an official reading for one
+// selected runtime member. The exact scope and complete group stay in the
+// authenticated key challenge; the observation cannot act as a standalone permit.
+func (v *RuntimeKeyVerification) PublishFundingReading(ctx context.Context, index string, reading balance.Observation, sign func(string, string, string) (string, error)) error {
+	out := v.prepared
+	found := false
+	for _, m := range out.proof.Members {
+		found = found || m.AuthIndex == index
+	}
+	if !found {
+		return ErrIdentity
+	}
+	nonce := uuid.NewString()
+	digest, err := sign(nonce, out.status.SourceVersion, index)
+	if err != nil {
+		return err
+	}
+	input := struct {
+		Proof struct {
+			groupBinding
+			Version       int    `json:"version"`
+			SourceVersion string `json:"sourceVersion"`
+			AuthIndex     string `json:"auth_index"`
+			Adapter       string `json:"adapter"`
+			Nonce         string `json:"nonce"`
+			Digest        string `json:"digest"`
+		} `json:"proof"`
+		Reading struct {
+			QueryID      string                    `json:"queryId"`
+			ObservedAtMS int64                     `json:"observedAtMs"`
+			Available    *bool                     `json:"available"`
+			Balances     []balance.CurrencyBalance `json:"balances"`
+		} `json:"reading"`
+	}{}
+	input.Proof.groupBinding = coreGroup(out.status.Binding)
+	input.Proof.Version, input.Proof.SourceVersion = 1, out.status.SourceVersion
+	input.Proof.AuthIndex, input.Proof.Adapter, input.Proof.Nonce, input.Proof.Digest = index, "deepseek", nonce, digest
+	input.Reading.QueryID, input.Reading.ObservedAtMS, input.Reading.Available, input.Reading.Balances = reading.QueryID, reading.ObservedAtMS, reading.Available, reading.Balances
+	var reply struct {
+		Accepted *bool `json:"accepted"`
+	}
+	err = out.core.request(ctx, "POST", "providers/funding", input, &reply)
+	if errors.Is(err, ErrFundingObservationUnsupported) {
+		return nil
+	}
+	if err == nil && reply.Accepted == nil {
+		return ErrUnavailable
+	}
+	return err
 }

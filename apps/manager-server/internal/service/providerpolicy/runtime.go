@@ -171,7 +171,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 				cancel()
 				return ErrUnavailable
 			}
-			e = s.consume(attempt, finished, lease)
+			e = errors.Join(s.consumeFunding(attempt, finished, lease), s.consume(attempt, finished, lease))
 		}
 		cancel()
 		if e != nil {

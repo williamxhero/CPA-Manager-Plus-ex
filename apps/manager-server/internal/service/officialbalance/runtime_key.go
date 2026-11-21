@@ -5,8 +5,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/balance"
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 )
 
@@ -65,4 +67,48 @@ func (s *Service) runtimeKeyDigest(ctx context.Context, q Query, nonce, sourceVe
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write([]byte("cpa-provider-key-match-v1\n" + nonce + "\n" + sourceVersion + "\n" + index))
 	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+// WithFundingReading holds the current local query authority through the Core
+// publication. A configuration or completion transition on this host cannot
+// replace the authenticated reading between final validation and transmission.
+func (s *Service) WithFundingReading(ctx context.Context, q Query, n *rc.Negotiated, attemptID string, send func(balance.Observation, func(nonce, sourceVersion, index string) (string, error)) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, err := s.InventoryStatus(ctx, q.Binding, n)
+	if err != nil {
+		return err
+	}
+	if !current.Configured || current.Version != q.Version || current.Adapter != "deepseek" || current.Endpoint != "https://api.deepseek.com/user/balance" || current.Stale || current.LastSuccess == nil || current.Attempt == nil ||
+		current.Attempt.QueryID != attemptID || current.LastSuccess.QueryID != attemptID || current.Attempt.QueryStatus != "success" || current.LastSuccess.QueryStatus != "success" || current.LastSuccess.CapabilityStatus != "supported" || current.LastSuccess.Semantic != "account_wallet" {
+		return nil
+	}
+	id := key(q.Binding)
+	record, err := s.Store.OfficialBalance(ctx, id)
+	if err != nil || record.Version != q.Version {
+		return ErrIdentity
+	}
+	secret, err := s.Store.ResolveOfficialBalanceSecret(ctx, id, q.Version, record.SecretRef)
+	if err != nil || secret == "" {
+		return ErrIdentity
+	}
+	reading := *current.LastSuccess
+	raw, err := json.Marshal(struct {
+		QueryID      string                    `json:"queryId"`
+		ObservedAtMS int64                     `json:"observedAtMs"`
+		Available    *bool                     `json:"available"`
+		Balances     []balance.CurrencyBalance `json:"balances"`
+	}{reading.QueryID, reading.ObservedAtMS, reading.Available, reading.Balances})
+	if err != nil {
+		return err
+	}
+	stamp := sha256.Sum256(raw)
+	return send(reading, func(nonce, sourceVersion, index string) (string, error) {
+		if uuid.Validate(nonce) != nil || len(sourceVersion) != 64 || index == "" {
+			return "", ErrInput
+		}
+		mac := hmac.New(sha256.New, []byte(secret))
+		_, _ = mac.Write([]byte("cpa-provider-funding-v1\n" + nonce + "\n" + sourceVersion + "\n" + index + "\n" + hex.EncodeToString(stamp[:])))
+		return hex.EncodeToString(mac.Sum(nil)), nil
+	})
 }
