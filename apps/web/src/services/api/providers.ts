@@ -472,6 +472,7 @@ const mergeMetaProviderKeyPayload = (raw: unknown, payload: Record<string, unkno
 
 const mergeOpenAIProviderPayload = (raw: unknown, payload: Record<string, unknown>) => {
   const next = mergeKnownFields(raw, payload, OPENAI_PROVIDER_FIELDS);
+  delete next['native-funding'];
   preserveOmittedRawField(raw, payload, next, DISABLE_COOLING_FIELDS);
   const rawApiKeyEntries = isRecord(raw)
     ? (raw['api-key-entries'] ?? raw.apiKeyEntries)
@@ -715,6 +716,39 @@ const getOpenAIProviderKey = (provider: Pick<OpenAIProviderConfig, 'name' | 'bas
     .toLowerCase()}\u0000${String(provider.baseUrl ?? '')
     .trim()
     .toLowerCase()}`;
+
+// Core supplies routing authority independently of the display balance. Join
+// v8 metadata by exact group identity, not by either list's row position.
+const loadNativeFunding = async () => {
+  try {
+    return await apiClient.getV8<unknown>('/config/api-keys/openai-compatibility');
+  } catch {
+    return null;
+  }
+};
+const fundingJoinKey = (provider: OpenAIProviderConfig) =>
+  JSON.stringify([
+    provider.name.trim(),
+    provider.baseUrl.trim(),
+    provider.apiKeyEntries.map((key) => [key.apiKey.trim(), (key.proxyUrl ?? '').trim()]).sort(),
+  ]);
+const hydrateNativeFunding = (providers: OpenAIProviderConfig[], list: unknown) => {
+    if (!Array.isArray(list)) return providers;
+    const states = new Map<string, OpenAIProviderConfig[]>();
+    for (const raw of list) {
+      const provider = normalizeOpenAIProvider(raw);
+      if (!provider) continue;
+      const id = fundingJoinKey(provider);
+      states.set(id, [...(states.get(id) ?? []), provider]);
+    }
+    return providers.map((provider) => {
+      const matches = states.get(fundingJoinKey(provider));
+      if (matches?.length !== 1 || matches[0].nativeFunding === undefined) return provider;
+      const current = matches[0];
+      if (provider.resourceId && current.resourceId !== provider.resourceId) return provider;
+      return { ...provider, nativeFunding: current.nativeFunding, autoHeld: current.autoHeld };
+    });
+};
 
 // CPA upstream currently omits some OpenAI provider fields from GET /openai-compatibility,
 // so we rehydrate them from /config when they are missing.
@@ -1292,12 +1326,14 @@ export const providersApi = {
     apiClient.delete(`/vertex-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
 
   async getOpenAIProviders(): Promise<OpenAIProviderConfig[]> {
-    const data = await apiClient.get('/openai-compatibility');
-    const list = extractArrayPayload(data, 'openai-compatibility');
+    const read = apiClient.get('/openai-compatibility');
+    const authority = loadNativeFunding();
+    const list = extractArrayPayload(await read, 'openai-compatibility');
     const providers = list
       .map((item) => normalizeOpenAIProvider(item))
       .filter(Boolean) as OpenAIProviderConfig[];
-    return hydrateOpenAIProvidersDisableCooling(providers);
+    const hydrated = await hydrateOpenAIProvidersDisableCooling(providers);
+    return hydrateNativeFunding(hydrated, await authority);
   },
 
   saveOpenAIProviders: async (providers: OpenAIProviderConfig[]) =>

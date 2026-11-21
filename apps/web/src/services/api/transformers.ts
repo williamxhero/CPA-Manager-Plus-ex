@@ -351,6 +351,8 @@ const normalizeOpenAIProvider = (provider: unknown): OpenAIProviderConfig | null
     apiKeyEntries = provider['api-key-entries']
       .map((entry) => normalizeApiKeyEntry(entry))
       .filter(Boolean) as ApiKeyEntry[];
+  } else if (Array.isArray(provider.keys)) {
+    apiKeyEntries = provider.keys.map((entry) => normalizeApiKeyEntry(entry)).filter(Boolean) as ApiKeyEntry[];
   } else if (Array.isArray(provider['api-keys'])) {
     apiKeyEntries = provider['api-keys']
       .map((key) => normalizeApiKeyEntry({ 'api-key': key }))
@@ -373,6 +375,7 @@ const normalizeOpenAIProvider = (provider: unknown): OpenAIProviderConfig | null
   if (disabled !== undefined) result.disabled = disabled;
   const autoHeld = normalizeBoolean(provider['auto-held'] ?? provider.autoHeld);
   if (autoHeld !== undefined) result.autoHeld = autoHeld;
+  if (typeof provider['native-funding'] === 'boolean') result.nativeFunding = provider['native-funding'];
   const disableCooling = readCoolingOverride(provider);
   if (disableCooling !== undefined) result.disableCooling = disableCooling;
   const prefix = normalizePrefix(provider.prefix ?? provider['prefix']);

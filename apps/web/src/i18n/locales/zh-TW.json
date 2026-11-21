@@ -1446,6 +1446,7 @@
     "kind_empty_title": "暫無 {{name}} 設定",
     "add_kind_button": "新增 {{name}} 設定",
     "health_check_button": "一鍵測活",
+    "auto_start_stop_core": "系統自動管理",
     "auto_start_stop": "自動啟停",
     "health_check_title": "付費接入可用性檢查",
     "health_check_progress_title": "檢測進度",
