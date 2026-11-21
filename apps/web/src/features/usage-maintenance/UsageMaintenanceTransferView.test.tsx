@@ -157,11 +157,13 @@ function TransferHarness({
   managementKey?: string;
 }) {
   const [visible, setVisible] = useState(true);
+  const [refreshToken, setRefreshToken] = useState(0);
   const [panel, setPanel] = useState<'import' | 'import-session' | 'export' | null>('import');
   const [sessionId, setSessionId] = useState<string | null>(null);
   return (
     <>
       <button onClick={() => setVisible((value) => !value)}>Toggle transfer visibility</button>
+      <button onClick={() => setRefreshToken((value) => value + 1)}>Refresh sessions</button>
       <button onClick={() => setPanel('export')}>Open export</button>
       <button onClick={() => setPanel('import')}>Open import</button>
       <UsageMaintenanceTransferView
@@ -170,7 +172,7 @@ function TransferHarness({
         managementKey={managementKey}
         panel={panel}
         sessionId={sessionId}
-        refreshToken={0}
+        refreshToken={refreshToken}
         onUsageChanged={mocks.onUsageChanged}
         onOpenPanel={(value, id) => {
           setPanel(value);
@@ -220,6 +222,75 @@ afterEach(() => {
 });
 
 describe('UsageMaintenanceTransferView', () => {
+  it('loads the session list exactly once when returning after a refresh request', async () => {
+    const renderer = await renderView();
+    const toggle = findButton(renderer, 'Toggle transfer visibility')!;
+    const refresh = findButton(renderer, 'Refresh sessions')!;
+    await act(async () => refresh.props.onClick());
+    await act(async () => toggle.props.onClick());
+    mocks.listUsageImportSessions.mockClear();
+    await act(async () => toggle.props.onClick());
+    expect(mocks.listUsageImportSessions).toHaveBeenCalledTimes(1);
+    expect(getText(renderer.root)).toContain('No import sessions yet.');
+    act(() => renderer.unmount());
+  });
+
+  it.each(['import', 'cancel'] as const)(
+    'reports the explicit %s result without reading the hidden session list',
+    async (action) => {
+      const pendingImport = deferred<{
+        format: string;
+        added: number;
+        total: number;
+        skipped: number;
+        failed: number;
+      }>();
+      const pendingCancel = deferred<null>();
+      const file = new File(['{}'], 'hidden-result.jsonl');
+      const progress: UsageImportProgress = {
+        filename: file.name,
+        sessionId: 'hidden-session',
+        phase: 'uploading',
+        uploadedBytes: 0,
+        totalBytes: file.size,
+        percent: 0,
+      };
+      mocks.uploadUsageImportFile.mockImplementationOnce(
+        ({ onProgress }: { onProgress: (value: UsageImportProgress) => void }) => {
+          onProgress(progress);
+          return pendingImport.promise;
+        }
+      );
+      const renderer = await renderView();
+      await act(async () =>
+        renderer.root.findByProps({ type: 'file' }).props.onChange({
+          target: { files: [file], value: file.name },
+        })
+      );
+      act(() => getImportConfirmation(renderer).onConfirm());
+      if (action === 'cancel') {
+        mocks.cancelUsageImportFile.mockReturnValueOnce(pendingCancel.promise);
+        act(() => findButton(renderer, 'usage_stats.import_cancel')!.props.onClick());
+        act(() => mocks.showConfirmation.mock.calls[0][0].onConfirm());
+        expect(mocks.cancelUsageImportFile).toHaveBeenCalledTimes(1);
+      }
+      await act(async () => findButton(renderer, 'Toggle transfer visibility')!.props.onClick());
+      mocks.listUsageImportSessions.mockClear();
+      const result = { format: 'jsonl', added: 1, total: 1, skipped: 0, failed: 0 };
+      if (action === 'cancel') await act(async () => pendingCancel.resolve(null));
+      await act(async () => pendingImport.resolve(result));
+      expect(mocks.showNotification).toHaveBeenCalledExactlyOnceWith(
+        action === 'cancel'
+          ? 'The resumable session has expired or no longer exists.'
+          : expect.stringContaining('Import complete'),
+        action === 'cancel' ? 'warning' : 'success'
+      );
+      expect(mocks.onUsageChanged).toHaveBeenCalledExactlyOnceWith();
+      expect(mocks.listUsageImportSessions).not.toHaveBeenCalled();
+      act(() => renderer.unmount());
+    }
+  );
+
   it('pauses session list polling while transfer is hidden and refreshes when it returns', async () => {
     vi.useFakeTimers();
     const activeSession: UsageImportSession = {

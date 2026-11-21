@@ -197,6 +197,8 @@ export function UsageMaintenanceTransferView({
   const operationRef = useRef<AbortController | null>(null);
   const operationIDRef = useRef(0);
   const mountedRef = useRef(false);
+  const visibleRef = useRef(visible);
+  const hasLoadedSessionsRef = useRef(false);
   const contextGenerationRef = useRef(0);
   const sessionRequestRef = useRef<AbortController | null>(null);
   const sessionRequestIDRef = useRef(0);
@@ -215,6 +217,9 @@ export function UsageMaintenanceTransferView({
   useLayoutEffect(() => {
     panelRef.current = panel;
   }, [panel]);
+  useLayoutEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -231,7 +236,9 @@ export function UsageMaintenanceTransferView({
     setDetailSession(null);
     setDetailError(null);
     setSessionList(null);
+    hasLoadedSessionsRef.current = false;
     setLoading(true);
+    setRefreshing(false);
     setCancelPending(false);
     setExporting(false);
     return () => {
@@ -245,7 +252,7 @@ export function UsageMaintenanceTransferView({
 
   const loadSessions = useCallback(
     async (background = false) => {
-      if (!serviceBase) return;
+      if (!mountedRef.current || !visibleRef.current || !serviceBase) return;
       const requestID = ++sessionRequestIDRef.current;
       sessionRequestRef.current?.abort();
       const controller = new AbortController();
@@ -265,6 +272,7 @@ export function UsageMaintenanceTransferView({
         if (!isImportSessionList(result)) {
           throw new Error('invalid import session response');
         }
+        hasLoadedSessionsRef.current = true;
         setSessionList(result);
         setError(null);
       } catch (cause) {
@@ -272,8 +280,8 @@ export function UsageMaintenanceTransferView({
         setError(formatImportError(cause, t));
       } finally {
         if (requestID === sessionRequestIDRef.current) {
-          if (background) setRefreshing(false);
-          else setLoading(false);
+          setRefreshing(false);
+          setLoading(false);
           sessionRequestRef.current = null;
         }
       }
@@ -283,16 +291,12 @@ export function UsageMaintenanceTransferView({
 
   useEffect(() => {
     if (!visible) return;
-    void loadSessions();
+    void loadSessions(hasLoadedSessionsRef.current);
     return () => {
       sessionRequestIDRef.current += 1;
       sessionRequestRef.current?.abort();
       sessionRequestRef.current = null;
     };
-  }, [loadSessions, visible]);
-
-  useEffect(() => {
-    if (visible && refreshToken > 0) void loadSessions(true);
   }, [loadSessions, refreshToken, visible]);
 
   useEffect(() => {
