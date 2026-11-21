@@ -283,6 +283,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     scope: string;
     entries: PluginResourceEntry[];
   }>();
+  const [pluginConnectionRevision, setPluginConnectionRevision] = useState(0);
   const pluginResourcesRequest = useRef(0);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const languageMenuRef = useRef<HTMLDivElement | null>(null);
@@ -507,35 +508,47 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     });
   }, [fetchConfig]);
 
-  const loadPluginResources = useCallback(async () => {
-    const request = ++pluginResourcesRequest.current;
-    if (connectionStatus !== 'connected' || !pluginWorkspaceVisible) {
-      setPluginResources(undefined);
-      return;
-    }
+  useLayoutEffect(
+    () =>
+      useAuthStore.subscribe((next, previous) => {
+        if (
+          next.apiBase !== previous.apiBase ||
+          next.managementKey !== previous.managementKey ||
+          next.connectionStatus !== previous.connectionStatus ||
+          next.supportsPlugin !== previous.supportsPlugin
+        ) {
+          pluginResourcesRequest.current += 1;
+          setPluginResources(undefined);
+          // A disconnect and reconnect can be batched into a render with the same credentials.
+          setPluginConnectionRevision((revision) => revision + 1);
+        }
+      }),
+    []
+  );
 
-    try {
-      const plugins = await pluginsApi.list({ apiBase, managementKey });
-      const auth = useAuthStore.getState();
-      if (
-        request !== pluginResourcesRequest.current ||
-        auth.apiBase !== apiBase ||
-        auth.managementKey !== managementKey ||
-        auth.connectionStatus !== 'connected'
-      )
-        return;
-      setPluginResources({
-        scope: pluginScope,
-        entries: isPluginResourceNavVisible({
-          supportsPlugin,
-          pluginsEnabled: plugins.pluginsEnabled,
-        })
-          ? collectPluginResourceNavEntries(plugins.plugins)
-          : [],
-      });
-    } catch {
-      if (request === pluginResourcesRequest.current) setPluginResources(undefined);
-    }
+  const loadPluginResources = useCallback(async () => {
+    if (connectionStatus !== 'connected' || !pluginWorkspaceVisible) return;
+
+    const request = ++pluginResourcesRequest.current;
+    const plugins = await pluginsApi.list({ apiBase, managementKey });
+    const auth = useAuthStore.getState();
+    if (
+      request !== pluginResourcesRequest.current ||
+      auth.apiBase !== apiBase ||
+      auth.managementKey !== managementKey ||
+      auth.connectionStatus !== 'connected' ||
+      !auth.supportsPlugin
+    )
+      return;
+    setPluginResources({
+      scope: pluginScope,
+      entries: isPluginResourceNavVisible({
+        supportsPlugin,
+        pluginsEnabled: plugins.pluginsEnabled,
+      })
+        ? collectPluginResourceNavEntries(plugins.plugins)
+        : [],
+    });
   }, [
     apiBase,
     connectionStatus,
@@ -545,19 +558,23 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     supportsPlugin,
   ]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadPluginResources();
-    }, 0);
+  useLayoutEffect(() => {
+    const refreshPluginResources = () => {
+      if (!pluginControlMenuVisible) setPluginResources(undefined);
+      void loadPluginResources().catch(() => {
+        // Background reads keep the last successful catalog for this connection.
+      });
+    };
+    const timer = window.setTimeout(refreshPluginResources, 0);
 
-    window.addEventListener(PLUGIN_RESOURCES_REFRESH_EVENT, loadPluginResources);
+    window.addEventListener(PLUGIN_RESOURCES_REFRESH_EVENT, refreshPluginResources);
 
     return () => {
       pluginResourcesRequest.current += 1;
       window.clearTimeout(timer);
-      window.removeEventListener(PLUGIN_RESOURCES_REFRESH_EVENT, loadPluginResources);
+      window.removeEventListener(PLUGIN_RESOURCES_REFRESH_EVENT, refreshPluginResources);
     };
-  }, [configPluginsEnabled, loadPluginResources]);
+  }, [loadPluginResources, pluginConnectionRevision, pluginControlMenuVisible]);
 
   const navShortLabel = (key: string, fallback: string) => {
     const shortKey = `${key}_short`;

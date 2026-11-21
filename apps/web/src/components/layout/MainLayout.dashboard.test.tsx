@@ -2,13 +2,14 @@ import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'rea
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
-import { useAuthStore } from '@/stores';
+import { useAuthStore, useConfigStore, useNotificationStore } from '@/stores';
 import { setDemoMode } from '@/features/demo/demoMode';
 import { DemoRouteAdapter } from '@/features/demo/DemoRouteAdapter';
+import { notifyPluginResourcesChanged } from '@/features/plugins/pluginResources';
 import { configApi } from '@/services/api/config';
 import { logsApi } from '@/services/api/logs';
+import { normalizePluginList, pluginsApi } from '@/services/api/plugins';
 import { usageServiceApi } from '@/services/api/usageService';
-import { useConfigStore } from '@/stores';
 import { MainLayout } from './MainLayout';
 
 let renderer: ReactTestRenderer | undefined;
@@ -22,11 +23,13 @@ beforeEach(async () => {
     setItem: (key: string, value: string) => values.set(key, value),
     removeItem: (key: string) => values.delete(key),
   });
+  const events = new EventTarget();
   vi.stubGlobal('window', {
     localStorage,
     location: { hash: '', origin: 'http://demo.local' },
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+    dispatchEvent: events.dispatchEvent.bind(events),
     setInterval,
     clearInterval,
     setTimeout,
@@ -51,6 +54,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await act(async () => renderer?.unmount());
+  useNotificationStore.getState().clearAll();
   renderer = undefined;
   focusedId = undefined;
   setDemoMode(false);
@@ -241,13 +245,29 @@ describe('Access navigation', () => {
 });
 
 describe('Plugin navigation', () => {
+  const tabs = () =>
+    renderer!.root
+      .findByProps({ role: 'tablist', 'aria-label': '插件管理' })
+      .findAll((node) => typeof node.type === 'string' && node.props.role === 'tab');
+  const resourcePaths = () =>
+    tabs()
+      .map((tab) => tab.props.href as string)
+      .filter((href) => href.includes('/plugin-pages/'));
+  const catalog = (id: string) =>
+    normalizePluginList({
+      plugins_enabled: true,
+      plugins: [
+        {
+          id,
+          effective_enabled: true,
+          menus: [{ path: '/resource', menu: id }],
+        },
+      ],
+    });
+
   it('opens a plugin resource under the same workspace and restores the installed tab from history', async () => {
     const router = await renderNavigation('/demo/plugins', '/demo');
     const sidebar = () => renderer!.root.findByType('aside').findAllByType('a');
-    const tabs = () =>
-      renderer!.root
-        .findByProps({ role: 'tablist', 'aria-label': '插件管理' })
-        .findAll((node) => typeof node.type === 'string' && node.props.role === 'tab');
     expect(tabs().slice(0, 2).map(nodeText)).toEqual(['已安装', '插件商店']);
     await vi.waitFor(() =>
       expect(tabs().some((tab) => tab.props.href?.includes('/plugin-pages/'))).toBe(true)
@@ -268,6 +288,82 @@ describe('Plugin navigation', () => {
     );
     await act(async () => router.navigate(-1));
     expect(tabs()[0].props['aria-selected']).toBe(true);
+  });
+
+  it('keeps the last catalog on background and header failures, then accepts an empty success', async () => {
+    const reads = vi.spyOn(pluginsApi, 'list').mockResolvedValue(catalog('first'));
+    await renderNavigation('/demo/plugin-store', '/demo');
+    await vi.waitFor(() => expect(resourcePaths()).toEqual(['/demo/plugin-pages/first/0']));
+
+    reads.mockRejectedValue(new Error('fixture catalog unavailable'));
+    await act(async () => notifyPluginResourcesChanged());
+    expect(resourcePaths()).toEqual(['/demo/plugin-pages/first/0']);
+    expect(useNotificationStore.getState().notifications).toEqual([]);
+
+    const refresh = renderer!.root
+      .findAllByType('button')
+      .find((button) => button.props['aria-label'] === i18n.t('header.refresh_all'))!;
+    await act(async () => {
+      await refresh.props.onClick();
+    });
+    expect(resourcePaths()).toEqual(['/demo/plugin-pages/first/0']);
+    expect(useNotificationStore.getState().notifications).toEqual([
+      expect.objectContaining({
+        message: '刷新失败: fixture catalog unavailable',
+        type: 'error',
+      }),
+    ]);
+
+    reads.mockResolvedValue(normalizePluginList({ plugins_enabled: true, plugins: [] }));
+    await act(async () => notifyPluginResourcesChanged());
+    expect(resourcePaths()).toEqual([]);
+  });
+
+  it('clears the catalog across credential changes and ignores a late response from the old connection', async () => {
+    const reads = vi.spyOn(pluginsApi, 'list').mockResolvedValue(catalog('first'));
+    await renderNavigation('/demo/plugin-store', '/demo');
+    await vi.waitFor(() => expect(resourcePaths()).toEqual(['/demo/plugin-pages/first/0']));
+
+    let finishOldRead!: (response: ReturnType<typeof catalog>) => void;
+    reads.mockImplementationOnce(() => new Promise((resolve) => (finishOldRead = resolve)));
+    await act(async () => notifyPluginResourcesChanged());
+
+    reads.mockRejectedValue(new Error('fixture second connection unavailable'));
+    await act(async () => {
+      useAuthStore.setState({ managementKey: 'second-connection' });
+    });
+    expect(resourcePaths()).toEqual([]);
+    await vi.waitFor(() =>
+      expect(reads).toHaveBeenCalledWith({
+        apiBase: 'http://demo.local',
+        managementKey: 'second-connection',
+      })
+    );
+    await act(async () => finishOldRead(catalog('late-first')));
+    expect(resourcePaths()).toEqual([]);
+
+    reads.mockResolvedValue(catalog('second'));
+    await act(async () => notifyPluginResourcesChanged());
+    expect(resourcePaths()).toEqual(['/demo/plugin-pages/second/0']);
+
+    reads.mockImplementationOnce(() => new Promise((resolve) => (finishOldRead = resolve)));
+    await act(async () => notifyPluginResourcesChanged());
+    let finishReconnect: ((response: ReturnType<typeof catalog>) => void) | undefined;
+    reads.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishReconnect = resolve;
+        })
+    );
+    await act(async () => {
+      useAuthStore.setState({ connectionStatus: 'disconnected' });
+      useAuthStore.setState({ connectionStatus: 'connected' });
+      finishOldRead(catalog('late-second'));
+    });
+    expect(resourcePaths()).toEqual([]);
+    await vi.waitFor(() => expect(finishReconnect).toBeDefined());
+    await act(async () => finishReconnect!(catalog('reconnected')));
+    expect(resourcePaths()).toEqual(['/demo/plugin-pages/reconnected/0']);
   });
 });
 
