@@ -27,9 +27,10 @@ export type ScopedApiRequestConfig = AxiosRequestConfig & {
 };
 
 export const createScopedApiRequestConfig = (
-  scope: ApiClientRequestScope
+  scope: ApiClientRequestScope,
+  baseURL = computeApiUrl(scope.apiBase)
 ): ScopedApiRequestConfig => ({
-  baseURL: computeApiUrl(scope.apiBase),
+  baseURL,
   headers: scope.managementKey
     ? {
         Authorization: `Bearer ${scope.managementKey}`,
@@ -256,11 +257,10 @@ class ApiClient {
   /** Read the current Core's v8 view under the same connection and identity. */
   async getV8<T = unknown>(url: string): Promise<T> {
     if (!this.apiBase || (__DEMO_SITE__ && isDemoMode())) throw new Error('Core v8 unavailable');
-    return this.get<T>(url, {
-      baseURL: this.apiBase.replace(/\/v0\/management$/, '/v8/management'),
-      headers: this.managementKey ? { Authorization: `Bearer ${this.managementKey}` } : {},
-      cpampScopedRequest: true,
-    } as ScopedApiRequestConfig);
+    return this.get<T>(url, createScopedApiRequestConfig(
+      { apiBase: this.apiBase, managementKey: this.managementKey },
+      this.apiBase.replace(/\/v0\/management$/, '/v8/management')
+    ));
   }
 
   /**

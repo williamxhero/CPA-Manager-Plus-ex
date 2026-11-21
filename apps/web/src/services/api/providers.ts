@@ -717,8 +717,6 @@ const getOpenAIProviderKey = (provider: Pick<OpenAIProviderConfig, 'name' | 'bas
     .trim()
     .toLowerCase()}`;
 
-// Core supplies routing authority independently of the display balance. Join
-// v8 metadata by exact group identity, not by either list's row position.
 const loadNativeFunding = async () => {
   try {
     return await apiClient.getV8<unknown>('/config/api-keys/openai-compatibility');
@@ -734,17 +732,16 @@ const fundingJoinKey = (provider: OpenAIProviderConfig) =>
   ]);
 const hydrateNativeFunding = (providers: OpenAIProviderConfig[], list: unknown) => {
     if (!Array.isArray(list)) return providers;
-    const states = new Map<string, OpenAIProviderConfig[]>();
+    const states = new Map<string, OpenAIProviderConfig | null>();
     for (const raw of list) {
       const provider = normalizeOpenAIProvider(raw);
       if (!provider) continue;
       const id = fundingJoinKey(provider);
-      states.set(id, [...(states.get(id) ?? []), provider]);
+      states.set(id, states.has(id) ? null : provider);
     }
     return providers.map((provider) => {
-      const matches = states.get(fundingJoinKey(provider));
-      if (matches?.length !== 1 || matches[0].nativeFunding === undefined) return provider;
-      const current = matches[0];
+      const current = states.get(fundingJoinKey(provider));
+      if (current?.nativeFunding === undefined) return provider;
       if (provider.resourceId && current.resourceId !== provider.resourceId) return provider;
       return { ...provider, nativeFunding: current.nativeFunding, autoHeld: current.autoHeld };
     });

@@ -347,12 +347,9 @@ const normalizeOpenAIProvider = (provider: unknown): OpenAIProviderConfig | null
   if (!name || !baseUrl) return null;
 
   let apiKeyEntries: ApiKeyEntry[] = [];
-  if (Array.isArray(provider['api-key-entries'])) {
-    apiKeyEntries = provider['api-key-entries']
-      .map((entry) => normalizeApiKeyEntry(entry))
-      .filter(Boolean) as ApiKeyEntry[];
-  } else if (Array.isArray(provider.keys)) {
-    apiKeyEntries = provider.keys.map((entry) => normalizeApiKeyEntry(entry)).filter(Boolean) as ApiKeyEntry[];
+  const entries = Array.isArray(provider['api-key-entries']) ? provider['api-key-entries'] : provider.keys;
+  if (Array.isArray(entries)) {
+    apiKeyEntries = entries.map((entry) => normalizeApiKeyEntry(entry)).filter(Boolean) as ApiKeyEntry[];
   } else if (Array.isArray(provider['api-keys'])) {
     apiKeyEntries = provider['api-keys']
       .map((key) => normalizeApiKeyEntry({ 'api-key': key }))
