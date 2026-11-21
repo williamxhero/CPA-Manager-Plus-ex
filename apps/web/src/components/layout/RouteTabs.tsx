@@ -52,15 +52,13 @@ function RouteTabLink({ onKeyDown, to, ...props }: SegmentedTabsLinkProps) {
 }
 
 export function RouteTabs<Id extends string>({
-  title,
-  ariaLabel = title,
+  ariaLabel,
   items,
   activeTab,
   idBase,
   routeBase,
 }: {
-  title: string;
-  ariaLabel?: string;
+  ariaLabel: string;
   items: ReadonlyArray<RouteTab<Id>>;
   activeTab: Id | undefined;
   idBase: string;
@@ -85,7 +83,6 @@ export function RouteTabs<Id extends string>({
 
   return (
     <header className={styles.header} ref={headerRef}>
-      <h1>{title}</h1>
       <SegmentedTabs
         items={items.map((item) => ({ ...item, to: routeTabTarget(item.to, routeBase) }))}
         activeTab={activeTab}

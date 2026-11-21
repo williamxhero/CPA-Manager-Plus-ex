@@ -51,7 +51,7 @@ export function UsageWorkspaceTabs({
   }
   return (
     <RouteTabs
-      title={t('nav.usage_analytics')}
+      ariaLabel={t('nav.usage_analytics')}
       items={items}
       activeTab={activeTab}
       idBase={usageTabsId}

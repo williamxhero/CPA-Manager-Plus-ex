@@ -168,7 +168,7 @@ describe('Dashboard navigation', () => {
     expect(focusedId).toBe(selectedTab()!.props.id);
   });
 
-  it('opens one system page from either entry and restores the selected tab during history navigation', async () => {
+  it('opens system information from the dashboard tab and restores it during history navigation', async () => {
     const router = await renderNavigation('/dashboard');
     expect(dashboardTabs().map(nodeText)).toEqual(['总览', '配置面板', '系统信息']);
     expect(nodeText(selectedTab()!)).toBe('总览');
@@ -190,9 +190,9 @@ describe('Dashboard navigation', () => {
     expect(links.filter((link) => link.props['aria-current'] === 'page').map(nodeText)).toEqual([
       '仪表盘',
     ]);
-    const shortcut = links.find((link) => nodeText(link) === '系统信息')!;
+    expect(links.some((link) => nodeText(link) === '系统信息')).toBe(false);
     await click(links.find((link) => nodeText(link) === '仪表盘')!);
-    await click(shortcut);
+    await click(dashboardTabs()[2]);
     expect(router.state.location.pathname).toBe(system);
     expect(nodeText(selectedTab()!)).toBe('系统信息');
   });
@@ -528,7 +528,7 @@ describe('Usage and monitoring navigation', () => {
     expect(tabs()[4].props['aria-selected']).toBe(true);
   });
 
-  it('exposes seven fixed destinations and highlights monitoring on an error-log bookmark', async () => {
+  it('exposes six fixed destinations and highlights monitoring on an error-log bookmark', async () => {
     await renderNavigation('/demo/logs?tab=errors', '/demo');
     const links = renderer!.root.findByType('aside').findAllByType('a');
     expect(links.map(nodeText)).toEqual([
@@ -538,7 +538,6 @@ describe('Usage and monitoring navigation', () => {
       '用量分析',
       '请求监控',
       '插件管理',
-      '系统信息',
     ]);
     expect(links.filter((link) => link.props['aria-current'] === 'page').map(nodeText)).toEqual([
       '请求监控',

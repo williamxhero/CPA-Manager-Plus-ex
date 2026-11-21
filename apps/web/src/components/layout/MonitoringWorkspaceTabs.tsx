@@ -55,7 +55,7 @@ export function MonitoringWorkspaceTabs({
   }
   return (
     <RouteTabs
-      title={t('nav.monitoring_center')}
+      ariaLabel={t('nav.monitoring_center')}
       items={items}
       activeTab={activeTab}
       idBase={monitoringTabsId}

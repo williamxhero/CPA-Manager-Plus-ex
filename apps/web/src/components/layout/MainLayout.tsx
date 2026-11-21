@@ -37,7 +37,6 @@ import {
   IconSidebarMonitor,
   IconSidebarPlugins,
   IconSidebarProviders,
-  IconSidebarSystem,
   IconSidebarUsage,
 } from '@/components/ui/icons';
 import {
@@ -86,7 +85,6 @@ const sidebarIcons: Record<string, ReactNode> = {
   monitoring: <IconSidebarMonitor size={SIDEBAR_ICON_SIZE} />,
   plugins: <IconSidebarPlugins size={SIDEBAR_ICON_SIZE} />,
   logs: <IconSidebarLogs size={SIDEBAR_ICON_SIZE} />,
-  system: <IconSidebarSystem size={SIDEBAR_ICON_SIZE} />,
 };
 
 // Header action icons - smaller size for header buttons
@@ -228,7 +226,6 @@ type NavItem = {
   shortLabel?: string;
   icon: ReactNode;
   exact?: boolean;
-  shortcut?: boolean;
 };
 
 interface MainLayoutProps {
@@ -613,36 +610,24 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
         },
       ]
     : [];
-  const navSections: NavItem[][] = [
-    [
-      dashboardNavItem,
-      {
-        path: '/ai-providers',
-        label: t('nav.ai_providers_nav'),
-        shortLabel: navShortLabel('nav.ai_providers', t('nav.ai_providers_nav')),
-        icon: sidebarIcons.aiProviders,
-      },
-      {
-        path: accessNavigation.accounts,
-        label: t('nav.accounts_nav'),
-        shortLabel: t('nav.accounts_nav'),
-        icon: sidebarIcons.authFiles,
-      },
-      ...(usageAnalyticsNavItem ? [usageAnalyticsNavItem] : []),
-      monitoringNavItem,
-      ...pluginControlNavItems,
-    ],
-    [
-      {
-        path: dashboardNavigation.system,
-        label: t('nav.system_info'),
-        shortLabel: navShortLabel('nav.system_info', t('nav.system_info')),
-        icon: sidebarIcons.system,
-        shortcut: true,
-      },
-    ],
-  ].filter((section) => section.length > 0);
-  const navItems = navSections.flat();
+  const navItems: NavItem[] = [
+    dashboardNavItem,
+    {
+      path: '/ai-providers',
+      label: t('nav.ai_providers_nav'),
+      shortLabel: navShortLabel('nav.ai_providers', t('nav.ai_providers_nav')),
+      icon: sidebarIcons.aiProviders,
+    },
+    {
+      path: accessNavigation.accounts,
+      label: t('nav.accounts_nav'),
+      shortLabel: t('nav.accounts_nav'),
+      icon: sidebarIcons.authFiles,
+    },
+    ...(usageAnalyticsNavItem ? [usageAnalyticsNavItem] : []),
+    monitoringNavItem,
+    ...pluginControlNavItems,
+  ];
   const navOrder = navItems.map((item) => item.path);
   const getRouteOrder = (pathname: string) => {
     const trimmedPath =
@@ -729,7 +714,6 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
       : routePathname;
   const currentPath = normalizedLocationPath === '/dashboard' ? '/' : normalizedLocationPath;
   const matchesNavPath = (item: NavItem, pathname: string) => {
-    if (item.shortcut) return false;
     if (item === usageAnalyticsNavItem) return isUsageWorkspacePath(pathname);
     if (item === monitoringNavItem) return isMonitoringWorkspacePath(pathname);
     if (item.path === dashboardNavigation.overview) return Boolean(dashboardTab);
@@ -741,9 +725,18 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     [...navItems]
       .sort((a, b) => b.path.length - a.path.length)
       .find((item) => matchesNavPath(item, currentPath)) ?? null;
-  const standaloneRouteLabel =
-    currentPath === '/accounts' ? t('nav.accounts', { defaultValue: t('accounts.title') }) : null;
-  const currentRouteLabel = activeNavItem?.label ?? standaloneRouteLabel ?? fullBrandName;
+  const workspaceTitle = dashboardTab
+    ? t('nav.dashboard')
+    : accessTab
+      ? t('nav.accounts')
+      : isUsageWorkspacePath(currentPath) && usageLanding
+        ? t('nav.usage_analytics')
+        : isMonitoringWorkspacePath(currentPath)
+          ? t('nav.monitoring_center')
+          : pluginWorkspaceVisible
+            ? t('nav.plugins')
+            : null;
+  const currentRouteLabel = activeNavItem?.label ?? fullBrandName;
 
   return (
     <div
@@ -786,12 +779,18 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
                   : headerIcons.sidebarCollapse}
             </button>
 
-            <nav
-              className="app-breadcrumb"
-              aria-label={t('common.navigation', { defaultValue: 'Navigation' })}
-            >
-              <span className="breadcrumb-item">{currentRouteLabel}</span>
-            </nav>
+            {workspaceTitle ? (
+              <div className="app-breadcrumb">
+                <h1 className="breadcrumb-item workspace-title">{workspaceTitle}</h1>
+              </div>
+            ) : (
+              <nav
+                className="app-breadcrumb"
+                aria-label={t('common.navigation', { defaultValue: 'Navigation' })}
+              >
+                <span className="breadcrumb-item">{currentRouteLabel}</span>
+              </nav>
+            )}
           </div>
 
           <div className="navbar-right">
@@ -992,53 +991,50 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
           </div>
 
           <div className="nav-section">
-            {navSections.map((section, sectionIndex) => (
-              <div className="nav-menu-section" key={`nav-section-${sectionIndex}`}>
-                {sectionIndex > 0 && <div className="nav-menu-divider" aria-hidden="true" />}
-                {section.map((item) => {
-                  const matches = matchesNavPath(item, currentPath);
-                  const props = {
-                    to: prefixRouteBase(item.path, routeBase),
-                    onClick: () => setSidebarOpen(false),
-                    title: item.label,
-                    'aria-label': !showSidebarLabels ? item.label : undefined,
-                  };
-                  const label = (
-                    <>
-                      <span className="nav-icon">{item.icon}</span>
-                      {showSidebarLabels && <span className="nav-label">{item.label}</span>}
-                    </>
-                  );
-                  const isWorkspace =
-                    item === usageAnalyticsNavItem ||
-                    item === monitoringNavItem ||
-                    item.path === dashboardNavigation.overview ||
-                    item.path === accessNavigation.accounts ||
-                    item.path === pluginNavigation.root;
-                  return isWorkspace || item.shortcut ? (
-                    <Link
-                      key={item.path}
-                      {...props}
-                      className={`nav-item ${matches ? 'active' : ''}`}
-                      aria-current={matches ? 'page' : undefined}
-                    >
-                      {label}
-                    </Link>
-                  ) : (
-                    <NavLink
-                      key={item.path}
-                      {...props}
-                      end={item.exact}
-                      className={({ isActive }) =>
-                        `nav-item ${isActive || matches ? 'active' : ''}`
-                      }
-                    >
-                      {label}
-                    </NavLink>
-                  );
-                })}
-              </div>
-            ))}
+            <div className="nav-menu-section">
+              {navItems.map((item) => {
+                const matches = matchesNavPath(item, currentPath);
+                const props = {
+                  to: prefixRouteBase(item.path, routeBase),
+                  onClick: () => setSidebarOpen(false),
+                  title: item.label,
+                  'aria-label': !showSidebarLabels ? item.label : undefined,
+                };
+                const label = (
+                  <>
+                    <span className="nav-icon">{item.icon}</span>
+                    {showSidebarLabels && <span className="nav-label">{item.label}</span>}
+                  </>
+                );
+                const isWorkspace =
+                  item === usageAnalyticsNavItem ||
+                  item === monitoringNavItem ||
+                  item.path === dashboardNavigation.overview ||
+                  item.path === accessNavigation.accounts ||
+                  item.path === pluginNavigation.root;
+                return isWorkspace ? (
+                  <Link
+                    key={item.path}
+                    {...props}
+                    className={`nav-item ${matches ? 'active' : ''}`}
+                    aria-current={matches ? 'page' : undefined}
+                  >
+                    {label}
+                  </Link>
+                ) : (
+                  <NavLink
+                    key={item.path}
+                    {...props}
+                    end={item.exact}
+                    className={({ isActive }) =>
+                      `nav-item ${isActive || matches ? 'active' : ''}`
+                    }
+                  >
+                    {label}
+                  </NavLink>
+                );
+              })}
+            </div>
           </div>
         </aside>
 
@@ -1064,7 +1060,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
             <DatabaseMaintenanceBanner />
             {dashboardTab && (
               <RouteTabs
-                title={t('nav.dashboard')}
+                ariaLabel={t('nav.dashboard')}
                 activeTab={dashboardTab}
                 idBase={dashboardNavigation.id}
                 routeBase={routeBase}
@@ -1085,7 +1081,6 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
             )}
             {accessTab && (
               <RouteTabs
-                title={t('nav.accounts')}
                 ariaLabel={t('accounts.tabs_label')}
                 activeTab={accessTab}
                 idBase={accessNavigation.id}
@@ -1117,7 +1112,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
             )}
             {pluginWorkspaceVisible && (
               <RouteTabs
-                title={t('nav.plugins')}
+                ariaLabel={t('nav.plugins')}
                 activeTab={pluginTab}
                 idBase={pluginNavigation.id}
                 routeBase={routeBase}

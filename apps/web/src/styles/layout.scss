@@ -134,6 +134,11 @@
   white-space: nowrap;
 }
 
+.workspace-title {
+  margin: 0;
+  font: inherit;
+}
+
 .navbar-right .btn {
   width: var(--floating-control-size);
   height: var(--floating-control-size);
