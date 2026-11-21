@@ -123,7 +123,7 @@ CPA / CLIProxyAPI 可以在 `:8317` 直接托管官方 Management Center，也�
 - 在浏览器本地或 Manager Server 定时巡检 Codex 和 xAI 账号。
 - 在 Provider 可提供信息时展示配额窗口、reset 证据、凭证状态、工作区状态和健康信号。
 - 对明确额度耗尽执行受控冷却，并将认证故障汇总到账号处理队列，支持复核与恢复。
-- 打开统一的 [凭证管理演示](https://cpamp-demo.seakee.dev/#/demo/accounts)。
+- 打开统一的 [额度接入管理演示](https://cpamp-demo.seakee.dev/#/demo/accounts)。
 
 ### 生产运维
 
@@ -210,7 +210,7 @@ docker run -d \
 | 安装并完成首次配置                    | [快速开始](https://cpamp-docs.seakee.dev/guide/getting-started.html)                                                                                                                                                                   |
 | 查看功能、Provider 和模式边界         | [能力矩阵](https://cpamp-docs.seakee.dev/reference/capability-matrix.html)                                                                                                                                                             |
 | 了解运行端口、密钥和请求流向          | [运行模型](https://cpamp-docs.seakee.dev/guide/runtime-model.html)                                                                                                                                                                     |
-| 配置 Provider、凭证、配额和插件       | [AI Provider](https://cpamp-docs.seakee.dev/manual/ai-providers.html)、[凭证管理](https://cpamp-docs.seakee.dev/manual/accounts.html)、[插件管理](https://cpamp-docs.seakee.dev/manual/plugins.html) |
+| 配置 Provider、凭证、配额和插件       | [付费接入管理](https://cpamp-docs.seakee.dev/manual/ai-providers.html)、[额度接入管理](https://cpamp-docs.seakee.dev/manual/accounts.html)、[插件管理](https://cpamp-docs.seakee.dev/manual/plugins.html) |
 | 运维 Manager Server、备份、升级与迁移 | [Manager Server 指南](https://cpamp-docs.seakee.dev/operations/manager-server.html)                                                                                                                                                    |
 | 备份数据或恢复丢失的管理员密钥        | [备份与恢复](https://cpamp-docs.seakee.dev/operations/backup.html)、[重置管理员密钥](https://cpamp-docs.seakee.dev/operations/reset-admin-key.html)                                                                   |
 | 从旧版 CPA-Manager 迁移               | [CPA-Manager 迁移指南](https://cpamp-docs.seakee.dev/migration/from-cpa-manager.html)                                                                                                                                                  |

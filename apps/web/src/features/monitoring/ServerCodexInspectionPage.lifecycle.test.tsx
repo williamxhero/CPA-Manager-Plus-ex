@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { TFunction } from 'i18next';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
+import i18n from '@/i18n';
 import type {
   CodexInspectionResult,
   CodexInspectionRun,
@@ -49,6 +50,7 @@ const mocks = vi.hoisted(() => ({
   },
   showNotification: vi.fn(),
   showConfirmation: vi.fn(),
+  translate: null as TFunction | null,
   t: (key: string, options?: Record<string, unknown>) =>
     options?.status ? `${key}:${String(options.status)}` : key,
 }));
@@ -59,7 +61,7 @@ vi.mock('react-i18next', async (importOriginal) => {
     ...actual,
     initReactI18next: { type: '3rdParty', init: () => undefined },
     useTranslation: () => ({
-      t: mocks.t,
+      t: mocks.translate ?? mocks.t,
       i18n: { language: 'en' },
     }),
   };
@@ -266,6 +268,7 @@ describe('ServerCodexInspectionPage lifecycle controls', () => {
     mocks.authState.apiBase = 'http://cpa.local:8317';
     mocks.authState.managementKey = 'management-key';
     mocks.lastCodexReauthProps = null;
+    mocks.translate = null;
     mocks.featureAvailability = {
       ...mocks.featureAvailability,
       checking: false,
@@ -1306,6 +1309,67 @@ describe('ServerCodexInspectionPage lifecycle controls', () => {
       apiBase: 'http://cpa-b.local:8317',
       managementKey: 'management-key-b',
     });
+
+    act(() => renderer.unmount());
+  });
+
+  it('shows the current page name for historical action errors and leaves other diagnostics intact', async () => {
+    mocks.translate = i18n.getFixedT('en');
+    const completed = run({
+      status: 'completed',
+      active: false,
+      cancellable: false,
+      finishedAtMs: 2_000,
+      disableCount: 2,
+    });
+    const historicalMessage = '该建议动作需要到凭证管理中人工处理';
+    const diagnostic = 'upstream rejected the request: 凭证管理 [HTTP 503]';
+    const result = {
+      id: 1,
+      runId: completed.id,
+      accountKey: 'codex-review.json::review',
+      fileName: 'codex-review.json',
+      displayAccount: 'review@example.com',
+      provider: 'codex',
+      disabled: false,
+      action: 'disable',
+      actionReason: '',
+      actionStatus: 'needs_review',
+      actionError: historicalMessage,
+      isQuota: false,
+      createdAtMs: 2_000,
+    } satisfies CodexInspectionResult;
+    mocks.listRuns.mockResolvedValue({ items: [completed] });
+    mocks.getRun.mockResolvedValue({
+      ...detail(completed),
+      results: [
+        result,
+        {
+          ...result,
+          id: 2,
+          accountKey: 'codex-failed.json::failed',
+          fileName: 'codex-failed.json',
+          displayAccount: 'failed@example.com',
+          actionStatus: 'failed',
+          actionError: diagnostic,
+        },
+      ],
+    } satisfies CodexInspectionRunDetail);
+
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        <MemoryRouter>
+          <ServerCodexInspectionPage />
+        </MemoryRouter>
+      );
+      await flush();
+    });
+
+    const shown = renderer.root.findAllByType('small').map(textContent);
+    expect(shown).toContain('Handle this suggested action manually in Quota Access Management.');
+    expect(shown).not.toContain(historicalMessage);
+    expect(shown).toContain(diagnostic);
 
     act(() => renderer.unmount());
   });
