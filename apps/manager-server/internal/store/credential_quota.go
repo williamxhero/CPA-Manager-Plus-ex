@@ -58,11 +58,18 @@ func (s *Store) CompleteCredentialQuota(ctx context.Context, id string, version 
 	return err
 }
 
+// CredentialQuotaScheduleCoverage records when an actual terminal query
+// started. It is scheduler bookkeeping only, never a fresh observation.
+type CredentialQuotaScheduleCoverage struct {
+	Key         string
+	StartedAtMS int64
+}
+
 // CompleteCredentialQuotaSnapshot returns the exact terminal source record from
 // the completion transaction, only after Commit succeeds. Consumers must not
 // depend on a second, fallible read after that durable publication. All writes
 // and snapshot acquisition retain the caller's deadline and source/job CAS.
-func (s *Store) CompleteCredentialQuotaSnapshot(ctx context.Context, id string, version int64, jobID, attempt, document string, success bool) (CredentialQuotaRecord, error) {
+func (s *Store) CompleteCredentialQuotaSnapshot(ctx context.Context, id string, version int64, jobID, attempt, document string, success bool, cover ...CredentialQuotaScheduleCoverage) (CredentialQuotaRecord, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return CredentialQuotaRecord{}, err
@@ -85,6 +92,12 @@ func (s *Store) CompleteCredentialQuotaSnapshot(ctx context.Context, id string, 
 	_, err = tx.ExecContext(ctx, `UPDATE credential_quota_jobs SET document=? WHERE id=?`, document, jobID)
 	if err != nil {
 		return CredentialQuotaRecord{}, err
+	}
+	for _, coverage := range cover {
+		_, err = tx.ExecContext(ctx, `INSERT INTO full_refresh_schedule(id,next_due_ms) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET next_due_ms=MAX(next_due_ms,excluded.next_due_ms)`, coverage.Key, coverage.StartedAtMS)
+		if err != nil {
+			return CredentialQuotaRecord{}, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return CredentialQuotaRecord{}, err

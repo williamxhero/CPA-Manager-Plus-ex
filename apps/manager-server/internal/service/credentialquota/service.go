@@ -376,6 +376,10 @@ func (s *Service) InventoryStatuses(ctx context.Context, n *rc.Negotiated) ([]St
 	return out, nil
 }
 func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
+	return s.start(ctx, q, 0)
+}
+
+func (s *Service) start(ctx context.Context, q Query, requiredFrom int64) (Job, error) {
 	started := time.Now()
 	if q.Version < 0 || q.Version >= 9007199254740991 || q.TimeoutMS < 0 || q.TimeoutMS > 60000 {
 		return Job{}, ErrInput
@@ -415,6 +419,15 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 		// completion consumer still owns the old worker's budget lease.
 		delete(s.running, flight)
 	}
+	if requiredFrom > 0 {
+		covered, err := s.RecheckQueryStartedAt(ctx, q)
+		if err != nil {
+			return Job{}, err
+		}
+		if covered >= requiredFrom {
+			return Job{}, ErrRecheckCovered
+		}
+	}
 	if retry, err := s.budget.RetryAt(ctx, "credential:"+flight); err != nil {
 		return Job{}, err
 	} else if s.budget.Now().UnixMilli() < retry {
@@ -452,10 +465,10 @@ func (s *Service) Start(ctx context.Context, q Query) (Job, error) {
 		return Job{}, err
 	}
 	s.running[flight] = job.ID
-	go s.run(job, source, id, flight)
+	go s.run(job, source, id, flight, started)
 	return job, nil
 }
-func (s *Service) run(job Job, source Source, id, flight string) {
+func (s *Service) run(job Job, source Source, id, flight string, started time.Time) {
 	defer func() {
 		s.mu.Lock()
 		if s.running[flight] == job.ID {
@@ -502,12 +515,17 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 		obs.ErrorCode = "START_FENCE_UNAVAILABLE"
 	}
 	obs.Binding, _ = json.Marshal(job.Query.Binding)
+	// Only an authoritative, terminal response to the selected native read
+	// covers a reset. Manager/Core connection failures and preflight
+	// rejections (including a source that is no longer ready) do not.
+	readCompleted := false
 	job.State = "complete"
 	if verifyErr != nil || operation(current) != operation(source) {
 		obs.QueryStatus = "identity_changed"
 		obs.ErrorCode = "IDENTITY_CHANGED"
 		job.State = "discarded"
 	} else if err == nil && valid(result, source) {
+		readCompleted = result.QueryStatus != "needs_configuration" && result.QueryStatus != "unsupported"
 		obs.QueryStatus = result.QueryStatus
 		obs.ErrorCode = "QUOTA_" + strings.ToUpper(result.QueryStatus)
 		obs.ObservedAtMS = result.ObservedAtMS
@@ -527,7 +545,11 @@ func (s *Service) run(job Job, source Source, id, flight string) {
 	a, _ := json.Marshal(obs)
 	doc, _ := json.Marshal(job)
 	s.mu.Lock()
-	committed, saved := s.Store.CompleteCredentialQuotaSnapshot(writeCtx, id, job.Query.Version, job.ID, string(a), string(doc), obs.QueryStatus == "success")
+	var cover []store.CredentialQuotaScheduleCoverage
+	if job.State == "complete" && readCompleted && ctx.Err() != context.Canceled && source.Protocol == "codex-oauth-wham" && source.AccountProvenance == "selected_oauth_account" {
+		cover = append(cover, store.CredentialQuotaScheduleCoverage{Key: recheckCoverageKey(job.Query), StartedAtMS: started.UnixMilli()})
+	}
+	committed, saved := s.Store.CompleteCredentialQuotaSnapshot(writeCtx, id, job.Query.Version, job.ID, string(a), string(doc), obs.QueryStatus == "success", cover...)
 	observer := s.completed
 	s.mu.Unlock()
 	if saved == nil && job.State == "complete" && observer != nil {

@@ -20,8 +20,17 @@ func sourceScheduleKey(src SourceStatus) string {
 		q := *request.Credential
 		q.Version = 0
 		q.TimeoutMS = 0
+		q.Scope.Revision = 0
 		request.Credential = &q
 	}
+	if request.Official != nil {
+		q := *request.Official
+		q.Scope.Revision = 0
+		request.Official = &q
+	}
+	// Only the enclosing inventory revision is excluded. All exact source
+	// targets (including each generation), Core instance and boot, and source
+	// configuration remain part of this scheduling key. Query CAS is unchanged.
 	raw, _ := json.Marshal(request)
 	sum := sha256.Sum256(raw)
 	return "source:" + hex.EncodeToString(sum[:])
@@ -134,6 +143,7 @@ func (s *Service) schedule(parent context.Context) {
 			_ = s.Store.SaveFullRefreshDue(ctx, key, p.PeriodicNextDueMS)
 		}
 	}
+	s.scheduleQuotaRechecks(ctx, inv, now)
 	_ = s.Store.SaveFullRefreshDue(ctx, key+":checked", now)
 }
 
