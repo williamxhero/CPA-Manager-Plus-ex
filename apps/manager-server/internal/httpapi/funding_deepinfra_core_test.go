@@ -39,6 +39,7 @@ func TestOfficialFundingDeepInfraOnlyVerifiedSharedWalletMembers(t *testing.T) {
 	// The fixture's process proxy denies all WAN egress, including false admits.
 	f := newPolicyFixtureWithSetup(t, false, true, false, false, routes)
 	var stage atomic.Int32
+	var pausedStamp atomic.Int64
 	var accountCalls, legacyCalls atomic.Int32
 	f.manager.AppContext().OfficialBalanceService.Querier = balance.NewWithNetwork(policyFundingNetwork(t, "api.deepinfra.com", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer wallet-fixture-")
@@ -52,10 +53,18 @@ func TestOfficialFundingDeepInfraOnlyVerifiedSharedWalletMembers(t *testing.T) {
 		if stage.Load() == 1 && key == "A" {
 			root, stripe, suspended, reason = "SYNTHETIC-OTHER-ROOT", "-0.0001", false, "null"
 		}
-		if stage.Load() == 2 && (key == "A" || key == "D") {
+		checkedAt := time.Now().Unix()
+		if key == "A" && stage.Load() == 0 {
+			pausedStamp.CompareAndSwap(0, checkedAt)
+		}
+		if stage.Load() >= 2 && (key == "A" || key == "D") {
 			stripe, suspended, reason = "-0.0001", false, "null"
 		}
-		check := fmt.Sprintf(`{"suspended":%t,"suspend_reason":%s,"stripe_balance":%s,"recent":0,"last_checked":%d,"scoped_credits":%s,"overdue_invoices":0}`, suspended, reason, stripe, time.Now().Unix(), credits)
+		if stage.Load() == 2 && key == "A" {
+			// A fresh HTTP request can still serve an older cached provider state.
+			checkedAt = pausedStamp.Load() - 1
+		}
+		check := fmt.Sprintf(`{"suspended":%t,"suspend_reason":%s,"stripe_balance":%s,"recent":0,"last_checked":%d,"scoped_credits":%s,"overdue_invoices":0}`, suspended, reason, stripe, checkedAt, credits)
 		switch r.URL.Path {
 		case "/v1/me":
 			accountCalls.Add(1)
@@ -172,6 +181,9 @@ func TestOfficialFundingDeepInfraOnlyVerifiedSharedWalletMembers(t *testing.T) {
 	query("A")
 	assert("A", "D") // Different payer cannot clear existing wallet evidence.
 	stage.Store(2)
+	query("A")
+	assert("A", "D") // A newer request with older provider state cannot recover.
+	stage.Store(3)
 	query("A")
 	assert("D")
 	query("D")
