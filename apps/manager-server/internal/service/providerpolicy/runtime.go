@@ -20,10 +20,7 @@ type captured struct {
 	Binding Binding  `json:"binding"`
 	Query   ob.Query `json:"query"`
 }
-type completion struct {
-	AttemptID string   `json:"attemptId"`
-	Query     ob.Query `json:"query"`
-}
+type completion = ob.PolicyCompletion
 type decision struct {
 	Binding         Binding         `json:"binding"`
 	Action          string          `json:"action"`
@@ -88,7 +85,7 @@ func (s *Service) completed(ctx context.Context, event fr.CompletedObservation) 
 	if event.Source.Kind != fr.Official || event.Source.Official == nil {
 		return
 	}
-	doc, _ := json.Marshal(completion{event.AttemptID, *event.Source.Official})
+	doc, _ := json.Marshal(completion{AttemptID: event.AttemptID, Query: *event.Source.Official})
 	if s.Store.PutProviderPolicyEvent(ctx, event.AttemptID, string(doc)) != nil {
 		return
 	}
@@ -137,7 +134,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		if json.Unmarshal([]byte(job), &result) != nil || result.State == "running" {
 			continue
 		}
-		doc, _ := json.Marshal(completion{capture.AttemptID, c.Query})
+		doc, _ := json.Marshal(completion{AttemptID: capture.AttemptID, Query: c.Query})
 		if err := s.Store.PutProviderPolicyEvent(ctx, capture.AttemptID, string(doc)); err != nil {
 			return err
 		}

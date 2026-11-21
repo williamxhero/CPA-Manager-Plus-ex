@@ -45,6 +45,49 @@ func seedConfiguredSource(t *testing.T, db *store.Store, id string) store.Offici
 	return fence
 }
 
+func TestOfficialBalancePolicyEventSharesObservationCAS(t *testing.T) {
+	ctx := context.Background()
+	db := openEvidenceStore(t)
+	if err := db.SaveOfficialBalance(ctx, store.OfficialBalanceRecord{ID: "source", Config: `{}`}, 0, "secret", false); err != nil {
+		t.Fatal(err)
+	}
+	for _, job := range []string{"superseded", "current"} {
+		if err := db.BeginOfficialBalanceJob(ctx, "source", 1, job, `{}`, `{"queryId":"`+job+`","queryStatus":"running"}`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	complete := func(version int64, job, event string) error {
+		return db.CompleteOfficialBalanceWithPolicyEvent(ctx, "source", version, job, `{"queryId":"`+job+`","queryStatus":"success"}`, event)
+	}
+	if err := complete(1, "superseded", `{"attemptId":"superseded"}`); !errors.Is(err, store.ErrBalanceConflict) {
+		t.Fatalf("superseded completion: %v", err)
+	}
+	if err := complete(2, "current", `{"attemptId":"current"}`); !errors.Is(err, store.ErrBalanceConflict) {
+		t.Fatalf("wrong-version completion: %v", err)
+	}
+	if err := complete(1, "current", "invalid JSON"); err == nil {
+		t.Fatal("failed event insert committed the observation")
+	}
+	events, err := db.ProviderPolicyEvents(ctx)
+	if err != nil || len(events) != 0 {
+		t.Fatalf("uncommitted completion left events: %+v %v", events, err)
+	}
+	record, err := db.OfficialBalance(ctx, "source")
+	if err != nil || record.Attempt != `{"queryId":"current","queryStatus":"running"}` || record.LastSuccess != "" {
+		t.Fatalf("failed event insert leaked a success: %+v %v", record, err)
+	}
+	if err := complete(1, "current", `{"attemptId":"current"}`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PutProviderPolicyEvent(ctx, "current", `{"attemptId":"ignored-duplicate"}`); err != nil {
+		t.Fatal(err)
+	}
+	events, err = db.ProviderPolicyEvents(ctx)
+	if err != nil || len(events) != 1 || events[0].ID != "current" || events[0].Document != `{"attemptId":"current"}` {
+		t.Fatalf("missing or overwritten committed event: %+v %v", events, err)
+	}
+}
+
 func TestProviderPolicyEvidenceUsesExactSQLiteSourceSnapshot(t *testing.T) {
 	ctx := context.Background()
 	db := openEvidenceStore(t)
