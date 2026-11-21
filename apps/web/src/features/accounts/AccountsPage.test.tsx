@@ -23218,18 +23218,22 @@ describe('AccountsPage replacement flows', () => {
   );
 
   it.each([
-    ['codex', 7],
-    ['codex', 0],
-    ['antigravity', 0],
+    ['codex', 7, 'manual'],
+    ['codex', 0, 'manual'],
+    ['antigravity', 0, 'manual'],
+    ['codex', 0, 'reauth'],
   ] as const)(
-    'ticket93 %s row refresh uses the quota host subject at query version %s',
-    async (provider, queryVersion) => {
+    '%s quota refresh uses the quota host subject at query version %s after %s',
+    async (provider, queryVersion, trigger) => {
       const authIndex = '0123456789abcdef';
       mocks.files = [
         {
           ...makeCodexFile('bound.json', authIndex, 'bound@example.com'),
           type: provider,
           provider,
+          account_id: 'bound-space',
+          last_refresh: 1_000,
+          modified: 1_100,
         },
       ];
       const scope = {
@@ -23320,13 +23324,26 @@ describe('AccountsPage replacement flows', () => {
         'fetchQuota'
       );
       const renderer = await renderAccountsPage();
-      await act(async () => {
-        findAccountCardButtonByAriaLabel(
-          renderer,
-          getAuthFileSelectionKey(mocks.files[0]),
-          'accounts.refresh_quota'
-        ).props.onClick();
-      });
+      const file = mocks.files[0];
+      const selectionKey = getAuthFileSelectionKey(file);
+      if (trigger === 'reauth') {
+        await act(async () => {
+          findAccountCardButtonByAriaLabel(
+            renderer, selectionKey, 'auth_files.credential_refresh_button'
+          ).props.onClick();
+        });
+        expect(calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+        mocks.loadFiles.mockImplementationOnce(async () => {
+          mocks.files = [{ ...file, last_refresh: 3_000, modified: 3_100 }];
+          return mocks.files;
+        });
+        expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+        await flushPromises();
+      } else {
+        await act(async () => {
+          findAccountCardButtonByAriaLabel(renderer, selectionKey, 'accounts.refresh_quota').props.onClick();
+        });
+      }
       const posts = calls.filter(([, init]) => init?.method === 'POST');
       expect(posts).toHaveLength(1);
       expect(posts[0][0]).toBe('http://manager.local:18317/usage-service/full-refresh');

@@ -8,7 +8,7 @@ import { CodexReauthReconciliationError } from './codexReauthModel';
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
-    startAuth: vi.fn(),
+    startCodexReauth: vi.fn(),
     getAuthStatus: vi.fn(),
     submitCallback: vi.fn(),
     showNotification: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@/services/api', () => ({
   oauthApi: {
-    startAuth: mocks.startAuth,
+    startCodexReauth: mocks.startCodexReauth,
     getAuthStatus: mocks.getAuthStatus,
     submitCallback: mocks.submitCallback,
   },
@@ -144,7 +144,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
   });
 
   it('restarts the OAuth link when the targeted Workspace member changes', async () => {
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
 
     let renderer!: ReactTestRenderer;
     await act(async () => {
@@ -158,7 +158,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
       );
     });
     await flushEffects();
-    expect(mocks.startAuth).toHaveBeenCalledTimes(1);
+    expect(mocks.startCodexReauth).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       renderer.update(
@@ -172,14 +172,14 @@ describe('CodexReauthDialog connection lifecycle', () => {
     });
     await flushEffects();
 
-    expect(mocks.startAuth).toHaveBeenCalledTimes(2);
+    expect(mocks.startCodexReauth).toHaveBeenCalledTimes(2);
     act(() => renderer.unmount());
   });
 
   it('ignores a late auth-link response after the CPA scope changes', async () => {
     const oldRequest = deferred<{ url: string; state: string }>();
     const newRequest = deferred<{ url: string; state: string }>();
-    mocks.startAuth.mockImplementation((_provider: string, requestScope: typeof REQUEST_SCOPE) =>
+    mocks.startCodexReauth.mockImplementation((_selector: { authIndex: string }, requestScope: typeof REQUEST_SCOPE) =>
       requestScope.apiBase === REQUEST_SCOPE.apiBase ? oldRequest.promise : newRequest.promise
     );
 
@@ -190,7 +190,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
       );
     });
     await flushEffects();
-    expect(mocks.startAuth).toHaveBeenCalledWith('codex', REQUEST_SCOPE);
+    expect(mocks.startCodexReauth).toHaveBeenCalledWith({ authIndex: TARGET.authIndex }, REQUEST_SCOPE);
 
     await act(async () => {
       renderer.update(
@@ -203,7 +203,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
       );
     });
     await flushEffects();
-    expect(mocks.startAuth).toHaveBeenCalledWith('codex', NEXT_REQUEST_SCOPE);
+    expect(mocks.startCodexReauth).toHaveBeenCalledWith({ authIndex: TARGET.authIndex }, NEXT_REQUEST_SCOPE);
 
     await act(async () => {
       oldRequest.resolve({ url: 'https://auth.example/old', state: 'old-state' });
@@ -224,7 +224,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
 
   it('ignores a late polling success after the dialog closes', async () => {
     const pollRequest = deferred<{ status: 'ok' }>();
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.getAuthStatus.mockReturnValue(pollRequest.promise);
     const onSuccess = vi.fn();
 
@@ -274,7 +274,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
 
   it('ignores a late callback success after the CPA scope changes', async () => {
     const callbackRequest = deferred<{ status: 'ok' }>();
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.submitCallback.mockReturnValue(callbackRequest.promise);
     const onSuccess = vi.fn();
 
@@ -327,7 +327,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
   });
 
   it('keeps polling the original state when an accepted callback is still pending', async () => {
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.submitCallback.mockResolvedValue({ status: 'ok' });
     mocks.getAuthStatus.mockResolvedValue({ status: 'wait' });
     const onSuccess = vi.fn();
@@ -364,7 +364,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
   });
 
   it('completes exactly once when the immediate callback probe confirms OAuth', async () => {
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.submitCallback.mockResolvedValue({ status: 'ok' });
     mocks.getAuthStatus.mockResolvedValue({ status: 'ok' });
     const onSuccess = vi.fn();
@@ -399,7 +399,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
 
   it('ignores a late callback response after polling already completed OAuth', async () => {
     const callbackRequest = deferred<{ status: 'ok' }>();
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.submitCallback.mockReturnValue(callbackRequest.promise);
     mocks.getAuthStatus.mockResolvedValue({ status: 'ok' });
     const onSuccess = vi.fn();
@@ -443,7 +443,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
   });
 
   it('confirms a 409 callback through the original OAuth state', async () => {
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.submitCallback.mockRejectedValue(
       Object.assign(new Error('oauth flow is already completed'), { status: 409 })
     );
@@ -479,7 +479,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
   });
 
   it('keeps waiting when a 409 callback still has pending OAuth status', async () => {
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.submitCallback.mockRejectedValue(
       Object.assign(new Error('oauth flow is already completed'), { status: 409 })
     );
@@ -517,7 +517,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
 
   it('waits for Accounts synchronization before announcing re-login success', async () => {
     const synchronization = deferred<void>();
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.submitCallback.mockResolvedValue({ status: 'ok' });
     mocks.getAuthStatus.mockResolvedValue({ status: 'ok' });
     const onSuccess = vi.fn(() => synchronization.promise);
@@ -559,7 +559,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
   });
 
   it('reports re-login success with a synchronization warning when Accounts reload fails', async () => {
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.submitCallback.mockResolvedValue({ status: 'ok' });
     mocks.getAuthStatus.mockResolvedValue({ status: 'ok' });
     const onSuccess = vi.fn().mockRejectedValue(new Error('temporary Accounts reload failure'));
@@ -600,7 +600,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
   });
 
   it('keeps identity reconciliation failures in the error state', async () => {
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.submitCallback.mockResolvedValue({ status: 'ok' });
     mocks.getAuthStatus.mockResolvedValue({ status: 'ok' });
     const onSuccess = vi.fn().mockRejectedValue(
@@ -641,7 +641,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
 
   it('does not restart OAuth while Accounts is still synchronizing after a successful callback', async () => {
     const synchronization = deferred<void>();
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.submitCallback.mockResolvedValue({ status: 'ok' });
     mocks.getAuthStatus.mockResolvedValue({ status: 'ok' });
     const onSuccess = vi.fn(() => synchronization.promise);
@@ -659,7 +659,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
       );
     });
     await flushEffects();
-    const startCount = mocks.startAuth.mock.calls.length;
+    const startCount = mocks.startCodexReauth.mock.calls.length;
 
     const input = renderer.root.findByType('input');
     act(() => input.props.onChange({ target: { value: 'http://localhost/callback?code=1' } }));
@@ -685,7 +685,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
     });
     await flushEffects();
 
-    expect(mocks.startAuth).toHaveBeenCalledTimes(startCount);
+    expect(mocks.startCodexReauth).toHaveBeenCalledTimes(startCount);
     expect(textContent(renderer.root)).toContain('codex_reauth.synchronizing');
 
     await act(async () => {
@@ -693,7 +693,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
       await flush();
     });
 
-    expect(mocks.startAuth).toHaveBeenCalledTimes(startCount);
+    expect(mocks.startCodexReauth).toHaveBeenCalledTimes(startCount);
     expect(mocks.showNotification).toHaveBeenCalledWith('codex_reauth.success', 'success');
     expect(textContent(renderer.root)).toContain('codex_reauth.success');
 
@@ -702,7 +702,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
 
   it('does not restart OAuth while Accounts is still synchronizing after polling success', async () => {
     const synchronization = deferred<void>();
-    mocks.startAuth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
+    mocks.startCodexReauth.mockResolvedValue({ url: 'https://auth.example/codex', state: 'state-1' });
     mocks.getAuthStatus.mockResolvedValue({ status: 'ok' });
     const onSuccess = vi.fn(() => synchronization.promise);
 
@@ -719,7 +719,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
       );
     });
     await flushEffects();
-    const startCount = mocks.startAuth.mock.calls.length;
+    const startCount = mocks.startCodexReauth.mock.calls.length;
     expect(mocks.intervalCallback).not.toBeNull();
 
     let pollingPromise!: Promise<void>;
@@ -745,7 +745,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
     });
     await flushEffects();
 
-    expect(mocks.startAuth).toHaveBeenCalledTimes(startCount);
+    expect(mocks.startCodexReauth).toHaveBeenCalledTimes(startCount);
     expect(textContent(renderer.root)).toContain('codex_reauth.synchronizing');
 
     await act(async () => {
@@ -754,7 +754,7 @@ describe('CodexReauthDialog connection lifecycle', () => {
       await flush();
     });
 
-    expect(mocks.startAuth).toHaveBeenCalledTimes(startCount);
+    expect(mocks.startCodexReauth).toHaveBeenCalledTimes(startCount);
     expect(mocks.showNotification).toHaveBeenCalledWith('codex_reauth.success', 'success');
     expect(textContent(renderer.root)).toContain('codex_reauth.success');
 

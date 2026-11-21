@@ -3570,6 +3570,45 @@ export function AccountsPage() {
     [buildCurrentCredentialEvidenceBoundary, files, setCredentialEvidenceBoundaries]
   );
 
+  const refreshHostCredentialQuota = useCallback(
+    async (authIndex: string) => {
+      const base = featureAvailability.managerServiceBase;
+      if (!base || !authIndex) throw new Error('current_credential_source_unavailable');
+      const isCurrent = () =>
+        isMountedRef.current &&
+        activeCredentialEvidenceScopeKeyRef.current === credentialEvidenceScopeKey;
+
+      // The current quota descriptor, not a cached policy subject or the
+      // pre-login generation, authorizes the selected host query.
+      const quota = await credentialQuotaRequest<CredentialQuotaStatus>(
+        base,
+        managementKey,
+        'GET',
+        `?authIndex=${encodeURIComponent(authIndex)}`
+      );
+      if (!isCurrent()) return;
+      if (
+        (quota.auth_index !== undefined && quota.auth_index !== authIndex) ||
+        !quota.scope ||
+        !quota.targets ||
+        !quota.sourceId
+      ) {
+        throw new Error('identity_or_source_changed');
+      }
+      await refreshCredentialSource(base, managementKey, {
+        scope: quota.scope,
+        targets: quota.targets,
+        authIndex: quota.auth_index ?? authIndex,
+        sourceId: quota.sourceId,
+        subjectId: quota.subjectId,
+        queryVersion: quota.queryVersion ?? quota.version,
+        sourceVersion: quota.sourceVersion,
+      });
+      if (isCurrent()) setCredentialListRevision((value) => value + 1);
+    },
+    [credentialEvidenceScopeKey, featureAvailability.managerServiceBase, managementKey]
+  );
+
   const completeConfirmedAccountDirectReauth = useCallback(
     (
       baseline: AccountDirectReauthBaseline,
@@ -3605,11 +3644,39 @@ export function AccountsPage() {
         kind: 'reauth',
         credentialIdentity: getAuthFileSelectionKey(confirmedFile),
       });
+      if (backendCredentialQuota) {
+        const { authIndex } = resolveCredentialIdentity(confirmedFile);
+        if (authIndex) {
+          void refreshHostCredentialQuota(authIndex).catch((error: unknown) => {
+            if (
+              !isMountedRef.current ||
+              activeCredentialEvidenceScopeKeyRef.current !== credentialEvidenceScopeKey
+            ) return;
+            const rawName = String(confirmedFile.label || confirmedFile.name);
+            showNotification(
+              t('accounts.quota_refresh_failed', {
+                name: accountDisplayMode === 'full' ? rawName : maskQuotaAccountText(rawName),
+                message: formatQuotaRefreshErrorMessage(
+                  error instanceof Error ? error.message : 'common_refresh_unavailable',
+                  t
+                ),
+              }),
+              'warning'
+            );
+          });
+        }
+      }
     },
     [
+      accountDisplayMode,
+      backendCredentialQuota,
       captureReloadedCodexOperationalEvidence,
       connectionFingerprint,
+      credentialEvidenceScopeKey,
       invalidateCodexCredentialEvidenceForMatchedFile,
+      refreshHostCredentialQuota,
+      showNotification,
+      t,
     ]
   );
 
@@ -6849,34 +6916,8 @@ export function AccountsPage() {
       mode: AccountQuotaRefreshMode = 'summary'
     ): Promise<AccountQuotaRefreshOutcome> => {
       if (backendCredentialQuota) {
-        if (!row.authIndex || !featureAvailability.managerServiceBase)
-          return { status: 'error', error: 'current_credential_source_unavailable' };
         const refreshViaCommonChannel = async (): Promise<AccountQuotaRefreshOutcome> => {
-          // Policy subjectId is a local persistence key, not query authority.
-          // Read the public host-issued quota descriptor before common refresh.
-          const quota = await credentialQuotaRequest<CredentialQuotaStatus>(
-            featureAvailability.managerServiceBase!,
-            managementKey,
-            'GET',
-            `?authIndex=${encodeURIComponent(String(row.authIndex))}`
-          );
-          if (
-            (quota.auth_index !== undefined && quota.auth_index !== String(row.authIndex)) ||
-            !quota.scope ||
-            !quota.targets ||
-            !quota.sourceId
-          )
-            return { status: 'error', error: 'identity_or_source_changed' };
-          await refreshCredentialSource(featureAvailability.managerServiceBase!, managementKey, {
-            scope: quota.scope,
-            targets: quota.targets,
-            authIndex: quota.auth_index ?? String(row.authIndex),
-            sourceId: quota.sourceId,
-            subjectId: quota.subjectId,
-            queryVersion: quota.queryVersion ?? quota.version,
-            sourceVersion: quota.sourceVersion,
-          });
-          setCredentialListRevision((value) => value + 1);
+          await refreshHostCredentialQuota(String(row.authIndex || ''));
           return { status: 'success' };
         };
         try {
@@ -7037,9 +7078,8 @@ export function AccountsPage() {
     },
     [
       backendCredentialQuota,
-      featureAvailability.managerServiceBase,
-      managementKey,
       invalidateCodexCredentialStatusForSelectionKeys,
+      refreshHostCredentialQuota,
       setAntigravityQuota,
       setClaudeQuota,
       setCodexQuota,

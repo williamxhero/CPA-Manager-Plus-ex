@@ -46,6 +46,8 @@ export interface OAuthCancelResponse {
 
 const WEBUI_SUPPORTED: string[] = ['codex', 'anthropic', 'antigravity', 'xai', 'devin'];
 
+type CodexReauthSelector = { authIndex: string } | { name: string };
+
 export const oauthApi = {
   startAuth: (provider: OAuthProvider, requestScope?: ApiClientRequestScope) => {
     const params: Record<string, string | boolean> = {};
@@ -56,6 +58,23 @@ export const oauthApi = {
       ...(requestScope ? createScopedApiRequestConfig(requestScope) : {}),
       params: Object.keys(params).length ? params : undefined,
     });
+  },
+
+  startCodexReauth: async (
+    selector: CodexReauthSelector,
+    requestScope?: ApiClientRequestScope
+  ) => {
+    const params = new URLSearchParams({ provider: 'codex', is_webui: 'true' });
+    const authIndex = 'authIndex' in selector;
+    const value = (authIndex ? selector.authIndex : selector.name).trim();
+    if (!value) throw new Error('Missing target credential');
+    params.set(authIndex ? 'auth_index' : 'name', value);
+    const response = await apiClient.getV8<OAuthStartResponse & { target_auth_id?: string }>(
+      `/oauth/auth-url?${params}`,
+      requestScope
+    );
+    if (!response.target_auth_id?.trim()) throw new Error('Core did not confirm the target credential');
+    return response;
   },
 
   submitPluginCredential: async (

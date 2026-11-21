@@ -269,7 +269,13 @@ export function CodexReauthDialog({
       setCopiedTarget(null);
       setLinkRefreshed(false);
       try {
-        const response = await oauthApi.startAuth('codex', requestScope);
+        const index = String(target?.authIndex ?? '').trim();
+        const name = target?.runtimeId?.trim() || target?.fileName?.trim();
+        if (!index && !name) throw new Error(t('codex_reauth.identity_unconfirmed'));
+        const response = await oauthApi.startCodexReauth(
+          index ? { authIndex: index } : { name: name! },
+          requestScope
+        );
         if (!isCurrentOperation(operationGeneration, operationContext)) return;
         if (!response.state) {
           const message = t('codex_reauth.missing_state');
@@ -301,6 +307,9 @@ export function CodexReauthDialog({
       showNotification,
       showTemporaryFeedback,
       startPolling,
+      target?.authIndex,
+      target?.fileName,
+      target?.runtimeId,
       t,
     ]
   );
