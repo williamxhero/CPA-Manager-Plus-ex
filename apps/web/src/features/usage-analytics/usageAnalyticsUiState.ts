@@ -156,8 +156,7 @@ const parseQueryTimestamp = (params: URLSearchParams, key: string) => {
   return Number.isFinite(value) && value > 0 ? value : null;
 };
 
-const queryHasAnyFilter = (params: URLSearchParams) =>
-  [
+export const usageAnalyticsFilterKeys = [
     'time_range',
     'from_ms',
     'to_ms',
@@ -171,14 +170,17 @@ const queryHasAnyFilter = (params: URLSearchParams) =>
     'min_latency_ms',
     'cache_status',
     'api_key_keyword',
-  ].some((key) => params.has(key));
+  ] as const;
+
+export const queryHasAnyUsageAnalyticsFilter = (params: URLSearchParams) =>
+  usageAnalyticsFilterKeys.some((key) => params.has(key));
 
 export const buildUsageAnalyticsUiStateFromSearchParams = (
   params: URLSearchParams,
   fallback: UsageAnalyticsUiState = getDefaultUsageAnalyticsUiState()
 ): UsageAnalyticsUiState => {
   const activeTab = params.has('tab') ? normalizeActiveTab(params.get('tab')) : fallback.activeTab;
-  if (!queryHasAnyFilter(params)) {
+  if (!queryHasAnyUsageAnalyticsFilter(params)) {
     return {
       activeTab,
       filters: fallback.filters,

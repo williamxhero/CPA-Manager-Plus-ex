@@ -8,6 +8,7 @@ import { readString } from '@/features/monitoring/model/base';
 import type { MonitoringChannelMeta } from '@/features/monitoring/model/types';
 import { loadMonitoringMetaPayload } from '@/features/monitoring/services/monitoringMetaService';
 import { useConfigStore } from '@/stores';
+import { createWorkspaceConnectionState } from '@/stores/workspaceConnectionState';
 import type { AuthFileItem } from '@/types/authFile';
 import type { CredentialInfo } from '@/types/sourceInfo';
 import { buildSourceInfoMap } from '@/utils/sourceResolver';
@@ -58,7 +59,9 @@ import {
   buildUsageAnalyticsSearchParams,
   getDefaultUsageAnalyticsUiState,
   buildUsageAnalyticsUiStateFromSearchParams,
+  queryHasAnyUsageAnalyticsFilter,
   readUsageAnalyticsUiState,
+  usageAnalyticsFilterKeys,
   writeUsageAnalyticsUiState,
   type UsageAnalyticsUiState,
 } from './usageAnalyticsUiState';
@@ -66,22 +69,8 @@ import {
 const USAGE_SEARCH_DEBOUNCE_MS = 350;
 const USAGE_HEATMAP_ALL_DATES_KEY = 'all';
 const API_KEY_TREND_SERIES_LIMIT = 4;
-const USAGE_ANALYTICS_QUERY_KEYS = new Set([
-  'tab',
-  'time_range',
-  'from_ms',
-  'to_ms',
-  'granularity',
-  'model',
-  'api_key_hash',
-  'provider',
-  'auth_file',
-  'status',
-  'search',
-  'min_latency_ms',
-  'cache_status',
-  'api_key_keyword',
-]);
+const USAGE_ANALYTICS_QUERY_KEYS = new Set<string>(['tab', ...usageAnalyticsFilterKeys]);
+const workspaceUiState = createWorkspaceConnectionState<UsageAnalyticsUiState>();
 
 function buildWorkspaceSearchParams(
   current: URLSearchParams,
@@ -124,18 +113,23 @@ const getBrowserTimeZone = () => {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 };
 
-function useDebouncedValue<T>(value: T, delayMs: number): T {
+function useDebouncedValue<T>(value: T, delayMs: number, resetKey: string | undefined): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
+  const [previousKey, setPreviousKey] = useState(resetKey);
+  if (previousKey !== resetKey) {
+    setPreviousKey(resetKey);
+    setDebouncedValue(value);
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedValue(value), delayMs);
     return () => clearTimeout(timer);
-  }, [delayMs, value]);
+  }, [delayMs, resetKey, value]);
 
-  return debouncedValue;
+  return previousKey === resetKey ? debouncedValue : value;
 }
 
-export function useUsageAnalytics(workspace = false) {
+export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
   const config = useConfigStore((state) => state.config);
   const { apiKeyAliases, providerKeyAliases, loadApiKeyAliases } = useUsageData({
     loadUsageEvents: false,
@@ -145,9 +139,15 @@ export function useUsageAnalytics(workspace = false) {
   );
   const [monitoringMetaError, setMonitoringMetaError] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
-  const [initialUiState] = useState<UsageAnalyticsUiState>(() =>
-    buildUsageAnalyticsUiStateFromSearchParams(searchParams, readUsageAnalyticsUiState())
-  );
+  const [initialUiState] = useState<UsageAnalyticsUiState>(() => {
+    const fallback = workspace
+      ? workspaceUiState.read(connectionGeneration)
+      : readUsageAnalyticsUiState();
+    return buildUsageAnalyticsUiStateFromSearchParams(
+      searchParams,
+      workspace && queryHasAnyUsageAnalyticsFilter(searchParams) ? undefined : fallback
+    );
+  });
   const [storedFilters, setFiltersState] = useState<UsageAnalyticsFiltersState>(() => ({
     ...initialUiState.filters,
     apiKeyHash: getSelectableApiKeyHash(initialUiState.filters.apiKeyHash) || 'all',
@@ -280,7 +280,8 @@ export function useUsageAnalytics(workspace = false) {
   );
   const debouncedSearchQuery = useDebouncedValue(
     filters.searchQuery.trim(),
-    USAGE_SEARCH_DEBOUNCE_MS
+    USAGE_SEARCH_DEBOUNCE_MS,
+    workspace ? activeTabState : undefined
   );
 
   const bounds = useMemo(() => getUsageRangeBounds(filters, nowMs), [filters, nowMs]);
@@ -318,7 +319,8 @@ export function useUsageAnalytics(workspace = false) {
 
   useEffect(() => {
     const nextState = { activeTab: activeTabState, filters };
-    writeUsageAnalyticsUiState(nextState);
+    if (workspace) workspaceUiState.write(connectionGeneration, nextState);
+    else writeUsageAnalyticsUiState(nextState);
     const nextParams = workspace
       ? buildWorkspaceSearchParams(searchParams, nextState, searchParams.has('tab'))
       : buildUsageAnalyticsSearchParams(nextState);
@@ -331,7 +333,7 @@ export function useUsageAnalytics(workspace = false) {
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
     }
-  }, [activeTabState, filters, searchParams, setSearchParams, workspace]);
+  }, [activeTabState, connectionGeneration, filters, searchParams, setSearchParams, workspace]);
   const drilldownPreview = useMemo(() => {
     if (selectedBucketMs === null) return null;
     return {
@@ -779,12 +781,12 @@ export function useUsageAnalytics(workspace = false) {
     (patch: Partial<UsageAnalyticsFiltersState>) => {
       setFiltersState((current) => {
         const next = applyFilterPatch(current, patch);
-        writeUsageAnalyticsUiState({ filters: next });
+        if (!workspace) writeUsageAnalyticsUiState({ filters: next });
         return next;
       });
       resetFilterSelections();
     },
-    [resetFilterSelections]
+    [resetFilterSelections, workspace]
   );
 
   const setActiveTab = useCallback(
@@ -817,11 +819,11 @@ export function useUsageAnalytics(workspace = false) {
 
   const resetFilters = useCallback(() => {
     setFiltersState(USAGE_ANALYTICS_DEFAULT_FILTERS);
-    writeUsageAnalyticsUiState({ filters: USAGE_ANALYTICS_DEFAULT_FILTERS });
+    if (!workspace) writeUsageAnalyticsUiState({ filters: USAGE_ANALYTICS_DEFAULT_FILTERS });
     setSelectedBucketMs(null);
     setSelectedHeatmapDateKey(USAGE_HEATMAP_ALL_DATES_KEY);
     setSelectedHeatmapCell(null);
-  }, []);
+  }, [workspace]);
 
   const clearFilter = useCallback((key: UsageSelectedFilterKey) => {
     setFiltersState((current) => {
@@ -829,13 +831,13 @@ export function useUsageAnalytics(workspace = false) {
         ...current,
         [key]: 'all',
       };
-      writeUsageAnalyticsUiState({ filters: next });
+      if (!workspace) writeUsageAnalyticsUiState({ filters: next });
       return next;
     });
     setSelectedBucketMs(null);
     setSelectedHeatmapDateKey(USAGE_HEATMAP_ALL_DATES_KEY);
     setSelectedHeatmapCell(null);
-  }, []);
+  }, [workspace]);
 
   const selectBucket = useCallback((point: UsageTimelinePoint | null) => {
     setSelectedBucketMs(point?.bucketMs ?? null);

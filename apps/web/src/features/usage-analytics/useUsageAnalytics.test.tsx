@@ -267,6 +267,8 @@ describe('useUsageAnalytics request orchestration', () => {
     expect(currentQuery().get('provider')).toBe('codex');
     expect(currentQuery().getAll('extra')).toEqual(['one', 'two']);
 
+    await act(async () => latestResult?.setFilters({ searchQuery: 'needle' }));
+    expect(currentQuery().get('search')).toBe('needle');
     const beforeDrilldown = entries.length;
     useMonitoringAnalyticsMock.mockClear();
     await act(async () => latestResult?.setActiveTab('heatmap', { apiKeyHash: 'key-a' }));
@@ -275,6 +277,7 @@ describe('useUsageAnalytics request orchestration', () => {
       tab: 'heatmap',
       provider: 'codex',
       api_key_hash: 'key-a',
+      search: 'needle',
     });
     expect(latestResult?.activeTab).toBe('heatmap');
     expect(latestResult?.filters.apiKeyHash).toBe('key-a');
@@ -284,7 +287,7 @@ describe('useUsageAnalytics request orchestration', () => {
     expect(heatmapRequests.length).toBeGreaterThan(0);
     for (const request of heatmapRequests) {
       expect(request.include?.heatmap).toBe(true);
-      expect(request.filters).toMatchObject({ api_key_hashes: ['key-a'] });
+      expect(request).toMatchObject({ filters: { api_key_hashes: ['key-a'] }, searchQuery: 'needle' });
     }
 
     await act(async () => goBack?.());

@@ -92,6 +92,7 @@ import {
   type UsageTrendMetricKey,
 } from './usageAnalyticsModel';
 import { useUsageAnalytics } from './useUsageAnalytics';
+import { useWorkspaceConnectionGeneration } from '@/stores/workspaceConnectionState';
 import { UsageSummarySection } from './components/UsageSummaryCards';
 import {
   buildUsageEntitySummaryCards,
@@ -2348,10 +2349,15 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 function UsageAnalyticsPageInner({
   workspace = false,
   workspaceLocation,
-}: { workspace?: boolean; workspaceLocation?: { search: string; showMaintenance: boolean } } = {}) {
+  connectionGeneration,
+}: {
+  workspace?: boolean;
+  workspaceLocation?: { search: string; showMaintenance: boolean };
+  connectionGeneration?: number;
+} = {}) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const usage = useUsageAnalytics(workspace);
+  const usage = useUsageAnalytics(workspace, connectionGeneration);
   const showNotification = useNotificationStore((state) => state.showNotification);
   const chartTheme = useUsageChartTheme();
   const themedUsageMetrics = useMemo(() => getThemedUsageMetrics(chartTheme), [chartTheme]);
@@ -3989,8 +3995,11 @@ function DetailPanel({
 export function RoutedUsageAnalyticsPage() {
   const { search } = useLocation();
   const availability = usePanelFeatureAvailability();
+  const connectionGeneration = useWorkspaceConnectionGeneration();
   return (
     <UsageAnalyticsPageInner
+      key={connectionGeneration}
+      connectionGeneration={connectionGeneration}
       workspace
       workspaceLocation={{ search, showMaintenance: canAccessUsageMaintenance(availability) }}
     />

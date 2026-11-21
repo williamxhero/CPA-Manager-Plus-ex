@@ -19,6 +19,10 @@ import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
 import { useAccountCredentialMutationRevisionStore } from '@/stores/useAccountCredentialMutationRevisionStore';
+import {
+  createWorkspaceConnectionState,
+  useWorkspaceConnectionGeneration,
+} from '@/stores/workspaceConnectionState';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
@@ -1307,7 +1311,26 @@ const resolveAccountQuotaSnapshotLabel = (
   return snapshot.provider_window_id;
 };
 
+const accountsWorkspaceState = createWorkspaceConnectionState<AccountsWorkspaceUiState>();
+
 export function AccountsPage({ workspaceNavigation = false }: { workspaceNavigation?: boolean } = {}) {
+  const generation = useWorkspaceConnectionGeneration();
+  return (
+    <AccountsPageInner
+      key={workspaceNavigation ? generation : 'standalone'}
+      workspaceNavigation={workspaceNavigation}
+      workspaceGeneration={generation}
+    />
+  );
+}
+
+function AccountsPageInner({
+  workspaceNavigation,
+  workspaceGeneration,
+}: {
+  workspaceNavigation: boolean;
+  workspaceGeneration: number;
+}) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1318,7 +1341,12 @@ export function AccountsPage({ workspaceNavigation = false }: { workspaceNavigat
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
   const featureAvailability = usePanelFeatureAvailability();
-  const initialWorkspaceUiState = useRef(readAccountsWorkspaceUiState());
+  const [initialUiState] = useState(() =>
+    workspaceNavigation
+      ? (accountsWorkspaceState.read(workspaceGeneration) ?? DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE)
+      : readAccountsWorkspaceUiState()
+  );
+  const initialWorkspaceUiState = useRef(initialUiState);
   const initialWorkspaceUrlState = useRef(
     readAccountsWorkspaceUrlState(location.search, initialWorkspaceUiState.current)
   );
@@ -5482,7 +5510,7 @@ export function AccountsPage({ workspaceNavigation = false }: { workspaceNavigat
   ]);
 
   useEffect(() => {
-    writeAccountsWorkspaceUiState({
+    const state: AccountsWorkspaceUiState = {
       search,
       providerFilter,
       statusFilter,
@@ -5493,7 +5521,9 @@ export function AccountsPage({ workspaceNavigation = false }: { workspaceNavigat
       pageSize,
       accountDisplayMode,
       layoutMode,
-    });
+    };
+    if (workspaceNavigation) accountsWorkspaceState.write(workspaceGeneration, state);
+    else writeAccountsWorkspaceUiState(state);
   }, [
     accountDisplayMode,
     accountSort,
@@ -5505,6 +5535,8 @@ export function AccountsPage({ workspaceNavigation = false }: { workspaceNavigat
     quotaBandFilter,
     search,
     statusFilter,
+    workspaceGeneration,
+    workspaceNavigation,
   ]);
 
   const workspaceUrlState = useMemo(
