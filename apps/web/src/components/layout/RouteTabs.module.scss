@@ -1,0 +1,11 @@
+.header {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+
+  h1 {
+    margin: 0;
+    font-size: clamp(20px, 3vw, 28px);
+    line-height: 1.2;
+  }
+}

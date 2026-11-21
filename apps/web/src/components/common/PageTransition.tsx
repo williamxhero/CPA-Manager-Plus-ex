@@ -14,6 +14,7 @@ interface PageTransitionProps {
   getRouteOrder?: (pathname: string) => number | null;
   getTransitionVariant?: (fromPathname: string, toPathname: string) => TransitionVariant;
   scrollContainerRef?: React.RefObject<HTMLElement | null>;
+  panelProps?: { id: string; role: 'tabpanel'; 'aria-labelledby': string; tabIndex: number };
 }
 
 const VERTICAL_TRANSITION_DURATION = 0.35;
@@ -54,6 +55,7 @@ export function PageTransition({
   getRouteOrder,
   getTransitionVariant,
   scrollContainerRef,
+  panelProps,
 }: PageTransitionProps) {
   const location = useLocation();
   // Address-bar/hash navigation can preserve history.state.key. Include the
@@ -395,7 +397,7 @@ export function PageTransition({
   }, [isAnimating, resolveScrollContainer]);
 
   return (
-    <div className={`page-transition${isAnimating ? ' page-transition--animating' : ''}`}>
+    <div className={`page-transition${isAnimating ? ' page-transition--animating' : ''}`} {...panelProps}>
       {(() => {
         const currentIndex = layers.findIndex((layer) => layer.status === 'current');
         const resolvedCurrentIndex = currentIndex === -1 ? layers.length - 1 : currentIndex;

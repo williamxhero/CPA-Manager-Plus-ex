@@ -898,6 +898,7 @@
     "confirm_delete_button": "确认删除"
   },
   "dashboard": {
+    "tab_overview": "总览",
     "title": "仪表盘",
     "subtitle": "欢迎使用 CLI Proxy API 管理中心",
     "openai_providers": "OpenAI 提供商",

@@ -38,6 +38,11 @@ import { useAuthStore, useConfigStore } from '@/stores';
 
 type FeatureKey = 'requestMonitoring' | 'modelPrices';
 
+function LegacyConfigRedirect() {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: '/config', search, hash }} replace />;
+}
+
 function LegacyAccountsRedirect({ healthMode }: { healthMode: 'local' | 'server' }) {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -124,8 +129,8 @@ function LogsGate({ children }: { children: ReactElement }) {
 const mainRoutes: RouteObject[] = [
   { path: '/', element: <DashboardPage /> },
   { path: '/dashboard', element: <DashboardPage /> },
-  { path: '/settings', element: <Navigate to="/config" replace /> },
-  { path: '/api-keys', element: <Navigate to="/config" replace /> },
+  { path: '/settings', element: <LegacyConfigRedirect /> },
+  { path: '/api-keys', element: <LegacyConfigRedirect /> },
   { path: '/ai-providers/gemini/new', element: <AiProvidersGeminiEditPage /> },
   { path: '/ai-providers/gemini/:index', element: <AiProvidersGeminiEditPage /> },
   { path: '/ai-providers/codex/new', element: <AiProvidersCodexEditPage /> },

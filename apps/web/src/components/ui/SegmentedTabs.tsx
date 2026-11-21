@@ -1,6 +1,7 @@
 import {
   useCallback,
   useMemo,
+  useLayoutEffect,
   useRef,
   type ComponentType,
   type KeyboardEvent,
@@ -24,6 +25,7 @@ export type SegmentedTabsLinkProps = {
   id: string;
   'aria-selected': boolean;
   'aria-disabled'?: boolean;
+  'aria-controls'?: string;
   tabIndex: number;
   title?: string;
   onClick: (event: MouseEvent<HTMLElement>) => void;
@@ -43,6 +45,8 @@ type SegmentedTabsProps<Id extends string> = {
   equalWidth?: boolean;
   responsiveFullWidth?: boolean;
   disabled?: boolean;
+  panelId?: string;
+  keepActiveVisible?: boolean;
   linkComponent?: ComponentType<SegmentedTabsLinkProps>;
 };
 
@@ -57,17 +61,52 @@ export function SegmentedTabs<Id extends string>({
   equalWidth = false,
   responsiveFullWidth = true,
   disabled = false,
+  panelId,
+  keepActiveVisible = false,
   linkComponent: LinkComponent,
 }: SegmentedTabsProps<Id>) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const previousActiveTab = useRef(activeTab);
   const itemRefs = useRef<Map<Id, HTMLElement | null>>(new Map());
   const enabledItems = useMemo(
     () => items.filter((item) => !disabled && !item.disabled),
     [disabled, items]
   );
 
-  const focusItem = useCallback((itemId: Id) => {
-    itemRefs.current.get(itemId)?.focus();
+  const revealItem = useCallback((item: HTMLElement | null | undefined) => {
+    const rail = railRef.current;
+    if (!rail || !item) return;
+    const { left, right } = rail.getBoundingClientRect();
+    const tab = item.getBoundingClientRect();
+    if (tab.left < left) rail.scrollLeft += tab.left - left;
+    else if (tab.right > right) rail.scrollLeft += tab.right - right;
   }, []);
+
+  useLayoutEffect(() => {
+    const activeChanged = previousActiveTab.current !== activeTab;
+    previousActiveTab.current = activeTab;
+    const rail = railRef.current;
+    const item = itemRefs.current.get(activeTab);
+    if (!keepActiveVisible || !rail || !item) return;
+    if (activeChanged && rail.contains(rail.ownerDocument.activeElement)) {
+      item.focus({ preventScroll: true });
+    }
+    revealItem(item);
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => revealItem(item));
+    observer.observe(rail);
+    return () => observer.disconnect();
+  }, [activeTab, items, keepActiveVisible, revealItem]);
+
+  const focusItem = useCallback((itemId: Id) => {
+    const item = itemRefs.current.get(itemId);
+    if (keepActiveVisible) {
+      item?.focus({ preventScroll: true });
+      revealItem(item);
+    } else {
+      item?.focus();
+    }
+  }, [keepActiveVisible, revealItem]);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLElement>, currentId: Id) => {
@@ -75,6 +114,12 @@ export function SegmentedTabs<Id extends string>({
 
       const currentIndex = enabledItems.findIndex((item) => item.id === currentId);
       if (currentIndex === -1) return;
+
+      if (event.key === " " && LinkComponent && enabledItems[currentIndex].to) {
+        event.preventDefault();
+        event.currentTarget.click();
+        return;
+      }
 
       let nextIndex = currentIndex;
       switch (event.key) {
@@ -103,7 +148,7 @@ export function SegmentedTabs<Id extends string>({
         onChange?.(nextItem.id);
       }
     },
-    [enabledItems, focusItem, onChange]
+    [LinkComponent, enabledItems, focusItem, onChange]
   );
 
   const rootClassName = [
@@ -117,7 +162,7 @@ export function SegmentedTabs<Id extends string>({
     .join(' ');
 
   return (
-    <div className={rootClassName} role="tablist" aria-label={ariaLabel}>
+    <div className={rootClassName} role="tablist" aria-label={ariaLabel} ref={railRef}>
       {items.map((item) => {
         const isActive = item.id === activeTab;
         const isDisabled = disabled || Boolean(item.disabled);
@@ -146,6 +191,7 @@ export function SegmentedTabs<Id extends string>({
           role: 'tab' as const,
           id: itemId,
           'aria-selected': isActive,
+          'aria-controls': panelId,
           tabIndex: isActive && !isDisabled ? 0 : -1,
           title: item.title,
           onClick: handleClick,

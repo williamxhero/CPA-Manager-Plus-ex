@@ -7,17 +7,19 @@ import {
   useRef,
   useState,
 } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { PageTransition } from '@/components/common/PageTransition';
 import { DatabaseMaintenanceBanner } from '@/components/common/DatabaseMaintenanceBanner';
 import { DatabaseMaintenanceProvider } from '@/components/common/DatabaseMaintenanceContext';
 import { MainRoutes } from '@/router/MainRoutes';
+import { RouteTabs } from './RouteTabs';
+import { routeTabPanel } from './routeTabPanel';
+import { dashboardNavigation, getDashboardTab } from './dashboardNavigation';
 import {
   IconGithub,
   IconSidebarAuthFiles,
-  IconSidebarConfig,
   IconSidebarDashboard,
   IconSidebarLogs,
   IconSidebarMonitor,
@@ -68,7 +70,6 @@ const sidebarIcons: Record<string, ReactNode> = {
   usageAnalytics: <IconSidebarUsage size={SIDEBAR_ICON_SIZE} />,
   monitoring: <IconSidebarMonitor size={SIDEBAR_ICON_SIZE} />,
   plugins: <IconSidebarPlugins size={SIDEBAR_ICON_SIZE} />,
-  config: <IconSidebarConfig size={SIDEBAR_ICON_SIZE} />,
   logs: <IconSidebarLogs size={SIDEBAR_ICON_SIZE} />,
   system: <IconSidebarSystem size={SIDEBAR_ICON_SIZE} />,
 };
@@ -223,6 +224,7 @@ type NavItem = {
   shortLabel?: string;
   icon: ReactNode;
   exact?: boolean;
+  shortcut?: boolean;
 };
 
 interface MainLayoutProps {
@@ -236,6 +238,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const location = useLocation();
   const navigate = useNavigate();
   const routePathname = stripRouteBase(location.pathname, routeBase);
+  const dashboardTab = getDashboardTab(routePathname);
 
   const logout = useAuthStore((state) => state.logout);
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
@@ -511,7 +514,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     return label === shortKey ? fallback : label;
   };
   const dashboardNavItem: NavItem = {
-    path: '/',
+    path: dashboardNavigation.overview,
     label: t('nav.dashboard'),
     shortLabel: navShortLabel('nav.dashboard', t('nav.dashboard')),
     icon: sidebarIcons.dashboard,
@@ -580,12 +583,6 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     ],
     [
       {
-        path: '/config',
-        label: t('nav.config_management'),
-        shortLabel: navShortLabel('nav.config_management', t('nav.config_management')),
-        icon: sidebarIcons.config,
-      },
-      {
         path: '/ai-providers',
         label: t('nav.ai_providers'),
         shortLabel: navShortLabel('nav.ai_providers', t('nav.ai_providers')),
@@ -620,10 +617,11 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     pluginResourceNavItems,
     [
       {
-        path: '/system',
+        path: dashboardNavigation.system,
         label: t('nav.system_info'),
         shortLabel: navShortLabel('nav.system_info', t('nav.system_info')),
         icon: sidebarIcons.system,
+        shortcut: true,
       },
     ],
   ].filter((section) => section.length > 0);
@@ -632,7 +630,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const getRouteOrder = (pathname: string) => {
     const trimmedPath =
       pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
-    const normalizedPath = trimmedPath === '/dashboard' ? '/' : trimmedPath;
+    const normalizedPath = getDashboardTab(trimmedPath) ? dashboardNavigation.overview : trimmedPath;
 
     const aiProvidersIndex = navOrder.indexOf('/ai-providers');
     if (aiProvidersIndex !== -1) {
@@ -707,10 +705,11 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
       ? routePathname.slice(0, -1)
       : routePathname;
   const currentPath = normalizedLocationPath === '/dashboard' ? '/' : normalizedLocationPath;
-  const matchesNavPath = (item: NavItem, pathname: string) =>
-    item.path === '/' || item.exact
-      ? pathname === item.path
-      : pathname === item.path || pathname.startsWith(`${item.path}/`);
+  const matchesNavPath = (item: NavItem, pathname: string) => {
+    if (item.shortcut) return false;
+    if (item.path === dashboardNavigation.overview) return Boolean(dashboardTab);
+    return pathname === item.path || (!item.exact && pathname.startsWith(`${item.path}/`));
+  };
   const activeNavItem =
     [...navItems]
       .sort((a, b) => b.path.length - a.path.length)
@@ -969,22 +968,40 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
             {navSections.map((section, sectionIndex) => (
               <div className="nav-menu-section" key={`nav-section-${sectionIndex}`}>
                 {sectionIndex > 0 && <div className="nav-menu-divider" aria-hidden="true" />}
-                {section.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={prefixRouteBase(item.path, routeBase)}
-                    end={item.path === '/' || item.exact}
-                    className={({ isActive }) =>
-                      `nav-item ${isActive || matchesNavPath(item, currentPath) ? 'active' : ''}`
-                    }
-                    onClick={() => setSidebarOpen(false)}
-                    title={item.label}
-                    aria-label={!showSidebarLabels ? item.label : undefined}
-                  >
-                    <span className="nav-icon">{item.icon}</span>
-                    {showSidebarLabels && <span className="nav-label">{item.label}</span>}
-                  </NavLink>
-                ))}
+                {section.map((item) => {
+                  const matches = matchesNavPath(item, currentPath);
+                  const props = {
+                    to: prefixRouteBase(item.path, routeBase),
+                    onClick: () => setSidebarOpen(false),
+                    title: item.label,
+                    'aria-label': !showSidebarLabels ? item.label : undefined,
+                  };
+                  const label = (
+                    <>
+                      <span className="nav-icon">{item.icon}</span>
+                      {showSidebarLabels && <span className="nav-label">{item.label}</span>}
+                    </>
+                  );
+                  return item.path === dashboardNavigation.overview || item.shortcut ? (
+                    <Link
+                      key={item.path}
+                      {...props}
+                      className={`nav-item ${matches ? 'active' : ''}`}
+                      aria-current={matches ? 'page' : undefined}
+                    >
+                      {label}
+                    </Link>
+                  ) : (
+                    <NavLink
+                      key={item.path}
+                      {...props}
+                      end={item.exact}
+                      className={({ isActive }) => `nav-item ${isActive || matches ? 'active' : ''}`}
+                    >
+                      {label}
+                    </NavLink>
+                  );
+                })}
               </div>
             ))}
           </div>
@@ -1010,7 +1027,21 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
               .join(' ')}
           >
             <DatabaseMaintenanceBanner />
+            {dashboardTab && (
+              <RouteTabs
+                title={t('nav.dashboard')}
+                activeTab={dashboardTab}
+                idBase={dashboardNavigation.id}
+                routeBase={routeBase}
+                items={[
+                  { id: 'overview', label: t('dashboard.tab_overview'), to: dashboardNavigation.overview },
+                  { id: 'config', label: t('nav.config_management'), to: dashboardNavigation.config },
+                  { id: 'system', label: t('nav.system_info'), to: dashboardNavigation.system },
+                ]}
+              />
+            )}
             <PageTransition
+              panelProps={dashboardTab ? routeTabPanel(dashboardNavigation.id, dashboardTab) : undefined}
               key={routeBase || 'main'}
               render={(location) => <MainRoutes location={location} routeBase={routeBase} />}
               getRouteOrder={(pathname) => getRouteOrder(stripRouteBase(pathname, routeBase))}
