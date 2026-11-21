@@ -72,6 +72,8 @@ export function SegmentedTabs<Id extends string>({
     () => items.filter((item) => !disabled && !item.disabled),
     [disabled, items]
   );
+  // A label or badge refresh should not move the rail after manual scrolling.
+  const activeIndex = items.findIndex((item) => item.id === activeTab);
 
   const revealItem = useCallback((item: HTMLElement | null | undefined) => {
     const rail = railRef.current;
@@ -86,17 +88,18 @@ export function SegmentedTabs<Id extends string>({
     const activeChanged = previousActiveTab.current !== activeTab;
     previousActiveTab.current = activeTab;
     const rail = railRef.current;
-    const item = activeTab === undefined ? undefined : itemRefs.current.get(activeTab);
-    if (!keepActiveVisible || !rail || !item) return;
+    if (!keepActiveVisible || !rail || activeTab === undefined || activeIndex === -1) return;
+    const item = itemRefs.current.get(activeTab);
+    if (!item) return;
     if (activeChanged && rail.contains(rail.ownerDocument.activeElement)) {
       item.focus({ preventScroll: true });
     }
     revealItem(item);
     if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => revealItem(item));
+    const observer = new ResizeObserver(() => revealItem(itemRefs.current.get(activeTab)));
     observer.observe(rail);
     return () => observer.disconnect();
-  }, [activeTab, items, keepActiveVisible, revealItem]);
+  }, [activeTab, activeIndex, keepActiveVisible, revealItem]);
 
   const focusItem = useCallback((itemId: Id) => {
     const item = itemRefs.current.get(itemId);
