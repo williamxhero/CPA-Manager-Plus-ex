@@ -45,7 +45,7 @@ import {
   IconPlus,
   IconPin,
   IconRefreshCw,
-  IconRecycle,
+  IconUserRound,
   IconRotateCcw,
   IconSearch,
   IconSettings,
@@ -9116,7 +9116,7 @@ export function AccountsPage() {
           title={t('auth_files.credential_refresh_button')}
           aria-label={t('auth_files.credential_refresh_button')}
         >
-          {!credentialRefreshInProgress ? <IconRecycle size={15} /> : null}
+          {!credentialRefreshInProgress ? <IconUserRound size={15} /> : null}
         </Button>
       ) : null;
     const reauthButton = needsReauth ? (
@@ -10692,7 +10692,7 @@ export function AccountsPage() {
             {
               key: 'refresh-credential',
               label: t('auth_files.credential_refresh_button'),
-              icon: <IconRecycle size={15} />,
+              icon: <IconUserRound size={15} />,
               onClick: () => {
                 handleReauthAccount(selectedRow.raw);
               },

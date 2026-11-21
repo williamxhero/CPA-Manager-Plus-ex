@@ -2293,7 +2293,7 @@
     "paste_success": "Saved login file {{name}}",
     "paste_success_many": "Saved {{count}} login files",
     "health_status_label": "Health",
-    "credential_refresh_button": "Refresh credential",
+    "credential_refresh_button": "Reauthenticate",
     "credential_refresh_completed": "Login credential refreshed and account information reloaded for {{name}}.",
     "credential_refresh_pending": "Credential refresh requested for {{name}}, but completion has not been confirmed yet. Check again shortly.",
     "credential_refresh_failed": "Failed to request login credential refresh for {{name}}: {{message}}",

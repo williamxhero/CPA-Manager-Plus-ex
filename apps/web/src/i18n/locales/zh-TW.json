@@ -2263,7 +2263,7 @@
     "paste_success": "已儲存驗證檔案 {{name}}",
     "paste_success_many": "已儲存 {{count}} 個驗證檔案",
     "health_status_label": "健康狀態",
-    "credential_refresh_button": "重新整理憑證",
+    "credential_refresh_button": "重新認證",
     "credential_refresh_completed": "已重新整理 {{name}} 的登入憑證並重新讀取帳號資訊。",
     "credential_refresh_pending": "已請求重新整理 {{name}} 的登入憑證，但暫未確認完成，請稍後再次查看。",
     "credential_refresh_failed": "請求重新整理 {{name}} 的登入憑證失敗：{{message}}",

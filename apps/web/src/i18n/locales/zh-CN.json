@@ -2291,7 +2291,7 @@
     "paste_success": "已保存认证文件 {{name}}",
     "paste_success_many": "已保存 {{count}} 个认证文件",
     "health_status_label": "健康状态",
-    "credential_refresh_button": "刷新凭证",
+    "credential_refresh_button": "重新认证",
     "credential_refresh_completed": "已刷新 {{name}} 的登录凭证并重新读取账号信息。",
     "credential_refresh_pending": "已请求刷新 {{name}} 的登录凭证，但暂未确认完成，请稍后再次查看。",
     "credential_refresh_failed": "请求刷新 {{name}} 的登录凭证失败：{{message}}",
