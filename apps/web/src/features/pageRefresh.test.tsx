@@ -76,6 +76,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('react-router-dom', () => ({
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
   useNavigate: () => mocks.noop,
+  useLocation: () => ({ search: mocks.params.toString(), hash: '' }),
   useSearchParams: () => [mocks.params, mocks.noop],
   useParams: () => ({ pluginId: 'retained-plugin', menuIndex: '0' }),
 }));
