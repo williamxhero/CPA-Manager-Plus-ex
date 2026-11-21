@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import routesSource from '@/router/MainRoutes.tsx?raw';
-import layoutSource from '@/components/layout/MainLayout.tsx?raw';
 import accountsPageSource from '@/features/accounts/AccountsPage.tsx?raw';
 import localStatusPanelSource from '@/features/monitoring/components/CodexInspectionStatusPanel.tsx?raw';
 import serverInspectionPageSource from '@/features/monitoring/ServerCodexInspectionPage.tsx?raw';
@@ -12,15 +11,6 @@ import zhTW from '@/i18n/locales/zh-TW.json';
 const legacyPagesRoot = ['@', 'pages'].join('/');
 
 describe('accounts workspace wiring', () => {
-  it('uses Accounts as the single credential-management sidebar entry', () => {
-    expect(layoutSource).toContain("path: '/accounts'");
-    expect(layoutSource).toContain("label: t('nav.accounts'");
-    expect(layoutSource).not.toContain("path: '/auth-files',\n        label: t('nav.auth_files')");
-    expect(layoutSource).not.toContain("path: '/quota',\n        label: t('nav.quota_management')");
-    expect(layoutSource).not.toContain("path: '/codex-inspection'");
-    expect(layoutSource).not.toContain("label: t('nav.codex_inspection')");
-  });
-
   it('removes legacy credential and quota routes while retaining inspection compatibility', () => {
     expect(routesSource).not.toContain("path: '/auth-files'");
     expect(routesSource).not.toContain("path: '/quota'");

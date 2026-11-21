@@ -190,6 +190,24 @@ describe('Access navigation', () => {
         .findAll((node) => typeof node.type === 'string' && node.props.role === 'tab');
     const selected = () => tabs().find((tab) => tab.props['aria-selected'] === true)!;
 
+    const credentialSidebarLinks = () =>
+      renderer!.root
+        .findByType('aside')
+        .findAllByType('a')
+        .filter((link) => {
+          const path = link.props.href;
+          return (
+            typeof path === 'string' &&
+            /^\/(?:accounts|auth-files|quota|codex-inspection|plan-credentials|oauth)(?:[\/?#]|$)/.test(
+              path
+            )
+          );
+        });
+
+    expect(credentialSidebarLinks().map((link) => [link.props.href, nodeText(link)])).toEqual([
+      ['/accounts', '额度接入'],
+    ]);
+
     expect(tabs().map(nodeText)).toEqual([
       '凭证列表',
       '健康巡检',
@@ -203,6 +221,7 @@ describe('Access navigation', () => {
     await click(tabs()[4]);
     expect(router.state.location.pathname).toBe('/oauth');
     expect(nodeText(selected())).toBe('OAuth 登录');
+    expect(credentialSidebarLinks()[0].props['aria-current']).toBe('page');
     await click(tabs()[0]);
     expect(router.state.location.pathname).toBe('/accounts');
     expect(router.state.location.search).toContain('search=account-probe');
