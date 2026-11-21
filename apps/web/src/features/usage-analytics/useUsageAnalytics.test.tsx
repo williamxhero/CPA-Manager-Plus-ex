@@ -299,7 +299,8 @@ describe('useUsageAnalytics request orchestration', () => {
       .filter((params) => params.include?.summary && params.filters?.api_key_hashes?.includes('key-b'));
     expect(firstSameTabRequest?.searchQuery).toBe('another');
     await act(async () => latestResult?.setFilters({ searchQuery: 'not-yet-debounced' }));
-    expect(useMonitoringAnalyticsMock.mock.calls.at(-1)?.[0].searchQuery).not.toBe('not-yet-debounced');
+    const callsAfterTyping = useMonitoringAnalyticsMock.mock.calls;
+    expect(callsAfterTyping[callsAfterTyping.length - 1]?.[0].searchQuery).not.toBe('not-yet-debounced');
     await act(async () => goBack?.());
     await act(async () => goBack?.());
     expect(latestResult?.activeTab).toBe('apiKeys');
