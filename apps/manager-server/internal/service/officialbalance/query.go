@@ -17,6 +17,14 @@ type Query struct {
 	Binding
 	Version int64 `json:"version"`
 }
+
+// PolicyCompletion is the durable inbox payload. Its query carries the exact
+// bindings and source version used to acquire the observation.
+type PolicyCompletion struct {
+	AttemptID string `json:"attemptId"`
+	Query     Query  `json:"query"`
+}
+
 type Job struct {
 	Joined     bool    `json:"joined"`
 	ID         string  `json:"id"`
@@ -193,7 +201,18 @@ func (s *Service) run(job Job, st Status, flight, id string) {
 		obs.QueryID = job.ID
 		obs.Binding, _ = json.Marshal(job.Binding)
 		data, _ := json.Marshal(obs)
-		if s.Store.CompleteOfficialBalance(finishCtx, id, st.Version, job.ID, string(data), obs.QueryStatus == "success") == nil {
+		var commitErr error
+		if obs.QueryStatus == "success" && st.Adapter == "deepseek" && st.Endpoint == "https://api.deepseek.com/user/balance" {
+			event, err := json.Marshal(PolicyCompletion{AttemptID: job.ID, Query: Query{Binding: job.Binding, Version: job.Version}})
+			if err != nil {
+				commitErr = err
+			} else {
+				commitErr = s.Store.CompleteOfficialBalanceWithPolicyEvent(finishCtx, id, st.Version, job.ID, string(data), string(event))
+			}
+		} else {
+			commitErr = s.Store.CompleteOfficialBalance(finishCtx, id, st.Version, job.ID, string(data), obs.QueryStatus == "success")
+		}
+		if commitErr == nil {
 			job.State = "complete"
 			current, e := s.read(finishCtx, job.Binding)
 			if e == nil {

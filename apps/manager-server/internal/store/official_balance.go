@@ -140,19 +140,42 @@ func (s *Store) ResolveOfficialBalanceSecret(ctx context.Context, id string, ver
 }
 
 func (s *Store) CompleteOfficialBalance(ctx context.Context, id string, version int64, jobID, attempt string, success bool) error {
+	return s.completeOfficialBalance(ctx, id, version, jobID, attempt, success, "")
+}
+
+// CompleteOfficialBalanceWithPolicyEvent publishes a successful balance and its
+// policy inbox event together. A superseded observation cannot create an event.
+func (s *Store) CompleteOfficialBalanceWithPolicyEvent(ctx context.Context, id string, version int64, jobID, attempt, event string) error {
+	return s.completeOfficialBalance(ctx, id, version, jobID, attempt, true, event)
+}
+
+func (s *Store) completeOfficialBalance(ctx context.Context, id string, version int64, jobID, attempt string, success bool, event string) error {
 	query := `UPDATE official_balance_sources SET attempt=? WHERE id=? AND version=? AND json_extract(attempt,'$.queryId')=?`
 	args := []any{attempt, id, version, jobID}
 	if success {
 		query = `UPDATE official_balance_sources SET attempt=?,last_success=? WHERE id=? AND version=? AND json_extract(attempt,'$.queryId')=?`
 		args = []any{attempt, attempt, id, version, jobID}
 	}
-	res, err := s.db.ExecContext(ctx, query, args...)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
 	n, err := res.RowsAffected()
-	if err == nil && n != 1 {
+	if err != nil {
+		return err
+	}
+	if n != 1 {
 		return ErrBalanceConflict
 	}
-	return err
+	if event != "" {
+		if _, err := tx.ExecContext(ctx, putProviderPolicyEventSQL, jobID, event); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

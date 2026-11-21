@@ -42,8 +42,10 @@ func (s *Store) ProviderPolicyCapture(ctx context.Context, subject, attempt stri
 	return r, err
 }
 
+const putProviderPolicyEventSQL = `INSERT INTO provider_policy_events(id,document) VALUES(?,?) ON CONFLICT(id) DO NOTHING`
+
 func (s *Store) PutProviderPolicyEvent(ctx context.Context, id, document string) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO provider_policy_events(id,document) VALUES(?,?) ON CONFLICT(id) DO NOTHING`, id, document)
+	_, err := s.db.ExecContext(ctx, putProviderPolicyEventSQL, id, document)
 	return err
 }
 
