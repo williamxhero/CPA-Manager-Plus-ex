@@ -259,7 +259,7 @@ describe('useUsageAnalytics request orchestration', () => {
         </MemoryRouter>
       );
     });
-    const currentQuery = () => new URLSearchParams(entries.at(-1));
+    const currentQuery = () => new URLSearchParams(entries[entries.length - 1]);
 
     await act(async () => latestResult?.setActiveTab('apiKeys'));
     expect(latestResult?.activeTab).toBe('apiKeys');
