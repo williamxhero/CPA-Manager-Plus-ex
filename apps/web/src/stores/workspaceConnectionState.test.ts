@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
 import { createElement, useEffect } from 'react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import { useWorkspaceConnectionRoute } from '@/hooks/useWorkspaceConnectionRoute';
 import {
   createWorkspaceConnectionState,
   useWorkspaceConnectionGeneration,
@@ -49,6 +51,35 @@ describe('workspace connection state', () => {
       useAuthStore.setState({ isAuthenticated: false });
     });
     expect(filters.read(scope)).toBeUndefined();
+    await act(async () => renderer.unmount());
+  });
+
+  it('allows a fresh bookmark but does not expose its filters to a replacement connection', async () => {
+    const params = new Set(['search']);
+    const reports: string[] = [];
+    const Reader = () => {
+      const { stale } = useWorkspaceConnectionRoute(true, params);
+      const { search } = useLocation();
+      useEffect(() => {
+        if (!stale) reports.push(search);
+      }, [search, stale]);
+      return null;
+    };
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(createElement(
+        MemoryRouter,
+        { initialEntries: ['/usage-analytics?tab=heatmap&search=account-one&extra=kept'] },
+        createElement(Reader)
+      ));
+    });
+    await act(async () => {
+      useAuthStore.setState({ managementKey: 'replacement-fixture-key' });
+    });
+    expect(reports).toEqual([
+      '?tab=heatmap&search=account-one&extra=kept',
+      '?tab=heatmap&extra=kept',
+    ]);
     await act(async () => renderer.unmount());
   });
 });
