@@ -1,3 +1,4 @@
+import { stripRouteBase } from '@/features/demo/demoMode';
 import {
   resolveRetentionCutoff,
   toLocalDateTimeValue,
@@ -46,14 +47,15 @@ const filters = new Set([
   'cancelled',
 ]);
 
+export const isUsageMaintenancePath = (pathname: string) =>
+  (__DEMO_SITE__ ? stripRouteBase(pathname) : pathname) === '/usage-maintenance';
+
 export function readUsageMaintenanceNavigation(
   hash = typeof window === 'undefined' ? '' : window.location.hash,
   nowMS = Date.now()
 ): UsageMaintenanceNavigation {
   const [pathname, search = ''] = hash.replace(/^#/, '').split('?');
-  const params = new URLSearchParams(
-    ['/usage-maintenance', '/demo/usage-maintenance'].includes(pathname) ? search : ''
-  );
+  const params = new URLSearchParams(isUsageMaintenancePath(pathname) ? search : '');
   const requestedTab = params.get('tab') ?? 'organize';
   const requestedFilter = params.get('filter') ?? 'all';
   const requestedDays = params.get('days');

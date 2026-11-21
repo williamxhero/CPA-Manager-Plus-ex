@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/icons';
 import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
 import {
+  isUsageMaintenancePath,
   readUsageMaintenanceNavigation,
   writeUsageMaintenanceNavigation,
   type UsageMaintenanceNavigation,
@@ -468,8 +469,8 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
     }
     if (typeof window === 'undefined') return;
     const syncFromHash = () => {
-      const pathname = window.location.hash.split('?')[0];
-      if (pathname === '#/usage-maintenance' || pathname === '#/demo/usage-maintenance') {
+      const pathname = window.location.hash.replace(/^#/, '').split('?')[0];
+      if (isUsageMaintenancePath(pathname)) {
         applyLocation(readUsageMaintenanceNavigation());
       }
     };
