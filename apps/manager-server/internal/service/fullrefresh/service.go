@@ -250,5 +250,6 @@ func (s *Service) Inventory(ctx context.Context) (Inventory, error) {
 	if current.Snapshot == nil || current.Identity.State != "available" || current.BindingCapability == nil || current.BindingCapability.State != "available" || current.CredentialQuery != n.CredentialQuery || current.Snapshot.Scope != out.Scope || !s.Identity.SameInventoryConnection(n, current) {
 		return Inventory{}, ErrUnavailable
 	}
+	out.connection = current.ConnectionGeneration()
 	return out, nil
 }

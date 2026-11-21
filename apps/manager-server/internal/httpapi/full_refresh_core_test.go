@@ -41,6 +41,12 @@ type refreshFixture struct {
 	api                       func(string, string, any) (int, []byte)
 	calls, peak, active, mode atomic.Int64
 	nativeCalls               atomic.Int64
+	resetAt                   atomic.Int64
+	resetMode                 atomic.Int64
+	resetSourceCalls          atomic.Int64
+	resetInferenceA           atomic.Int64
+	resetInferenceB           atomic.Int64
+	coreBase                  string
 	entered                   chan struct{}
 	release                   chan struct{}
 	upstream                  *httptest.Server
@@ -78,6 +84,7 @@ func verifiedRefreshArtifact(t *testing.T, path, sha, revision string) {
 
 type refreshFixtureScale struct {
 	providers, extraKeys, extraOAuthFiles int
+	scopedReset                           bool
 }
 
 func newRefreshFixture(t *testing.T, scales ...refreshFixtureScale) *refreshFixture {
@@ -152,6 +159,10 @@ func newRefreshFixture(t *testing.T, scales ...refreshFixtureScale) *refreshFixt
 		}
 		switch r.URL.Path {
 		case "/backend-api/wham/usage":
+			if f.resetAt.Load() != 0 {
+				f.serveResetQuota(w, r)
+				return
+			}
 			if r.Header.Get("Authorization") != "Bearer QUOTA-SECRET-CANARY" {
 				t.Error("wrong selected OAuth credential")
 			}
@@ -163,6 +174,13 @@ func newRefreshFixture(t *testing.T, scales ...refreshFixtureScale) *refreshFixt
 			}
 			reset := time.Now().Add(time.Hour).Format(time.RFC3339)
 			fmt.Fprintf(w, `{"usage":{"rolling":{"status":"allowed","percent":20,"resetsAt":%q},"weekly":{"status":"allowed","percent":15,"resetsAt":%q},"monthly":{"status":"allowed","percent":10,"resetsAt":%q}}}`, reset, reset, reset)
+		case "/backend-api/codex/responses":
+			if f.resetAt.Load() == 0 {
+				t.Error("unexpected inference")
+				w.WriteHeader(400)
+				return
+			}
+			f.serveResetInference(w, r)
 		case "/api/user/self":
 			if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer explicit-billing-") {
 				t.Error("missing explicit independent wallet authorization")
@@ -219,6 +237,22 @@ func newRefreshFixture(t *testing.T, scales ...refreshFixtureScale) *refreshFixt
 	if len(scales) > 0 {
 		scale = scales[0]
 	}
+	if scale.scopedReset {
+		// This date is replaced by the test after the startup inventory query.
+		f.resetAt.Store(time.Now().Add(time.Hour).Unix())
+		auth := filepath.Join(state, "auth")
+		if e = os.MkdirAll(auth, 0700); e != nil {
+			t.Fatal(e)
+		}
+		for name, body := range map[string]string{
+			"codex.json":    `{"type":"codex","access_token":"RESET-A-CANARY","account_id":"reset-a","priority":100}`,
+			"fallback.json": `{"type":"codex","access_token":"RESET-B-CANARY","account_id":"reset-b"}`,
+		} {
+			if e = os.WriteFile(filepath.Join(auth, name), []byte(body), 0600); e != nil {
+				t.Fatal(e)
+			}
+		}
+	}
 	if scale.extraOAuthFiles > 0 {
 		auth := filepath.Join(state, "auth")
 		if e = os.MkdirAll(auth, 0700); e != nil {
@@ -259,6 +293,9 @@ func newRefreshFixture(t *testing.T, scales ...refreshFixtureScale) *refreshFixt
 		}
 	}
 	cmd.Env = append(cmd.Env, "HOME="+dir, "USERPROFILE="+dir, "QUOTA_FIXTURE_LISTEN="+address, "QUOTA_FIXTURE_STATE_DIR="+state, "QUOTA_FIXTURE_UPSTREAM="+f.upstream.Listener.Addr().String(), "QUOTA_FIXTURE_CA="+ca, "QUOTA_FIXTURE_PLUGIN_DIR="+plugin)
+	if scale.scopedReset {
+		cmd.Env = append(cmd.Env, "GATE_FIXTURE_ROUTES=1", "GATE_FIXTURE_TLS_SERVER_NAME=chatgpt.com", "GATE_FIXTURE_MODEL="+resetModel)
+	}
 	var logs bytes.Buffer
 	cmd.Stdout = &logs
 	cmd.Stderr = &logs
@@ -273,6 +310,7 @@ func newRefreshFixture(t *testing.T, scales ...refreshFixtureScale) *refreshFixt
 		}
 	})
 	coreBase := "http://" + address
+	f.coreBase = coreBase
 	client := &http.Client{Timeout: 15 * time.Second}
 	until := time.Now().Add(20 * time.Second)
 	for {

@@ -54,6 +54,7 @@ type SourceStatus struct {
 	NextDueMS        int64                    `json:"nextDueMs"`
 }
 type Inventory struct {
+	connection           rc.InventoryConnection
 	LatestRound          *Progress      `json:"latestRound,omitempty"`
 	SchedulerCheckedAtMS int64          `json:"schedulerCheckedAtMs"`
 	NextDueMS            int64          `json:"nextDueMs"`
@@ -63,6 +64,7 @@ type Inventory struct {
 	Sources              []SourceStatus `json:"sources"`
 }
 type Item struct {
+	resetRequiredFromMS  int64
 	ExplicitRefresh      bool   `json:"explicitRefresh,omitempty"`
 	AdmissionNotBeforeMS int64  `json:"admissionNotBeforeMs,omitempty"`
 	SharedFromID         string `json:"sharedFromId,omitempty"`

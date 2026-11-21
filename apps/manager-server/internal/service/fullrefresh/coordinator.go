@@ -192,23 +192,26 @@ func (s *Service) StartSingleSource(ctx context.Context, request SourceRequest, 
 	if err != nil {
 		return Progress{}, err
 	}
-	var source *SourceStatus
 	for _, row := range inv.Sources {
 		if requestSame(row.Request, request) {
-			r := row
-			source = &r
-			break
+			return s.startKnownSource(ctx, inv, row, request, purpose, 0)
 		}
 	}
-	if source == nil {
-		return Progress{}, ErrInput
-	}
-	// CAS is not erased just because source identity matches.
+	return Progress{}, ErrInput
+}
 
+// startKnownSource reuses a freshly validated inventory in one scheduler
+// cycle. Actual admission and joining continue to use the exact source CAS.
+func (s *Service) startKnownSource(ctx context.Context, inv Inventory, source SourceStatus, request SourceRequest, purpose Purpose, requiredFrom int64) (Progress, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err = s.ensureLocked(ctx); err != nil {
+	if err := s.ensureLocked(ctx); err != nil {
 		return Progress{}, err
+	}
+	if requiredFrom > 0 {
+		if ready, err := s.quotaRecheckPending(ctx, *request.Credential, requiredFrom); err != nil || !ready {
+			return Progress{}, ErrUnavailable
+		}
 	}
 rounds:
 	for _, p := range s.rounds {
@@ -235,7 +238,7 @@ rounds:
 					if e != nil || request.Credential.Version != job.RequestedVersion && request.Credential.Version != job.Query.Version {
 						return Progress{}, ErrInput
 					}
-					if canRetireItem(p, item) && job.State != "running" {
+					if (requiredFrom > 0 || canRetireItem(p, item)) && job.State != "running" {
 						if job.State == "complete" && job.Status != nil && job.Status.Attempt != nil && job.Status.Attempt.QueryID == job.ID {
 							s.finishItemLocked(p, item, job.Status.Attempt, job.Status.LastSuccess, job.Status.Stale)
 						}
@@ -244,8 +247,14 @@ rounds:
 				}
 				if p.Items[i].Outcome == "not_due" {
 					p.Items[i].Outcome = "queued"
+					item.resetRequiredFromMS = requiredFrom
 					planWallets(p)
 					recount(p)
+				}
+				if requiredFrom == 0 {
+					// A manual caller joined queued work and still requests an
+					// acquisition even if an unrelated job covers the reset.
+					item.resetRequiredFromMS = 0
 				}
 				p.Items[i].Joined = true
 				p.Items[i].ExplicitRefresh = true
@@ -260,7 +269,7 @@ rounds:
 	if len(s.rounds) >= 128 {
 		return Progress{}, ErrUnavailable
 	}
-	p := &Progress{ID: uuid.NewString(), Purpose: purpose, Scope: inv.Scope, State: "running", StartedAtMS: time.Now().UnixMilli(), ResourceCount: len(source.Targets), Items: []Item{{SourceStatus: *source, Outcome: "queued"}}}
+	p := &Progress{ID: uuid.NewString(), Purpose: purpose, Scope: inv.Scope, State: "running", StartedAtMS: time.Now().UnixMilli(), ResourceCount: len(source.Targets), Items: []Item{{SourceStatus: source, Outcome: "queued", resetRequiredFromMS: requiredFrom}}}
 	p.QueueDeadlineMS = s.budget.Now().Add(2*time.Minute + 15*time.Second).UnixMilli()
 	if source.WalletProof != nil {
 		for _, member := range inv.Sources {
@@ -275,7 +284,7 @@ rounds:
 		p.State = "partial"
 	}
 	recount(p)
-	if err = s.save(ctx, p); err != nil {
+	if err := s.save(ctx, p); err != nil {
 		return Progress{}, err
 	}
 	s.rounds[p.ID] = p
@@ -425,6 +434,10 @@ func (s *Service) sweep() {
 				accepted, err := s.admit(ctx, item, admitted < 4 && !covered)
 				if errors.Is(err, ob.ErrBusy) || errors.Is(err, cq.ErrBusy) {
 					admitted = 4
+					continue
+				}
+				if errors.Is(err, cq.ErrRecheckCovered) {
+					item.Outcome = "not_due"
 					continue
 				}
 				if err != nil {
@@ -652,7 +665,11 @@ func (s *Service) admit(ctx context.Context, item *Item, canStart bool) (bool, e
 			if !canStart {
 				return false, nil
 			}
-			job, err = s.Credential.Start(ctx, *item.Request.Credential)
+			if item.resetRequiredFromMS != 0 {
+				job, err = s.Credential.StartRecheck(ctx, *item.Request.Credential, item.resetRequiredFromMS)
+			} else {
+				job, err = s.Credential.Start(ctx, *item.Request.Credential)
+			}
 		}
 		if err != nil {
 			return false, err
@@ -712,6 +729,7 @@ func (s *Service) joinRoundLocked(ctx context.Context, p *Progress, purpose Purp
 			if p.Items[i].Outcome == "queued" {
 				// An explicit whole-round manual/recovery join asks for fresh
 				// queued work; automatic due credit must not cancel that request.
+				p.Items[i].resetRequiredFromMS = 0
 				p.Items[i].ExplicitRefresh = true
 			}
 		}
