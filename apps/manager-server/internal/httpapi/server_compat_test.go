@@ -1526,6 +1526,50 @@ func TestServerCompatV8APIKeysConfigProxy(t *testing.T) {
 	}
 }
 
+func TestServerCompatV8CodexReauthProxy(t *testing.T) {
+	const path = "/v8/management/oauth/auth-url"
+	const valid = "?provider=codex&is_webui=true&auth_index=0123456789abcdef"
+	cpa := testutil.NewCPAMock(t)
+	setup := &store.Setup{CPAUpstreamURL: cpa.URL(), ManagementKey: "management-key", Queue: "usage", PopSide: "right"}
+	handler, _ := newCompatHandler(t, testutil.NewConfig(t), setup)
+
+	for _, query := range []string{valid, "?provider=codex&is_webui=true&name=codex-local%2Bplus.json"} {
+		rr := testutil.Request(t, handler, http.MethodGet, path+query, "", testutil.AdminKey)
+		testutil.RequireStatus(t, rr, http.StatusOK)
+		got, ok := cpa.LastRequest(path)
+		if !ok || got.Method != http.MethodGet || got.Authorization != "Bearer management-key" || got.Query != query[1:] {
+			t.Fatalf("unexpected Core request: %#v (found %t)", got, ok)
+		}
+		if rr.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("OAuth start response could be cached: %v", rr.Header())
+		}
+	}
+	for _, tc := range []struct {
+		name, method, target, key string
+		want                      int
+	}{
+		{"missing admin key", http.MethodGet, path + valid, "", http.StatusUnauthorized},
+		{"Core key is not an admin key", http.MethodGet, path + valid, "management-key", http.StatusUnauthorized},
+		{"post rejected", http.MethodPost, path + valid, testutil.AdminKey, http.StatusMethodNotAllowed},
+		{"missing target", http.MethodGet, path + "?provider=codex&is_webui=true", testutil.AdminKey, http.StatusBadRequest},
+		{"blank target", http.MethodGet, path + "?provider=codex&is_webui=true&name=%20", testutil.AdminKey, http.StatusBadRequest},
+		{"duplicate selectors", http.MethodGet, path + valid + "&auth_index=second", testutil.AdminKey, http.StatusBadRequest},
+		{"two selectors", http.MethodGet, path + valid + "&name=second.json", testutil.AdminKey, http.StatusBadRequest},
+		{"different provider", http.MethodGet, path + "?provider=anthropic&is_webui=true&name=a.json", testutil.AdminKey, http.StatusBadRequest},
+		{"unrequested verify option", http.MethodGet, path + valid + "&verify=true", testutil.AdminKey, http.StatusBadRequest},
+		{"unrelated oauth operation", http.MethodGet, "/v8/management/oauth/status", testutil.AdminKey, http.StatusNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := len(cpa.Requests())
+			rr := testutil.Request(t, handler, tc.method, tc.target, "", tc.key)
+			testutil.RequireStatus(t, rr, tc.want)
+			if len(cpa.Requests()) != before {
+				t.Fatal("request unexpectedly reached Core")
+			}
+		})
+	}
+}
+
 func TestServerCompatPluginProxyRoutes(t *testing.T) {
 	type observedRequest struct {
 		method            string
