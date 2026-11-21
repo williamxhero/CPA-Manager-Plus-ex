@@ -66,6 +66,48 @@ import {
 const USAGE_SEARCH_DEBOUNCE_MS = 350;
 const USAGE_HEATMAP_ALL_DATES_KEY = 'all';
 const API_KEY_TREND_SERIES_LIMIT = 4;
+const USAGE_ANALYTICS_QUERY_KEYS = new Set([
+  'tab',
+  'time_range',
+  'from_ms',
+  'to_ms',
+  'granularity',
+  'model',
+  'api_key_hash',
+  'provider',
+  'auth_file',
+  'status',
+  'search',
+  'min_latency_ms',
+  'cache_status',
+  'api_key_keyword',
+]);
+
+function buildWorkspaceSearchParams(
+  current: URLSearchParams,
+  state: UsageAnalyticsUiState,
+  explicitTab: boolean
+) {
+  const next = buildUsageAnalyticsSearchParams(state);
+  if (explicitTab) next.set('tab', state.activeTab);
+  for (const [key, value] of current) {
+    if (!USAGE_ANALYTICS_QUERY_KEYS.has(key)) next.append(key, value);
+  }
+  return next;
+}
+
+function applyFilterPatch(
+  current: UsageAnalyticsFiltersState,
+  patch: Partial<UsageAnalyticsFiltersState>
+): UsageAnalyticsFiltersState {
+  return {
+    ...current,
+    ...patch,
+    ...(patch.apiKeyHash === undefined
+      ? {}
+      : { apiKeyHash: getSelectableApiKeyHash(patch.apiKeyHash) || 'all' }),
+  };
+}
 
 type UsageAnalyticsMonitoringMeta = {
   authFiles: AuthFileItem[];
@@ -106,7 +148,7 @@ export function useUsageAnalytics(workspace = false) {
   const [initialUiState] = useState<UsageAnalyticsUiState>(() =>
     buildUsageAnalyticsUiStateFromSearchParams(searchParams, readUsageAnalyticsUiState())
   );
-  const [filters, setFiltersState] = useState<UsageAnalyticsFiltersState>(() => ({
+  const [storedFilters, setFiltersState] = useState<UsageAnalyticsFiltersState>(() => ({
     ...initialUiState.filters,
     apiKeyHash: getSelectableApiKeyHash(initialUiState.filters.apiKeyHash) || 'all',
   }));
@@ -117,6 +159,7 @@ export function useUsageAnalytics(workspace = false) {
   const activeTabState = workspace
     ? buildUsageAnalyticsUiStateFromSearchParams(searchParams, initialUiState).activeTab
     : storedTab;
+  let filters = storedFilters;
   if (workspace && previousQuery !== searchParams.toString()) {
     setPreviousQuery(searchParams.toString());
     const fromUrl = buildUsageAnalyticsUiStateFromSearchParams(
@@ -127,10 +170,11 @@ export function useUsageAnalytics(workspace = false) {
       buildUsageAnalyticsSearchParams({ activeTab: activeTabState, filters }).toString() !==
       buildUsageAnalyticsSearchParams({ activeTab: activeTabState, filters: fromUrl }).toString()
     ) {
-      setFiltersState({
+      filters = {
         ...fromUrl,
         apiKeyHash: getSelectableApiKeyHash(fromUrl.apiKeyHash) || 'all',
-      });
+      };
+      setFiltersState(filters);
     }
   }
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -234,10 +278,6 @@ export function useUsageAnalytics(workspace = false) {
     }),
     [authFileMap, authMetaMap, channelByAuthIndex, sourceInfoMap]
   );
-  const setActiveTab = useCallback((tab: UsageAnalyticsTab) => {
-    setActiveTabState(tab);
-    writeUsageAnalyticsUiState({ activeTab: tab });
-  }, []);
   const debouncedSearchQuery = useDebouncedValue(
     filters.searchQuery.trim(),
     USAGE_SEARCH_DEBOUNCE_MS
@@ -279,29 +319,10 @@ export function useUsageAnalytics(workspace = false) {
   useEffect(() => {
     const nextState = { activeTab: activeTabState, filters };
     writeUsageAnalyticsUiState(nextState);
-    const nextParams = buildUsageAnalyticsSearchParams(nextState);
+    const nextParams = workspace
+      ? buildWorkspaceSearchParams(searchParams, nextState, searchParams.has('tab'))
+      : buildUsageAnalyticsSearchParams(nextState);
     if (workspace) {
-      if (searchParams.has('tab') && activeTabState === 'overview')
-        nextParams.set('tab', 'overview');
-      const knownKeys = new Set([
-        'tab',
-        'time_range',
-        'from_ms',
-        'to_ms',
-        'granularity',
-        'model',
-        'api_key_hash',
-        'provider',
-        'auth_file',
-        'status',
-        'search',
-        'min_latency_ms',
-        'cache_status',
-        'api_key_keyword',
-      ]);
-      for (const [key, value] of searchParams) {
-        if (!knownKeys.has(key)) nextParams.append(key, value);
-      }
       const current = new URLSearchParams(searchParams);
       current.sort();
       nextParams.sort();
@@ -748,22 +769,51 @@ export function useUsageAnalytics(workspace = false) {
       adapted.summary,
     ]
   );
-  const setFilters = useCallback((patch: Partial<UsageAnalyticsFiltersState>) => {
-    setFiltersState((current) => {
-      const next = {
-        ...current,
-        ...patch,
-        ...(patch.apiKeyHash === undefined
-          ? {}
-          : { apiKeyHash: getSelectableApiKeyHash(patch.apiKeyHash) || 'all' }),
-      };
-      writeUsageAnalyticsUiState({ filters: next });
-      return next;
-    });
+  const resetFilterSelections = useCallback(() => {
     setSelectedBucketMs(null);
     setSelectedHeatmapDateKey(USAGE_HEATMAP_ALL_DATES_KEY);
     setSelectedHeatmapCell(null);
   }, []);
+
+  const setFilters = useCallback(
+    (patch: Partial<UsageAnalyticsFiltersState>) => {
+      setFiltersState((current) => {
+        const next = applyFilterPatch(current, patch);
+        writeUsageAnalyticsUiState({ filters: next });
+        return next;
+      });
+      resetFilterSelections();
+    },
+    [resetFilterSelections]
+  );
+
+  const setActiveTab = useCallback(
+    (tab: UsageAnalyticsTab, patch?: Partial<UsageAnalyticsFiltersState>) => {
+      if (workspace) {
+        if (tab === activeTabState && !patch) return;
+        const next = buildWorkspaceSearchParams(
+          searchParams,
+          { activeTab: tab, filters: patch ? applyFilterPatch(filters, patch) : filters },
+          true
+        );
+        if (patch) resetFilterSelections();
+        setSearchParams(next);
+        return;
+      }
+      if (patch) setFilters(patch);
+      setActiveTabState(tab);
+      writeUsageAnalyticsUiState({ activeTab: tab });
+    },
+    [
+      activeTabState,
+      filters,
+      resetFilterSelections,
+      searchParams,
+      setFilters,
+      setSearchParams,
+      workspace,
+    ]
+  );
 
   const resetFilters = useCallback(() => {
     setFiltersState(USAGE_ANALYTICS_DEFAULT_FILTERS);
