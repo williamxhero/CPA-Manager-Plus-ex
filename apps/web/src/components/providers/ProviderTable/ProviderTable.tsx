@@ -220,7 +220,6 @@ export function ProviderTable({
           {t('ai_providers.table_col_recent')}
         </span>
         <span role="columnheader">{t('ai_providers.config_toggle_label')}</span>
-        <span role="columnheader">{t('ai_providers.auto_start_stop')}</span>
         <span role="columnheader" className={styles.cellActionsHeader}>
           {t('ai_providers.table_col_actions')}
         </span>
@@ -333,19 +332,6 @@ export function ProviderTable({
                 disabled={toggleDisabled}
                 onChange={(value) => onToggle(row, value)}
               />
-            </div>
-
-            <div className={styles.cellAuto} role="cell" onClick={stopPropagation}>
-              {row.kind === 'openai' && row.raw.nativeFunding === true ? (
-                <span
-                  data-provider-auto-start-stop="core"
-                  title={t('ai_providers.auto_start_stop_core')}
-                >
-                  {t('ai_providers.auto_start_stop_core')}
-                </span>
-              ) : (
-                <span>—</span>
-              )}
             </div>
 
             <div className={styles.cellActions} role="cell" onClick={stopPropagation}>

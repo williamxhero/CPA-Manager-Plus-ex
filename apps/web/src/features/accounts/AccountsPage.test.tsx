@@ -917,18 +917,8 @@ vi.mock('@/features/oauth/CodexReauthDialog', () => ({
   },
 }));
 
-// Isolate the credential-toolbar auto start/stop switch so this page suite does
-// not depend on the Manager account-processing-policy network lifecycle.
-// Its states and persistence wiring are covered by
-// CredentialAutoStartStopToggle.test.tsx.
 vi.mock('@/features/accounts/components/CredentialAutoStartStopToggle', () => ({
-  CredentialAutoStartStopToggle: (props: { managerServiceBase: string; managementKey: string }) => (
-    <span
-      data-credential-auto-start-stop-stub
-      data-manager-service-base={props.managerServiceBase}
-      data-management-key={props.managementKey}
-    />
-  ),
+  CredentialAutoStartStopToggle: () => <span data-credential-auto-start-stop-stub />,
 }));
 
 vi.mock('@/services/api/apiCall', async (importOriginal) => {
@@ -4046,10 +4036,9 @@ describe('AccountsPage replacement flows', () => {
     expect(mocks.handleCredentialRefresh).not.toHaveBeenCalled();
   });
 
-  it('offers inline Codex credential refresh after auto start/stop', async () => {
+  it('offers inline Codex reauthentication', async () => {
     const renderer = await renderAccountsPage();
     const selectionKey = getAuthFileSelectionKey(mocks.files[0]);
-    const card = findAccountCardByKey(renderer, selectionKey);
     const refreshButton = findAccountCardButtonByAriaLabel(
       renderer,
       selectionKey,
@@ -4057,32 +4046,6 @@ describe('AccountsPage replacement flows', () => {
     );
 
     expect(refreshButton.props.title).toBe('auth_files.credential_refresh_button');
-    const quickActions = card.findAll(
-      (node) =>
-        typeof node.props.className === 'string' &&
-        node.props.className.includes('accountQuickActionsGrid')
-    )[0];
-    expect(quickActions).toBeDefined();
-    const actionChildren = quickActions?.children ?? [];
-    const autoIndex = actionChildren.findIndex(
-      (child) =>
-        child !== null &&
-        typeof child === 'object' &&
-        'type' in child &&
-        typeof (child as ReactTestInstance).type === 'function' &&
-        ((child as ReactTestInstance).type as { name?: string }).name ===
-          'CredentialAutoStartStopToggle'
-    );
-    const refreshIndex = actionChildren.findIndex(
-      (child) =>
-        child !== null &&
-        typeof child === 'object' &&
-        'props' in child &&
-        (child as { props?: { 'aria-label'?: string } }).props?.['aria-label'] ===
-          'auth_files.credential_refresh_button'
-    );
-    expect(autoIndex).toBeGreaterThanOrEqual(0);
-    expect(refreshIndex).toBe(autoIndex + 1);
 
     await act(async () => {
       refreshButton.props.onClick();
@@ -22355,22 +22318,8 @@ describe('AccountsPage replacement flows', () => {
     });
   });
 
-  it('renders each credential automatic control inside its row, never in the global toolbar', async () => {
-    const renderer = await renderAccountsPage();
-    const stub = renderer.root.findByProps({ 'data-credential-auto-start-stop-stub': true });
-    expect(stub.props['data-manager-service-base']).toBe('http://manager.local:18317');
-    expect(stub.props['data-management-key']).toBe('manager-key');
-    let current: ReactTestInstance | null = stub.parent;
-    let inCard = false;
-    while (current) {
-      expect(String(current.props.className ?? '')).not.toContain('batchActions');
-      if (current.props['data-account-card']) inCard = true;
-      current = current.parent;
-    }
-    expect(inCard).toBe(true);
-  });
   it.each(['table', 'grid'] as const)(
-    'ticket93 removes actual outer duplicate nodes in %s',
+    'hides duplicate actions and the automatic start/stop button in %s',
     async (layout) => {
       mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
       const renderer = await renderAccountsPage();
@@ -22389,7 +22338,7 @@ describe('AccountsPage replacement flows', () => {
       ).toBeGreaterThan(0);
       expect(
         renderer.root.findAllByProps({ 'data-credential-auto-start-stop-stub': true })
-      ).toHaveLength(mocks.files.length);
+      ).toHaveLength(0);
     }
   );
 

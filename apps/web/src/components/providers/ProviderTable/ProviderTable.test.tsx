@@ -172,7 +172,7 @@ describe('ProviderTable', () => {
     return renderer;
   };
 
-  it('shows Core funding ownership without a browser switch and keeps manual disable independent', () => {
+  it('hides automatic start/stop while keeping the manual switch usable', () => {
     const rows = buildProviderRows({ ...emptyInput, openai: [
       { name: 'native', baseUrl: 'https://api.deepseek.com', apiKeyEntries: [], nativeFunding: true, autoHeld: true, disabled: true },
       { name: 'legacy', baseUrl: 'https://synthetic.invalid', apiKeyEntries: [], disabled: false, nativeFunding: false },
@@ -180,8 +180,11 @@ describe('ProviderTable', () => {
     const onToggle = vi.fn();
     const renderer = renderTable(rows, { onToggle });
     const [native, legacy] = getRows(renderer);
-    expect(native.findAll((node) => node.type === 'span' && node.props['data-provider-auto-start-stop'] === 'core')).toHaveLength(1);
+    const headers = renderer.root.findAllByProps({ role: 'columnheader' });
+    expect(headers.map(getText)).not.toContain('ai_providers.auto_start_stop');
     for (const row of [native, legacy]) {
+      expect(row.findAllByProps({ role: 'cell' })).toHaveLength(headers.length);
+      expect(getText(row)).not.toContain('ai_providers.auto_start_stop_core');
       expect(row.findAll((node) => node.type === 'button' && node.props['aria-pressed'] !== undefined)).toHaveLength(0);
     }
     const manual = native.findByType(ToggleSwitch);
