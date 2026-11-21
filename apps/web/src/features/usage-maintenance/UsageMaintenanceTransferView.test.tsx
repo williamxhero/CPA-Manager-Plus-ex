@@ -16,6 +16,7 @@ const { mocks } = vi.hoisted(() => {
   return {
     mocks: {
       listUsageImportSessions: vi.fn(),
+      getUsageImportSession: vi.fn(),
       exportUsage: vi.fn(),
       showNotification: vi.fn(),
       showConfirmation: vi.fn(),
@@ -89,6 +90,7 @@ vi.mock('@/services/api/usageService', () => ({
       : '',
   usageServiceApi: {
     listUsageImportSessions: mocks.listUsageImportSessions,
+    getUsageImportSession: mocks.getUsageImportSession,
     exportUsage: mocks.exportUsage,
   },
 }));
@@ -229,9 +231,45 @@ describe('UsageMaintenanceTransferView', () => {
     await act(async () => refresh.props.onClick());
     await act(async () => toggle.props.onClick());
     mocks.listUsageImportSessions.mockClear();
+    const revalidation = deferred<UsageImportSessionList>();
+    mocks.listUsageImportSessions.mockReturnValueOnce(revalidation.promise);
     await act(async () => toggle.props.onClick());
     expect(mocks.listUsageImportSessions).toHaveBeenCalledTimes(1);
     expect(getText(renderer.root)).toContain('No import sessions yet.');
+    revalidation.resolve(sessionList());
+    await flush();
+    act(() => renderer.unmount());
+  });
+
+  it('keeps an open session detail visible while the recent list and detail refresh', async () => {
+    const session: UsageImportSession = {
+      id: 'older-session',
+      filename: 'older.jsonl',
+      status: 'completed',
+      size_bytes: 10,
+      received_bytes: 10,
+      chunk_size_bytes: 10,
+      created_at_ms: 1,
+      updated_at_ms: 2,
+      expires_at_ms: 3,
+    };
+    mocks.listUsageImportSessions.mockResolvedValueOnce(
+      sessionList({ sessions: [session], total: 1 })
+    );
+    const renderer = await renderView();
+    const drawerText = () =>
+      getText(renderer.root.findByProps({ 'data-testid': 'transfer-drawer' }));
+    act(() => findButton(renderer, 'Details')!.props.onClick());
+    mocks.getUsageImportSession.mockResolvedValueOnce(session);
+    await act(async () => findButton(renderer, 'Refresh sessions')!.props.onClick());
+    const detail = deferred<UsageImportSession>();
+    mocks.getUsageImportSession.mockReturnValueOnce(detail.promise);
+    mocks.listUsageImportSessions.mockResolvedValueOnce(sessionList());
+    await act(async () => findButton(renderer, 'Refresh sessions')!.props.onClick());
+    expect(drawerText()).toContain('older.jsonl');
+    detail.resolve({ ...session, filename: 'updated.jsonl' });
+    await flush();
+    expect(drawerText()).toContain('updated.jsonl');
     act(() => renderer.unmount());
   });
 

@@ -213,7 +213,8 @@ export function UsageMaintenanceTransferView({
   const pendingImportRef = useRef(pendingImport);
   const panelRef = useRef(panel);
   const [detailSession, setDetailSession] = useState<UsageImportSession | null>(null);
-  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailFailure, setDetailFailure] = useState<{ id: string; message: string } | null>(null);
+  const detailError = detailFailure?.id === selectedSessionId ? detailFailure.message : null;
   useLayoutEffect(() => {
     panelRef.current = panel;
   }, [panel]);
@@ -234,8 +235,9 @@ export function UsageMaintenanceTransferView({
     pendingImportRef.current = null;
     pendingSessionIdRef.current = undefined;
     setDetailSession(null);
-    setDetailError(null);
+    setDetailFailure(null);
     setSessionList(null);
+    setError(null);
     hasLoadedSessionsRef.current = false;
     setLoading(true);
     setRefreshing(false);
@@ -300,8 +302,6 @@ export function UsageMaintenanceTransferView({
   }, [loadSessions, refreshToken, visible]);
 
   useEffect(() => {
-    setDetailSession(null);
-    setDetailError(null);
     if (
       !visible ||
       !selectedSessionId ||
@@ -317,9 +317,11 @@ export function UsageMaintenanceTransferView({
         if (!isImportSession(session) || session.id !== selectedSessionId)
           throw new Error('invalid import session response');
         setDetailSession(session);
+        setDetailFailure(null);
       })
       .catch((cause: unknown) => {
-        if (!controller.signal.aborted) setDetailError(formatImportError(cause, t));
+        if (!controller.signal.aborted)
+          setDetailFailure({ id: selectedSessionId, message: formatImportError(cause, t) });
       });
     return () => controller.abort();
   }, [selectedSessionId, sessionList, serviceBase, managementKey, t, visible]);
@@ -655,7 +657,8 @@ export function UsageMaintenanceTransferView({
 
   const sessions = sessionList?.sessions ?? [];
   const selectedSession =
-    sessions.find((session) => session.id === selectedSessionId) ?? detailSession;
+    sessions.find((session) => session.id === selectedSessionId) ??
+    (detailSession?.id === selectedSessionId ? detailSession : null);
   const showingActiveTask = Boolean(
     activeTask &&
     !pendingImport &&
@@ -709,7 +712,7 @@ export function UsageMaintenanceTransferView({
             size="sm"
             variant="secondary"
             disabled={loading || refreshing}
-            onClick={() => void loadSessions()}
+            onClick={() => void loadSessions(hasLoadedSessionsRef.current)}
           >
             {t('common.retry')}
           </Button>
@@ -832,7 +835,7 @@ export function UsageMaintenanceTransferView({
         {sessions.length === 0 && loading ? (
           <div className={styles.empty}>{t('common.loading')}</div>
         ) : null}
-        {sessions.length === 0 && !loading && !error && sessionList ? (
+        {sessions.length === 0 && sessionList ? (
           <div className={styles.empty}>
             {t('usage_maintenance.transfer_no_sessions')}
             <Button size="sm" onClick={() => onOpenPanel('import')}>
@@ -995,6 +998,14 @@ export function UsageMaintenanceTransferView({
         ) : panel === 'import-session' ? (
           selectedSession ? (
             <div className={styles.drawerBody}>
+              {detailError ? (
+                <div className={styles.error} role="alert">
+                  {detailError}
+                  <Button variant="secondary" onClick={() => void loadSessions(true)}>
+                    {t('common.retry')}
+                  </Button>
+                </div>
+              ) : null}
               <span
                 className={`${styles.pill} ${statusTone(selectedSession.status, selectedSession.result)}`}
               >
