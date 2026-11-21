@@ -483,6 +483,12 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
   const serviceBase = availability.managerServiceBase;
   const [maintenance, setMaintenance] = useState<UsageMaintenanceStatus | null>(null);
   const maintenanceLoaded = maintenance !== null;
+  const [probedContext, setProbedContext] = useState<{
+    serviceBase: string;
+    managementKey?: string;
+  } | null>(null);
+  const transferAvailable =
+    probedContext?.serviceBase === serviceBase && probedContext?.managementKey === managementKey;
   const [archiveList, setArchiveList] = useState<UsageArchiveList>({ runs: [] });
   const archives = archiveList.runs;
   const [historyCursor, setHistoryCursor] = useState<string | undefined>();
@@ -650,10 +656,12 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
       operationContextRef.current.managementKey !== managementKey;
     contextGenerationRef.current += 1;
     operationContextRef.current = { serviceBase, managementKey };
+    const previouslyProbed = capabilityContextRef.current !== null;
     capabilityContextRef.current = null;
+    setProbedContext(null);
     invalidateOperation(true);
     invalidatePreview(false);
-    if (contextChanged && hasLoadedMaintenanceRef.current) {
+    if (contextChanged && (previouslyProbed || hasLoadedMaintenanceRef.current)) {
       const next = { ...readUsageMaintenanceNavigation(''), tab: navigationRef.current.tab };
       updateNavigation(next, true);
     }
@@ -852,7 +860,9 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
             controller.signal
           );
           if (controller.signal.aborted || generation !== loadGenerationRef.current) return null;
-          capabilityContextRef.current = { serviceBase, managementKey };
+          const confirmedContext = { serviceBase, managementKey };
+          capabilityContextRef.current = confirmedContext;
+          setProbedContext(confirmedContext);
         }
         const [maintenanceResult, archiveResult] = await Promise.all([
           usageServiceApi.getUsageMaintenance(serviceBase, managementKey, controller.signal),
@@ -1627,7 +1637,7 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
         container: container?.scrollTop ?? 0,
       });
     };
-  }, [navigation.tab, maintenanceLoaded]);
+  }, [navigation.tab, maintenanceLoaded, transferAvailable]);
 
   useLayoutEffect(() => {
     if (
@@ -1713,7 +1723,7 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
   const workspacePanel =
     routeSearch !== undefined ? routeTabPanel(usageTabsId, navigation.tab) : null;
 
-  if (availability.checking || (loading && !maintenance)) {
+  if (availability.checking || (loading && !maintenance && !transferAvailable)) {
     return workspaceHeader ? (
       <div className={styles.page}>
         {workspaceHeader}
@@ -1725,37 +1735,38 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
       <LoadingSpinner />
     );
   }
-  if (unsupported)
+  const archiveReady = !unsupported && maintenance !== null;
+  const archiveUnavailableView = unsupported ? (
+    <>
+      <p role="alert">
+        {t('usage_maintenance.unsupported', {
+          defaultValue:
+            'This Manager Server is older than the usage maintenance API. Upgrade the server to manage archives here.',
+        })}
+      </p>
+      <Button variant="secondary" onClick={refreshMaintenance}>
+        {t('common.refresh')}
+      </Button>
+    </>
+  ) : loading ? (
+    <LoadingSpinner />
+  ) : (
+    <>
+      {error ? (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+      <Button variant="secondary" onClick={refreshMaintenance}>
+        {t('common.retry')}
+      </Button>
+    </>
+  );
+  if (!archiveReady && !transferAvailable)
     return (
       <div className={styles.page}>
         {workspaceHeader}
-        <div {...workspacePanel}>
-          <p>
-            {t('usage_maintenance.unsupported', {
-              defaultValue:
-                'This Manager Server is older than the usage maintenance API. Upgrade the server to manage archives here.',
-            })}
-          </p>
-          <Button variant="secondary" onClick={refreshMaintenance}>
-            {t('common.refresh')}
-          </Button>
-        </div>
-      </div>
-    );
-  if (!maintenance)
-    return (
-      <div className={styles.page}>
-        {workspaceHeader}
-        <div {...workspacePanel}>
-          {error ? (
-            <p className={styles.error} role="alert">
-              {error}
-            </p>
-          ) : null}
-          <Button variant="secondary" onClick={refreshMaintenance}>
-            {t('common.retry')}
-          </Button>
-        </div>
+        <div {...workspacePanel}>{archiveUnavailableView}</div>
       </div>
     );
 
@@ -1946,26 +1957,30 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
           >
             <IconRefreshCw size={16} className={loading ? styles.refreshSpin : undefined} />
           </Button>
-          <DropdownMenu
-            ariaLabel={t('usage_maintenance.more_maintenance')}
-            triggerLabel={
-              <span className={styles.toolbarLabel}>{t('usage_maintenance.more_maintenance')}</span>
-            }
-            triggerIcon={<IconMoreVertical size={16} />}
-            items={[
-              {
-                key: 'storage',
-                label: t('usage_maintenance.storage_recovery'),
-                onClick: () => navigateTo('advanced'),
-              },
-              {
-                key: 'diagnostics',
-                label: t('usage_maintenance.diagnostics_title'),
-                onClick: () => navigateTo('diagnostics'),
-              },
-            ]}
-          />
-          {navigation.tab === 'transfer' ? (
+          {archiveReady ? (
+            <DropdownMenu
+              ariaLabel={t('usage_maintenance.more_maintenance')}
+              triggerLabel={
+                <span className={styles.toolbarLabel}>
+                  {t('usage_maintenance.more_maintenance')}
+                </span>
+              }
+              triggerIcon={<IconMoreVertical size={16} />}
+              items={[
+                {
+                  key: 'storage',
+                  label: t('usage_maintenance.storage_recovery'),
+                  onClick: () => navigateTo('advanced'),
+                },
+                {
+                  key: 'diagnostics',
+                  label: t('usage_maintenance.diagnostics_title'),
+                  onClick: () => navigateTo('diagnostics'),
+                },
+              ]}
+            />
+          ) : null}
+          {transferAvailable && navigation.tab === 'transfer' ? (
             <>
               <Button
                 size="sm"
@@ -1984,20 +1999,20 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
                 {t('usage_maintenance.import_file')}
               </Button>
             </>
-          ) : (
+          ) : archiveReady ? (
             <Button size="sm" onClick={() => navigateTo('create')} disabled={working || loading}>
               <IconPlus size={16} />
               {t('usage_maintenance.new_archive')}
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
-      {error || (navigation.tab === 'organize' && historyError) ? (
+      {archiveReady && (error || (navigation.tab === 'organize' && historyError)) ? (
         <div className={styles.error} role="alert">
           {error || historyError}
         </div>
       ) : null}
-      {postDeleteNoticeVisible ? (
+      {archiveReady && postDeleteNoticeVisible ? (
         <section
           className={styles.postDeleteNotice}
           aria-live="polite"
@@ -2050,7 +2065,7 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
         {...workspacePanel}
         className={styles.workspace}
       >
-        {navigation.tab === 'organize' ? (
+        {navigation.tab === 'organize' && archiveReady ? (
           <>
             <UsageMaintenanceOverviewView
               maintenance={maintenance}
@@ -2088,7 +2103,10 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
             />
           </>
         ) : null}
-        {transferVisited || view === 'transfer' ? (
+        {!archiveReady && (navigation.tab === 'organize' || !loading)
+          ? archiveUnavailableView
+          : null}
+        {transferAvailable && (transferVisited || view === 'transfer') ? (
           <div hidden={view !== 'transfer'} className={styles.transferPanel}>
             <UsageMaintenanceTransferView
               key={`${serviceBase}\u0000${managementKey}`}
@@ -2118,6 +2136,7 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
       </div>
       <Drawer
         open={
+          archiveReady &&
           navigation.panel !== null &&
           !['import', 'import-session', 'export'].includes(navigation.panel)
         }
@@ -2288,7 +2307,7 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
           )
         ) : (
           <>
-            {navigation.panel === 'create' ? (
+            {navigation.panel === 'create' && maintenance ? (
               <UsageMaintenanceCreateView
                 maintenance={maintenance}
                 preview={preview}
@@ -2332,14 +2351,14 @@ export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } =
                 <p>{t('usage_maintenance.preview_excludes_existing')}</p>
               </div>
             ) : null}
-            {navigation.panel === 'advanced' ? (
+            {navigation.panel === 'advanced' && maintenance ? (
               <UsageMaintenanceAdvancedView
                 maintenance={maintenance}
                 stale={postDeleteRefreshFailed}
                 onCopyCommand={(command) => void copyCompactCommand(command)}
               />
             ) : null}
-            {navigation.panel === 'diagnostics' ? (
+            {navigation.panel === 'diagnostics' && maintenance ? (
               <UsageMaintenanceDiagnosticsView
                 maintenance={maintenance}
                 onOpenActive={() => {
