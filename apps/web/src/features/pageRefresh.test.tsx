@@ -73,7 +73,8 @@ vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
   useTranslation: () => ({ t: mocks.t, i18n: { language: 'en' } }),
 }));
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router-dom', async (importOriginal) => ({
+  parsePath: (await importOriginal<typeof import('react-router-dom')>()).parsePath,
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
   useNavigate: () => mocks.noop,
   useLocation: () => ({ search: mocks.params.toString(), hash: '' }),
