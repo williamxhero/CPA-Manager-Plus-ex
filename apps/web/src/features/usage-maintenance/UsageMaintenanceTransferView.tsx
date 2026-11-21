@@ -216,6 +216,10 @@ export function UsageMaintenanceTransferView({
   const [detailRetry, setDetailRetry] = useState(0);
   const [detailFailure, setDetailFailure] = useState<{ id: string; message: string } | null>(null);
   const detailError = detailFailure?.id === selectedSessionId ? detailFailure.message : null;
+  const retryDetail = () => {
+    setDetailFailure(null);
+    setDetailRetry((value) => value + 1);
+  };
   useLayoutEffect(() => {
     panelRef.current = panel;
   }, [panel]);
@@ -1005,7 +1009,7 @@ export function UsageMaintenanceTransferView({
               {detailError ? (
                 <div className={styles.error} role="alert">
                   {detailError}
-                  <Button variant="secondary" onClick={() => setDetailRetry((value) => value + 1)}>
+                  <Button variant="secondary" onClick={retryDetail}>
                     {t('common.retry')}
                   </Button>
                 </div>
@@ -1089,7 +1093,7 @@ export function UsageMaintenanceTransferView({
             <div className={styles.drawerBody}>
               <p>{detailError ?? t('common.loading')}</p>
               {detailError ? (
-                <Button variant="secondary" onClick={() => setDetailRetry((value) => value + 1)}>
+                <Button variant="secondary" onClick={retryDetail}>
                   <IconRefreshCw size={16} />
                   {t('common.retry')}
                 </Button>
