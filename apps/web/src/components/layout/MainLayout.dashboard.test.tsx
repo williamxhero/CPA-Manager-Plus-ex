@@ -184,8 +184,8 @@ describe('Dashboard navigation', () => {
     await act(async () => router.navigate(1));
     expect(nodeText(selectedTab()!)).toBe('系统信息');
 
-    const sidebar = renderer!.root.findByType('aside');
-    const links = sidebar.findAllByType('a');
+    const navigation = renderer!.root.findByProps({ className: 'workspace-navigation' });
+    const links = navigation.findAllByType('a');
     expect(links.some((link) => nodeText(link) === '配置面板')).toBe(false);
     expect(links.filter((link) => link.props['aria-current'] === 'page').map(nodeText)).toEqual([
       '仪表盘',
@@ -207,9 +207,9 @@ describe('Access navigation', () => {
         .findAll((node) => typeof node.type === 'string' && node.props.role === 'tab');
     const selected = () => tabs().find((tab) => tab.props['aria-selected'] === true)!;
 
-    const credentialSidebarLinks = () =>
+    const credentialNavigationLinks = () =>
       renderer!.root
-        .findByType('aside')
+        .findByProps({ className: 'workspace-navigation' })
         .findAllByType('a')
         .filter((link) => {
           const path = link.props.href;
@@ -221,7 +221,7 @@ describe('Access navigation', () => {
           );
         });
 
-    expect(credentialSidebarLinks().map((link) => [link.props.href, nodeText(link)])).toEqual([
+    expect(credentialNavigationLinks().map((link) => [link.props.href, nodeText(link)])).toEqual([
       ['/accounts', '额度接入'],
     ]);
 
@@ -238,7 +238,7 @@ describe('Access navigation', () => {
     await click(tabs()[4]);
     expect(router.state.location.pathname).toBe('/oauth');
     expect(nodeText(selected())).toBe('OAuth 登录');
-    expect(credentialSidebarLinks()[0].props['aria-current']).toBe('page');
+    expect(credentialNavigationLinks()[0].props['aria-current']).toBe('page');
     await click(tabs()[0]);
     expect(router.state.location.pathname).toBe('/accounts');
     expect(router.state.location.search).toContain('search=account-probe');
@@ -270,19 +270,20 @@ describe('Plugin navigation', () => {
 
   it('opens a plugin resource under the same workspace and restores the installed tab from history', async () => {
     const router = await renderNavigation('/demo/plugins', '/demo');
-    const sidebar = () => renderer!.root.findByType('aside').findAllByType('a');
+    const navigation = () =>
+      renderer!.root.findByProps({ className: 'workspace-navigation' }).findAllByType('a');
     expect(tabs().slice(0, 2).map(nodeText)).toEqual(['已安装', '插件商店']);
     await vi.waitFor(() =>
       expect(tabs().some((tab) => tab.props.href?.includes('/plugin-pages/'))).toBe(true)
     );
     const resource = tabs().find((tab) => tab.props.href?.includes('/plugin-pages/'))!;
     expect(resource).toBeDefined();
-    expect(sidebar().some((link) => link.props.href?.includes('/plugin-pages/'))).toBe(false);
+    expect(navigation().some((link) => link.props.href?.includes('/plugin-pages/'))).toBe(false);
 
     await click(resource);
     expect(router.state.location.pathname).toContain('/demo/plugin-pages/');
     expect(
-      sidebar()
+      navigation()
         .filter((link) => link.props['aria-current'] === 'page')
         .map(nodeText)
     ).toEqual(['插件管理']);
@@ -401,7 +402,8 @@ describe('Usage and monitoring navigation', () => {
     const errorReads = vi.spyOn(logsApi, 'fetchErrorLogs').mockResolvedValue({ files: [] });
     const fileReads = vi.spyOn(logsApi, 'fetchLogs');
     await renderNavigation('/logs?tab=errors');
-    const links = () => renderer!.root.findByType('aside').findAllByType('a');
+    const links = () =>
+      renderer!.root.findByProps({ className: 'workspace-navigation' }).findAllByType('a');
     const tabs = () =>
       renderer!.root
         .findByProps({ role: 'tablist', 'aria-label': '请求监控' })
@@ -480,7 +482,9 @@ describe('Usage and monitoring navigation', () => {
     const router = await renderNavigation('/monitoring');
     const filters = () => renderer!.root.findByType(MonitoringFiltersPanel).props;
     const selectedTab = () =>
-      renderer!.root.findByType('main').findAllByType('a')
+      renderer!.root
+        .findByType('main')
+        .findAllByType('a')
         .find((node) => node.props.role === 'tab' && node.props['aria-selected'])?.props.id;
 
     expect(selectedTab()).toBe('monitoring-workspace-apiKeys');
@@ -530,13 +534,15 @@ describe('Usage and monitoring navigation', () => {
 
   it('exposes six fixed destinations and highlights monitoring on an error-log bookmark', async () => {
     await renderNavigation('/demo/logs?tab=errors', '/demo');
-    const links = renderer!.root.findByType('aside').findAllByType('a');
+    const links = renderer!.root
+      .findByProps({ className: 'workspace-navigation' })
+      .findAllByType('a');
     expect(links.map(nodeText)).toEqual([
-      '仪表盘',
+      '请求监控',
       '付费接入',
       '额度接入',
+      '仪表盘',
       '用量分析',
-      '请求监控',
       '插件管理',
     ]);
     expect(links.filter((link) => link.props['aria-current'] === 'page').map(nodeText)).toEqual([

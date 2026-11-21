@@ -43,14 +43,6 @@
   --app-card-padding: 24px;
   --app-blur: 20px;
 
-  --sidebar-bg-color: rgba(255, 255, 255, 0.54);
-  --sidebar-text-color: var(--app-text-regular);
-  --sidebar-active-text-color: var(--app-text-primary);
-  --sidebar-hover-bg-color: rgba(59, 130, 246, 0.08);
-  --sidebar-logo-bg-color: rgba(255, 255, 255, 0.34);
-  --sidebar-shadow: 2px 0 12px rgba(31, 38, 135, 0.12);
-  --sidebar-width: 210px;
-  --sidebar-collapsed-width-token: 54px;
 
   --primary-gradient: var(--data-blue-base);
   --glass-bg: #ffffff;
@@ -274,8 +266,6 @@
   --bg-quinary: #ffffff;
   --glass-bg: #ffffff;
   --glass-bg-secondary: rgba(255, 255, 255, 0.7);
-  --sidebar-bg-color: rgba(255, 255, 255, 0.58);
-  --sidebar-logo-bg-color: rgba(255, 255, 255, 0.38);
 }
 
 [data-theme='dark'] {
@@ -305,12 +295,6 @@
   --border-subtle: rgba(255, 255, 255, 0.1);
   --border-subtle-dashed: rgba(255, 255, 255, 0.14);
 
-  --sidebar-bg-color: rgba(24, 28, 40, 0.42);
-  --sidebar-logo-bg-color: rgba(24, 28, 40, 0.28);
-  --sidebar-hover-bg-color: rgba(255, 255, 255, 0.05);
-  --sidebar-text-color: #a3a3a3;
-  --sidebar-active-text-color: #ffffff;
-  --sidebar-shadow: 2px 0 12px rgba(0, 0, 0, 0.5);
 
   --glass-bg: rgba(24, 28, 40, 0.72);
   --glass-bg-secondary: rgba(255, 255, 255, 0.08);

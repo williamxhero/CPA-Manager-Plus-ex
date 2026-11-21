@@ -3,7 +3,6 @@ import en from '@/i18n/locales/en.json';
 import ru from '@/i18n/locales/ru.json';
 import zhCN from '@/i18n/locales/zh-CN.json';
 import zhTW from '@/i18n/locales/zh-TW.json';
-import layoutSource from '@/components/layout/MainLayout.tsx?raw';
 import routesSource from '@/router/MainRoutes.tsx?raw';
 import pageSource from './UsageAnalyticsPage.tsx?raw';
 
@@ -332,14 +331,7 @@ describe('usage analytics app wiring', () => {
     );
   });
 
-  it('renders full sidebar labels when the sidebar is expanded', () => {
-    expect(layoutSource).toContain(
-      '{showSidebarLabels && <span className="nav-label">{item.label}</span>}'
-    );
-    expect(layoutSource).not.toContain('item.shortLabel ?? item.label');
-  });
-
-  it('keeps long English sidebar labels concise', () => {
+  it('keeps long English navigation labels concise', () => {
     expect(en.nav.monitoring_center).toBe('Request Monitor');
     expect(en.nav.plugins).toBe('Plugins');
     expect(en.nav.accounts).toBe('Quota Access Management');

@@ -13,7 +13,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { PageTransition } from '@/components/common/PageTransition';
@@ -33,7 +33,6 @@ import {
   IconGithub,
   IconSidebarAuthFiles,
   IconSidebarDashboard,
-  IconSidebarLogs,
   IconSidebarMonitor,
   IconSidebarPlugins,
   IconSidebarProviders,
@@ -59,7 +58,6 @@ import {
   pluginManagementTarget,
   pluginNavigation,
 } from '@/features/plugins/pluginNavigation';
-import { useSidebarVisibility } from '@/hooks/useSidebarVisibility';
 import {
   collectPluginResourceNavEntries,
   isPluginManagementNavVisible,
@@ -70,21 +68,20 @@ import {
 import { triggerHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { usePanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability';
 import { getDemoLogoutPath, prefixRouteBase, stripRouteBase } from '@/features/demo/demoMode';
-import { LANGUAGE_LABEL_KEYS, LANGUAGE_ORDER, STORAGE_KEY_SIDEBAR } from '@/utils/constants';
+import { LANGUAGE_LABEL_KEYS, LANGUAGE_ORDER } from '@/utils/constants';
 import { isSupportedLanguage } from '@/utils/language';
 import type { Theme, VisualEffectsMode } from '@/types';
 
-const SIDEBAR_ICON_SIZE = 20;
+const NAV_ICON_SIZE = 16;
 const GITHUB_REPOSITORY_URL = 'https://github.com/williamxhero/CPA-Manager-Plus-ex';
 
-const sidebarIcons: Record<string, ReactNode> = {
-  dashboard: <IconSidebarDashboard size={SIDEBAR_ICON_SIZE} />,
-  aiProviders: <IconSidebarProviders size={SIDEBAR_ICON_SIZE} />,
-  authFiles: <IconSidebarAuthFiles size={SIDEBAR_ICON_SIZE} />,
-  usageAnalytics: <IconSidebarUsage size={SIDEBAR_ICON_SIZE} />,
-  monitoring: <IconSidebarMonitor size={SIDEBAR_ICON_SIZE} />,
-  plugins: <IconSidebarPlugins size={SIDEBAR_ICON_SIZE} />,
-  logs: <IconSidebarLogs size={SIDEBAR_ICON_SIZE} />,
+const navigationIcons: Record<string, ReactNode> = {
+  dashboard: <IconSidebarDashboard size={NAV_ICON_SIZE} />,
+  aiProviders: <IconSidebarProviders size={NAV_ICON_SIZE} />,
+  authFiles: <IconSidebarAuthFiles size={NAV_ICON_SIZE} />,
+  usageAnalytics: <IconSidebarUsage size={NAV_ICON_SIZE} />,
+  monitoring: <IconSidebarMonitor size={NAV_ICON_SIZE} />,
+  plugins: <IconSidebarPlugins size={NAV_ICON_SIZE} />,
 };
 
 // Header action icons - smaller size for header buttons
@@ -106,33 +103,6 @@ const headerIcons = {
     <svg {...headerIconProps}>
       <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
       <path d="M21 3v5h-5" />
-    </svg>
-  ),
-  menu: (
-    <svg {...headerIconProps}>
-      <path d="M4 7h16" />
-      <path d="M4 12h16" />
-      <path d="M4 17h16" />
-    </svg>
-  ),
-  close: (
-    <svg {...headerIconProps}>
-      <path d="M18 6 6 18" />
-      <path d="m6 6 12 12" />
-    </svg>
-  ),
-  sidebarCollapse: (
-    <svg {...headerIconProps}>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M9 4v16" />
-      <path d="m16 9-3 3 3 3" />
-    </svg>
-  ),
-  sidebarExpand: (
-    <svg {...headerIconProps}>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M9 4v16" />
-      <path d="m13 9 3 3-3 3" />
     </svg>
   ),
   language: (
@@ -223,9 +193,7 @@ const VISUAL_EFFECTS_OPTIONS: Array<{
 type NavItem = {
   path: string;
   label: string;
-  shortLabel?: string;
   icon: ReactNode;
-  exact?: boolean;
 };
 
 interface MainLayoutProps {
@@ -265,14 +233,6 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const language = useLanguageStore((state) => state.language);
   const setLanguage = useLanguageStore((state) => state.setLanguage);
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEY_SIDEBAR) === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const { sidebarOpen, setSidebarOpen, showSidebarLabels } = useSidebarVisibility(sidebarCollapsed);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [visualEffectsMenuOpen, setVisualEffectsMenuOpen] = useState(false);
@@ -286,6 +246,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const languageMenuRef = useRef<HTMLDivElement | null>(null);
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
   const visualEffectsMenuRef = useRef<HTMLDivElement | null>(null);
+  const navigationRef = useRef<HTMLElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
 
   const fullBrandName = 'CPA Manager Plus';
@@ -573,16 +534,10 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     };
   }, [loadPluginResources, pluginConnectionRevision, pluginControlMenuVisible]);
 
-  const navShortLabel = (key: string, fallback: string) => {
-    const shortKey = `${key}_short`;
-    const label = t(shortKey, { defaultValue: fallback });
-    return label === shortKey ? fallback : label;
-  };
   const dashboardNavItem: NavItem = {
     path: dashboardNavigation.overview,
     label: t('nav.dashboard'),
-    shortLabel: navShortLabel('nav.dashboard', t('nav.dashboard')),
-    icon: sidebarIcons.dashboard,
+    icon: navigationIcons.dashboard,
   };
   const usageLanding = getUsageWorkspaceLanding(featureAvailability);
   const monitoringLanding = getMonitoringWorkspaceLanding(featureAvailability);
@@ -590,42 +545,37 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     ? {
         path: usageLanding,
         label: t('nav.usage_analytics'),
-        shortLabel: navShortLabel('nav.usage_analytics', t('nav.usage_analytics')),
-        icon: sidebarIcons.usageAnalytics,
+        icon: navigationIcons.usageAnalytics,
       }
     : null;
   const monitoringNavItem: NavItem = {
     path: monitoringLanding,
     label: t('nav.monitoring_center'),
-    shortLabel: navShortLabel('nav.monitoring_center', t('nav.monitoring_center')),
-    icon: sidebarIcons.monitoring,
+    icon: navigationIcons.monitoring,
   };
   const pluginControlNavItems: NavItem[] = pluginControlMenuVisible
     ? [
         {
           path: '/plugins',
           label: t('nav.plugins'),
-          shortLabel: navShortLabel('nav.plugins', t('nav.plugins')),
-          icon: sidebarIcons.plugins,
+          icon: navigationIcons.plugins,
         },
       ]
     : [];
   const navItems: NavItem[] = [
-    dashboardNavItem,
+    monitoringNavItem,
     {
       path: '/ai-providers',
       label: t('nav.ai_providers_nav'),
-      shortLabel: navShortLabel('nav.ai_providers', t('nav.ai_providers_nav')),
-      icon: sidebarIcons.aiProviders,
+      icon: navigationIcons.aiProviders,
     },
     {
       path: accessNavigation.accounts,
       label: t('nav.accounts_nav'),
-      shortLabel: t('nav.accounts_nav'),
-      icon: sidebarIcons.authFiles,
+      icon: navigationIcons.authFiles,
     },
+    dashboardNavItem,
     ...(usageAnalyticsNavItem ? [usageAnalyticsNavItem] : []),
-    monitoringNavItem,
     ...pluginControlNavItems,
   ];
   const navOrder = navItems.map((item) => item.path);
@@ -705,9 +655,6 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     }
     logout();
   };
-  const mobileSidebarToggleLabel = sidebarOpen
-    ? t('sidebar.toggle_collapse', { defaultValue: 'Close navigation' })
-    : t('sidebar.toggle_expand', { defaultValue: 'Open navigation' });
   const normalizedLocationPath =
     routePathname.length > 1 && routePathname.endsWith('/')
       ? routePathname.slice(0, -1)
@@ -719,12 +666,9 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     if (item.path === dashboardNavigation.overview) return Boolean(dashboardTab);
     if (item.path === accessNavigation.accounts) return Boolean(accessTab);
     if (item.path === pluginNavigation.root) return Boolean(pluginWorkspaceRoute);
-    return pathname === item.path || (!item.exact && pathname.startsWith(`${item.path}/`));
+    return pathname === item.path || pathname.startsWith(`${item.path}/`);
   };
-  const activeNavItem =
-    [...navItems]
-      .sort((a, b) => b.path.length - a.path.length)
-      .find((item) => matchesNavPath(item, currentPath)) ?? null;
+  const activeNavItem = navItems.find((item) => matchesNavPath(item, currentPath));
   const workspaceTitle = dashboardTab
     ? t('nav.dashboard')
     : accessTab
@@ -736,62 +680,67 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
           : pluginWorkspaceVisible
             ? t('nav.plugins')
             : null;
-  const currentRouteLabel = activeNavItem?.label ?? fullBrandName;
+
+  useLayoutEffect(() => {
+    const revealActiveLink = () => {
+      const nav = navigationRef.current;
+      const link = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!nav || !link) return;
+      const viewport = nav.getBoundingClientRect();
+      const bounds = link.getBoundingClientRect();
+      if (bounds.left < viewport.left) nav.scrollLeft += bounds.left - viewport.left;
+      else if (bounds.right > viewport.right) nav.scrollLeft += bounds.right - viewport.right;
+    };
+    revealActiveLink();
+    window.addEventListener('resize', revealActiveLink);
+    return () => window.removeEventListener('resize', revealActiveLink);
+  }, [activeNavItem?.path, language]);
 
   return (
     <div
-      className={[
-        'app-shell',
-        sidebarCollapsed ? 'sidebar-is-collapsed' : '',
-        isPluginResourcePage ? 'plugin-resource-shell' : '',
-      ]
+      className={['app-shell', isPluginResourcePage ? 'plugin-resource-shell' : '']
         .filter(Boolean)
         .join(' ')}
     >
       <header className="main-header" ref={headerRef}>
         <div className="navbar">
-          <div className="navbar-left">
-            <button
-              type="button"
-              className="hamburger-container"
-              onClick={() => {
-                if (window.matchMedia('(max-width: 768px)').matches) {
-                  setSidebarOpen((prev) => !prev);
-                  return;
-                }
-                setSidebarCollapsed((prev) => {
-                  const next = !prev;
-                  try {
-                    localStorage.setItem(STORAGE_KEY_SIDEBAR, String(next));
-                  } catch {
-                    /* ignore storage failures */
-                  }
-                  return next;
-                });
-              }}
-              title={mobileSidebarToggleLabel}
-              aria-label={mobileSidebarToggleLabel}
-            >
-              {sidebarOpen
-                ? headerIcons.close
-                : sidebarCollapsed
-                  ? headerIcons.sidebarExpand
-                  : headerIcons.sidebarCollapse}
-            </button>
-
-            {workspaceTitle ? (
-              <div className="app-breadcrumb">
-                <h1 className="breadcrumb-item workspace-title">{workspaceTitle}</h1>
-              </div>
-            ) : (
-              <nav
-                className="app-breadcrumb"
-                aria-label={t('common.navigation', { defaultValue: 'Navigation' })}
-              >
-                <span className="breadcrumb-item">{currentRouteLabel}</span>
-              </nav>
-            )}
+          <div className="header-brand" title={fullBrandName}>
+            <img
+              src={CPAMP_SYMBOL_COLOR_PNG_URL}
+              alt={fullBrandName}
+              className="header-brand-symbol"
+            />
+            <img
+              src={CPAMP_WORDMARK_COLOR_PNG_URL}
+              alt=""
+              className="header-brand-wordmark header-brand-wordmark-light"
+            />
+            <img
+              src={CPAMP_WORDMARK_ON_DARK_PNG_URL}
+              alt=""
+              className="header-brand-wordmark header-brand-wordmark-dark"
+            />
           </div>
+
+          <nav
+            className="workspace-navigation"
+            ref={navigationRef}
+            aria-label={t('common.navigation', { defaultValue: 'Navigation' })}
+          >
+            {navItems.map((item) => (
+              <Link
+                key={item.path}
+                to={prefixRouteBase(item.path, routeBase)}
+                className="workspace-nav-link"
+                aria-current={item === activeNavItem ? 'page' : undefined}
+              >
+                <span className="workspace-nav-icon" aria-hidden="true">
+                  {item.icon}
+                </span>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
 
           <div className="navbar-right">
             <Button
@@ -952,92 +901,6 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
       </header>
 
       <div className="main-body">
-        <button
-          type="button"
-          className={`sidebar-backdrop ${sidebarOpen ? 'visible' : ''}`}
-          onClick={() => setSidebarOpen(false)}
-          aria-label={t('common.close')}
-          aria-hidden={!sidebarOpen}
-          tabIndex={sidebarOpen ? 0 : -1}
-        />
-
-        <aside
-          className={`sidebar ${sidebarOpen ? 'open' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}
-        >
-          <div className="sidebar-brand" title={fullBrandName}>
-            <div className="sidebar-brand-main">
-              <span className="sidebar-brand-symbol-wrap">
-                <img
-                  src={CPAMP_SYMBOL_COLOR_PNG_URL}
-                  alt={showSidebarLabels ? '' : 'CPA Manager Plus EX'}
-                  className="sidebar-brand-symbol"
-                />
-              </span>
-              {showSidebarLabels && (
-                <>
-                  <img
-                    src={CPAMP_WORDMARK_COLOR_PNG_URL}
-                    alt="CPA Manager Plus"
-                    className="sidebar-brand-wordmark sidebar-brand-wordmark-light"
-                  />
-                  <img
-                    src={CPAMP_WORDMARK_ON_DARK_PNG_URL}
-                    alt="CPA Manager Plus"
-                    className="sidebar-brand-wordmark sidebar-brand-wordmark-dark"
-                  />
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="nav-section">
-            <div className="nav-menu-section">
-              {navItems.map((item) => {
-                const matches = matchesNavPath(item, currentPath);
-                const props = {
-                  to: prefixRouteBase(item.path, routeBase),
-                  onClick: () => setSidebarOpen(false),
-                  title: item.label,
-                  'aria-label': !showSidebarLabels ? item.label : undefined,
-                };
-                const label = (
-                  <>
-                    <span className="nav-icon">{item.icon}</span>
-                    {showSidebarLabels && <span className="nav-label">{item.label}</span>}
-                  </>
-                );
-                const isWorkspace =
-                  item === usageAnalyticsNavItem ||
-                  item === monitoringNavItem ||
-                  item.path === dashboardNavigation.overview ||
-                  item.path === accessNavigation.accounts ||
-                  item.path === pluginNavigation.root;
-                return isWorkspace ? (
-                  <Link
-                    key={item.path}
-                    {...props}
-                    className={`nav-item ${matches ? 'active' : ''}`}
-                    aria-current={matches ? 'page' : undefined}
-                  >
-                    {label}
-                  </Link>
-                ) : (
-                  <NavLink
-                    key={item.path}
-                    {...props}
-                    end={item.exact}
-                    className={({ isActive }) =>
-                      `nav-item ${isActive || matches ? 'active' : ''}`
-                    }
-                  >
-                    {label}
-                  </NavLink>
-                );
-              })}
-            </div>
-          </div>
-        </aside>
-
         <div
           className={[
             'content',
@@ -1057,6 +920,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
               .filter(Boolean)
               .join(' ')}
           >
+            {workspaceTitle && <h1 className="workspace-title">{workspaceTitle}</h1>}
             <DatabaseMaintenanceBanner />
             {dashboardTab && (
               <RouteTabs

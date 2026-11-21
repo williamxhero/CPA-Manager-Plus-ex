@@ -35,7 +35,6 @@ export const STORAGE_KEY_AUTH = 'cli-proxy-auth';
 export const STORAGE_KEY_THEME = 'cli-proxy-theme';
 export const STORAGE_KEY_VISUAL_EFFECTS = 'cli-proxy-visual-effects';
 export const STORAGE_KEY_LANGUAGE = 'cli-proxy-language';
-export const STORAGE_KEY_SIDEBAR = 'cli-proxy-sidebar-collapsed';
 export const STORAGE_KEY_QUOTA_CACHE = 'cli-proxy-quota-cache';
 
 // 语言配置
