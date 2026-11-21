@@ -1,3 +1,7 @@
+import { MonitoringWorkspaceTabs } from '@/components/layout/MonitoringWorkspaceTabs';
+import { monitoringTabsId, readLogTab } from '@/components/layout/usageMonitoringNavigation';
+import { routeTabPanel } from '@/components/layout/routeTabPanel';
+import { usePanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability';
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -30,12 +34,7 @@ import { copyToClipboard } from '@/utils/clipboard';
 import { downloadBlob } from '@/utils/download';
 import { MANAGEMENT_API_PREFIX } from '@/utils/constants';
 import { formatUnixTimestamp } from '@/utils/format';
-import {
-  HTTP_METHODS,
-  STATUS_GROUPS,
-  resolveStatusGroup,
-  type LogState,
-} from './hooks/logTypes';
+import { HTTP_METHODS, STATUS_GROUPS, resolveStatusGroup, type LogState } from './hooks/logTypes';
 import { parseLogLine } from './hooks/logParsing';
 import { useLogFilters } from './hooks/useLogFilters';
 import { isNearBottom, useLogScroller } from './hooks/useLogScroller';
@@ -64,7 +63,6 @@ const getErrorMessage = (err: unknown): string => {
   return typeof message === 'string' ? message : '';
 };
 
-type TabType = 'logs' | 'errors';
 type LogPosition = Pick<LogsQuery, 'after' | 'cursor'>;
 
 const buildLogsQuery = (incremental: boolean, position: LogPosition): LogsQuery => {
@@ -89,15 +87,14 @@ export function LogsPage() {
 
 function LogsPageContent() {
   const { t } = useTranslation();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const availability = usePanelFeatureAvailability();
   const { showNotification, showConfirmation } = useNotificationStore();
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const config = useConfigStore((state) => state.config);
   const fileLogsAvailable = isFileLogsAvailable(config);
 
-  const [activeTab, setActiveTab] = useState<TabType>(() =>
-    searchParams.get('tab') === 'errors' ? 'errors' : 'logs'
-  );
+  const activeTab = readLogTab(searchParams);
   const requestLogEnabled = config?.requestLog ?? false;
   const [logState, setLogState] = useState<LogState>({ buffer: [], visibleFrom: 0 });
   const [loading, setLoading] = useState(true);
@@ -173,17 +170,6 @@ function LogsPageContent() {
 
   const disableControls = connectionStatus !== 'connected';
   const canLoadFileLogs = activeTab === 'logs' && fileLogsAvailable;
-
-  const handleTabChange = (tab: TabType) => {
-    setActiveTab(tab);
-    const nextParams = new URLSearchParams(searchParams);
-    if (tab === 'errors') {
-      nextParams.set('tab', 'errors');
-    } else {
-      nextParams.delete('tab');
-    }
-    setSearchParams(nextParams, { replace: true });
-  };
 
   const loadLogs = async (incremental = false) => {
     if (!canLoadFileLogs) {
@@ -361,11 +347,6 @@ function LogsPageContent() {
       );
     }
   };
-
-  useEffect(() => {
-    const tab = searchParams.get('tab') === 'errors' ? 'errors' : 'logs';
-    setActiveTab((current) => (current === tab ? current : tab));
-  }, [searchParams]);
 
   useEffect(() => {
     if (connectionStatus !== 'connected') {
@@ -573,24 +554,13 @@ function LogsPageContent() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.tabBar}>
-        <button
-          type="button"
-          className={`${styles.tabItem} ${activeTab === 'logs' ? styles.tabActive : ''}`}
-          onClick={() => handleTabChange('logs')}
-        >
-          {t('logs.log_content')}
-        </button>
-        <button
-          type="button"
-          className={`${styles.tabItem} ${activeTab === 'errors' ? styles.tabActive : ''}`}
-          onClick={() => handleTabChange('errors')}
-        >
-          {t('logs.error_logs_modal_title')}
-        </button>
-      </div>
+      <MonitoringWorkspaceTabs
+        activeTab={activeTab}
+        showData={availability.requestMonitoringAvailable}
+        search={searchParams.toString()}
+      />
 
-      <div className={styles.content}>
+      <div className={styles.content} {...routeTabPanel(monitoringTabsId, activeTab)}>
         {activeTab === 'logs' && (
           <Card className={styles.logCard}>
             {error && <div className="error-box">{error}</div>}
@@ -814,7 +784,8 @@ function LogsPageContent() {
 
             {loading && !logsLoaded ? (
               <div className="hint">{t('logs.loading')}</div>
-            ) : error && !logsLoaded ? null : logState.buffer.length > 0 && filteredLines.length > 0 ? (
+            ) : error && !logsLoaded ? null : logState.buffer.length > 0 &&
+              filteredLines.length > 0 ? (
               <div
                 ref={scroller.logViewerRef}
                 className={styles.logPanel}
@@ -824,9 +795,7 @@ function LogsPageContent() {
                   <div className={styles.loadMoreBanner}>
                     <span>{t('logs.load_more_hint')}</span>
                     <div className={styles.loadMoreStats}>
-                      <span>
-                        {t('logs.loaded_lines', { count: filteredLines.length })}
-                      </span>
+                      <span>{t('logs.loaded_lines', { count: filteredLines.length })}</span>
                       {removedCount > 0 && (
                         <span className={styles.loadMoreCount}>
                           {t('logs.filtered_lines', { count: removedCount })}
@@ -972,7 +941,9 @@ function LogsPageContent() {
 
               {requestLogEnabled && (
                 <div>
-                  <div className="status-badge warning">{t('logs.error_logs_request_log_enabled')}</div>
+                  <div className="status-badge warning">
+                    {t('logs.error_logs_request_log_enabled')}
+                  </div>
                 </div>
               )}
 
@@ -1020,7 +991,11 @@ function LogsPageContent() {
         title={t('logs.request_log_download_title')}
         footer={
           <>
-            <Button variant="secondary" onClick={closeRequestLogModal} disabled={requestLogDownloading}>
+            <Button
+              variant="secondary"
+              onClick={closeRequestLogModal}
+              disabled={requestLogDownloading}
+            >
               {t('common.cancel')}
             </Button>
             <Button

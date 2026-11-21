@@ -46,6 +46,7 @@ import { isUsageImportFile } from '@/utils/usageImport';
 import styles from './UsageMaintenanceTransferView.module.scss';
 
 type Props = {
+  visible?: boolean;
   serviceBase: string;
   managementKey?: string;
   panel: 'import' | 'import-session' | 'export' | null;
@@ -177,6 +178,7 @@ const statusTone = (status: UsageImportSessionStatus, result?: UsageImportRespon
 };
 
 export function UsageMaintenanceTransferView({
+  visible = true,
   serviceBase,
   managementKey,
   panel,
@@ -280,22 +282,24 @@ export function UsageMaintenanceTransferView({
   );
 
   useEffect(() => {
+    if (!visible) return;
     void loadSessions();
     return () => {
       sessionRequestIDRef.current += 1;
       sessionRequestRef.current?.abort();
       sessionRequestRef.current = null;
     };
-  }, [loadSessions]);
+  }, [loadSessions, visible]);
 
   useEffect(() => {
-    if (refreshToken > 0) void loadSessions(true);
-  }, [loadSessions, refreshToken]);
+    if (visible && refreshToken > 0) void loadSessions(true);
+  }, [loadSessions, refreshToken, visible]);
 
   useEffect(() => {
     setDetailSession(null);
     setDetailError(null);
     if (
+      !visible ||
       !selectedSessionId ||
       !sessionList ||
       sessionList.sessions.some((item) => item.id === selectedSessionId)
@@ -314,7 +318,7 @@ export function UsageMaintenanceTransferView({
         if (!controller.signal.aborted) setDetailError(formatImportError(cause, t));
       });
     return () => controller.abort();
-  }, [selectedSessionId, sessionList, serviceBase, managementKey, t]);
+  }, [selectedSessionId, sessionList, serviceBase, managementKey, t, visible]);
 
   const shouldPoll = Boolean(
     activeTask?.progress.phase === 'processing' ||
@@ -322,10 +326,10 @@ export function UsageMaintenanceTransferView({
   );
 
   useEffect(() => {
-    if (!shouldPoll) return;
+    if (!visible || !shouldPoll) return;
     const timer = globalThis.setInterval(() => void loadSessions(true), 5_000);
     return () => globalThis.clearInterval(timer);
-  }, [loadSessions, shouldPoll]);
+  }, [loadSessions, shouldPoll, visible]);
 
   const updateProgress = useCallback((file: File, progress: UsageImportProgress) => {
     setActiveTask((current) =>
@@ -778,14 +782,17 @@ export function UsageMaintenanceTransferView({
                       <i style={{ width: `${progressPercent(session)}%` }} />
                     </div>
                     <small>
-                      {formatFileSize(session.received_bytes)} / {formatFileSize(session.size_bytes)}
+                      {formatFileSize(session.received_bytes)} /{' '}
+                      {formatFileSize(session.size_bytes)}
                     </small>
                   </td>
                   <td data-label={t('usage_maintenance.transfer_last_result')}>
                     <span>{resultSummary(session.result, t)}</span>
                   </td>
                   <td data-label={t('usage_maintenance.technical_status')}>
-                    <span className={`${styles.pill} ${statusTone(session.status, session.result)}`}>
+                    <span
+                      className={`${styles.pill} ${statusTone(session.status, session.result)}`}
+                    >
                       {displayStatus(session)}
                     </span>
                   </td>

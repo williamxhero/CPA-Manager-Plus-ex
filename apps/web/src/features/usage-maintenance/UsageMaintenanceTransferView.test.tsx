@@ -156,13 +156,16 @@ function TransferHarness({
   serviceBase: string;
   managementKey?: string;
 }) {
+  const [visible, setVisible] = useState(true);
   const [panel, setPanel] = useState<'import' | 'import-session' | 'export' | null>('import');
   const [sessionId, setSessionId] = useState<string | null>(null);
   return (
     <>
+      <button onClick={() => setVisible((value) => !value)}>Toggle transfer visibility</button>
       <button onClick={() => setPanel('export')}>Open export</button>
       <button onClick={() => setPanel('import')}>Open import</button>
       <UsageMaintenanceTransferView
+        visible={visible}
         serviceBase={serviceBase}
         managementKey={managementKey}
         panel={panel}
@@ -217,6 +220,33 @@ afterEach(() => {
 });
 
 describe('UsageMaintenanceTransferView', () => {
+  it('pauses session list polling while transfer is hidden and refreshes when it returns', async () => {
+    vi.useFakeTimers();
+    const activeSession: UsageImportSession = {
+      id: 'active-import',
+      filename: 'active.jsonl',
+      status: 'uploading',
+      size_bytes: 100,
+      received_bytes: 50,
+      chunk_size_bytes: 1024,
+      created_at_ms: 1,
+      updated_at_ms: 1,
+      expires_at_ms: Date.now() + 60_000,
+    };
+    mocks.listUsageImportSessions.mockResolvedValue(
+      sessionList({ sessions: [activeSession], total: 1, active_sessions: 1 })
+    );
+    const renderer = await renderView();
+    const toggle = findButton(renderer, 'Toggle transfer visibility')!;
+    await act(async () => toggle.props.onClick());
+    mocks.listUsageImportSessions.mockClear();
+    await act(async () => vi.advanceTimersByTimeAsync(15_000));
+    expect(mocks.listUsageImportSessions).not.toHaveBeenCalled();
+    await act(async () => toggle.props.onClick());
+    expect(mocks.listUsageImportSessions).toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
   it.each(['uploading', 'processing'] as const)(
     'keeps an active %s import running when the language changes',
     async (phase) => {

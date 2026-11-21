@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { MonitoringWorkspaceTabs } from '@/components/layout/MonitoringWorkspaceTabs';
+import { monitoringTabsId, readLogTab } from '@/components/layout/usageMonitoringNavigation';
+import { routeTabPanel } from '@/components/layout/routeTabPanel';
 import {
   Navigate,
   useLocation,
@@ -114,6 +117,8 @@ function UsageMaintenanceGate({ children }: { children: ReactElement }) {
 }
 
 function LogsGate({ children }: { children: ReactElement }) {
+  const { search } = useLocation();
+  const availability = usePanelFeatureAvailability();
   const config = useConfigStore((state) => state.config);
   const fetchConfig = useConfigStore((state) => state.fetchConfig);
   const requestedRef = useRef(false);
@@ -126,7 +131,19 @@ function LogsGate({ children }: { children: ReactElement }) {
   }, [config, fetchConfig]);
 
   if (!config && !failed) {
-    return <LoadingSpinner />;
+    const activeTab = readLogTab(new URLSearchParams(search));
+    return (
+      <>
+        <MonitoringWorkspaceTabs
+          activeTab={activeTab}
+          showData={availability.requestMonitoringAvailable}
+          search={search}
+        />
+        <div {...routeTabPanel(monitoringTabsId, activeTab)}>
+          <LoadingSpinner />
+        </div>
+      </>
+    );
   }
 
   return children;
@@ -208,7 +225,7 @@ const mainRoutes: RouteObject[] = [
     path: '/monitoring',
     element: (
       <FeatureGate feature="requestMonitoring">
-        <MonitoringCenterPage />
+        <MonitoringCenterPage workspace />
       </FeatureGate>
     ),
   },

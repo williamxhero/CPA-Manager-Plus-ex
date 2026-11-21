@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Card } from '@/components/ui/Card';
+import { routeTabPanel } from '@/components/layout/routeTabPanel';
 import {
   MonitoringTabsBar,
   type MonitoringTab,
@@ -13,6 +14,7 @@ type MonitoringDataPanelProps<Id extends string> = {
   ariaLabel: string;
   actions?: ReactNode;
   idBase?: string;
+  workspaceId?: string;
   renderContent: (tab: Id) => ReactNode;
 };
 
@@ -23,8 +25,19 @@ export function MonitoringDataPanel<Id extends string>({
   ariaLabel,
   actions,
   idBase = 'monitoring-data-tabs',
+  workspaceId,
   renderContent,
 }: MonitoringDataPanelProps<Id>) {
+  if (workspaceId) {
+    return (
+      <Card className={styles.dataPanel}>
+        {actions ? <div className={styles.dataPanelActions}>{actions}</div> : null}
+        <div className={styles.dataPanelBody} {...routeTabPanel(workspaceId, activeTab)}>
+          {renderContent(activeTab)}
+        </div>
+      </Card>
+    );
+  }
   return (
     <Card className={styles.dataPanel}>
       <div className={styles.dataPanelHeader}>

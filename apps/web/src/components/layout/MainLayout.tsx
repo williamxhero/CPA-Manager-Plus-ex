@@ -1,4 +1,10 @@
 import {
+  getMonitoringWorkspaceLanding,
+  getUsageWorkspaceLanding,
+  isMonitoringWorkspacePath,
+  isUsageWorkspacePath,
+} from '@/components/layout/usageMonitoringNavigation';
+import {
   ReactNode,
   SVGProps,
   useCallback,
@@ -564,43 +570,22 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     shortLabel: navShortLabel('nav.dashboard', t('nav.dashboard')),
     icon: sidebarIcons.dashboard,
   };
-  const usageAnalyticsNavItem = featureAvailability.requestMonitoringAvailable
+  const usageLanding = getUsageWorkspaceLanding(featureAvailability);
+  const monitoringLanding = getMonitoringWorkspaceLanding(featureAvailability);
+  const usageAnalyticsNavItem = usageLanding
     ? {
-        path: '/usage-analytics',
+        path: usageLanding,
         label: t('nav.usage_analytics'),
         shortLabel: navShortLabel('nav.usage_analytics', t('nav.usage_analytics')),
         icon: sidebarIcons.usageAnalytics,
       }
     : null;
-  const monitoringNavItem = featureAvailability.requestMonitoringAvailable
-    ? {
-        path: '/monitoring',
-        label: t('nav.monitoring_center'),
-        shortLabel: navShortLabel('nav.monitoring_center', t('nav.monitoring_center')),
-        icon: sidebarIcons.monitoring,
-      }
-    : null;
-  const usageMaintenanceNavItem: NavItem | null =
-    featureAvailability.panelHostMode === 'manager_embedded' &&
-    featureAvailability.managerServiceAvailable
-      ? {
-          path: '/usage-maintenance',
-          label: t('nav.usage_maintenance', { defaultValue: 'Usage Maintenance' }),
-          shortLabel: navShortLabel(
-            'nav.usage_maintenance',
-            t('nav.usage_maintenance', { defaultValue: 'Maintenance' })
-          ),
-          icon: sidebarIcons.system,
-        }
-      : null;
-  const operationNavItems: NavItem[] = [
-    {
-      path: '/logs',
-      label: t('nav.logs'),
-      shortLabel: navShortLabel('nav.logs', t('nav.logs')),
-      icon: sidebarIcons.logs,
-    },
-  ];
+  const monitoringNavItem: NavItem = {
+    path: monitoringLanding,
+    label: t('nav.monitoring_center'),
+    shortLabel: navShortLabel('nav.monitoring_center', t('nav.monitoring_center')),
+    icon: sidebarIcons.monitoring,
+  };
   const pluginControlNavItems: NavItem[] = pluginControlMenuVisible
     ? [
         {
@@ -627,9 +612,7 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
         icon: sidebarIcons.authFiles,
       },
       ...(usageAnalyticsNavItem ? [usageAnalyticsNavItem] : []),
-      ...(usageMaintenanceNavItem ? [usageMaintenanceNavItem] : []),
-      ...(monitoringNavItem ? [monitoringNavItem] : []),
-      ...operationNavItems,
+      monitoringNavItem,
       ...pluginControlNavItems,
     ],
     [
@@ -649,7 +632,11 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
       pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
     const normalizedPath = getDashboardTab(trimmedPath)
       ? dashboardNavigation.overview
-      : trimmedPath;
+      : isUsageWorkspacePath(trimmedPath) && usageLanding
+        ? usageLanding
+        : isMonitoringWorkspacePath(trimmedPath)
+          ? monitoringLanding
+          : trimmedPath;
 
     const aiProvidersIndex = navOrder.indexOf('/ai-providers');
     if (aiProvidersIndex !== -1) {
@@ -726,6 +713,8 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const currentPath = normalizedLocationPath === '/dashboard' ? '/' : normalizedLocationPath;
   const matchesNavPath = (item: NavItem, pathname: string) => {
     if (item.shortcut) return false;
+    if (item === usageAnalyticsNavItem) return isUsageWorkspacePath(pathname);
+    if (item === monitoringNavItem) return isMonitoringWorkspacePath(pathname);
     if (item.path === dashboardNavigation.overview) return Boolean(dashboardTab);
     if (item.path === accessNavigation.accounts) return Boolean(accessTab);
     if (item.path === pluginNavigation.root) return Boolean(pluginWorkspaceRoute);
@@ -1004,6 +993,8 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
                     </>
                   );
                   const isWorkspace =
+                    item === usageAnalyticsNavItem ||
+                    item === monitoringNavItem ||
                     item.path === dashboardNavigation.overview ||
                     item.path === accessNavigation.accounts ||
                     item.path === pluginNavigation.root;

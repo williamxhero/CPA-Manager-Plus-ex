@@ -56,6 +56,7 @@ import {
 } from './usageAnalyticsModel';
 import {
   buildUsageAnalyticsSearchParams,
+  getDefaultUsageAnalyticsUiState,
   buildUsageAnalyticsUiStateFromSearchParams,
   readUsageAnalyticsUiState,
   writeUsageAnalyticsUiState,
@@ -92,7 +93,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   return debouncedValue;
 }
 
-export function useUsageAnalytics() {
+export function useUsageAnalytics(workspace = false) {
   const config = useConfigStore((state) => state.config);
   const { apiKeyAliases, providerKeyAliases, loadApiKeyAliases } = useUsageData({
     loadUsageEvents: false,
@@ -109,9 +110,29 @@ export function useUsageAnalytics() {
     ...initialUiState.filters,
     apiKeyHash: getSelectableApiKeyHash(initialUiState.filters.apiKeyHash) || 'all',
   }));
-  const [activeTabState, setActiveTabState] = useState<UsageAnalyticsTab>(
+  const [storedTab, setActiveTabState] = useState<UsageAnalyticsTab>(
     () => initialUiState.activeTab
   );
+  const [previousQuery, setPreviousQuery] = useState(searchParams.toString());
+  const activeTabState = workspace
+    ? buildUsageAnalyticsUiStateFromSearchParams(searchParams, initialUiState).activeTab
+    : storedTab;
+  if (workspace && previousQuery !== searchParams.toString()) {
+    setPreviousQuery(searchParams.toString());
+    const fromUrl = buildUsageAnalyticsUiStateFromSearchParams(
+      searchParams,
+      getDefaultUsageAnalyticsUiState()
+    ).filters;
+    if (
+      buildUsageAnalyticsSearchParams({ activeTab: activeTabState, filters }).toString() !==
+      buildUsageAnalyticsSearchParams({ activeTab: activeTabState, filters: fromUrl }).toString()
+    ) {
+      setFiltersState({
+        ...fromUrl,
+        apiKeyHash: getSelectableApiKeyHash(fromUrl.apiKeyHash) || 'all',
+      });
+    }
+  }
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedBucketMs, setSelectedBucketMs] = useState<number | null>(null);
   const [selectedModelId, setSelectedModelId] = useState('');
@@ -259,10 +280,37 @@ export function useUsageAnalytics() {
     const nextState = { activeTab: activeTabState, filters };
     writeUsageAnalyticsUiState(nextState);
     const nextParams = buildUsageAnalyticsSearchParams(nextState);
+    if (workspace) {
+      if (searchParams.has('tab') && activeTabState === 'overview')
+        nextParams.set('tab', 'overview');
+      const knownKeys = new Set([
+        'tab',
+        'time_range',
+        'from_ms',
+        'to_ms',
+        'granularity',
+        'model',
+        'api_key_hash',
+        'provider',
+        'auth_file',
+        'status',
+        'search',
+        'min_latency_ms',
+        'cache_status',
+        'api_key_keyword',
+      ]);
+      for (const [key, value] of searchParams) {
+        if (!knownKeys.has(key)) nextParams.append(key, value);
+      }
+      const current = new URLSearchParams(searchParams);
+      current.sort();
+      nextParams.sort();
+      if (current.toString() === nextParams.toString()) return;
+    }
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
     }
-  }, [activeTabState, filters, searchParams, setSearchParams]);
+  }, [activeTabState, filters, searchParams, setSearchParams, workspace]);
   const drilldownPreview = useMemo(() => {
     if (selectedBucketMs === null) return null;
     return {

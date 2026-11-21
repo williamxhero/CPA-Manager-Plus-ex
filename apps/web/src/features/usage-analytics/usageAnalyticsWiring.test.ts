@@ -332,25 +332,6 @@ describe('usage analytics app wiring', () => {
     );
   });
 
-  it('places Usage Analytics in the top-level sidebar between dashboard and monitoring when monitoring is available', () => {
-    const dashboardIndex = layoutSource.indexOf('const dashboardNavItem: NavItem = {');
-    const usageIndex = layoutSource.indexOf(
-      '...(usageAnalyticsNavItem ? [usageAnalyticsNavItem] : [])'
-    );
-    const monitoringIndex = layoutSource.indexOf(
-      '...(monitoringNavItem ? [monitoringNavItem] : [])'
-    );
-
-    expect(layoutSource).toContain(
-      'const usageAnalyticsNavItem = featureAvailability.requestMonitoringAvailable'
-    );
-    expect(layoutSource).toContain("path: '/usage-analytics'");
-    expect(layoutSource).toContain("label: t('nav.usage_analytics')");
-    expect(dashboardIndex).toBeGreaterThanOrEqual(0);
-    expect(usageIndex).toBeGreaterThan(dashboardIndex);
-    expect(monitoringIndex).toBeGreaterThan(usageIndex);
-  });
-
   it('renders full sidebar labels when the sidebar is expanded', () => {
     expect(layoutSource).toContain(
       '{showSidebarLabels && <span className="nav-label">{item.label}</span>}'

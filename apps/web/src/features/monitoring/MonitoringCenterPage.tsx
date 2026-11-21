@@ -1,3 +1,12 @@
+import { MonitoringWorkspaceTabs } from '@/components/layout/MonitoringWorkspaceTabs';
+import { monitoringTabsId } from '@/components/layout/usageMonitoringNavigation';
+import {
+  getMonitoringConnectionGeneration,
+  readMonitoringDrill,
+  readMonitoringDrillFilters,
+  readMonitoringWorkspaceMemory,
+  writeMonitoringWorkspaceMemory,
+} from './monitoringWorkspaceMemory';
 import {
   useCallback,
   useDeferredValue,
@@ -133,6 +142,8 @@ import {
   type UsageImportProgress,
 } from '@/features/monitoring/services/usageImportSession';
 import {
+  getDefaultMonitoringCenterUiState,
+  MONITORING_DATA_TABS,
   readMonitoringCenterUiState,
   writeMonitoringCenterUiState,
   type MonitoringDataTab,
@@ -194,7 +205,37 @@ const shortLabel = (t: TFunction, shortKey: string, fallbackKey: string) => {
   return label === shortKey ? fallback : label;
 };
 
-export function MonitoringCenterPage() {
+export function MonitoringCenterPage({ workspace = false }: { workspace?: boolean } = {}) {
+  const location = useLocation();
+  const apiBase = useAuthStore((state) => state.apiBase);
+  const managementKey = useAuthStore((state) => state.managementKey);
+  const authenticated = useAuthStore((state) => state.isAuthenticated);
+  const connectionGeneration = getMonitoringConnectionGeneration();
+  if (!workspace) return <MonitoringCenterView />;
+  const entry = location.key || location.search;
+  return (
+    <MonitoringCenterView
+      key={JSON.stringify([
+        entry,
+        location.search,
+        apiBase,
+        managementKey,
+        authenticated,
+        connectionGeneration,
+      ])}
+      workspaceEntry={entry}
+      connectionGeneration={connectionGeneration}
+    />
+  );
+}
+
+function MonitoringCenterView({
+  workspaceEntry,
+  connectionGeneration = 0,
+}: {
+  workspaceEntry?: string;
+  connectionGeneration?: number;
+}) {
   const { t, i18n } = useTranslation();
   const { status: managerStatus } = useDatabaseMaintenance();
   const location = useLocation();
@@ -225,46 +266,42 @@ export function MonitoringCenterPage() {
   const pageTransitionLayer = usePageTransitionLayer();
   const isCurrentLayer = pageTransitionLayer ? pageTransitionLayer.status === 'current' : true;
   const initialAccountOverviewUiState = useRef(readAccountOverviewUiState());
-  const initialMonitoringCenterUiState = useRef(
-    buildMonitoringInitialStateFromQuery(location.search, readMonitoringCenterUiState())
-  );
-  const initialMonitoringDrilldownFilters = useRef(
-    (() => {
-      const params = new URLSearchParams(location.search);
-      const minLatencyMs = Number(params.get('min_latency_ms'));
+  const [initialView] = useState(() => {
+    if (workspaceEntry === undefined) {
       return {
-        authFile: params.get('auth_file')?.trim() || '',
-        authIndex: params.get('auth_index')?.trim() || '',
-        projectId: params.get('project_id')?.trim() || '',
-        requestType: params.get('request_type')?.trim() || '',
-        minLatencyMs: Number.isFinite(minLatencyMs) && minLatencyMs > 0 ? minLatencyMs : undefined,
-        cacheStatus: params.get('cache_status')?.trim() || '',
+        ui: buildMonitoringInitialStateFromQuery(location.search, readMonitoringCenterUiState()),
+        drill: readMonitoringDrillFilters(location.search),
       };
-    })()
-  );
-  const [timeRange, setTimeRange] = useState<MonitoringTimeRange>(
-    initialMonitoringCenterUiState.current.timeRange
-  );
+    }
+    const explicitDrill = readMonitoringDrill(location.search);
+    const memory = explicitDrill ? undefined : readMonitoringWorkspaceMemory(workspaceEntry);
+    const defaults = getDefaultMonitoringCenterUiState();
+    const ui = memory?.ui ?? buildMonitoringInitialStateFromQuery(location.search, defaults);
+    const urlTab = new URLSearchParams(location.search).get('tab');
+    return {
+      ui: MONITORING_DATA_TABS.find((tab) => tab === urlTab)
+        ? { ...ui, activeDataTab: urlTab as MonitoringDataTab }
+        : ui,
+      drill: memory?.drill ?? readMonitoringDrillFilters(location.search),
+    };
+  });
+  const [timeRange, setTimeRange] = useState<MonitoringTimeRange>(initialView.ui.timeRange);
   const databaseMaintenance = managerStatus?.databaseMaintenance;
   const monitoringMaintenanceWarning = databaseMaintenance?.performanceDegraded === true;
   const [customStartInput, setCustomStartInput] = useState(
-    () => initialMonitoringCenterUiState.current.customStartInput || getTodayStartInputValue()
+    () => initialView.ui.customStartInput || getTodayStartInputValue()
   );
   const [customEndInput, setCustomEndInput] = useState(
-    () => initialMonitoringCenterUiState.current.customEndInput || getCurrentInputValue()
+    () => initialView.ui.customEndInput || getCurrentInputValue()
   );
   const [customDraftStartInput, setCustomDraftStartInput] = useState(
-    () => initialMonitoringCenterUiState.current.customStartInput || getTodayStartInputValue()
+    () => initialView.ui.customStartInput || getTodayStartInputValue()
   );
   const [customDraftEndInput, setCustomDraftEndInput] = useState(
-    () => initialMonitoringCenterUiState.current.customEndInput || getCurrentInputValue()
+    () => initialView.ui.customEndInput || getCurrentInputValue()
   );
-  const [searchInput, setSearchInput] = useState(
-    () => initialMonitoringCenterUiState.current.searchInput
-  );
-  const [autoRefreshMs, setAutoRefreshMs] = useState(
-    () => initialMonitoringCenterUiState.current.autoRefreshMs
-  );
+  const [searchInput, setSearchInput] = useState(() => initialView.ui.searchInput);
+  const [autoRefreshMs, setAutoRefreshMs] = useState(() => initialView.ui.autoRefreshMs);
   const [documentVisible, setDocumentVisible] = useState(
     () => typeof document === 'undefined' || document.visibilityState !== 'hidden'
   );
@@ -293,42 +330,30 @@ export function MonitoringCenterPage() {
   const setDevinQuota = useQuotaStore((state) => state.setDevinQuota);
   const setKimiQuota = useQuotaStore((state) => state.setKimiQuota);
   const setXaiQuota = useQuotaStore((state) => state.setXaiQuota);
-  const [selectedAccount, setSelectedAccount] = useState(
-    () => initialMonitoringCenterUiState.current.selectedAccount
-  );
-  const [selectedProvider, setSelectedProvider] = useState(
-    () => initialMonitoringCenterUiState.current.selectedProvider
-  );
-  const [selectedModel, setSelectedModel] = useState(
-    () => initialMonitoringCenterUiState.current.selectedModel
-  );
-  const [selectedChannel, setSelectedChannel] = useState(
-    () => initialMonitoringCenterUiState.current.selectedChannel
-  );
+  const [selectedAccount, setSelectedAccount] = useState(() => initialView.ui.selectedAccount);
+  const [selectedProvider, setSelectedProvider] = useState(() => initialView.ui.selectedProvider);
+  const [selectedModel, setSelectedModel] = useState(() => initialView.ui.selectedModel);
+  const [selectedChannel, setSelectedChannel] = useState(() => initialView.ui.selectedChannel);
   const [selectedApiKeyHash, setSelectedApiKeyHash] = useState(
-    () => initialMonitoringCenterUiState.current.selectedApiKeyHash
+    () => initialView.ui.selectedApiKeyHash
   );
   const [selectedHeaderTraceId, setSelectedHeaderTraceId] = useState(
-    () => initialMonitoringCenterUiState.current.selectedHeaderTraceId
+    () => initialView.ui.selectedHeaderTraceId
   );
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>(
-    () => initialMonitoringCenterUiState.current.selectedStatus
+    () => initialView.ui.selectedStatus
   );
-  const [drilldownAuthFile, setDrilldownAuthFile] = useState(
-    () => initialMonitoringDrilldownFilters.current.authFile
-  );
-  const [drilldownAuthIndex] = useState(() => initialMonitoringDrilldownFilters.current.authIndex);
-  const [drilldownProjectId, setDrilldownProjectId] = useState(
-    () => initialMonitoringDrilldownFilters.current.projectId
-  );
+  const [drilldownAuthFile, setDrilldownAuthFile] = useState(() => initialView.drill.authFile);
+  const [drilldownAuthIndex] = useState(() => initialView.drill.authIndex);
+  const [drilldownProjectId, setDrilldownProjectId] = useState(() => initialView.drill.projectId);
   const [drilldownRequestType, setDrilldownRequestType] = useState(
-    () => initialMonitoringDrilldownFilters.current.requestType
+    () => initialView.drill.requestType
   );
   const [drilldownMinLatencyMs, setDrilldownMinLatencyMs] = useState(
-    () => initialMonitoringDrilldownFilters.current.minLatencyMs
+    () => initialView.drill.minLatencyMs
   );
   const [drilldownCacheStatus, setDrilldownCacheStatus] = useState(
-    () => initialMonitoringDrilldownFilters.current.cacheStatus
+    () => initialView.drill.cacheStatus
   );
   const [expandedAccounts, setExpandedAccounts] = useState<Record<string, boolean>>({});
   const [expandedApiKeys, setExpandedApiKeys] = useState<Record<string, boolean>>({});
@@ -345,7 +370,7 @@ export function MonitoringCenterPage() {
     Record<string, AccountQuotaState>
   >({});
   const [activeDataTab, setActiveDataTab] = useState<MonitoringDataTab>(
-    initialMonitoringCenterUiState.current.activeDataTab
+    initialView.ui.activeDataTab
   );
   const [accountOverviewMode, setAccountOverviewMode] = useState<MonitoringAccountOverviewMode>(
     initialAccountOverviewUiState.current.mode
@@ -369,13 +394,9 @@ export function MonitoringCenterPage() {
     card: initialAccountOverviewUiState.current.cardPagination.pageSize,
   }));
   const [apiKeyPage, setApiKeyPage] = useState(1);
-  const [apiKeyPageSize, setApiKeyPageSize] = useState<number>(
-    initialMonitoringCenterUiState.current.apiKeyPageSize
-  );
+  const [apiKeyPageSize, setApiKeyPageSize] = useState<number>(initialView.ui.apiKeyPageSize);
   const [realtimePage, setRealtimePage] = useState(1);
-  const [realtimePageSize, setRealtimePageSize] = useState(
-    initialMonitoringCenterUiState.current.realtimePageSize
-  );
+  const [realtimePageSize, setRealtimePageSize] = useState(initialView.ui.realtimePageSize);
   const focusSnapshotRef = useRef<FocusSnapshot | null>(null);
   const previousAccountPageResetStateRef = useRef<AccountOverviewPageResetState | null>(null);
   const accountQuotaStatesByRowIdRef = useRef<Record<string, AccountQuotaState>>({});
@@ -759,12 +780,9 @@ export function MonitoringCenterPage() {
       ? Math.min(autoRefreshDelay, 5000)
       : null
   );
-  useInterval(
-    () => {
-      void refreshAll().catch(() => {});
-    },
-    autoRefreshDelay
-  );
+  useInterval(() => {
+    void refreshAll().catch(() => {});
+  }, autoRefreshDelay);
 
   useEffect(() => {
     if (!isCurrentLayer || !requestMonitoringAvailability.serviceBase) return;
@@ -816,7 +834,8 @@ export function MonitoringCenterPage() {
   ]);
 
   useEffect(() => {
-    writeMonitoringCenterUiState({
+    if (!isCurrentLayer) return;
+    const ui = {
       activeDataTab,
       timeRange,
       customStartInput,
@@ -832,8 +851,33 @@ export function MonitoringCenterPage() {
       selectedStatus,
       apiKeyPageSize,
       realtimePageSize,
-    });
+    };
+    if (workspaceEntry === undefined) {
+      writeMonitoringCenterUiState(ui);
+    } else {
+      writeMonitoringWorkspaceMemory(workspaceEntry, connectionGeneration, {
+        ui,
+        drill: {
+          authFile: drilldownAuthFile,
+          authIndex: drilldownAuthIndex,
+          projectId: drilldownProjectId,
+          requestType: drilldownRequestType,
+          minLatencyMs: drilldownMinLatencyMs,
+          cacheStatus: drilldownCacheStatus,
+        },
+      });
+    }
   }, [
+    isCurrentLayer,
+    workspaceEntry,
+    connectionGeneration,
+    drilldownAuthFile,
+    drilldownAuthIndex,
+    drilldownProjectId,
+    drilldownRequestType,
+    drilldownMinLatencyMs,
+    drilldownCacheStatus,
+
     activeDataTab,
     apiKeyPageSize,
     autoRefreshMs,
@@ -2078,6 +2122,27 @@ export function MonitoringCenterPage() {
 
   return (
     <div className={styles.page}>
+      {workspaceEntry !== undefined ? (
+        <MonitoringWorkspaceTabs
+          activeTab={activeDataTab}
+          showData
+          search={location.search}
+          labels={Object.fromEntries(
+            dataTabs.map((tab) => [
+              tab.id,
+              <>
+                {tab.label}{' '}
+                <span
+                  className={`${styles.tabBadge} ${tab.badgeTone === 'failure' ? styles.tabBadgeFailure : ''}`}
+                  title={tab.badgeTitle}
+                >
+                  {tab.badge}
+                </span>
+              </>,
+            ])
+          )}
+        />
+      ) : null}
       <MonitoringStatusHeader
         showLoadingOverlay={
           overallLoading &&
@@ -2163,6 +2228,7 @@ export function MonitoringCenterPage() {
         tabs={dataTabs}
         activeTab={activeDataTab}
         onTabChange={handleDataTabChange}
+        workspaceId={workspaceEntry !== undefined ? monitoringTabsId : undefined}
         ariaLabel={t('monitoring.data_tabs_aria_label')}
         actions={dataPanelActions}
         renderContent={(tab) => {

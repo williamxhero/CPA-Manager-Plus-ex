@@ -1,3 +1,5 @@
+import { UsageWorkspaceTabs, usageTabsId } from '@/components/layout/UsageWorkspaceTabs';
+import { routeTabPanel } from '@/components/layout/routeTabPanel';
 import {
   useCallback,
   useEffect,
@@ -8,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Drawer } from '@/components/ui/Drawer';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import {
@@ -367,12 +369,21 @@ type DrawerConfirmation = {
   deleteRun?: UsageArchiveRunSummary;
 };
 
-export function UsageMaintenancePage() {
+export function RoutedUsageMaintenancePage() {
+  const location = useLocation();
+  return <UsageMaintenancePage routeSearch={location.search} />;
+}
+
+export function UsageMaintenancePage({ routeSearch }: { routeSearch?: string } = {}) {
   const { t, i18n } = useTranslation();
   const availability = usePanelFeatureAvailability();
   const navigate = useNavigate();
   const navigateRef = useRef(navigate);
-  const [navigation, setNavigation] = useState(readUsageMaintenanceNavigation);
+  const [navigation, setNavigation] = useState(() =>
+    readUsageMaintenanceNavigation(
+      routeSearch === undefined ? undefined : '/usage-maintenance' + routeSearch
+    )
+  );
   const [drawerConfirmation, setDrawerConfirmation] = useState<DrawerConfirmation | null>(null);
   const drawerConfirmationRef = useRef<DrawerConfirmation | null>(null);
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
@@ -436,37 +447,35 @@ export function UsageMaintenancePage() {
     if (navigation.tab === 'transfer') setTransferVisited(true);
   }, [navigation.tab]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const syncFromHash = () => {
-      const pathname = window.location.hash.split('?')[0];
-      if (
-        pathname !== '#/usage-maintenance' &&
-        !(__DEMO_SITE__ && pathname === '#/demo/usage-maintenance')
-      )
+  useLayoutEffect(() => {
+    const applyLocation = (next: UsageMaintenanceNavigation) => {
+      const current = navigationRef.current;
+      if (writeUsageMaintenanceNavigation(next) === writeUsageMaintenanceNavigation(current))
         return;
-      const next = readUsageMaintenanceNavigation();
-      if (
-        next.filter !== navigationRef.current.filter ||
-        next.source !== navigationRef.current.source
-      ) {
+      if (next.filter !== current.filter || next.source !== current.source) {
         setHistoryCursor(undefined);
         setHistoryCursorStack([]);
         setHistoryList({ runs: [] });
         setHistoryError(null);
       }
-      if (
-        writeUsageMaintenanceNavigation(next) !==
-        writeUsageMaintenanceNavigation(navigationRef.current)
-      ) {
-        setPendingConfirmation(null);
-      }
+      setPendingConfirmation(null);
       navigationRef.current = next;
       setNavigation(next);
     };
+    if (routeSearch !== undefined) {
+      applyLocation(readUsageMaintenanceNavigation('/usage-maintenance' + routeSearch));
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    const syncFromHash = () => {
+      const pathname = window.location.hash.split('?')[0];
+      if (pathname === '#/usage-maintenance' || pathname === '#/demo/usage-maintenance') {
+        applyLocation(readUsageMaintenanceNavigation());
+      }
+    };
     window.addEventListener('hashchange', syncFromHash);
     return () => window.removeEventListener('hashchange', syncFromHash);
-  }, [setPendingConfirmation]);
+  }, [routeSearch, setPendingConfirmation]);
 
   const managementKey = useAuthStore((state) => state.managementKey);
   const { showConfirmation, showNotification } = useNotificationStore();
@@ -1692,32 +1701,60 @@ export function UsageMaintenancePage() {
       </div>
     );
 
-  if (availability.checking || (loading && !maintenance)) return <LoadingSpinner />;
+  const workspaceHeader =
+    routeSearch !== undefined ? (
+      <UsageWorkspaceTabs
+        activeTab={navigation.tab}
+        showAnalysis={availability.requestMonitoringAvailable}
+        showMaintenance
+      />
+    ) : null;
+  const workspacePanel =
+    routeSearch !== undefined ? routeTabPanel(usageTabsId, navigation.tab) : null;
+
+  if (availability.checking || (loading && !maintenance)) {
+    return workspaceHeader ? (
+      <div className={styles.page}>
+        {workspaceHeader}
+        <div {...workspacePanel}>
+          <LoadingSpinner />
+        </div>
+      </div>
+    ) : (
+      <LoadingSpinner />
+    );
+  }
   if (unsupported)
     return (
       <div className={styles.page}>
-        <p>
-          {t('usage_maintenance.unsupported', {
-            defaultValue:
-              'This Manager Server is older than the usage maintenance API. Upgrade the server to manage archives here.',
-          })}
-        </p>
-        <Button variant="secondary" onClick={refreshMaintenance}>
-          {t('common.refresh')}
-        </Button>
+        {workspaceHeader}
+        <div {...workspacePanel}>
+          <p>
+            {t('usage_maintenance.unsupported', {
+              defaultValue:
+                'This Manager Server is older than the usage maintenance API. Upgrade the server to manage archives here.',
+            })}
+          </p>
+          <Button variant="secondary" onClick={refreshMaintenance}>
+            {t('common.refresh')}
+          </Button>
+        </div>
       </div>
     );
   if (!maintenance)
     return (
       <div className={styles.page}>
-        {error ? (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        ) : null}
-        <Button variant="secondary" onClick={refreshMaintenance}>
-          {t('common.retry')}
-        </Button>
+        {workspaceHeader}
+        <div {...workspacePanel}>
+          {error ? (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          ) : null}
+          <Button variant="secondary" onClick={refreshMaintenance}>
+            {t('common.retry')}
+          </Button>
+        </div>
       </div>
     );
 
@@ -1869,28 +1906,33 @@ export function UsageMaintenancePage() {
 
   return (
     <div className={styles.page} ref={pageRef}>
+      {workspaceHeader}
       <div className={styles.controlsPanel}>
-        <SegmentedTabs
-          idBase="usage-maintenance"
-          className={styles.workspaceTabs}
-          equalWidth
-          activeTab={navigation.tab}
-          ariaLabel={t('usage_maintenance.title', { defaultValue: 'Usage maintenance' })}
-          items={[
-            {
-              id: 'organize',
-              label: t('usage_maintenance.archive_management'),
-            },
-            {
-              id: 'transfer',
-              label: t('usage_maintenance.workspace_transfer', { defaultValue: 'Import / export' }),
-            },
-          ]}
-          onChange={(tab) => {
-            setPendingConfirmation(null);
-            updateNavigation({ tab, panel: null, runId: null, sessionId: null });
-          }}
-        />
+        {routeSearch === undefined ? (
+          <SegmentedTabs
+            idBase="usage-maintenance"
+            className={styles.workspaceTabs}
+            equalWidth
+            activeTab={navigation.tab}
+            ariaLabel={t('usage_maintenance.title', { defaultValue: 'Usage maintenance' })}
+            items={[
+              {
+                id: 'organize',
+                label: t('usage_maintenance.archive_management'),
+              },
+              {
+                id: 'transfer',
+                label: t('usage_maintenance.workspace_transfer', {
+                  defaultValue: 'Import / export',
+                }),
+              },
+            ]}
+            onChange={(tab) => {
+              setPendingConfirmation(null);
+              updateNavigation({ tab, panel: null, runId: null, sessionId: null });
+            }}
+          />
+        ) : null}
         <div className={styles.actions}>
           <Button
             size="sm"
@@ -2004,6 +2046,7 @@ export function UsageMaintenancePage() {
         aria-labelledby={`usage-maintenance-${navigation.tab}`}
         ref={panelRef}
         tabIndex={-1}
+        {...workspacePanel}
         className={styles.workspace}
       >
         {navigation.tab === 'organize' ? (
@@ -2044,12 +2087,13 @@ export function UsageMaintenancePage() {
             />
           </>
         ) : null}
-        {transferVisited ? (
+        {transferVisited || view === 'transfer' ? (
           <div hidden={view !== 'transfer'} className={styles.transferPanel}>
             <UsageMaintenanceTransferView
               key={`${serviceBase}\u0000${managementKey}`}
               serviceBase={serviceBase}
               managementKey={managementKey}
+              visible={view === 'transfer'}
               panel={
                 navigation.tab === 'transfer' &&
                 (navigation.panel === 'import' ||

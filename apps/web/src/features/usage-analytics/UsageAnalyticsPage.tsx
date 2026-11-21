@@ -1,5 +1,9 @@
+import { UsageWorkspaceTabs, usageTabsId } from '@/components/layout/UsageWorkspaceTabs';
+import { canAccessUsageMaintenance } from '@/components/layout/usageMonitoringNavigation';
+import { routeTabPanel } from '@/components/layout/routeTabPanel';
+import { usePanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability';
 import { useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type {
@@ -2341,10 +2345,13 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
-function UsageAnalyticsPageInner() {
+function UsageAnalyticsPageInner({
+  workspace = false,
+  workspaceLocation,
+}: { workspace?: boolean; workspaceLocation?: { search: string; showMaintenance: boolean } } = {}) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const usage = useUsageAnalytics();
+  const usage = useUsageAnalytics(workspace);
   const showNotification = useNotificationStore((state) => state.showNotification);
   const chartTheme = useUsageChartTheme();
   const themedUsageMetrics = useMemo(() => getThemedUsageMetrics(chartTheme), [chartTheme]);
@@ -2733,19 +2740,24 @@ function UsageAnalyticsPageInner() {
     );
   };
 
-  return (
-    <div className={styles.page}>
+  const page = (
+    <div
+      className={styles.page}
+      {...(workspace ? routeTabPanel(usageTabsId, usage.activeTab) : {})}
+    >
       <section className={styles.controlsPanel}>
-        <div className={styles.controlsTabsRow}>
-          <SegmentedTabs
-            items={usageTabItems}
-            activeTab={usage.activeTab}
-            onChange={usage.setActiveTab}
-            ariaLabel={t('usage_analytics.tabs_label')}
-            idBase="usage-analytics-tab"
-            className={styles.tabs}
-          />
-        </div>
+        {!workspace ? (
+          <div className={styles.controlsTabsRow}>
+            <SegmentedTabs
+              items={usageTabItems}
+              activeTab={usage.activeTab}
+              onChange={usage.setActiveTab}
+              ariaLabel={t('usage_analytics.tabs_label')}
+              idBase="usage-analytics-tab"
+              className={styles.tabs}
+            />
+          </div>
+        ) : null}
 
         <div className={styles.controlsFilterSection}>
           <div className={styles.controlBar}>
@@ -3554,6 +3566,19 @@ function UsageAnalyticsPageInner() {
       ) : null}
     </div>
   );
+
+  if (!workspaceLocation) return page;
+  return (
+    <div className={styles.page}>
+      <UsageWorkspaceTabs
+        activeTab={usage.activeTab}
+        showAnalysis
+        showMaintenance={workspaceLocation.showMaintenance}
+        search={workspaceLocation.search}
+      />
+      {page}
+    </div>
+  );
 }
 
 function OverviewCard({
@@ -3960,6 +3985,17 @@ function DetailPanel({
         </div>
       ) : null}
     </div>
+  );
+}
+
+export function RoutedUsageAnalyticsPage() {
+  const { search } = useLocation();
+  const availability = usePanelFeatureAvailability();
+  return (
+    <UsageAnalyticsPageInner
+      workspace
+      workspaceLocation={{ search, showMaintenance: canAccessUsageMaintenance(availability) }}
+    />
   );
 }
 

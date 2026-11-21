@@ -1,1 +1,1 @@
-export { UsageAnalyticsPage } from '@/features/usage-analytics/UsageAnalyticsPage';
+export { RoutedUsageAnalyticsPage as UsageAnalyticsPage } from '@/features/usage-analytics/UsageAnalyticsPage';

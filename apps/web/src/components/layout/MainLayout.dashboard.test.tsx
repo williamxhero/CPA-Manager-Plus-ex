@@ -5,6 +5,10 @@ import i18n from '@/i18n';
 import { useAuthStore } from '@/stores';
 import { setDemoMode } from '@/features/demo/demoMode';
 import { DemoRouteAdapter } from '@/features/demo/DemoRouteAdapter';
+import { configApi } from '@/services/api/config';
+import { logsApi } from '@/services/api/logs';
+import { usageServiceApi } from '@/services/api/usageService';
+import { useConfigStore } from '@/stores';
 import { MainLayout } from './MainLayout';
 
 let renderer: ReactTestRenderer | undefined;
@@ -50,8 +54,14 @@ afterEach(async () => {
   renderer = undefined;
   focusedId = undefined;
   setDemoMode(false);
-  useAuthStore.setState({ apiBase: '', connectionStatus: 'disconnected', supportsPlugin: false });
+  useAuthStore.setState({
+    apiBase: '',
+    managementKey: '',
+    connectionStatus: 'disconnected',
+    supportsPlugin: false,
+  });
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const renderNavigation = async (entry: string, base = '') => {
@@ -198,7 +208,7 @@ describe('Access navigation', () => {
           const path = link.props.href;
           return (
             typeof path === 'string' &&
-            /^\/(?:accounts|auth-files|quota|codex-inspection|plan-credentials|oauth)(?:[\/?#]|$)/.test(
+            /^\/(?:accounts|auth-files|quota|codex-inspection|plan-credentials|oauth)(?:[/?#]|$)/.test(
               path
             )
           );
@@ -258,5 +268,141 @@ describe('Plugin navigation', () => {
     );
     await act(async () => router.navigate(-1));
     expect(tabs()[0].props['aria-selected']).toBe(true);
+  });
+});
+
+describe('Usage and monitoring navigation', () => {
+  it('keeps error logs available independently when the Manager collector is disabled', async () => {
+    setDemoMode(false);
+    useAuthStore.setState({ managementKey: 'navigation-collector-disabled' });
+    useConfigStore.setState({ config: null, cache: new Map(), error: null });
+    vi.spyOn(usageServiceApi, 'getInfo').mockResolvedValue({ service: 'cpa-manager-plus' });
+    vi.spyOn(usageServiceApi, 'getManagerConfig').mockResolvedValue({
+      config: {
+        cpaConnection: { cpaBaseUrl: 'http://fixture.local', managementKeyConfigured: true },
+        collector: {
+          enabled: false,
+          collectorMode: 'queue',
+          queue: 'fixture',
+          popSide: 'left',
+          batchSize: 10,
+          pollIntervalMs: 5000,
+          queryLimit: 100,
+        },
+        externalUsageService: { enabled: false, serviceBase: '' },
+      },
+    });
+    let rejectConfig!: (cause: Error) => void;
+    vi.spyOn(configApi, 'getConfig').mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectConfig = reject;
+        })
+    );
+    const errorReads = vi.spyOn(logsApi, 'fetchErrorLogs').mockResolvedValue({ files: [] });
+    const fileReads = vi.spyOn(logsApi, 'fetchLogs');
+    await renderNavigation('/logs?tab=errors');
+    const links = () => renderer!.root.findByType('aside').findAllByType('a');
+    const tabs = () =>
+      renderer!.root
+        .findByProps({ role: 'tablist', 'aria-label': '请求监控' })
+        .findAll((node) => typeof node.type === 'string' && node.props.role === 'tab');
+    expect(links().find((link) => nodeText(link) === '用量分析')?.props.href).toBe(
+      '/usage-maintenance'
+    );
+    expect(links().find((link) => nodeText(link) === '请求监控')?.props.href).toBe('/logs');
+    expect(tabs().map((tab) => tab.props.href)).toEqual(['/logs', '/logs?tab=errors']);
+    expect(errorReads).not.toHaveBeenCalled();
+    await act(async () => rejectConfig(new Error('fixture config failure')));
+    expect(errorReads).toHaveBeenCalled();
+    expect(fileReads).not.toHaveBeenCalled();
+  });
+
+  it('keeps archive and transfer deep links alongside the six usage analysis tabs', async () => {
+    const router = await renderNavigation('/demo/usage-maintenance?tab=transfer', '/demo');
+    const tabs = () =>
+      renderer!.root
+        .findByProps({ role: 'tablist', 'aria-label': '用量分析' })
+        .findAll((node) => typeof node.type === 'string' && node.props.role === 'tab');
+    expect(tabs()).toHaveLength(8);
+    expect(tabs()[7].props['aria-selected']).toBe(true);
+    expect(tabs()[6].props.href).toBe('/demo/usage-maintenance');
+    await click(tabs()[1]);
+    expect(router.state.location.pathname).toBe('/demo/usage-analytics');
+    expect(tabs()[1].props['aria-selected']).toBe(true);
+    await click(tabs()[2]);
+    expect(tabs()[2].props['aria-selected']).toBe(true);
+    await act(async () => router.navigate(-1));
+    expect(tabs()[1].props['aria-selected']).toBe(true);
+    await act(async () => router.navigate(-1));
+    expect(tabs()[7].props['aria-selected']).toBe(true);
+  });
+
+  it('restores a live monitor search across logs, and a new drill replaces it', async () => {
+    const router = await renderNavigation('/demo/monitoring?search=first-drill', '/demo');
+    const tabs = () =>
+      renderer!.root
+        .findByProps({ role: 'tablist', 'aria-label': '请求监控' })
+        .findAll((node) => typeof node.type === 'string' && node.props.role === 'tab');
+    const search = () =>
+      renderer!.root
+        .findByType('main')
+        .findAllByType('input')
+        .find((node) => typeof node.props.value === 'string' && node.props.value.includes('drill'));
+    expect(tabs()[2].props['aria-selected']).toBe(true);
+    expect(search()?.props.value).toBe('first-drill');
+    await act(async () => search()?.props.onChange({ target: { value: 'edited-drill' } }));
+    await click(tabs()[4]);
+    await click(tabs()[2]);
+    expect(search()?.props.value).toBe('edited-drill');
+    await act(async () => router.navigate('/demo/monitoring?search=new-drill'));
+    expect(search()?.props.value).toBe('new-drill');
+    await act(async () => router.navigate(-1));
+    expect(search()?.props.value).toBe('edited-drill');
+    await click(tabs()[4]);
+    await act(async () => {
+      useAuthStore.setState({ apiBase: 'http://other.demo.local', managementKey: 'other-fixture' });
+      useAuthStore.setState({ apiBase: 'http://demo.local', managementKey: '' });
+    });
+    await click(tabs()[2]);
+    expect(search()).toBeUndefined();
+  });
+
+  it('keeps log tabs in the monitoring workspace and restores the selected log from history', async () => {
+    const router = await renderNavigation('/demo/logs?tab=errors', '/demo');
+    const tabs = () =>
+      renderer!.root
+        .findByProps({ role: 'tablist', 'aria-label': '请求监控' })
+        .findAll((node) => typeof node.type === 'string' && node.props.role === 'tab');
+    expect(tabs().map((tab) => tab.props.href)).toEqual([
+      '/demo/monitoring?tab=accounts',
+      '/demo/monitoring?tab=apiKeys',
+      '/demo/monitoring?tab=realtime',
+      '/demo/logs',
+      '/demo/logs?tab=errors',
+    ]);
+    expect(tabs()[4].props['aria-selected']).toBe(true);
+    await click(tabs()[3]);
+    expect(router.state.location.search).toBe('');
+    expect(tabs()[3].props['aria-selected']).toBe(true);
+    await act(async () => router.navigate(-1));
+    expect(tabs()[4].props['aria-selected']).toBe(true);
+  });
+
+  it('exposes seven fixed destinations and highlights monitoring on an error-log bookmark', async () => {
+    await renderNavigation('/demo/logs?tab=errors', '/demo');
+    const links = renderer!.root.findByType('aside').findAllByType('a');
+    expect(links.map(nodeText)).toEqual([
+      '仪表盘',
+      '付费接入',
+      '额度接入',
+      '用量分析',
+      '请求监控',
+      '插件管理',
+      '系统信息',
+    ]);
+    expect(links.filter((link) => link.props['aria-current'] === 'page').map(nodeText)).toEqual([
+      '请求监控',
+    ]);
   });
 });
