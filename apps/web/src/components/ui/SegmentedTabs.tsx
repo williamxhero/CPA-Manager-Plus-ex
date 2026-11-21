@@ -36,7 +36,7 @@ export type SegmentedTabsLinkProps = {
 
 type SegmentedTabsProps<Id extends string> = {
   items: ReadonlyArray<SegmentedTabItem<Id>>;
-  activeTab: Id;
+  activeTab: Id | undefined;
   ariaLabel: string;
   onChange?: (tab: Id) => void;
   idBase?: string;
@@ -86,7 +86,7 @@ export function SegmentedTabs<Id extends string>({
     const activeChanged = previousActiveTab.current !== activeTab;
     previousActiveTab.current = activeTab;
     const rail = railRef.current;
-    const item = itemRefs.current.get(activeTab);
+    const item = activeTab === undefined ? undefined : itemRefs.current.get(activeTab);
     if (!keepActiveVisible || !rail || !item) return;
     if (activeChanged && rail.contains(rail.ownerDocument.activeElement)) {
       item.focus({ preventScroll: true });
@@ -192,7 +192,10 @@ export function SegmentedTabs<Id extends string>({
           id: itemId,
           'aria-selected': isActive,
           'aria-controls': panelId,
-          tabIndex: isActive && !isDisabled ? 0 : -1,
+          tabIndex:
+            !isDisabled && (isActive || (activeTab === undefined && enabledItems[0]?.id === item.id))
+              ? 0
+              : -1,
           title: item.title,
           onClick: handleClick,
           onKeyDown: (event: KeyboardEvent<HTMLElement>) => handleKeyDown(event, item.id),

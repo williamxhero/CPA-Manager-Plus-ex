@@ -2,6 +2,7 @@ import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'rea
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
+import { useAuthStore } from '@/stores';
 import { setDemoMode } from '@/features/demo/demoMode';
 import { DemoRouteAdapter } from '@/features/demo/DemoRouteAdapter';
 import { MainLayout } from './MainLayout';
@@ -36,6 +37,11 @@ beforeEach(async () => {
     removeEventListener: () => {},
   });
   setDemoMode(true);
+  useAuthStore.setState({
+    apiBase: 'http://demo.local',
+    connectionStatus: 'connected',
+    supportsPlugin: true,
+  });
   await i18n.changeLanguage('zh-CN');
 });
 
@@ -44,6 +50,7 @@ afterEach(async () => {
   renderer = undefined;
   focusedId = undefined;
   setDemoMode(false);
+  useAuthStore.setState({ apiBase: '', connectionStatus: 'disconnected', supportsPlugin: false });
   vi.unstubAllGlobals();
 });
 
@@ -171,5 +178,66 @@ describe('Dashboard navigation', () => {
     await click(shortcut);
     expect(router.state.location.pathname).toBe(system);
     expect(nodeText(selectedTab()!)).toBe('系统信息');
+  });
+});
+
+describe('Access navigation', () => {
+  it('opens the legacy credential and OAuth routes in one workspace and remembers the list search', async () => {
+    const router = await renderNavigation('/accounts?search=account-probe');
+    const tabs = () =>
+      renderer!.root
+        .findByProps({ role: 'tablist', 'aria-label': '额度接入管理视图' })
+        .findAll((node) => typeof node.type === 'string' && node.props.role === 'tab');
+    const selected = () => tabs().find((tab) => tab.props['aria-selected'] === true)!;
+
+    expect(tabs().map(nodeText)).toEqual([
+      '凭证列表',
+      '健康巡检',
+      'OAuth 配置',
+      '添加凭证',
+      'OAuth 登录',
+    ]);
+    await click(tabs()[3]);
+    expect(router.state.location.pathname).toBe('/plan-credentials');
+    expect(nodeText(selected())).toBe('添加凭证');
+    await click(tabs()[4]);
+    expect(router.state.location.pathname).toBe('/oauth');
+    expect(nodeText(selected())).toBe('OAuth 登录');
+    await click(tabs()[0]);
+    expect(router.state.location.pathname).toBe('/accounts');
+    expect(router.state.location.search).toContain('search=account-probe');
+    await act(async () => router.navigate(-1));
+    expect(nodeText(selected())).toBe('OAuth 登录');
+  });
+});
+
+describe('Plugin navigation', () => {
+  it('opens a plugin resource under the same workspace and restores the installed tab from history', async () => {
+    const router = await renderNavigation('/demo/plugins', '/demo');
+    const sidebar = () => renderer!.root.findByType('aside').findAllByType('a');
+    const tabs = () =>
+      renderer!.root
+        .findByProps({ role: 'tablist', 'aria-label': '插件管理' })
+        .findAll((node) => typeof node.type === 'string' && node.props.role === 'tab');
+    expect(tabs().slice(0, 2).map(nodeText)).toEqual(['已安装', '插件商店']);
+    await vi.waitFor(() =>
+      expect(tabs().some((tab) => tab.props.href?.includes('/plugin-pages/'))).toBe(true)
+    );
+    const resource = tabs().find((tab) => tab.props.href?.includes('/plugin-pages/'))!;
+    expect(resource).toBeDefined();
+    expect(sidebar().some((link) => link.props.href?.includes('/plugin-pages/'))).toBe(false);
+
+    await click(resource);
+    expect(router.state.location.pathname).toContain('/demo/plugin-pages/');
+    expect(
+      sidebar()
+        .filter((link) => link.props['aria-current'] === 'page')
+        .map(nodeText)
+    ).toEqual(['插件管理']);
+    expect(tabs().find((tab) => tab.props['aria-selected'] === true)?.props.href).toBe(
+      resource.props.href
+    );
+    await act(async () => router.navigate(-1));
+    expect(tabs()[0].props['aria-selected']).toBe(true);
   });
 });

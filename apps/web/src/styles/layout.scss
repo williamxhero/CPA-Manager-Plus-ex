@@ -620,9 +620,18 @@
   &.main-content-plugin-resource {
     height: 100vh;
     min-height: 0;
-    padding: var(--header-height) 0 0;
-    gap: 0;
+    padding: calc(var(--header-height) + var(--app-gap)) 0 0;
+    gap: var(--app-gap);
     overflow: hidden;
+
+    > header {
+      padding-inline: var(--app-gap);
+    }
+
+    > .page-transition {
+      flex: 1;
+      min-height: 0;
+    }
   }
 }
 
@@ -756,7 +765,7 @@
     &.main-content-plugin-resource {
       height: 100%;
       min-height: 0;
-      padding: var(--header-height) 0 0;
+      padding: calc(var(--header-height) + var(--app-gap)) 0 0;
       overflow: hidden;
     }
   }

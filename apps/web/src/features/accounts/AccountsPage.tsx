@@ -1307,7 +1307,7 @@ const resolveAccountQuotaSnapshotLabel = (
   return snapshot.provider_window_id;
 };
 
-export function AccountsPage() {
+export function AccountsPage({ workspaceNavigation = false }: { workspaceNavigation?: boolean } = {}) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -11113,7 +11113,7 @@ export function AccountsPage() {
     <div className={styles.container} lang={i18n.language}>
       <section className={styles.controlsPanel}>
         <div className={styles.controlsTabsRow}>
-          {renderViewTabs()}
+          {workspaceNavigation ? null : renderViewTabs()}
           {renderPageActions()}
         </div>
       </section>

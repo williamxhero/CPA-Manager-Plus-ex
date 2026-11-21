@@ -6,17 +6,16 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { SegmentedTabs, type SegmentedTabItem } from '@/components/ui/SegmentedTabs';
+import { getPluginManagementTab, pluginManagementTarget } from './pluginNavigation';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import {
   IconGithub,
@@ -33,11 +32,7 @@ import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { pluginsApi, pluginStoreApi } from '@/services/api';
 import { useAuthStore, useConfigStore, useNotificationStore } from '@/stores';
 import { getErrorMessage, isRecord } from '@/utils/helpers';
-import type {
-  PluginConfigField,
-  PluginListEntry,
-  PluginListResponse,
-} from '@/types';
+import type { PluginConfigField, PluginListEntry, PluginListResponse } from '@/types';
 import {
   buildRepositoryURL,
   getPluginTitle,
@@ -54,13 +49,9 @@ import {
 } from './pluginConfigDraft';
 import styles from './PluginsPage.module.scss';
 
-type PluginPageTab = 'installed' | 'store';
 type PluginConfigDraft = PluginConfigDraftState;
 
 const PLUGIN_ENABLE_REFRESH_DELAY_MS = 1600;
-
-const resolvePluginPageTab = (value: string | null): PluginPageTab =>
-  value === 'store' ? 'store' : 'installed';
 
 const wait = (ms: number) =>
   new Promise<void>((resolve) => {
@@ -110,77 +101,23 @@ export function PluginsPage() {
 }
 
 function PluginsPageContent() {
-  const { t } = useTranslation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<PluginPageTab>(() =>
-    resolvePluginPageTab(searchParams.get('tab'))
-  );
-  const [storeMounted, setStoreMounted] = useState(activeTab === 'store');
-
-  const tabs = useMemo<ReadonlyArray<SegmentedTabItem<PluginPageTab>>>(
-    () => [
-      { id: 'installed', label: t('plugin_management.tab_installed') },
-      { id: 'store', label: t('plugin_management.tab_store') },
-    ],
-    [t]
-  );
-
-  const handleTabChange = useCallback(
-    (tab: PluginPageTab) => {
-      setActiveTab(tab);
-      if (tab === 'store') {
-        setStoreMounted(true);
-      }
-      const next = new URLSearchParams(
-        typeof window === 'undefined' ? searchParams.toString() : window.location.search
-      );
-      if (tab === 'store') {
-        next.set('tab', 'store');
-      } else {
-        next.delete('tab');
-      }
-      setSearchParams(next, { replace: true });
-    },
-    [searchParams, setSearchParams]
-  );
-
-  const tabsControl = (
-    <SegmentedTabs
-      items={tabs}
-      activeTab={activeTab}
-      onChange={handleTabChange}
-      ariaLabel={t('plugin_management.tabs_aria_label')}
-    />
-  );
-
+  const { search, hash } = useLocation();
+  const navigate = useNavigate();
+  if (getPluginManagementTab(search) === 'store') {
+    return (
+      <PluginStorePage
+        onManageInstalled={() => navigate(pluginManagementTarget('installed', search, hash))}
+      />
+    );
+  }
   return (
-    <>
-      {activeTab === 'installed' ? (
-        <InstalledPluginsView
-          tabsControl={tabsControl}
-          onOpenStore={() => handleTabChange('store')}
-        />
-      ) : null}
-      {storeMounted ? (
-        <div hidden={activeTab !== 'store'}>
-          <PluginStorePage
-            active={activeTab === 'store'}
-            tabsControl={tabsControl}
-            onManageInstalled={() => handleTabChange('installed')}
-          />
-        </div>
-      ) : null}
-    </>
+    <InstalledPluginsView
+      onOpenStore={() => navigate(pluginManagementTarget('store', search, hash))}
+    />
   );
 }
 
-function InstalledPluginsView({
-  tabsControl,
-  onOpenStore,
-}: {
-  tabsControl: ReactNode;
-  onOpenStore: () => void;
-}) {
+function InstalledPluginsView({ onOpenStore }: { onOpenStore: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
@@ -716,7 +653,6 @@ function InstalledPluginsView({
       <section className={styles.tabSurface}>
         <div className={styles.controlPanel}>
           <div className={styles.controlHeader}>
-            <div className={styles.summaryTabs}>{tabsControl}</div>
             {data ? (
               <div className={styles.summaryMetrics}>
                 <span

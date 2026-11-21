@@ -21,14 +21,16 @@ function RouteTabLink(props: SegmentedTabsLinkProps) {
 
 export function RouteTabs<Id extends string>({
   title,
+  ariaLabel = title,
   items,
   activeTab,
   idBase,
   routeBase,
 }: {
   title: string;
+  ariaLabel?: string;
   items: ReadonlyArray<RouteTab<Id>>;
-  activeTab: Id;
+  activeTab: Id | undefined;
   idBase: string;
   routeBase: string;
 }) {
@@ -38,9 +40,9 @@ export function RouteTabs<Id extends string>({
       <SegmentedTabs
         items={items.map((item) => ({ ...item, to: routeTabTarget(item.to, routeBase) }))}
         activeTab={activeTab}
-        ariaLabel={title}
+        ariaLabel={ariaLabel}
         idBase={idBase}
-        panelId={routeTabPanel(idBase, activeTab).id}
+        panelId={activeTab && routeTabPanel(idBase, activeTab).id}
         linkComponent={RouteTabLink}
         keepActiveVisible
       />

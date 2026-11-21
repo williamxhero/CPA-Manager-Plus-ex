@@ -297,6 +297,8 @@
     "ai_providers": "Paid Access Management",
     "ai_providers_short": "Paid Access",
     "accounts": "Quota Access Management",
+    "ai_providers_nav": "Paid Access",
+    "accounts_nav": "Quota Access",
     "plan_credentials": "Add credentials",
     "plan_credentials_short": "Credentials",
     "oauth": "OAuth Login",

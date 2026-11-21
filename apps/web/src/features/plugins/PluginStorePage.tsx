@@ -7,7 +7,6 @@ import {
   useMemo,
   useState,
   type KeyboardEvent,
-  type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -71,7 +70,6 @@ interface StoreLoadError {
 
 type PluginStorePageProps = {
   active?: boolean;
-  tabsControl?: ReactNode;
   onManageInstalled?: () => void;
 };
 
@@ -483,7 +481,6 @@ function PluginInstallOptionsModal({
 
 export function PluginStorePage({
   active = true,
-  tabsControl,
   onManageInstalled,
 }: PluginStorePageProps = {}) {
   const { t } = useTranslation();
@@ -1240,7 +1237,6 @@ export function PluginStorePage({
       <section className={styles.tabSurface}>
         <div className={styles.controlPanel}>
           <div className={styles.controlHeader}>
-            {tabsControl ? <div className={styles.summaryTabs}>{tabsControl}</div> : null}
             {data ? (
               <div className={styles.summaryMetrics}>
                 <span

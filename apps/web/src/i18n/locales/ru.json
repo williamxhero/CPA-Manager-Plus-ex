@@ -301,6 +301,8 @@
     "ai_providers": "Управление платным доступом",
     "ai_providers_short": "Платный доступ",
     "accounts": "Управление доступом по квоте",
+    "ai_providers_nav": "Платный доступ",
+    "accounts_nav": "Доступ по квоте",
     "plan_credentials": "Добавить учётные данные",
     "plan_credentials_short": "Учётные данные",
     "oauth": "OAuth вход",

@@ -18,12 +18,17 @@ import { RouteTabs } from './RouteTabs';
 import { routeTabPanel } from './routeTabPanel';
 import { dashboardNavigation, getDashboardTab } from './dashboardNavigation';
 import {
+  accessNavigation,
+  accountsTabTarget,
+  getAccessTab,
+  useAccessAccountSearch,
+} from './accessNavigation';
+import {
   IconGithub,
   IconSidebarAuthFiles,
   IconSidebarDashboard,
   IconSidebarLogs,
   IconSidebarMonitor,
-  IconSidebarOauth,
   IconSidebarPlugins,
   IconSidebarProviders,
   IconSidebarSystem,
@@ -43,13 +48,18 @@ import {
   useVisualEffectsStore,
 } from '@/stores';
 import { pluginsApi } from '@/services/api';
+import {
+  getPluginManagementTab,
+  getPluginWorkspaceRoute,
+  pluginManagementTarget,
+  pluginNavigation,
+} from '@/features/plugins/pluginNavigation';
 import { useSidebarVisibility } from '@/hooks/useSidebarVisibility';
 import {
   collectPluginResourceNavEntries,
   isPluginManagementNavVisible,
   isPluginResourceNavVisible,
   PLUGIN_RESOURCES_REFRESH_EVENT,
-  resolvePluginAssetURL,
   type PluginResourceEntry,
 } from '@/features/plugins/pluginResources';
 import { triggerHeaderRefresh } from '@/hooks/useHeaderRefresh';
@@ -66,7 +76,6 @@ const sidebarIcons: Record<string, ReactNode> = {
   dashboard: <IconSidebarDashboard size={SIDEBAR_ICON_SIZE} />,
   aiProviders: <IconSidebarProviders size={SIDEBAR_ICON_SIZE} />,
   authFiles: <IconSidebarAuthFiles size={SIDEBAR_ICON_SIZE} />,
-  oauth: <IconSidebarOauth size={SIDEBAR_ICON_SIZE} />,
   usageAnalytics: <IconSidebarUsage size={SIDEBAR_ICON_SIZE} />,
   monitoring: <IconSidebarMonitor size={SIDEBAR_ICON_SIZE} />,
   plugins: <IconSidebarPlugins size={SIDEBAR_ICON_SIZE} />,
@@ -207,17 +216,6 @@ const VISUAL_EFFECTS_OPTIONS: Array<{
   },
 ];
 
-function PluginSidebarIcon({ src }: { src: string }) {
-  const [failed, setFailed] = useState(false);
-  const showImage = Boolean(src) && !failed;
-
-  return showImage ? (
-    <img src={src} alt="" onError={() => setFailed(true)} />
-  ) : (
-    <IconSidebarPlugins size={SIDEBAR_ICON_SIZE} />
-  );
-}
-
 type NavItem = {
   path: string;
   label: string;
@@ -244,6 +242,13 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const apiBase = useAuthStore((state) => state.apiBase);
   const supportsPlugin = useAuthStore((state) => state.supportsPlugin);
+  const managementKey = useAuthStore((state) => state.managementKey);
+  const accessTab = getAccessTab(routePathname, location.search);
+  const accountsSearch = useAccessAccountSearch(
+    routePathname,
+    location.search,
+    JSON.stringify([connectionStatus === 'connected', apiBase, managementKey])
+  );
 
   const config = useConfigStore((state) => state.config);
   const fetchConfig = useConfigStore((state) => state.fetchConfig);
@@ -268,7 +273,11 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [visualEffectsMenuOpen, setVisualEffectsMenuOpen] = useState(false);
-  const [pluginResources, setPluginResources] = useState<PluginResourceEntry[]>([]);
+  const [pluginResources, setPluginResources] = useState<{
+    scope: string;
+    entries: PluginResourceEntry[];
+  }>();
+  const pluginResourcesRequest = useRef(0);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const languageMenuRef = useRef<HTMLDivElement | null>(null);
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
@@ -277,12 +286,30 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
 
   const fullBrandName = 'CPA Manager Plus';
   const isLogsPage = routePathname.startsWith('/logs');
-  const isPluginResourcePage = routePathname.startsWith('/plugin-pages');
+  const pluginWorkspaceRoute = getPluginWorkspaceRoute(routePathname);
+  const isPluginResourcePage = pluginWorkspaceRoute === 'resource';
   const configPluginsEnabled = config?.pluginsEnabled;
   const pluginControlMenuVisible = isPluginManagementNavVisible({
     supportsPlugin,
     pluginsEnabled: configPluginsEnabled,
   });
+
+  const pluginWorkspaceVisible = Boolean(pluginWorkspaceRoute) && pluginControlMenuVisible;
+  const pluginScope = JSON.stringify([apiBase, managementKey]);
+  const pluginResourceTabs =
+    pluginWorkspaceVisible &&
+    connectionStatus === 'connected' &&
+    pluginResources?.scope === pluginScope
+      ? pluginResources.entries.map(({ route, label }) => ({ id: route, label, to: route }))
+      : [];
+  const pluginSearch = pluginWorkspaceRoute === 'management' ? location.search : '';
+  const pluginHash = pluginWorkspaceRoute === 'management' ? location.hash : '';
+  const pluginTab =
+    pluginWorkspaceRoute === 'resource'
+      ? pluginResourceTabs.find(({ to }) => to === routePathname.replace(/\/+$/, ''))?.id
+      : pluginWorkspaceRoute === 'store'
+        ? 'store'
+        : getPluginManagementTab(pluginSearch);
 
   // 将顶部悬浮控制区高度写入 CSS 变量，供移动端粘性元素和浮层避让。
   useLayoutEffect(() => {
@@ -475,25 +502,42 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   }, [fetchConfig]);
 
   const loadPluginResources = useCallback(async () => {
-    if (connectionStatus !== 'connected' || !supportsPlugin) {
-      setPluginResources([]);
+    const request = ++pluginResourcesRequest.current;
+    if (connectionStatus !== 'connected' || !pluginWorkspaceVisible) {
+      setPluginResources(undefined);
       return;
     }
 
     try {
-      const plugins = await pluginsApi.list();
-      setPluginResources(
-        isPluginResourceNavVisible({
+      const plugins = await pluginsApi.list({ apiBase, managementKey });
+      const auth = useAuthStore.getState();
+      if (
+        request !== pluginResourcesRequest.current ||
+        auth.apiBase !== apiBase ||
+        auth.managementKey !== managementKey ||
+        auth.connectionStatus !== 'connected'
+      )
+        return;
+      setPluginResources({
+        scope: pluginScope,
+        entries: isPluginResourceNavVisible({
           supportsPlugin,
           pluginsEnabled: plugins.pluginsEnabled,
         })
           ? collectPluginResourceNavEntries(plugins.plugins)
-          : []
-      );
+          : [],
+      });
     } catch {
-      setPluginResources([]);
+      if (request === pluginResourcesRequest.current) setPluginResources(undefined);
     }
-  }, [connectionStatus, supportsPlugin]);
+  }, [
+    apiBase,
+    connectionStatus,
+    managementKey,
+    pluginScope,
+    pluginWorkspaceVisible,
+    supportsPlugin,
+  ]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -503,10 +547,11 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
     window.addEventListener(PLUGIN_RESOURCES_REFRESH_EVENT, loadPluginResources);
 
     return () => {
+      pluginResourcesRequest.current += 1;
       window.clearTimeout(timer);
       window.removeEventListener(PLUGIN_RESOURCES_REFRESH_EVENT, loadPluginResources);
     };
-  }, [apiBase, configPluginsEnabled, loadPluginResources]);
+  }, [configPluginsEnabled, loadPluginResources]);
 
   const navShortLabel = (key: string, fallback: string) => {
     const shortKey = `${key}_short`;
@@ -566,55 +611,27 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
         },
       ]
     : [];
-  const pluginResourceNavItems: NavItem[] = pluginControlMenuVisible
-    ? pluginResources.map((resource) => ({
-        path: resource.route,
-        label: resource.label,
-        shortLabel: resource.label,
-        icon: <PluginSidebarIcon src={resolvePluginAssetURL(resource.pluginLogo, apiBase)} />,
-      }))
-    : [];
   const navSections: NavItem[][] = [
     [
       dashboardNavItem,
-      ...(usageAnalyticsNavItem ? [usageAnalyticsNavItem] : []),
-      ...(monitoringNavItem ? [monitoringNavItem] : []),
-      ...(usageMaintenanceNavItem ? [usageMaintenanceNavItem] : []),
-    ],
-    [
       {
         path: '/ai-providers',
-        label: t('nav.ai_providers'),
-        shortLabel: navShortLabel('nav.ai_providers', t('nav.ai_providers')),
+        label: t('nav.ai_providers_nav'),
+        shortLabel: navShortLabel('nav.ai_providers', t('nav.ai_providers_nav')),
         icon: sidebarIcons.aiProviders,
       },
+      {
+        path: accessNavigation.accounts,
+        label: t('nav.accounts_nav'),
+        shortLabel: t('nav.accounts_nav'),
+        icon: sidebarIcons.authFiles,
+      },
+      ...(usageAnalyticsNavItem ? [usageAnalyticsNavItem] : []),
+      ...(usageMaintenanceNavItem ? [usageMaintenanceNavItem] : []),
+      ...(monitoringNavItem ? [monitoringNavItem] : []),
+      ...operationNavItems,
       ...pluginControlNavItems,
     ],
-    [
-      {
-        path: '/accounts',
-        label: t('nav.accounts', { defaultValue: t('accounts.title') }),
-        shortLabel: navShortLabel(
-          'nav.accounts',
-          t('nav.accounts', { defaultValue: t('accounts.title') })
-        ),
-        icon: sidebarIcons.authFiles,
-      },
-      {
-        path: '/plan-credentials',
-        label: t('nav.plan_credentials'),
-        shortLabel: navShortLabel('nav.plan_credentials', t('nav.plan_credentials')),
-        icon: sidebarIcons.authFiles,
-      },
-      {
-        path: '/oauth',
-        label: t('nav.oauth', { defaultValue: 'OAuth' }),
-        shortLabel: navShortLabel('nav.oauth', t('nav.oauth', { defaultValue: 'OAuth' })),
-        icon: sidebarIcons.oauth,
-      },
-    ],
-    operationNavItems,
-    pluginResourceNavItems,
     [
       {
         path: dashboardNavigation.system,
@@ -630,7 +647,9 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const getRouteOrder = (pathname: string) => {
     const trimmedPath =
       pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
-    const normalizedPath = getDashboardTab(trimmedPath) ? dashboardNavigation.overview : trimmedPath;
+    const normalizedPath = getDashboardTab(trimmedPath)
+      ? dashboardNavigation.overview
+      : trimmedPath;
 
     const aiProvidersIndex = navOrder.indexOf('/ai-providers');
     if (aiProvidersIndex !== -1) {
@@ -708,6 +727,8 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
   const matchesNavPath = (item: NavItem, pathname: string) => {
     if (item.shortcut) return false;
     if (item.path === dashboardNavigation.overview) return Boolean(dashboardTab);
+    if (item.path === accessNavigation.accounts) return Boolean(accessTab);
+    if (item.path === pluginNavigation.root) return Boolean(pluginWorkspaceRoute);
     return pathname === item.path || (!item.exact && pathname.startsWith(`${item.path}/`));
   };
   const activeNavItem =
@@ -982,7 +1003,11 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
                       {showSidebarLabels && <span className="nav-label">{item.label}</span>}
                     </>
                   );
-                  return item.path === dashboardNavigation.overview || item.shortcut ? (
+                  const isWorkspace =
+                    item.path === dashboardNavigation.overview ||
+                    item.path === accessNavigation.accounts ||
+                    item.path === pluginNavigation.root;
+                  return isWorkspace || item.shortcut ? (
                     <Link
                       key={item.path}
                       {...props}
@@ -996,7 +1021,9 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
                       key={item.path}
                       {...props}
                       end={item.exact}
-                      className={({ isActive }) => `nav-item ${isActive || matches ? 'active' : ''}`}
+                      className={({ isActive }) =>
+                        `nav-item ${isActive || matches ? 'active' : ''}`
+                      }
                     >
                       {label}
                     </NavLink>
@@ -1034,14 +1061,83 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
                 idBase={dashboardNavigation.id}
                 routeBase={routeBase}
                 items={[
-                  { id: 'overview', label: t('dashboard.tab_overview'), to: dashboardNavigation.overview },
-                  { id: 'config', label: t('nav.config_management'), to: dashboardNavigation.config },
+                  {
+                    id: 'overview',
+                    label: t('dashboard.tab_overview'),
+                    to: dashboardNavigation.overview,
+                  },
+                  {
+                    id: 'config',
+                    label: t('nav.config_management'),
+                    to: dashboardNavigation.config,
+                  },
                   { id: 'system', label: t('nav.system_info'), to: dashboardNavigation.system },
                 ]}
               />
             )}
+            {accessTab && (
+              <RouteTabs
+                title={t('nav.accounts')}
+                ariaLabel={t('accounts.tabs_label')}
+                activeTab={accessTab}
+                idBase={accessNavigation.id}
+                routeBase={routeBase}
+                items={[
+                  {
+                    id: 'accounts',
+                    label: t('accounts.tab_accounts'),
+                    to: accountsTabTarget('accounts', accountsSearch),
+                  },
+                  {
+                    id: 'health',
+                    label: t('accounts.tab_health'),
+                    to: accountsTabTarget('health', accountsSearch),
+                  },
+                  {
+                    id: 'oauth',
+                    label: t('accounts.tab_oauth'),
+                    to: accountsTabTarget('oauth', accountsSearch),
+                  },
+                  {
+                    id: 'credentials',
+                    label: t('nav.plan_credentials'),
+                    to: accessNavigation.credentials,
+                  },
+                  { id: 'login', label: t('nav.oauth'), to: accessNavigation.login },
+                ]}
+              />
+            )}
+            {pluginWorkspaceVisible && (
+              <RouteTabs
+                title={t('nav.plugins')}
+                activeTab={pluginTab}
+                idBase={pluginNavigation.id}
+                routeBase={routeBase}
+                items={[
+                  {
+                    id: 'installed',
+                    label: t('plugin_management.tab_installed'),
+                    to: pluginManagementTarget('installed', pluginSearch, pluginHash),
+                  },
+                  {
+                    id: 'store',
+                    label: t('plugin_management.tab_store'),
+                    to: pluginManagementTarget('store', pluginSearch, pluginHash),
+                  },
+                  ...pluginResourceTabs,
+                ]}
+              />
+            )}
             <PageTransition
-              panelProps={dashboardTab ? routeTabPanel(dashboardNavigation.id, dashboardTab) : undefined}
+              panelProps={
+                dashboardTab
+                  ? routeTabPanel(dashboardNavigation.id, dashboardTab)
+                  : accessTab
+                    ? routeTabPanel(accessNavigation.id, accessTab)
+                    : pluginWorkspaceVisible && pluginTab
+                      ? routeTabPanel(pluginNavigation.id, pluginTab)
+                      : undefined
+              }
               key={routeBase || 'main'}
               render={(location) => <MainRoutes location={location} routeBase={routeBase} />}
               getRouteOrder={(pathname) => getRouteOrder(stripRouteBase(pathname, routeBase))}

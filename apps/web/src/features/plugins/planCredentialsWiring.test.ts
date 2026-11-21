@@ -3,9 +3,7 @@ import en from '@/i18n/locales/en.json';
 import ru from '@/i18n/locales/ru.json';
 import zhCN from '@/i18n/locales/zh-CN.json';
 import zhTW from '@/i18n/locales/zh-TW.json';
-import layoutSource from '@/components/layout/MainLayout.tsx?raw';
 import routesSource from '@/router/MainRoutes.tsx?raw';
-import resourcePageSource from './PluginResourcePage.tsx?raw';
 
 const planCredentialKeys = [
   'title',
@@ -36,26 +34,6 @@ describe('plan credentials app wiring', () => {
     expect(routesSource).toContain(
       "{ path: '/plan-credentials', element: <PlanCredentialsPage /> }"
     );
-  });
-
-  it('places one unconditional nav entry directly between accounts and OAuth', () => {
-    const sectionsSource = layoutSource.slice(
-      layoutSource.indexOf('const navSections: NavItem[][] = ['),
-      layoutSource.indexOf('const navItems = navSections.flat();')
-    );
-    expect(layoutSource.match(/path: '\/plan-credentials'/g)).toHaveLength(1);
-    expect(sectionsSource).toMatch(
-      /path: '\/accounts',[\s\S]*?icon: sidebarIcons\.authFiles,\s*\},\s*\{\s*path: '\/plan-credentials',\s*label: t\('nav\.plan_credentials'\),\s*shortLabel: navShortLabel\('nav\.plan_credentials', t\('nav\.plan_credentials'\)\),\s*icon: sidebarIcons\.\w+,\s*\},\s*\{\s*path: '\/oauth',/
-    );
-  });
-
-  it('uses the nav-only collector in the sidebar but retains direct plugin resources', () => {
-    expect(layoutSource).toContain('collectPluginResourceNavEntries(plugins.plugins)');
-    expect(layoutSource).not.toContain('collectPluginResourceEntries(plugins.plugins)');
-    expect(resourcePageSource).toContain('collectPluginResourceEntries(data?.plugins ?? [])');
-    expect(resourcePageSource).not.toContain('collectPluginResourceNavEntries');
-    expect(routesSource).toContain("path: '/plugin-pages/:pluginId/:menuIndex'");
-    expect(routesSource).toContain('<PluginResourcePage />');
   });
 
   it('snapshots the Simplified Chinese title and navigation labels', () => {

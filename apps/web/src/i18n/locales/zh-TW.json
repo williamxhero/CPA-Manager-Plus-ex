@@ -295,6 +295,8 @@
     "ai_providers": "付費接入管理",
     "accounts": "額度接入管理",
     "ai_providers_short": "付費接入",
+    "ai_providers_nav": "付費接入",
+    "accounts_nav": "額度接入",
     "plan_credentials": "新增憑證",
     "plan_credentials_short": "憑證",
     "oauth": "OAuth 登入",

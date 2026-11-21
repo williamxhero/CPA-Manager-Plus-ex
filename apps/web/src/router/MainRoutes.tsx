@@ -29,6 +29,7 @@ import { ConfigPage } from '@/pages/ConfigPage';
 import { LogsPage } from '@/pages/LogsPage';
 import { PluginResourcePage } from '@/pages/PluginResourcePage';
 import { PluginsPage } from '@/pages/PluginsPage';
+import { pluginManagementTarget, pluginNavigation } from '@/features/plugins/pluginNavigation';
 import { SystemPage } from '@/pages/SystemPage';
 import { ManagerUpdatePage } from '@/pages/ManagerUpdatePage';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -50,6 +51,11 @@ function LegacyAccountsRedirect({ healthMode }: { healthMode: 'local' | 'server'
   params.set('healthMode', healthMode);
   const search = params.toString();
   return <Navigate to={{ pathname: '/accounts', search: search ? `?${search}` : '' }} replace />;
+}
+
+function LegacyPluginStoreRedirect() {
+  const { search, hash } = useLocation();
+  return <Navigate to={pluginManagementTarget('store', search, hash)} replace />;
 }
 
 function PluginGate({ children }: { children: ReactElement }) {
@@ -171,7 +177,7 @@ const mainRoutes: RouteObject[] = [
   },
   { path: '/ai-providers', element: <AiProvidersPage /> },
   { path: '/ai-providers/*', element: <AiProvidersPage /> },
-  { path: '/accounts', element: <AccountsPage /> },
+  { path: '/accounts', element: <AccountsPage workspaceNavigation /> },
   { path: '/plan-credentials', element: <PlanCredentialsPage /> },
   { path: '/oauth', element: <OAuthPage /> },
   {
@@ -239,7 +245,7 @@ const mainRoutes: RouteObject[] = [
     element: <LegacyAccountsRedirect healthMode="server" />,
   },
   {
-    path: '/plugins',
+    path: pluginNavigation.root,
     element: (
       <PluginGate>
         <PluginsPage />
@@ -247,15 +253,15 @@ const mainRoutes: RouteObject[] = [
     ),
   },
   {
-    path: '/plugin-store',
+    path: pluginNavigation.store,
     element: (
       <PluginGate>
-        <Navigate to="/plugins?tab=store" replace />
+        <LegacyPluginStoreRedirect />
       </PluginGate>
     ),
   },
   {
-    path: '/plugin-pages/:pluginId/:menuIndex',
+    path: pluginNavigation.resource,
     element: (
       <PluginGate>
         <PluginResourcePage />
@@ -263,7 +269,7 @@ const mainRoutes: RouteObject[] = [
     ),
   },
   { path: '/plugins/*', element: <Navigate to="/plugins" replace /> },
-  { path: '/plugin-store/*', element: <Navigate to="/plugins?tab=store" replace /> },
+  { path: '/plugin-store/*', element: <LegacyPluginStoreRedirect /> },
   { path: '/plugin-pages/*', element: <Navigate to="/" replace /> },
   { path: '/config', element: <ConfigPage /> },
   {
