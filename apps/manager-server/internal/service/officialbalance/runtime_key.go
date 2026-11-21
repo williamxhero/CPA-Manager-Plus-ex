@@ -79,8 +79,9 @@ func (s *Service) WithFundingReading(ctx context.Context, q Query, n *rc.Negotia
 	if err != nil {
 		return err
 	}
-	if !current.Configured || current.Version != q.Version || current.Adapter != "deepseek" || current.Endpoint != "https://api.deepseek.com/user/balance" || current.Stale || current.LastSuccess == nil || current.Attempt == nil ||
-		current.Attempt.QueryID != attemptID || current.LastSuccess.QueryID != attemptID || current.Attempt.QueryStatus != "success" || current.LastSuccess.QueryStatus != "success" || current.LastSuccess.CapabilityStatus != "supported" || current.LastSuccess.Semantic != "account_wallet" {
+	adapter := FundingAdapter(current)
+	if !current.Configured || current.Version != q.Version || adapter == "" || current.Stale || current.LastSuccess == nil || current.Attempt == nil ||
+		current.Attempt.QueryID != attemptID || current.LastSuccess.QueryID != attemptID || current.Attempt.QueryStatus != "success" || current.LastSuccess.QueryStatus != "success" || current.LastSuccess.CapabilityStatus != "supported" || (adapter == "deepseek" && current.LastSuccess.Semantic != "account_wallet") || (adapter == "deepinfra" && current.LastSuccess.DeepInfraFunding == nil) {
 		return nil
 	}
 	id := key(q.Binding)
@@ -93,12 +94,7 @@ func (s *Service) WithFundingReading(ctx context.Context, q Query, n *rc.Negotia
 		return ErrIdentity
 	}
 	reading := *current.LastSuccess
-	raw, err := json.Marshal(struct {
-		QueryID      string                    `json:"queryId"`
-		ObservedAtMS int64                     `json:"observedAtMs"`
-		Available    *bool                     `json:"available"`
-		Balances     []balance.CurrencyBalance `json:"balances"`
-	}{reading.QueryID, reading.ObservedAtMS, reading.Available, reading.Balances})
+	raw, err := json.Marshal(balance.FundingWire(reading))
 	if err != nil {
 		return err
 	}
@@ -108,7 +104,11 @@ func (s *Service) WithFundingReading(ctx context.Context, q Query, n *rc.Negotia
 			return "", ErrInput
 		}
 		mac := hmac.New(sha256.New, []byte(secret))
-		_, _ = mac.Write([]byte("cpa-provider-funding-v1\n" + nonce + "\n" + sourceVersion + "\n" + index + "\n" + hex.EncodeToString(stamp[:])))
+		domain := "cpa-provider-funding-v1\n"
+		if adapter == "deepinfra" {
+			domain = "cpa-provider-funding/deepinfra-v1\n"
+		}
+		_, _ = mac.Write([]byte(domain + nonce + "\n" + sourceVersion + "\n" + index + "\n" + hex.EncodeToString(stamp[:])))
 		return hex.EncodeToString(mac.Sum(nil)), nil
 	})
 }

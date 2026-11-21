@@ -21,6 +21,8 @@ import (
 // QueryTarget identifies what to query
 type QueryTarget struct {
 	// Opaque resource ID (never raw API key)
+	// DeepInfraPayer is supplied only by the trusted official source service.
+	DeepInfraPayer func(string) string
 	ResourceID     string
 	PrivateTargets []string
 	// Resource identity version
@@ -53,6 +55,7 @@ type CurrencyBalance struct {
 }
 
 type Observation struct {
+	DeepInfraFunding  *DeepInfraFunding          `json:"-"`
 	WebEvidence       *WebEvidence               `json:"webEvidence,omitempty"`
 	AliyunAccount     *AliyunAccountEvidence     `json:"aliyunAccount,omitempty"`
 	VolcengineAccount *VolcengineAccountEvidence `json:"volcengineAccount,omitempty"`

@@ -14,14 +14,22 @@ import (
 // evidence deepinfra-currency-research.md (2026-11-01 bounded source trace).
 func queryDeepInfra(ctx context.Context, t QueryTarget, credential string, n NetworkOptions, out Observation) Observation {
 	fail := func(status, code string) Observation { out.QueryStatus = status; out.ErrorCode = code; return out }
+	client := secureClient(t, n)
+	defer client.CloseIdleConnections()
+	if t.EndpointURL == DeepInfraBillingEndpoint && t.DeepInfraPayer != nil {
+		if data, root, ok := queryDeepInfraAccount(ctx, client, credential); ok {
+			if amount, exact := signedPrepaid(data["stripe_balance"], data["recent"]); exact {
+				out.DeepInfraFunding = deepInfraProof(data, t.DeepInfraPayer(root))
+				return deepInfraDisplay(out, amount)
+			}
+		}
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, t.EndpointURL, nil)
 	if err != nil {
 		return fail("network_error", "INVALID_ENDPOINT")
 	}
 	req.Header.Set("Authorization", "Bearer "+credential)
 	req.Header.Set("Accept", "application/json")
-	client := secureClient(t, n)
-	defer client.CloseIdleConnections()
 	res, err := client.Do(req)
 	if err != nil {
 		return fail("network_error", "UPSTREAM_UNAVAILABLE")
@@ -52,6 +60,10 @@ func queryDeepInfra(ctx context.Context, t QueryTarget, credential string, n Net
 	if !ok {
 		return fail("parse_error", "INVALID_BALANCE")
 	}
+	return deepInfraDisplay(out, amount)
+}
+
+func deepInfraDisplay(out Observation, amount string) Observation {
 	out.AmountDecimal = amount
 	out.Currency = "USD"
 	out.Semantic = "signed_prepaid_net"

@@ -48,6 +48,7 @@ type policyUnsentCore struct {
 	starts                     int
 	denyConnects               atomic.Int64
 	denyDeepSeekConnects       atomic.Int64
+	denyDeepInfraConnects      atomic.Int64
 }
 
 func newPolicyUnsentCore(t *testing.T, extraRoutes ...string) *policyUnsentCore {
@@ -102,11 +103,14 @@ func newPolicyUnsentCore(t *testing.T, extraRoutes ...string) *policyUnsentCore 
 		if r.Method == http.MethodConnect {
 			c.denyConnects.Add(1)
 			// CONNECT exposes an authority, NOT the tunneled HTTP path. This
-			// fixture's only inference origin is DeepSeek; count it separately
-			// from background model/update hosts. NEVER establish a tunnel.
+			// Count controlled inference origins separately from background
+			// model/update hosts. NEVER establish a tunnel.
 			host, port, err := net.SplitHostPort(r.Host)
 			if err == nil && strings.EqualFold(host, "api.deepseek.com") && port == "443" {
 				c.denyDeepSeekConnects.Add(1)
+			}
+			if err == nil && strings.EqualFold(host, "api.deepinfra.com") && port == "443" {
+				c.denyDeepInfraConnects.Add(1)
 			}
 		}
 		t.Logf("controlled fixture refused proxy request (no forwarding): %s authority=%s path=%s", r.Method, r.Host, r.URL.Path)
@@ -210,6 +214,11 @@ func newPolicyUnsentFixture(t *testing.T, runPolicy ...bool) *policyUnsentFixtur
 
 func newPolicyFixture(t *testing.T, run, withFallback, enabled bool, extraRoutes ...string) *policyUnsentFixture {
 	t.Helper()
+	return newPolicyFixtureWithSetup(t, run, withFallback, enabled, true, extraRoutes...)
+}
+
+func newPolicyFixtureWithSetup(t *testing.T, run, withFallback, enabled, setupSingleProvider bool, extraRoutes ...string) *policyUnsentFixture {
+	t.Helper()
 	f := &policyUnsentFixture{t: t, core: newPolicyUnsentCore(t, extraRoutes...), wire: &policyUnsentWire{}, cfg: testutil.NewConfig(t), runPolicy: run, withFallback: withFallback}
 	target, err := url.Parse(f.core.base)
 	if err != nil {
@@ -306,6 +315,9 @@ func newPolicyFixture(t *testing.T, run, withFallback, enabled bool, extraRoutes
 		t.Fatal(err)
 	}
 	f.openManager()
+	if !setupSingleProvider {
+		return f // Multi-route fixture selects peers via native inventory and AuthIndex.
+	}
 	f.readIssuedBinding()
 	f.configureOfficial()
 	if enabled {
@@ -397,7 +409,7 @@ func (f *policyUnsentFixture) readIssuedBinding() {
 	}
 	providers := []rc.Row{}
 	for _, row := range n.Snapshot.Resources {
-		if row.Kind == "provider" && (!f.withFallback || len(row.Members) == 1) {
+		if row.Kind == "provider" && (f.state.ProviderID == "" || row.ResourceID == f.state.ProviderID) && (!f.withFallback || len(row.Members) == 1) {
 			providers = append(providers, row)
 		}
 	}

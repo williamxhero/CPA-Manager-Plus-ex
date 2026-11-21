@@ -165,13 +165,16 @@ func TestProviderPolicyOfficialMoneyPauseAndFreshRecovery(t *testing.T) {
 }
 
 func policyMoneyNetwork(t *testing.T, handler http.Handler) balance.NetworkOptions {
+	return policyFundingNetwork(t, "api.deepseek.com", handler)
+}
+func policyFundingNetwork(t *testing.T, host string, handler http.Handler) balance.NetworkOptions {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now()
-	template := &x509.Certificate{SerialNumber: big.NewInt(8201), Subject: pkix.Name{CommonName: "controlled official-host fixture"}, DNSNames: []string{"api.deepseek.com"}, NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, BasicConstraintsValid: true}
+	template := &x509.Certificate{SerialNumber: big.NewInt(8201), Subject: pkix.Name{CommonName: "controlled official-host fixture"}, DNSNames: []string{host}, NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, BasicConstraintsValid: true}
 	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
 	if err != nil {
 		t.Fatal(err)

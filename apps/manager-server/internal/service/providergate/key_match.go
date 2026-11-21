@@ -125,7 +125,7 @@ var ErrFundingObservationUnsupported = errors.New("funding observation unavailab
 // PublishFundingReading asks Core to evaluate an official reading for one
 // selected runtime member. The exact scope and complete group stay in the
 // authenticated key challenge; the observation cannot act as a standalone permit.
-func (v *RuntimeKeyVerification) PublishFundingReading(ctx context.Context, index string, reading balance.Observation, sign func(string, string, string) (string, error)) error {
+func (v *RuntimeKeyVerification) PublishFundingReading(ctx context.Context, index, adapter string, reading balance.Observation, sign func(string, string, string) (string, error)) error {
 	out := v.prepared
 	found := false
 	for _, m := range out.proof.Members {
@@ -149,17 +149,12 @@ func (v *RuntimeKeyVerification) PublishFundingReading(ctx context.Context, inde
 			Nonce         string `json:"nonce"`
 			Digest        string `json:"digest"`
 		} `json:"proof"`
-		Reading struct {
-			QueryID      string                    `json:"queryId"`
-			ObservedAtMS int64                     `json:"observedAtMs"`
-			Available    *bool                     `json:"available"`
-			Balances     []balance.CurrencyBalance `json:"balances"`
-		} `json:"reading"`
+		Reading balance.FundingWireReading `json:"reading"`
 	}{}
 	input.Proof.groupBinding = coreGroup(out.status.Binding)
 	input.Proof.Version, input.Proof.SourceVersion = 1, out.status.SourceVersion
-	input.Proof.AuthIndex, input.Proof.Adapter, input.Proof.Nonce, input.Proof.Digest = index, "deepseek", nonce, digest
-	input.Reading.QueryID, input.Reading.ObservedAtMS, input.Reading.Available, input.Reading.Balances = reading.QueryID, reading.ObservedAtMS, reading.Available, reading.Balances
+	input.Proof.AuthIndex, input.Proof.Adapter, input.Proof.Nonce, input.Proof.Digest = index, adapter, nonce, digest
+	input.Reading = balance.FundingWire(reading)
 	var reply struct {
 		Accepted *bool `json:"accepted"`
 	}

@@ -170,7 +170,7 @@ func (s *Service) run(job Job, st Status, flight, id string) {
 				webCancel()
 			}
 		} else {
-			obs, err = s.Querier.Query(ctx, balance.QueryTarget{CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI, BrowserSession: st.BrowserSession, Volcengine: st.Volcengine, Aliyun: st.Aliyun}, resolver{s.Store, id, st.Version})
+			obs, err = s.Querier.Query(ctx, balance.QueryTarget{DeepInfraPayer: s.Store.DeepInfraPayerReference, CredentialRef: record.SecretRef, Adapter: st.Adapter, EndpointURL: st.Endpoint, PrivateTargets: st.PrivateTargets, Timeout: budget - reserve, NewAPI: st.NewAPI, BrowserSession: st.BrowserSession, Volcengine: st.Volcengine, Aliyun: st.Aliyun}, resolver{s.Store, id, st.Version})
 		}
 	}
 	// Revalidate full Core scope/versions, even after failures; no cached authority.
@@ -192,7 +192,7 @@ func (s *Service) run(job Job, st Status, flight, id string) {
 	if err == nil && valid {
 		obs.QueryID = job.ID
 		obs.Binding, _ = json.Marshal(job.Binding)
-		data, _ := json.Marshal(obs)
+		data := encodeObservation(obs)
 		if s.Store.CompleteOfficialBalance(finishCtx, id, st.Version, job.ID, string(data), obs.QueryStatus == "success") == nil {
 			job.State = "complete"
 			current, e := s.read(finishCtx, job.Binding)

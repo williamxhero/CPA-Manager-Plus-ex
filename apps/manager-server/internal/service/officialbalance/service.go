@@ -437,7 +437,7 @@ func (s *Service) readRecord(ctx context.Context, b Binding, r store.OfficialBal
 		}
 	}
 	if r.Attempt != "" {
-		json.Unmarshal([]byte(r.Attempt), &out.Attempt)
+		out.Attempt = decodeObservation(r.Attempt)
 		if out.Attempt != nil {
 			if out.Attempt.QueryStatus == "running" && out.Attempt.DeadlineMS > 0 && time.Now().UnixMilli() >= out.Attempt.DeadlineMS {
 				out.Attempt.QueryStatus = "network_error"
@@ -449,7 +449,7 @@ func (s *Service) readRecord(ctx context.Context, b Binding, r store.OfficialBal
 		}
 	}
 	if r.LastSuccess != "" {
-		json.Unmarshal([]byte(r.LastSuccess), &out.LastSuccess)
+		out.LastSuccess = decodeObservation(r.LastSuccess)
 	}
 	if out.Adapter == balance.LaysoBillingWebV1 && out.LastSuccess != nil && (out.LastSuccess.WebEvidence == nil || out.LastSuccess.WebEvidence.Authority != out.WebSourceAuthority) {
 		out.LastSuccess = nil

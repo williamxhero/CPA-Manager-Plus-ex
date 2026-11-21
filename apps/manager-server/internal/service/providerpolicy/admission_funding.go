@@ -32,7 +32,8 @@ func (s *Service) consumeFunding(ctx context.Context, event completion, lease st
 	if err != nil {
 		return err
 	}
-	if !status.Configured || status.Version != event.Query.Version || status.Adapter != "deepseek" || status.Endpoint != "https://api.deepseek.com/user/balance" ||
+	adapter := ob.FundingAdapter(status)
+	if !status.Configured || status.Version != event.Query.Version || adapter == "" ||
 		status.Stale || status.Attempt == nil || status.Attempt.QueryID != event.AttemptID || status.Attempt.QueryStatus != "success" {
 		return nil
 	}
@@ -68,7 +69,7 @@ func (s *Service) consumeFunding(ctx context.Context, event completion, lease st
 			if err := s.Store.CheckCredentialPolicyLease(ctx, lease, time.Now().UnixMilli()); err != nil {
 				return err
 			}
-			if err := verification.PublishFundingReading(ctx, member.AuthIndex, reading, sign); err != nil {
+			if err := verification.PublishFundingReading(ctx, member.AuthIndex, adapter, reading, sign); err != nil {
 				return err
 			}
 		}
