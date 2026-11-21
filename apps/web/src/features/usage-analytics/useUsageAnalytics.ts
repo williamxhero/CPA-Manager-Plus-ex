@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import { useMonitoringAnalytics } from '@/features/monitoring/hooks/useMonitoringAnalytics';
 import { useUsageData } from '@/features/monitoring/hooks/useUsageData';
 import { buildApiKeyDisplayMap } from '@/features/monitoring/model/apiKeys';
@@ -139,6 +139,8 @@ export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
   );
   const [monitoringMetaError, setMonitoringMetaError] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigationType = useNavigationType();
   const [initialUiState] = useState<UsageAnalyticsUiState>(() => {
     const fallback = workspace
       ? workspaceUiState.read(connectionGeneration)
@@ -155,15 +157,20 @@ export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
   const [storedTab, setActiveTabState] = useState<UsageAnalyticsTab>(
     () => initialUiState.activeTab
   );
-  const [previousQuery, setPreviousQuery] = useState(searchParams.toString());
+  const [previousEntry, setPreviousEntry] = useState(location.key);
   const [routeFilterRevision, setRouteFilterRevision] = useState(0);
   const activeTabState = workspace
     ? buildUsageAnalyticsUiStateFromSearchParams(searchParams, initialUiState).activeTab
     : storedTab;
   let filters = storedFilters;
   let effectiveRouteRevision = routeFilterRevision;
-  if (workspace && previousQuery !== searchParams.toString()) {
-    setPreviousQuery(searchParams.toString());
+  if (workspace && previousEntry !== location.key) {
+    setPreviousEntry(location.key);
+    const localSync = navigationType === 'REPLACE' && location.state?.usageAnalyticsFilterSync;
+    if (!localSync) {
+      effectiveRouteRevision = routeFilterRevision + 1;
+      setRouteFilterRevision(effectiveRouteRevision);
+    }
     const fromUrl = buildUsageAnalyticsUiStateFromSearchParams(
       searchParams,
       getDefaultUsageAnalyticsUiState()
@@ -177,8 +184,6 @@ export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
         apiKeyHash: getSelectableApiKeyHash(fromUrl.apiKeyHash) || 'all',
       };
       setFiltersState(filters);
-      effectiveRouteRevision = routeFilterRevision + 1;
-      setRouteFilterRevision(effectiveRouteRevision);
     }
   }
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -335,9 +340,12 @@ export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
       if (current.toString() === nextParams.toString()) return;
     }
     if (nextParams.toString() !== searchParams.toString()) {
-      setSearchParams(nextParams, { replace: true });
+      setSearchParams(nextParams, {
+        replace: true,
+        ...(workspace ? { state: { ...location.state, usageAnalyticsFilterSync: true } } : {}),
+      });
     }
-  }, [activeTabState, connectionGeneration, filters, searchParams, setSearchParams, workspace]);
+  }, [activeTabState, connectionGeneration, filters, location.state, searchParams, setSearchParams, workspace]);
   const drilldownPreview = useMemo(() => {
     if (selectedBucketMs === null) return null;
     return {
