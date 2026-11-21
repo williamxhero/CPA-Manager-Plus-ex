@@ -1,4 +1,4 @@
-import { pluginsApi, pluginStoreApi } from '@/services/api';
+import { pluginsApi } from '@/services/api';
 import type {
   PluginListEntry,
   PluginListResponse,
@@ -67,13 +67,16 @@ export async function waitForPluginStoreState(
   id: string,
   sourceId: string,
   predicate: (plugin: PluginStoreEntry, response: PluginStoreResponse) => boolean,
+  read: () => Promise<{ response: PluginStoreResponse; pausedMs: number } | null>,
   timeoutMs = PLUGIN_STATE_TIMEOUT_MS,
   intervalMs = PLUGIN_STATE_INTERVAL_MS
-): Promise<PluginStoreStateWaitResult> {
-  const deadline = Date.now() + timeoutMs;
-  let latest = await pluginStoreApi.list();
-
+): Promise<PluginStoreStateWaitResult | null> {
+  let deadline = Date.now() + timeoutMs;
   for (;;) {
+    const result = await read();
+    if (!result) return null;
+    const { response: latest, pausedMs } = result;
+    deadline += pausedMs;
     const plugin =
       latest.plugins.find((item) => item.id === id && (!sourceId || item.sourceId === sourceId)) ??
       null;
@@ -84,6 +87,5 @@ export async function waitForPluginStoreState(
       return { response: latest, plugin, timedOut: true };
     }
     await wait(Math.min(intervalMs, Math.max(0, deadline - Date.now())));
-    latest = await pluginStoreApi.list();
   }
 }

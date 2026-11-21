@@ -491,6 +491,8 @@ export function PluginStorePage({
   const clearConfigCache = useConfigStore((state) => state.clearCache);
   const showNotification = useNotificationStore((state) => state.showNotification);
   const showConfirmation = useNotificationStore((state) => state.showConfirmation);
+  const currentConfirmation = useNotificationStore((state) => state.confirmation?.options);
+  const hideConfirmation = useNotificationStore((state) => state.hideConfirmation);
 
   const [data, setData] = useState<PluginStoreResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -512,12 +514,36 @@ export function PluginStorePage({
   const canOperateRef = useRef(canOperate);
   canOperateRef.current = canOperate;
   const operationEpochRef = useRef(0);
+  const activeRef = useRef(active);
+  const actionEpochRef = useRef(0);
+  const ownedConfirmation = useRef<(() => Promise<void>) | null>(null);
+  const visibilityWaiters = useRef(new Set<() => void>());
+  const pendingSettlementRef = useRef<number | null>(null);
   // Captured actions stay invalid after access is revoked, even if access later recovers.
   const operationEpoch = operationEpochRef.current;
   const canContinueOperation = useCallback(
     () => canOperateRef.current && operationEpochRef.current === operationEpoch,
     [operationEpoch]
   );
+  const actionEpoch = actionEpochRef.current;
+  // Leaving the tab invalidates confirmations, while operations already started can finish.
+  const canStartAction = useCallback(
+    () => activeRef.current && actionEpochRef.current === actionEpoch && canContinueOperation(),
+    [actionEpoch, canContinueOperation]
+  );
+  const resumeVisibilityWaiters = useCallback(() => {
+    for (const resume of visibilityWaiters.current) resume();
+    visibilityWaiters.current.clear();
+  }, []);
+  const readVisibleStore = useCallback(async () => {
+    const waitStarted = Date.now();
+    while (canContinueOperation() && !activeRef.current) {
+      await new Promise<void>((resolve) => visibilityWaiters.current.add(resolve));
+    }
+    if (!canContinueOperation()) return null;
+    const pausedMs = Date.now() - waitStarted;
+    return { response: await pluginStoreApi.list(), pausedMs };
+  }, [canContinueOperation]);
 
   const handleManageInstalled = useCallback(() => {
     if (onManageInstalled) {
@@ -532,21 +558,33 @@ export function PluginStorePage({
     canOperateRef.current = false;
     operationEpochRef.current += 1;
     listRequestIdRef.current += 1;
+    pendingSettlementRef.current = null;
     setData(null);
     setGateEntry(null);
     setInstallOptionsEntry(null);
     setLoading(false);
-  }, []);
+    resumeVisibilityWaiters();
+  }, [resumeVisibilityWaiters]);
+  useLayoutEffect(() => {
+    activeRef.current = active;
+    if (!active) actionEpochRef.current += 1;
+  }, [active]);
+  useLayoutEffect(() => {
+    if (active || !ownedConfirmation.current) return;
+    if (ownedConfirmation.current === currentConfirmation?.onConfirm) hideConfirmation();
+    ownedConfirmation.current = null;
+  }, [active, currentConfirmation, hideConfirmation]);
   useLayoutEffect(() => {
     if (!connected || !supportsPlugin) clearPluginData();
   }, [connected, supportsPlugin, clearPluginData]);
-  useEffect(
+  useLayoutEffect(
     () => () => {
       canOperateRef.current = false;
       operationEpochRef.current += 1;
       listRequestIdRef.current += 1;
+      resumeVisibilityWaiters();
     },
-    []
+    [resumeVisibilityWaiters]
   );
   const loadStore = useCallback(async () => {
     const requestId = ++listRequestIdRef.current;
@@ -598,8 +636,10 @@ export function PluginStorePage({
 
   useEffect(() => {
     if (!active) return;
-    void loadStore();
-  }, [active, loadStore]);
+    // A paused settlement already refreshes the store when it resumes.
+    if (pendingSettlementRef.current === null) void loadStore();
+    resumeVisibilityWaiters();
+  }, [active, loadStore, resumeVisibilityWaiters]);
 
   const stats = useMemo(() => {
     const plugins = data?.plugins ?? [];
@@ -698,7 +738,7 @@ export function PluginStorePage({
 
   const runInstall = useCallback(
     async (entry: PluginStoreEntry, isUpdate: boolean, requestedVersion = '') => {
-      if (!canContinueOperation()) return;
+      if (!canStartAction()) return;
       const failedKey = isUpdate ? 'plugin_store.update_failed' : 'plugin_store.install_failed';
       const entryKey = getStoreEntryKey(entry);
       const sourceId = entry.sourceId || undefined;
@@ -723,16 +763,18 @@ export function PluginStorePage({
         }
         clearConfigCache();
         if (result.restartRequired) {
-          await loadStore();
+          if (activeRef.current) await loadStore();
         } else {
           const requestId = ++listRequestIdRef.current;
+          pendingSettlementRef.current = requestId;
           try {
             const waitResult = await waitForPluginStoreState(
               entry.id,
               entry.sourceId,
-              (plugin) => isPluginStoreInstallSettled(plugin, version)
+              (plugin) => isPluginStoreInstallSettled(plugin, version),
+              readVisibleStore
             );
-            if (requestId === listRequestIdRef.current) {
+            if (waitResult && requestId === listRequestIdRef.current) {
               setData(waitResult.response);
               setError(null);
             }
@@ -749,6 +791,7 @@ export function PluginStorePage({
             }
             throw err;
           } finally {
+            if (pendingSettlementRef.current === requestId) pendingSettlementRef.current = null;
             if (requestId === listRequestIdRef.current) setLoading(false);
           }
         }
@@ -771,11 +814,20 @@ export function PluginStorePage({
         setInstallingID('');
       }
     },
-    [clearConfigCache, clearPluginData, canContinueOperation, loadStore, showNotification, t]
+    [
+      canStartAction,
+      clearConfigCache,
+      clearPluginData,
+      canContinueOperation,
+      loadStore,
+      showNotification,
+      t,
+      readVisibleStore,
+    ]
   );
 
   const handleInstall = (entry: PluginStoreEntry) => {
-    if (!canContinueOperation()) return;
+    if (!canStartAction()) return;
     const isUpdate = entry.installed && entry.updateAvailable;
     setInstallOptionsEntry(entry);
     setInstallOptionsIsUpdate(isUpdate);
@@ -789,7 +841,7 @@ export function PluginStorePage({
   }, [installingID]);
 
   const handleInstallOptionsConfirm = useCallback(async () => {
-    if (!canContinueOperation() || !installOptionsEntry) return;
+    if (!canStartAction() || !installOptionsEntry) return;
     const requestedVersion = installVersion.trim();
     if (!isOfficialPlugin(installOptionsEntry)) {
       setGateEntry(installOptionsEntry);
@@ -807,61 +859,63 @@ export function PluginStorePage({
     } catch {
       // runInstall has already shown a notification; keep the modal open for correction.
     }
-  }, [canContinueOperation, installOptionsEntry, installOptionsIsUpdate, installVersion, runInstall]);
+  }, [canStartAction, installOptionsEntry, installOptionsIsUpdate, installVersion, runInstall]);
 
   const handleDeleteInstalled = (entry: PluginStoreEntry) => {
-    if (!canContinueOperation() || installingID) return;
+    if (!canStartAction() || installingID) return;
 
     const entryKey = getStoreEntryKey(entry);
     const title = getStoreEntryTitle(entry);
 
+    const onConfirm = async () => {
+      if (!canStartAction()) return;
+      setInstallingID(`${entryKey}:delete`);
+      try {
+        const result = await pluginsApi.deletePlugin(entry.id);
+        if (!canContinueOperation()) return;
+        clearConfigCache();
+        if (result.restartRequired) {
+          setRestartRequiredIDs((current) =>
+            current.includes(entryKey) ? current : [...current, entryKey]
+          );
+        }
+        if (activeRef.current) await loadStore();
+        notifyPluginResourcesChanged();
+        showNotification(
+          result.restartRequired
+            ? t('plugin_store.delete_restart_required')
+            : t('plugin_store.delete_success'),
+          result.restartRequired ? 'warning' : 'success'
+        );
+      } catch (err: unknown) {
+        showNotification(
+          hasRestartRequired(err)
+            ? t('plugin_store.delete_restart_required')
+            : `${t('plugin_store.delete_failed')}: ${getErrorMessage(
+                err,
+                t('plugin_store.delete_failed')
+              )}`,
+          hasRestartRequired(err) ? 'warning' : 'error'
+        );
+        throw err;
+      } finally {
+        setInstallingID('');
+      }
+    };
+    ownedConfirmation.current = onConfirm;
     showConfirmation({
       title: t('plugin_store.delete_confirm_title'),
       message: t('plugin_store.delete_confirm_message', { name: title }),
       confirmText: t('plugin_store.delete_plugin'),
       cancelText: t('common.cancel'),
       variant: 'danger',
-      onConfirm: async () => {
-        if (!canContinueOperation()) return;
-        setInstallingID(`${entryKey}:delete`);
-        try {
-          const result = await pluginsApi.deletePlugin(entry.id);
-          if (!canContinueOperation()) return;
-          clearConfigCache();
-          if (result.restartRequired) {
-            setRestartRequiredIDs((current) =>
-              current.includes(entryKey) ? current : [...current, entryKey]
-            );
-          }
-          await loadStore();
-          notifyPluginResourcesChanged();
-          showNotification(
-            result.restartRequired
-              ? t('plugin_store.delete_restart_required')
-              : t('plugin_store.delete_success'),
-            result.restartRequired ? 'warning' : 'success'
-          );
-        } catch (err: unknown) {
-          showNotification(
-            hasRestartRequired(err)
-              ? t('plugin_store.delete_restart_required')
-              : `${t('plugin_store.delete_failed')}: ${getErrorMessage(
-                  err,
-                  t('plugin_store.delete_failed')
-                )}`,
-            hasRestartRequired(err) ? 'warning' : 'error'
-          );
-          throw err;
-        } finally {
-          setInstallingID('');
-        }
-      },
+      onConfirm,
     });
   };
 
   const runReinstall = useCallback(
     async (entry: PluginStoreEntry) => {
-      if (!canContinueOperation()) return;
+      if (!canStartAction()) return;
       const entryKey = getStoreEntryKey(entry);
       const sourceId = entry.sourceId || undefined;
 
@@ -874,7 +928,7 @@ export function PluginStorePage({
           setRestartRequiredIDs((current) =>
             current.includes(entryKey) ? current : [...current, entryKey]
           );
-          await loadStore();
+          if (activeRef.current) await loadStore();
           notifyPluginResourcesChanged();
           showNotification(t('plugin_store.reinstall_delete_restart_required'), 'warning');
           return;
@@ -889,7 +943,7 @@ export function PluginStorePage({
           );
           showNotification(t('plugin_store.restart_required_notice'), 'warning');
         }
-        await loadStore();
+        if (activeRef.current) await loadStore();
         notifyPluginResourcesChanged();
         if (!installResult.restartRequired) {
           notifyPluginResourcesChanged({
@@ -915,11 +969,11 @@ export function PluginStorePage({
         setInstallingID('');
       }
     },
-    [clearConfigCache, canContinueOperation, loadStore, showNotification, t]
+    [canStartAction, clearConfigCache, canContinueOperation, loadStore, showNotification, t]
   );
 
   const handleReinstall = (entry: PluginStoreEntry) => {
-    if (!canContinueOperation() || installingID) return;
+    if (!canStartAction() || installingID) return;
 
     if (!isOfficialPlugin(entry)) {
       setGateEntry(entry);
@@ -931,13 +985,15 @@ export function PluginStorePage({
     const title = getStoreEntryTitle(entry);
     const target = entry.version ? `${title} v${entry.version}` : title;
 
+    const onConfirm = () => runReinstall(entry);
+    ownedConfirmation.current = onConfirm;
     showConfirmation({
       title: t('plugin_store.reinstall_confirm_title'),
       message: t('plugin_store.reinstall_confirm_message', { target }),
       confirmText: t('plugin_store.reinstall_plugin'),
       cancelText: t('common.cancel'),
       variant: 'danger',
-      onConfirm: () => runReinstall(entry),
+      onConfirm,
     });
   };
 
@@ -947,7 +1003,7 @@ export function PluginStorePage({
   }, []);
 
   const handleGateConfirm = useCallback(async () => {
-    if (!canContinueOperation() || !gateEntry) return;
+    if (!canStartAction() || !gateEntry) return;
     if (gateMode === 'reinstall') {
       await runReinstall(gateEntry);
     } else {
@@ -956,7 +1012,7 @@ export function PluginStorePage({
     setGateEntry(null);
     setGateRequestedVersion('');
   }, [
-    canContinueOperation,
+    canStartAction,
     gateEntry,
     gateIsUpdate,
     gateMode,
@@ -1195,6 +1251,18 @@ export function PluginStorePage({
       </article>
     );
   };
+
+  if (!active) {
+    if (gateEntry) {
+      setGateEntry(null);
+      setGateRequestedVersion('');
+    }
+    if (installOptionsEntry) {
+      setInstallOptionsEntry(null);
+      setInstallVersion('');
+    }
+    return null;
+  }
 
   return (
     <div className={styles.page}>
