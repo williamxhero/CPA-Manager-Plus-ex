@@ -302,13 +302,13 @@ export function UsageMaintenanceTransferView({
   }, [loadSessions, refreshToken, visible]);
 
   useEffect(() => {
-    if (
-      !visible ||
-      !selectedSessionId ||
-      !sessionList ||
-      sessionList.sessions.some((item) => item.id === selectedSessionId)
-    )
+    if (!visible || !selectedSessionId || !serviceBase) return;
+    const listedSession = sessionList?.sessions.find((item) => item.id === selectedSessionId);
+    if (listedSession) {
+      setDetailSession(listedSession);
+      setDetailFailure(null);
       return;
+    }
     const controller = new AbortController();
     void usageServiceApi
       .getUsageImportSession(serviceBase, selectedSessionId, managementKey, controller.signal)

@@ -156,10 +156,12 @@ export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
     () => initialUiState.activeTab
   );
   const [previousQuery, setPreviousQuery] = useState(searchParams.toString());
+  const [routeFilterRevision, setRouteFilterRevision] = useState(0);
   const activeTabState = workspace
     ? buildUsageAnalyticsUiStateFromSearchParams(searchParams, initialUiState).activeTab
     : storedTab;
   let filters = storedFilters;
+  let effectiveRouteRevision = routeFilterRevision;
   if (workspace && previousQuery !== searchParams.toString()) {
     setPreviousQuery(searchParams.toString());
     const fromUrl = buildUsageAnalyticsUiStateFromSearchParams(
@@ -175,6 +177,8 @@ export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
         apiKeyHash: getSelectableApiKeyHash(fromUrl.apiKeyHash) || 'all',
       };
       setFiltersState(filters);
+      effectiveRouteRevision = routeFilterRevision + 1;
+      setRouteFilterRevision(effectiveRouteRevision);
     }
   }
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -281,7 +285,7 @@ export function useUsageAnalytics(workspace = false, connectionGeneration = 0) {
   const debouncedSearchQuery = useDebouncedValue(
     filters.searchQuery.trim(),
     USAGE_SEARCH_DEBOUNCE_MS,
-    workspace ? activeTabState : undefined
+    workspace ? `${activeTabState}:${effectiveRouteRevision}` : undefined
   );
 
   const bounds = useMemo(() => getUsageRangeBounds(filters, nowMs), [filters, nowMs]);

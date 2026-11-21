@@ -236,6 +236,7 @@ describe('useUsageAnalytics request orchestration', () => {
   it('routes workspace tab actions and applies drilldown filters in one history entry', async () => {
     const entries: string[] = [];
     let goBack: (() => void) | undefined;
+    let goToOtherSearch: (() => void) | undefined;
     function WorkspaceHarness() {
       const usage = useUsageAnalytics(true);
       const { search } = useLocation();
@@ -243,6 +244,7 @@ describe('useUsageAnalytics request orchestration', () => {
       useEffect(() => {
         latestResult = usage;
         goBack = () => navigate(-1);
+        goToOtherSearch = () => navigate('/usage-analytics?tab=heatmap&api_key_hash=key-b&search=another');
       }, [navigate, usage]);
       useEffect(() => {
         entries.push(search);
@@ -290,6 +292,13 @@ describe('useUsageAnalytics request orchestration', () => {
       expect(request).toMatchObject({ filters: { api_key_hashes: ['key-a'] }, searchQuery: 'needle' });
     }
 
+    useMonitoringAnalyticsMock.mockClear();
+    await act(async () => goToOtherSearch?.());
+    const [firstSameTabRequest] = useMonitoringAnalyticsMock.mock.calls
+      .map(([params]) => params)
+      .filter((params) => params.include?.summary && params.filters?.api_key_hashes?.includes('key-b'));
+    expect(firstSameTabRequest?.searchQuery).toBe('another');
+    await act(async () => goBack?.());
     await act(async () => goBack?.());
     expect(latestResult?.activeTab).toBe('apiKeys');
     expect(latestResult?.filters.apiKeyHash).toBe('all');

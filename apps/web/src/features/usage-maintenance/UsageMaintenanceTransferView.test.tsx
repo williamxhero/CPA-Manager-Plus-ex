@@ -168,6 +168,9 @@ function TransferHarness({
       <button onClick={() => setRefreshToken((value) => value + 1)}>Refresh sessions</button>
       <button onClick={() => setPanel('export')}>Open export</button>
       <button onClick={() => setPanel('import')}>Open import</button>
+      <button onClick={() => { setSessionId('older-session'); setPanel('import-session'); }}>
+        Open bookmarked session
+      </button>
       <UsageMaintenanceTransferView
         visible={visible}
         serviceBase={serviceBase}
@@ -260,8 +263,12 @@ describe('UsageMaintenanceTransferView', () => {
     const drawerText = () =>
       getText(renderer.root.findByProps({ 'data-testid': 'transfer-drawer' }));
     act(() => findButton(renderer, 'Details')!.props.onClick());
-    mocks.getUsageImportSession.mockResolvedValueOnce(session);
+    const firstDetail = deferred<UsageImportSession>();
+    mocks.getUsageImportSession.mockReturnValueOnce(firstDetail.promise);
     await act(async () => findButton(renderer, 'Refresh sessions')!.props.onClick());
+    expect(drawerText()).toContain('older.jsonl');
+    firstDetail.resolve(session);
+    await flush();
     const detail = deferred<UsageImportSession>();
     mocks.getUsageImportSession.mockReturnValueOnce(detail.promise);
     mocks.listUsageImportSessions.mockResolvedValueOnce(sessionList());
@@ -270,6 +277,21 @@ describe('UsageMaintenanceTransferView', () => {
     detail.resolve({ ...session, filename: 'updated.jsonl' });
     await flush();
     expect(drawerText()).toContain('updated.jsonl');
+    act(() => renderer.unmount());
+  });
+
+  it('looks up a bookmarked session even when the recent-session list fails', async () => {
+    mocks.listUsageImportSessions.mockRejectedValueOnce(new Error('recent list failed'));
+    mocks.getUsageImportSession.mockResolvedValueOnce({
+      id: 'older-session', filename: 'bookmarked.jsonl', status: 'completed',
+      size_bytes: 10, received_bytes: 10, chunk_size_bytes: 10,
+      created_at_ms: 1, updated_at_ms: 2, expires_at_ms: 3,
+    });
+    const renderer = await renderView();
+    await act(async () => findButton(renderer, 'Open bookmarked session')!.props.onClick());
+    expect(getText(renderer.root.findByProps({ 'data-testid': 'transfer-drawer' }))).toContain(
+      'bookmarked.jsonl'
+    );
     act(() => renderer.unmount());
   });
 
