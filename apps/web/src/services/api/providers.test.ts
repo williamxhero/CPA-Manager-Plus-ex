@@ -11,6 +11,7 @@ import {
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     get: vi.fn(),
+    getV8: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
   },
@@ -19,6 +20,7 @@ const { mocks } = vi.hoisted(() => ({
 vi.mock('./client', () => ({
   apiClient: {
     get: mocks.get,
+    getV8: mocks.getV8,
     put: mocks.put,
     delete: mocks.delete,
   },
@@ -36,6 +38,7 @@ import {
 
 beforeEach(() => {
   mocks.get.mockReset();
+  mocks.getV8.mockReset();
   mocks.put.mockReset();
   mocks.delete.mockReset();
 });
@@ -89,6 +92,28 @@ describe('providersApi auth-index preservation', () => {
         'base-url': 'https://headers.example/v1',
         'api-key-entries': [],
       },
+    ]);
+  });
+
+  it('joins Core funding authority by the current credential roster, independent of list order', async () => {
+    const key = (value: string) => ({ 'api-key': value });
+    const entry = (name: string, value: string) => ({
+      name,
+      'base-url': 'https://api.deepseek.com/v1',
+      'api-key-entries': [key(value)],
+      'disable-cooling': true,
+    });
+    mocks.get.mockResolvedValueOnce({ 'openai-compatibility': [
+      entry('native', 'fixture-a'), entry('moved', 'fixture-b'), entry('foreign', 'fixture-c'),
+    ] });
+    mocks.getV8.mockResolvedValueOnce([
+      { ...entry('foreign', 'fixture-c'), 'native-funding': false },
+      { name: 'native', 'base-url': 'https://api.deepseek.com/v1', keys: [key('fixture-a')], 'native-funding': true, 'auto-held': true },
+      { ...entry('moved', 'former-key'), 'native-funding': true },
+    ]);
+    const result = await providersApi.getOpenAIProviders();
+    expect(result.map((row) => [row.nativeFunding, row.autoHeld])).toEqual([
+      [true, true], [undefined, undefined], [false, undefined],
     ]);
   });
 

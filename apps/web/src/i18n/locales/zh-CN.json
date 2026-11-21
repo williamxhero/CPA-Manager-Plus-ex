@@ -1472,6 +1472,7 @@
     "kind_empty_title": "暂无 {{name}} 配置",
     "add_kind_button": "添加 {{name}} 配置",
     "health_check_button": "一键测活",
+    "auto_start_stop_core": "系统自动管理",
     "auto_start_stop": "自动启停",
     "health_check_title": "付费接入测活",
     "health_check_historic_note": "测活结果是一次性连通性探针，不是当前资金策略或门禁已应用证据；下方开关只改配置启用，不会清除自动暂停。",

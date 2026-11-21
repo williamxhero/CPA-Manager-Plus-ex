@@ -1452,6 +1452,7 @@
     "kind_empty_title": "Нет конфигураций {{name}}",
     "add_kind_button": "Добавить конфигурацию {{name}}",
     "health_check_button": "Проверка",
+    "auto_start_stop_core": "Управляется системой",
     "auto_start_stop": "Авто вкл/выкл",
     "health_check_title": "Проверка платного доступа",
     "health_check_progress_title": "Ход проверки",

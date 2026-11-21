@@ -1474,6 +1474,7 @@
     "kind_empty_title": "No {{name}} configurations",
     "add_kind_button": "Add {{name}} Configuration",
     "health_check_button": "Health Check",
+    "auto_start_stop_core": "System managed",
     "auto_start_stop": "Auto start/stop",
     "health_check_title": "Paid Access Health Check",
     "health_check_historic_note": "Health-check results are one-shot connectivity probes, not current monetary policy or applied gate evidence. The switches below only change configuration enablement and never clear an automatic pause.",

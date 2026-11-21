@@ -198,6 +198,8 @@ export interface OpenAIProviderConfig {
   baseUrl: string;
   apiKeyEntries: ApiKeyEntry[];
   disabled?: boolean;
+  /** Read-only Core authority; do not write browser balance holds for this row. */
+  nativeFunding?: boolean;
   autoHeld?: boolean;
   headers?: Record<string, string>;
   models?: ModelAlias[];
