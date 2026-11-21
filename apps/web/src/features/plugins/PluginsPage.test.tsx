@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   listInstalled: vi.fn(),
   listStore: vi.fn(),
   install: vi.fn(),
+  deletePlugin: vi.fn(),
+  showConfirmation: vi.fn(),
   notify: vi.fn(),
   key: 'test-key',
   noop: () => {},
@@ -30,11 +32,11 @@ vi.mock('@/stores', () => ({
     }),
   useConfigStore: (selector: (state: object) => unknown) => selector({ clearCache: mocks.noop }),
   useNotificationStore: (selector: (state: object) => unknown) =>
-    selector({ showNotification: mocks.notify, showConfirmation: mocks.noop }),
+    selector({ showNotification: mocks.notify, showConfirmation: mocks.showConfirmation }),
 }));
 
 vi.mock('@/services/api', () => ({
-  pluginsApi: { list: mocks.listInstalled },
+  pluginsApi: { list: mocks.listInstalled, deletePlugin: mocks.deletePlugin },
   pluginStoreApi: { list: mocks.listStore, install: mocks.install },
 }));
 
@@ -168,6 +170,79 @@ function Back() {
     </button>
   );
 }
+
+it.each([false, true])(
+  'continues an approved reinstall after Back only on the same connection (changed=%s)',
+  async (changed) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    mocks.listInstalled.mockResolvedValue({
+      pluginsEnabled: true,
+      pluginsDir: 'plugins',
+      plugins: [],
+    });
+    mocks.listStore.mockResolvedValue({
+      pluginsEnabled: true,
+      pluginsDir: 'plugins',
+      sources: [],
+      sourceErrors: [],
+      plugins: [{ ...storeEntry, installed: true, installedVersion: '1.0.0' }],
+    });
+    let finishDelete!: (result: { restartRequired: boolean }) => void;
+    vi.stubGlobal('window', { dispatchEvent: mocks.noop, setTimeout: mocks.noop });
+    mocks.deletePlugin.mockReturnValue(
+      new Promise((resolve) => {
+        finishDelete = resolve;
+      })
+    );
+    mocks.install.mockResolvedValue({ restartRequired: false });
+    const page = () => (
+      <MemoryRouter initialEntries={['/plugins', '/plugins?tab=store']}>
+        <Back />
+        <PluginsPage />
+      </MemoryRouter>
+    );
+    let renderer!: ReactTestRenderer;
+    try {
+      await act(async () => {
+        renderer = create(page());
+      });
+      await act(async () => {
+        renderer.root
+          .findAllByType(Button)
+          .find((button) => button.props.children.includes?.('plugin_store.reinstall_plugin'))!
+          .props.onClick();
+      });
+      const { onConfirm } = mocks.showConfirmation.mock.calls[0][0];
+      let mutation!: Promise<void>;
+      await act(async () => {
+        mutation = onConfirm();
+      });
+      expect(mocks.deletePlugin).toHaveBeenCalledWith('sample');
+      expect(mocks.install).not.toHaveBeenCalled();
+
+      await act(async () => renderer.root.findByType(Back).findByType('button').props.onClick());
+      if (changed) {
+        mocks.key = 'new-connection-key';
+        await act(async () => renderer.update(page()));
+      }
+      await act(async () => {
+        finishDelete({ restartRequired: false });
+        await mutation;
+      });
+
+      expect(mocks.listStore).toHaveBeenCalledTimes(1);
+      if (changed) {
+        expect(mocks.install).not.toHaveBeenCalled();
+      } else {
+        expect(mocks.install).toHaveBeenCalledExactlyOnceWith('sample', { sourceId: 'official' });
+        expect(mocks.notify).toHaveBeenCalledWith('plugin_store.reinstall_success', 'success');
+      }
+    } finally {
+      await act(async () => renderer?.unmount());
+      vi.unstubAllGlobals();
+    }
+  }
+);
 
 it.each([false, true])(
   'dismisses store dialogs on Back and gates settlement (started=%s)',
