@@ -164,7 +164,11 @@ vi.mock('@/components/providers', async () => {
       vertex: 'Vertex',
       openai: 'OpenAI',
     },
-    ProviderToolbar: () => null,
+    ProviderToolbar: ({ onAdd }: { onAdd: (kind: 'openai') => void }) => (
+      <button type="button" data-add-provider onClick={() => onAdd('openai')}>
+        Add provider
+      </button>
+    ),
     ProviderTable: ({
       rows,
       onShowDetail,
@@ -208,7 +212,7 @@ vi.mock('@/components/providers', async () => {
     GeminiEditDrawer: () => null,
     CodexEditDrawer: () => null,
     ClaudeEditDrawer: () => null,
-    OpenAIEditDrawer: () => null,
+    OpenAIEditDrawer: ({ open }: { open: boolean }) => (open ? <div data-openai-editor /> : null),
     VertexEditDrawer: () => null,
     useProviderRecentRequests: () => ({
       usageByProvider: new Map(),
@@ -535,6 +539,29 @@ describe('AiProvidersPage current-layer config refresh', () => {
     expect(mocks.updateConfigValue).not.toHaveBeenCalled();
     expect(mocks.clearCache).not.toHaveBeenCalled();
     expect(mocks.showNotification).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it('does not carry an unfinished provider editor across A to B to A', async () => {
+    const renderer = await renderPage();
+    const authA = { ...mocks.auth };
+    const isEditorOpen = () => renderer.root.findAllByProps({ 'data-openai-editor': true }).length;
+    await act(async () =>
+      renderer.root.findByProps({ 'data-add-provider': true }).props.onClick()
+    );
+    expect(isEditorOpen()).toBe(1);
+    mocks.auth = { ...authA, apiBase: 'http://other.example', managementKey: 'other-key' };
+    apiClient.setConfig(mocks.auth);
+    const bootstrapB = pendingRows();
+    mocks.getOpenAIProviders.mockReturnValueOnce(bootstrapB.promise);
+    await updatePage(renderer);
+    expect(isEditorOpen()).toBe(0);
+    await act(async () => bootstrapB.resolve([openai('new Core')]));
+    expect(isEditorOpen()).toBe(0);
+    mocks.auth = authA;
+    apiClient.setConfig(mocks.auth);
+    await updatePage(renderer);
+    expect(isEditorOpen()).toBe(0);
     act(() => renderer.unmount());
   });
 

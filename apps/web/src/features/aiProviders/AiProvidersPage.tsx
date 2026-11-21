@@ -223,8 +223,14 @@ export function AiProvidersPage() {
   const [detailRowKey, setDetailRowKey] = useState<string | null>(null);
   const [detailContent, setDetailContent] = useState<'credential' | 'balance'>('credential');
   const [healthCheckOpen, setHealthCheckOpen] = useState(false);
-  const [editDrawerKind, setEditDrawerKind] = useState<ProviderKind | null>(null);
-  const [editDrawerIndex, setEditDrawerIndex] = useState<number | null>(null);
+  const [editor, setEditor] = useState<{
+    kind: ProviderKind;
+    index: number | null;
+    scope: NonNullable<typeof loadScope>;
+  } | null>(null);
+  const activeEditor = editor?.scope === loadScope ? editor : null;
+  const editDrawerKind = activeEditor?.kind;
+  const editDrawerIndex = activeEditor?.index ?? null;
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(() =>
     readListPageSize(
@@ -346,21 +352,24 @@ export function AiProvidersPage() {
 
   useHeaderRefresh(handleRecentRequestsRefresh, isCurrentLayer);
 
-  const openEditorDrawer = useCallback((kind: ProviderKind, editIndex: number | null) => {
-    setDetailRowKey(null);
-    setEditDrawerKind(kind);
-    setEditDrawerIndex(editIndex);
-  }, []);
+  const openEditorDrawer = useCallback(
+    (kind: ProviderKind, editIndex: number | null) => {
+      if (!loadScope || !matchesView()) return;
+      setDetailRowKey(null);
+      setEditor({ kind, index: editIndex, scope: loadScope });
+    },
+    [loadScope, matchesView]
+  );
 
   const closeEditorDrawer = useCallback(() => {
-    setEditDrawerKind(null);
-    setEditDrawerIndex(null);
-  }, []);
+    setEditor((value) => (value?.scope === loadScope ? null : value));
+  }, [loadScope]);
 
   const handleDrawerSaved = useCallback(() => {
+    if (!matchesView()) return;
     void loadConfigs();
     void loadProviderKeyAliases();
-  }, [loadConfigs, loadProviderKeyAliases]);
+  }, [matchesView, loadConfigs, loadProviderKeyAliases]);
 
   // 统一行集合与派生数据
   const rows = useMemo(
