@@ -491,8 +491,6 @@ export function PluginStorePage({
   const clearConfigCache = useConfigStore((state) => state.clearCache);
   const showNotification = useNotificationStore((state) => state.showNotification);
   const showConfirmation = useNotificationStore((state) => state.showConfirmation);
-  const currentConfirmation = useNotificationStore((state) => state.confirmation?.options);
-  const hideConfirmation = useNotificationStore((state) => state.hideConfirmation);
 
   const [data, setData] = useState<PluginStoreResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -519,6 +517,13 @@ export function PluginStorePage({
   const ownedConfirmation = useRef<(() => Promise<void>) | null>(null);
   const visibilityWaiters = useRef(new Set<() => void>());
   const pendingSettlementRef = useRef<number | null>(null);
+  const dismissOwnedConfirmation = useCallback(() => {
+    const owned = ownedConfirmation.current;
+    if (!owned) return;
+    ownedConfirmation.current = null;
+    const { confirmation, hideConfirmation } = useNotificationStore.getState();
+    if (confirmation.options?.onConfirm === owned) hideConfirmation();
+  }, []);
   // Captured actions stay invalid after access is revoked, even if access later recovers.
   const operationEpoch = operationEpochRef.current;
   const canContinueOperation = useCallback(
@@ -570,10 +575,8 @@ export function PluginStorePage({
     if (!active) actionEpochRef.current += 1;
   }, [active]);
   useLayoutEffect(() => {
-    if (active || !ownedConfirmation.current) return;
-    if (ownedConfirmation.current === currentConfirmation?.onConfirm) hideConfirmation();
-    ownedConfirmation.current = null;
-  }, [active, currentConfirmation, hideConfirmation]);
+    if (!active) dismissOwnedConfirmation();
+  }, [active, dismissOwnedConfirmation]);
   useLayoutEffect(() => {
     if (!connected || !supportsPlugin) clearPluginData();
   }, [connected, supportsPlugin, clearPluginData]);
@@ -583,8 +586,9 @@ export function PluginStorePage({
       operationEpochRef.current += 1;
       listRequestIdRef.current += 1;
       resumeVisibilityWaiters();
+      dismissOwnedConfirmation();
     },
-    [resumeVisibilityWaiters]
+    [dismissOwnedConfirmation, resumeVisibilityWaiters]
   );
   const loadStore = useCallback(async () => {
     const requestId = ++listRequestIdRef.current;

@@ -88,10 +88,13 @@ vi.mock('@/stores', () => ({
   useThemeStore: (selector: (s: object) => unknown) => selector({ resolvedTheme: 'light' }),
   useConfigStore: (selector: (s: object) => unknown) =>
     selector({ config: mocks.config, fetchConfig: mocks.fetchConfig, clearCache: mocks.noop }),
-  useNotificationStore: (selector?: (s: object) => unknown) => {
-    const state = { showNotification: mocks.noop, showConfirmation: mocks.confirmation };
-    return selector ? selector(state) : state;
-  },
+  useNotificationStore: Object.assign(
+    (selector?: (s: object) => unknown) => {
+      const state = { showNotification: mocks.noop, showConfirmation: mocks.confirmation };
+      return selector ? selector(state) : state;
+    },
+    { getState: () => ({ confirmation: { options: null }, hideConfirmation: mocks.noop }) }
+  ),
   useModelsStore: (selector: (s: object) => unknown) =>
     selector({ ...mocks.models, fetchModels: mocks.fetchModels }),
 }));
