@@ -105,12 +105,15 @@ function PluginsPageContent() {
   const navigate = useNavigate();
   const storeActive = getPluginManagementTab(search) === 'store';
   const [storeVisited, setStoreVisited] = useState(storeActive);
+  const [installedSearch, setInstalledSearch] = useState('');
   if (storeActive && !storeVisited) setStoreVisited(true);
 
   return (
     <>
       {!storeActive ? (
         <InstalledPluginsView
+          search={installedSearch}
+          onSearchChange={setInstalledSearch}
           onOpenStore={() => navigate(pluginManagementTarget('store', search, hash))}
         />
       ) : null}
@@ -126,7 +129,15 @@ function PluginsPageContent() {
   );
 }
 
-function InstalledPluginsView({ onOpenStore }: { onOpenStore: () => void }) {
+function InstalledPluginsView({
+  search,
+  onSearchChange,
+  onOpenStore,
+}: {
+  search: string;
+  onSearchChange: (search: string) => void;
+  onOpenStore: () => void;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
@@ -137,7 +148,6 @@ function InstalledPluginsView({ onOpenStore }: { onOpenStore: () => void }) {
   const showConfirmation = useNotificationStore((state) => state.showConfirmation);
 
   const [data, setData] = useState<PluginListResponse | null>(null);
-  const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingPlugin, setEditingPlugin] = useState<PluginListEntry | null>(null);
@@ -268,7 +278,7 @@ function InstalledPluginsView({ onOpenStore }: { onOpenStore: () => void }) {
   }, [data?.plugins]);
 
   const visiblePlugins = useMemo(() => {
-    const query = filter.trim().toLowerCase();
+    const query = search.trim().toLowerCase();
     const plugins = data?.plugins ?? [];
     if (!query) return plugins;
 
@@ -287,7 +297,7 @@ function InstalledPluginsView({ onOpenStore }: { onOpenStore: () => void }) {
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [data?.plugins, filter]);
+  }, [data?.plugins, search]);
 
   const resolvePluginAsset = useCallback(
     (value: string) => resolvePluginAssetURL(value, apiBase),
@@ -702,8 +712,8 @@ function InstalledPluginsView({ onOpenStore }: { onOpenStore: () => void }) {
           <div className={styles.controlToolbar}>
             <Input
               type="search"
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
               placeholder={t('plugin_management.search_placeholder')}
               aria-label={t('plugin_management.search_label')}
               rightElement={<IconSearch size={16} />}
