@@ -17606,7 +17606,8 @@ describe('AccountsPage replacement flows', () => {
     expect(readText(selectedTabs[0])).toContain('accounts.detail_tab_diagnostics');
   });
 
-  it('keeps the scoped monitoring link visible when the event list is empty', async () => {
+  it.each(['/accounts', '/demo/accounts'])('keeps the scoped monitoring link visible when the event list is empty at %s', async (pathname) => {
+    mocks.location = { pathname, search: '' };
     mocks.panelFeatureAvailability = {
       checking: false,
       managerServiceBase: 'http://manager.local:18317',
@@ -17643,10 +17644,11 @@ describe('AccountsPage replacement flows', () => {
       await Promise.resolve();
     });
 
+    const monitoringHref = pathname === '/demo/accounts' ? '#/demo/monitoring?' : '#/monitoring?';
     const monitoringLink = renderer.root
       .findAll((node) => node.type === 'a')
-      .find((node) => String(node.props.href).startsWith('#/monitoring?'));
-    expect(monitoringLink?.props.href).toBe('#/monitoring?auth_file=codex.json&auth_index=auth-1');
+      .find((node) => String(node.props.href).startsWith(monitoringHref));
+    expect(monitoringLink?.props.href).toBe(`${monitoringHref}auth_file=codex.json&auth_index=auth-1`);
     expect(treeText(renderer)).not.toContain('accounts.detail_diagnostic_candidate_evidence');
   });
 

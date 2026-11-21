@@ -33,7 +33,9 @@ useAuthStore.subscribe((state, previous) => {
 
 export const getMonitoringConnectionGeneration = () => generation;
 
-export const readMonitoringWorkspaceMemory = (entry: string) => entries.get(entry) ?? latest;
+export const readMonitoringWorkspaceMemory = (entry: string, reuseLatest: boolean) =>
+  entries.get(entry) ?? (reuseLatest ? latest : undefined);
+export const readMonitoringWorkspaceRefreshInterval = () => latest?.ui.autoRefreshMs;
 
 export function writeMonitoringWorkspaceMemory(
   entry: string,

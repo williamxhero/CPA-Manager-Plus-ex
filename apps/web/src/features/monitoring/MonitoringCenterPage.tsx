@@ -5,6 +5,7 @@ import {
   readMonitoringDrill,
   readMonitoringDrillFilters,
   readMonitoringWorkspaceMemory,
+  readMonitoringWorkspaceRefreshInterval,
   writeMonitoringWorkspaceMemory,
 } from './monitoringWorkspaceMemory';
 import {
@@ -18,6 +19,7 @@ import {
   type ChangeEvent,
 } from 'react';
 import { useLocation } from 'react-router-dom';
+import { isDemoRoutePath } from '@/features/demo/demoMode';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import {
@@ -145,7 +147,9 @@ import {
   getDefaultMonitoringCenterUiState,
   MONITORING_DATA_TABS,
   readMonitoringCenterUiState,
+  readMonitoringWorkspacePreferences,
   writeMonitoringCenterUiState,
+  writeMonitoringWorkspacePreferences,
   type MonitoringDataTab,
 } from '@/features/monitoring/monitoringCenterUiState';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
@@ -211,13 +215,18 @@ export function MonitoringCenterPage({ workspace = false }: { workspace?: boolea
   const managementKey = useAuthStore((state) => state.managementKey);
   const authenticated = useAuthStore((state) => state.isAuthenticated);
   const connectionGeneration = getMonitoringConnectionGeneration();
+  const preferenceScope = useMemo(
+    () => workspace && authenticated && apiBase && managementKey && !isDemoRoutePath(location.pathname)
+      ? sha256Hex(JSON.stringify([apiBase, managementKey]))
+      : null,
+    [apiBase, authenticated, location.pathname, managementKey, workspace]
+  );
   if (!workspace) return <MonitoringCenterView />;
-  const entry = location.key || location.search;
+  const entry = JSON.stringify([location.key, location.search]);
   return (
     <MonitoringCenterView
       key={JSON.stringify([
         entry,
-        location.search,
         apiBase,
         managementKey,
         authenticated,
@@ -225,6 +234,7 @@ export function MonitoringCenterPage({ workspace = false }: { workspace?: boolea
       ])}
       workspaceEntry={entry}
       connectionGeneration={connectionGeneration}
+      preferenceScope={preferenceScope}
     />
   );
 }
@@ -232,9 +242,11 @@ export function MonitoringCenterPage({ workspace = false }: { workspace?: boolea
 function MonitoringCenterView({
   workspaceEntry,
   connectionGeneration = 0,
+  preferenceScope = null,
 }: {
   workspaceEntry?: string;
   connectionGeneration?: number;
+  preferenceScope?: string | null;
 }) {
   const { t, i18n } = useTranslation();
   const { status: managerStatus } = useDatabaseMaintenance();
@@ -271,18 +283,25 @@ function MonitoringCenterView({
       return {
         ui: buildMonitoringInitialStateFromQuery(location.search, readMonitoringCenterUiState()),
         drill: readMonitoringDrillFilters(location.search),
+        explicitDrill: false,
       };
     }
     const explicitDrill = readMonitoringDrill(location.search);
-    const memory = explicitDrill ? undefined : readMonitoringWorkspaceMemory(workspaceEntry);
-    const defaults = getDefaultMonitoringCenterUiState();
-    const ui = memory?.ui ?? buildMonitoringInitialStateFromQuery(location.search, defaults);
+    // A saved entry is the user's last view of this history item, even if its URL began as a drill.
+    const memory = readMonitoringWorkspaceMemory(workspaceEntry, !explicitDrill);
+    const preferences = readMonitoringWorkspacePreferences(preferenceScope);
+    const defaults = { ...getDefaultMonitoringCenterUiState(), ...preferences };
+    const ui = {
+      ...(memory?.ui ?? buildMonitoringInitialStateFromQuery(location.search, defaults)),
+      autoRefreshMs: readMonitoringWorkspaceRefreshInterval() ?? preferences.autoRefreshMs,
+    };
     const urlTab = new URLSearchParams(location.search).get('tab');
     return {
       ui: MONITORING_DATA_TABS.find((tab) => tab === urlTab)
         ? { ...ui, activeDataTab: urlTab as MonitoringDataTab }
         : ui,
       drill: memory?.drill ?? readMonitoringDrillFilters(location.search),
+      explicitDrill,
     };
   });
   const [timeRange, setTimeRange] = useState<MonitoringTimeRange>(initialView.ui.timeRange);
@@ -854,7 +873,11 @@ function MonitoringCenterView({
     };
     if (workspaceEntry === undefined) {
       writeMonitoringCenterUiState(ui);
-    } else {
+    } else if (connectionGeneration === getMonitoringConnectionGeneration()) {
+      writeMonitoringWorkspacePreferences(preferenceScope, {
+        autoRefreshMs,
+        ...(initialView.explicitDrill ? {} : { activeDataTab }),
+      });
       writeMonitoringWorkspaceMemory(workspaceEntry, connectionGeneration, {
         ui,
         drill: {
@@ -871,6 +894,8 @@ function MonitoringCenterView({
     isCurrentLayer,
     workspaceEntry,
     connectionGeneration,
+    preferenceScope,
+    initialView.explicitDrill,
     drilldownAuthFile,
     drilldownAuthIndex,
     drilldownProjectId,
