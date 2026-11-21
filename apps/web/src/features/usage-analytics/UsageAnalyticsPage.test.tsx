@@ -1083,10 +1083,9 @@ describe('UsageAnalyticsPage', () => {
     );
 
     clickHostButton(findHostButtonByText(renderer, 'usage_analytics.view_exception_combinations'));
-    expect(usageState.setFilters).toHaveBeenCalledWith({
+    expect(usageState.setActiveTab).toHaveBeenCalledWith('heatmap', {
       apiKeyHash: 'abcdef1234567890',
     });
-    expect(usageState.setActiveTab).toHaveBeenCalledWith('heatmap');
   });
 
   it('caps API key ranking at the shared limit and exposes the filtered total', () => {

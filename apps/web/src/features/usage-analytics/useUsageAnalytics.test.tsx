@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -232,6 +232,69 @@ describe('useUsageAnalytics request orchestration', () => {
     }, [result]);
     return null;
   }
+
+  it('routes workspace tab actions and applies drilldown filters in one history entry', async () => {
+    const entries: string[] = [];
+    let goBack: (() => void) | undefined;
+    function WorkspaceHarness() {
+      const usage = useUsageAnalytics(true);
+      const { search } = useLocation();
+      const navigate = useNavigate();
+      useEffect(() => {
+        latestResult = usage;
+        goBack = () => navigate(-1);
+      }, [navigate, usage]);
+      useEffect(() => {
+        entries.push(search);
+      }, [search]);
+      return null;
+    }
+
+    await act(async () => {
+      renderer = create(
+        <MemoryRouter
+          initialEntries={['/usage-analytics?tab=overview&provider=codex&extra=one&extra=two']}
+        >
+          <WorkspaceHarness />
+        </MemoryRouter>
+      );
+    });
+    const currentQuery = () => new URLSearchParams(entries.at(-1));
+
+    await act(async () => latestResult?.setActiveTab('apiKeys'));
+    expect(latestResult?.activeTab).toBe('apiKeys');
+    expect(currentQuery().get('tab')).toBe('apiKeys');
+    expect(currentQuery().get('provider')).toBe('codex');
+    expect(currentQuery().getAll('extra')).toEqual(['one', 'two']);
+
+    const beforeDrilldown = entries.length;
+    useMonitoringAnalyticsMock.mockClear();
+    await act(async () => latestResult?.setActiveTab('heatmap', { apiKeyHash: 'key-a' }));
+    expect(entries).toHaveLength(beforeDrilldown + 1);
+    expect(Object.fromEntries(currentQuery())).toMatchObject({
+      tab: 'heatmap',
+      provider: 'codex',
+      api_key_hash: 'key-a',
+    });
+    expect(latestResult?.activeTab).toBe('heatmap');
+    expect(latestResult?.filters.apiKeyHash).toBe('key-a');
+    const heatmapRequests = useMonitoringAnalyticsMock.mock.calls
+      .map(([params]) => params)
+      .filter((params) => params.include?.summary);
+    expect(heatmapRequests.length).toBeGreaterThan(0);
+    for (const request of heatmapRequests) {
+      expect(request.include?.heatmap).toBe(true);
+      expect(request.filters).toMatchObject({ api_key_hashes: ['key-a'] });
+    }
+
+    await act(async () => goBack?.());
+    expect(latestResult?.activeTab).toBe('apiKeys');
+    expect(latestResult?.filters.apiKeyHash).toBe('all');
+    expect(currentQuery().has('api_key_hash')).toBe(false);
+    await act(async () => goBack?.());
+    expect(latestResult?.activeTab).toBe('overview');
+    expect(currentQuery().get('tab')).toBe('overview');
+  });
 
   beforeEach(() => {
     selectorError = '';

@@ -2492,10 +2492,8 @@ function UsageAnalyticsPageInner({
         )}`;
   const openApiKeyCombinationHeatmap = () => {
     const apiKeyHash = getSelectableApiKeyHash(usage.selectedApiKey?.apiKeyHash);
-    if (apiKeyHash) {
-      updateFilters({ apiKeyHash });
-    }
-    usage.setActiveTab('heatmap');
+    if (apiKeyHash) rememberVisibleOptions();
+    usage.setActiveTab('heatmap', apiKeyHash ? { apiKeyHash } : undefined);
   };
 
   const usageTabItems = useMemo<ReadonlyArray<SegmentedTabItem<UsageAnalyticsTab>>>(
