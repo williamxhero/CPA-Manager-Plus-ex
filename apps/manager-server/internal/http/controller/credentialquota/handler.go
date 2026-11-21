@@ -13,6 +13,7 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/middleware"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/response"
 	svc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
 
@@ -41,7 +42,20 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			statuses, err = h.App.CredentialQuotaService.Statuses(ctx)
 			out = map[string]any{"statuses": statuses}
 		} else if index := r.URL.Query().Get("authIndex"); index != "" {
-			out, err = h.App.CredentialQuotaService.Status(ctx, index)
+			var status svc.Status
+			status, err = h.App.CredentialQuotaService.Status(ctx, index)
+			var due int64
+			if err == nil && status.State == "ready" && status.AuthIndex != "" {
+				q := svc.Query{
+					Binding: status.Binding, AuthIndex: status.AuthIndex,
+					SourceID: status.SourceID, SourceVersion: status.SourceVersion, SubjectID: status.SubjectID,
+				}
+				due = h.App.FullRefreshService.NextPeriodicSourceCheck(ctx, fullrefresh.SourceRequest{Kind: fullrefresh.Credential, Credential: &q})
+			}
+			out = struct {
+				svc.Status
+				NextPeriodicCheckMS int64 `json:"nextPeriodicCheckMs,omitempty"`
+			}{status, due}
 		} else {
 			var sources []svc.Source
 			sources, err = h.App.CredentialQuotaService.Sources(ctx)

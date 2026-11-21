@@ -181,8 +181,8 @@ describe('ProviderTable', () => {
     const renderer = renderTable(rows, { onToggle });
     const [native, legacy] = getRows(renderer);
     expect(native.findAll((node) => node.type === 'span' && node.props['data-provider-auto-start-stop'] === 'core')).toHaveLength(1);
-    for (const [row, count] of [[native, 0], [legacy, 1]] as const) {
-      expect(row.findAll((node) => node.type === 'button' && node.props['aria-pressed'] !== undefined)).toHaveLength(count);
+    for (const row of [native, legacy]) {
+      expect(row.findAll((node) => node.type === 'button' && node.props['aria-pressed'] !== undefined)).toHaveLength(0);
     }
     const manual = native.findByType(ToggleSwitch);
     expect(manual.props.checked).toBe(false);
@@ -191,7 +191,7 @@ describe('ProviderTable', () => {
     act(() => renderer.unmount());
   });
 
-  it('keeps automatic usage participation separate from manual toggles on every row', () => {
+  it('only exposes the manual switch for key providers without Core funding', () => {
     const rows = buildProviderRows({ ...emptyInput, codex: codexConfigs });
     const renderer = renderTable(rows);
     for (const row of getRows(renderer)) {
@@ -199,13 +199,13 @@ describe('ProviderTable', () => {
       expect(row.findAll((node) => node.type === 'button' &&
         String(node.props['aria-label']).includes('resource_protection.'))).toHaveLength(0);
       expect(row.findAll((node) => node.type === 'button' &&
-        node.props['aria-pressed'] !== undefined)).toHaveLength(1);
+        node.props['aria-pressed'] !== undefined)).toHaveLength(0);
     }
     act(() => renderer.unmount());
   });
 
   it.each(['unknown', 'unavailable', 'identity_only', 'unsupported_mode'] as const)(
-    'preserves automatic participation, keyboard actions and manual toggles with %s capability',
+    'preserves keyboard actions and manual toggles with %s capability',
     (resourceProtection) => {
       const rows = buildProviderRows({ ...emptyInput, codex: [codexConfigs[1]] });
       const onShowDetail = vi.fn();
@@ -214,15 +214,6 @@ describe('ProviderTable', () => {
       const onDelete = vi.fn();
       const renderer = renderTable(rows, { onShowDetail, onToggle, onEdit, onDelete }, { resourceProtection });
       const row = getRows(renderer)[0];
-      const automatic = row.findAll((node) => node.type === 'button' &&
-        node.props['aria-pressed'] !== undefined)[0];
-      expect(automatic).toBeDefined();
-      const stop = vi.fn();
-      act(() => {
-        automatic.props.onClick();
-        automatic.parent!.parent!.props.onClick({ stopPropagation: stop });
-      });
-      expect(stop).toHaveBeenCalled();
       expect(onShowDetail).not.toHaveBeenCalled();
       expect(row.findAll((node) => node.type === 'span' && node.props.title === rows[0].label)[0].children)
         .toEqual([rows[0].label]);

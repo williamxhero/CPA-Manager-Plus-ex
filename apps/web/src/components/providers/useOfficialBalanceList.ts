@@ -2,11 +2,10 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   officialBalanceRequest,
   type BalanceBinding,
-  type BalanceJob,
   type BalanceObservation,
   type OfficialBalanceStatus,
 } from '@/services/api/officialBalance';
-import { fullRefreshRequest, type RefreshInventory, type RefreshProgress } from '@/services/api/fullRefresh';
+import { fullRefreshRequest, type RefreshInventory } from '@/services/api/fullRefresh';
 import type { ProviderRow } from './ProviderTable/rowData';
 import type { ProviderMoneyStatusConfig } from './useProviderMoneySummaries';
 import { formatBalanceText, formatBalanceDisplay } from '@/utils/quota/formatBalanceAmount';
@@ -33,12 +32,6 @@ export function clearOfficialBalanceCachesForTests() {
 
 export function balanceStorageKey(kind: string, resourceId: string): string {
   return /^[0-9a-f-]{36}$/i.test(resourceId) ? `${kind}:${resourceId}` : '';
-}
-
-export function balanceTextInsufficient(text?: string): boolean {
-  if (!text || /unlimited/i.test(text)) return false;
-  const numbers = text.match(/-?\d+(?:\.\d+)?/g);
-  return !!numbers?.length && numbers.every((value) => Number(value) <= 0);
 }
 
 export interface OfficialBalanceView {
@@ -68,11 +61,7 @@ function displayableBalanceText(text?: string): text is string {
 }
 
 function statusText(status: OfficialBalanceStatus): string | undefined {
-  const attempt = observationText(status.attempt);
-  const lastSuccess = observationText(status.lastSuccess);
-  // A live insufficient reading must win over a healthier cached lastSuccess.
-  if (balanceTextInsufficient(attempt)) return attempt;
-  return lastSuccess ?? attempt;
+  return observationText(status.lastSuccess) ?? observationText(status.attempt);
 }
 
 function isOfficialStatus(value: unknown): value is OfficialBalanceStatus {
@@ -184,19 +173,13 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
       );
       const intervalFresh =
         !force && ((cached && !quotaRefreshDue(cached.at)) || (dueAt > 0 && !quotaRefreshDue(dueAt)));
-      const refreshRows = bindings.filter((row) => {
-        const text = seeded[row.key]?.text;
-        if (balanceTextInsufficient(text)) return true;
-        if (displayableBalanceText(text)) return false;
-        return texts[row.storageKey] !== KNOWN_EMPTY_BALANCE;
-      });
-      if (intervalFresh && refreshRows.length === 0) {
+      if (intervalFresh && cached && !quotaRefreshDue(cached.at)) {
         if (mounted) setViews(seeded);
-        const delay = quotaRefreshDelayMs(cached && !quotaRefreshDue(cached.at) ? cached.at : dueAt);
+        const delay = quotaRefreshDelayMs(cached.at);
         if (mounted && delay) timer = setTimeout(() => void run(true), delay);
         return;
       }
-      const queue = intervalFresh ? refreshRows : bindings;
+      const queue = bindings;
       if (mounted) {
         const pending = { ...seeded };
         for (const row of queue) pending[row.key] = { text: seeded[row.key]?.text, pending: true };
@@ -229,49 +212,13 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
               canceled,
             ]);
             text = isOfficialStatus(status) ? statusText(status) : undefined;
-            const refreshNow =
-              balanceTextInsufficient(seeded[row.key]?.text) || balanceTextInsufficient(text);
-            if (
-              (refreshNow || !text) &&
-              isOfficialStatus(status) &&
-              status.configured &&
-              status.managerDirectQuery
-            ) {
-              const posted = await Promise.race([
-                officialBalanceRequest<BalanceJob>(
-                  base,
-                  managementKey,
-                  'POST',
-                  '',
-                  { scope: row.binding.scope, targets: row.binding.targets, version: status.version },
-                  controller.signal
-                ),
-                canceled,
-              ]);
-              let job = posted;
-              for (let attempt = 0; attempt < 8 && job.state !== 'complete' && mounted; attempt++) {
-                await new Promise((resolve) => setTimeout(resolve, 400));
-                job = await Promise.race([
-                  officialBalanceRequest<BalanceJob>(
-                    base,
-                    managementKey,
-                    'GET',
-                    `?job=${encodeURIComponent(job.id)}`,
-                    undefined,
-                    controller.signal
-                  ),
-                  canceled,
-                ]);
-              }
-              text = job.status ? statusText(job.status) : undefined;
-            }
           } catch {
             text = undefined;
           } finally {
             clearTimeout(timeout);
             active.delete(controller);
           }
-          if (mounted) publish(row.key, { text, pending: false });
+          if (mounted) publish(row.key, { text: text ?? seeded[row.key]?.text, pending: false });
         }
       };
       await Promise.all([worker(), worker()]);
@@ -284,14 +231,11 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
           const text = views[row.key]?.text;
           if (row.storageKey && displayableBalanceText(text)) balanceTexts[row.storageKey] = text;
         }
-        const partial = queue.length !== bindings.length;
-        if (!partial && bindings.every((row) => !row.storageKey || balanceTexts[row.storageKey])) {
+        if (bindings.every((row) => !row.storageKey || balanceTexts[row.storageKey])) {
           await writeRuntimeControls({ ...readRuntimeControls(), quotaFetchedAtMs: at, balanceTexts });
-        } else if (partial) {
-          await writeRuntimeControls({ ...readRuntimeControls(), balanceTexts });
         }
       }
-      const delay = queue.length === bindings.length ? readQuotaRefreshIntervalMs() : quotaRefreshDelayMs(dueAt);
+      const delay = readQuotaRefreshIntervalMs();
       if (mounted && delay) timer = setTimeout(() => void run(true), delay);
     };
     void run(false);
@@ -311,7 +255,6 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
     const controller = new AbortController();
     let mounted = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const bound = new Set(bindings.map((row) => row.key));
     const viewsFrom = (byResource: Map<string, string>) => {
       const next: Record<string, OfficialBalanceView> = {};
       for (const [key, , , ids] of inventoryRows) {
@@ -355,9 +298,6 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
           if (view.text && !seeded[key]) seeded[key] = view;
         }
       }
-      const unboundInsufficient = inventoryRows.some(
-        ([key]) => !bound.has(key) && balanceTextInsufficient(seeded[key]?.text)
-      );
       const intervalFresh = !force && dueAt > 0 && !quotaRefreshDue(dueAt);
       if (intervalFresh && !bindingsSettled) {
         if (mounted) setInventoryViews(seeded);
@@ -390,50 +330,11 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
           const next = viewsFrom(byResource);
           if (mounted) setInventoryViews({ ...seeded, ...next });
           if (Array.isArray(inventory.sources)) await remember(next, stampFetched);
-          const refreshIds = new Set(
-            inventoryRows
-              .filter(([key]) => !bound.has(key) && balanceTextInsufficient(seeded[key]?.text ?? next[key]?.text))
-              .flatMap(([, , , ids]) => ids)
-          );
-          for (const source of inventory.sources ?? []) {
-            if (!mounted || !source.queryCapable || !source.request?.official) continue;
-            const touches = (source.targets ?? []).some((target) => refreshIds.has(target.resource_id));
-            if (!touches) continue;
-            let job = await fullRefreshRequest<RefreshProgress>(
-              base,
-              managementKey,
-              { purpose: 'manual', source: source.request },
-              undefined,
-              controller.signal
-            );
-            for (let attempt = 0; attempt < 8 && job.state === 'running' && mounted; attempt++) {
-              await new Promise((resolve) => setTimeout(resolve, 400));
-              job = await fullRefreshRequest<RefreshProgress>(
-                base,
-                managementKey,
-                undefined,
-                job.id,
-                controller.signal
-              );
-            }
-            for (const item of job.items ?? []) {
-              const text = observationText(item.lastSuccess) ?? observationText(item.attempt);
-              if (!text) continue;
-              for (const target of item.targets ?? []) {
-                if (target.resource_id) byResource.set(target.resource_id, text);
-              }
-            }
-          }
-          if (refreshIds.size > 0) {
-            const refreshed = viewsFrom(byResource);
-            if (mounted) setInventoryViews({ ...seeded, ...refreshed });
-            if (Array.isArray(inventory.sources)) await remember(refreshed, false);
-          }
         } catch {
           if (mounted) setInventoryViews(seeded);
         }
       };
-      if (intervalFresh && known && !unboundInsufficient) {
+      if (intervalFresh && known) {
         if (mounted) setInventoryViews(seeded);
         scheduleHour();
         return;
@@ -448,6 +349,10 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
         return;
       }
       await loadInventory(true);
+      if (mounted) {
+        const delay = readQuotaRefreshIntervalMs();
+        if (delay) timer = setTimeout(() => void run(true), delay);
+      }
     };
     void run(false);
     return () => {

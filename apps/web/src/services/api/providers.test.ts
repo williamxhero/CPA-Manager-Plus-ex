@@ -12,6 +12,9 @@ const { mocks } = vi.hoisted(() => ({
   mocks: {
     get: vi.fn(),
     getV8: vi.fn(),
+    captureConnection: vi.fn(),
+    isCurrentConnection: vi.fn(),
+    scopedConfig: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
   },
@@ -21,9 +24,12 @@ vi.mock('./client', () => ({
   apiClient: {
     get: mocks.get,
     getV8: mocks.getV8,
+    captureConnection: mocks.captureConnection,
+    isCurrentConnection: mocks.isCurrentConnection,
     put: mocks.put,
     delete: mocks.delete,
   },
+  createScopedApiRequestConfig: mocks.scopedConfig,
 }));
 
 import {
@@ -38,7 +44,11 @@ import {
 
 beforeEach(() => {
   mocks.get.mockReset();
-  mocks.getV8.mockReset();
+  mocks.getV8.mockReset().mockRejectedValue(new Error('v8 unavailable'));
+  const connection = { apiBase: 'http://core.example', managementKey: 'synthetic-key' };
+  mocks.captureConnection.mockReset().mockReturnValue(connection);
+  mocks.isCurrentConnection.mockReset().mockReturnValue(true);
+  mocks.scopedConfig.mockReset().mockImplementation((scope: typeof connection) => ({ scope }));
   mocks.put.mockReset();
   mocks.delete.mockReset();
 });
@@ -107,13 +117,56 @@ describe('providersApi auth-index preservation', () => {
       entry('native', 'fixture-a'), entry('moved', 'fixture-b'), entry('foreign', 'fixture-c'),
     ] });
     mocks.getV8.mockResolvedValueOnce([
-      { ...entry('foreign', 'fixture-c'), 'native-funding': false },
+      { ...entry('foreign', 'fixture-c'), 'native-funding': false, 'auto-held': true },
       { name: 'native', 'base-url': 'https://api.deepseek.com/v1', keys: [key('fixture-a')], 'native-funding': true, 'auto-held': true },
       { ...entry('moved', 'former-key'), 'native-funding': true },
     ]);
     const result = await providersApi.getOpenAIProviders();
     expect(result.map((row) => [row.nativeFunding, row.autoHeld])).toEqual([
-      [true, true], [undefined, undefined], [false, undefined],
+      [true, true], [undefined, undefined], [false, true],
+    ]);
+  });
+
+  it('keeps v0, v8 and delayed cooling hydration on one connection and discards stale authority', async () => {
+    const connection = mocks.captureConnection();
+    const row = { name: 'fixture', 'base-url': 'https://fixture.invalid', 'auto-held': true };
+    let finishAuthority!: (rows: unknown[]) => void;
+    let finishCooling!: (config: unknown) => void;
+    mocks.getV8.mockImplementationOnce(() => new Promise((resolve) => { finishAuthority = resolve; }));
+    mocks.get.mockResolvedValueOnce({ 'openai-compatibility': [row] });
+    mocks.get.mockImplementationOnce(() => new Promise((resolve) => { finishCooling = resolve; }));
+
+    const pending = providersApi.getOpenAIProviders();
+    await Promise.resolve();
+    expect(mocks.get.mock.calls).toEqual([
+      ['/openai-compatibility', { scope: connection }],
+      ['/config', { scope: connection }],
+    ]);
+    expect(mocks.getV8).toHaveBeenCalledWith('/config/api-keys/openai-compatibility', connection);
+    mocks.isCurrentConnection.mockReturnValue(false);
+    finishCooling({ 'openai-compatibility': [{ ...row, 'disable-cooling': true }] });
+    finishAuthority([{ ...row, 'native-funding': false }]);
+    await expect(pending).rejects.toThrow('Core connection changed');
+  });
+
+  it('reads the legacy hold from the exact raw config row and preserves newer holds during edits', async () => {
+    const provider = {
+      name: 'legacy',
+      'base-url': 'https://fixture.invalid',
+      'api-key-entries': [{ 'api-key': 'legacy-key' }],
+      'disable-cooling': true,
+    };
+    mocks.get
+      .mockResolvedValueOnce({ 'openai-compatibility': [provider] })
+      .mockResolvedValueOnce({ 'openai-compatibility': [{ ...provider, 'auto-held': true }] })
+      .mockResolvedValueOnce({ 'openai-compatibility': [{ ...provider, 'auto-held': true }] });
+    const [row] = await providersApi.getOpenAIProviders();
+    expect(row.nativeFunding).toBeUndefined();
+    expect(row.autoHeld).toBe(true);
+
+    await providersApi.updateOpenAIProvider(row.name, 0, { ...row, disabled: true, autoHeld: false });
+    expect(mocks.put).toHaveBeenCalledWith('/openai-compatibility', [
+      expect.objectContaining({ 'auto-held': true, disabled: true }),
     ]);
   });
 
@@ -513,8 +566,9 @@ describe('providersApi v1.16 provider fields', () => {
       name: 'openai-compatible',
       disableCooling: true,
     });
-    expect(mocks.get).toHaveBeenNthCalledWith(1, '/openai-compatibility');
-    expect(mocks.get).toHaveBeenNthCalledWith(2, '/config');
+    const requestConfig = { scope: mocks.captureConnection() };
+    expect(mocks.get).toHaveBeenNthCalledWith(1, '/openai-compatibility', requestConfig);
+    expect(mocks.get).toHaveBeenNthCalledWith(2, '/config', requestConfig);
   });
 
   it('serializes Claude disable-cooling, rebuild flag, cloak cache, and model metadata without legacy cch writes', async () => {

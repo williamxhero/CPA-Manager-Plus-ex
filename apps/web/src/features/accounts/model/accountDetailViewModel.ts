@@ -1154,6 +1154,14 @@ const buildRenewalOverviewFields = (raw: AuthFileItem): Array<AccountDetailField
       'timestamp'
     ),
     field(
+      'renewalNextCheck',
+      'accounts.renewal_next_check',
+      action === 'retry' || action === 'sign_in' || action === 'recover_credential'
+        ? null
+        : renewalTime(raw.next_renewal_check_at),
+      'timestamp'
+    ),
+    field(
       'renewalWarning',
       'accounts.renewal_warning',
       raw.renewal_warning === 'repeated_refresh_failures'

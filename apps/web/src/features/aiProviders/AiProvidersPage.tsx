@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   buildProviderRows,
@@ -35,7 +43,8 @@ import { Select } from '@/components/ui/Select';
 import { usePanelFeatureAvailability } from '@/hooks/usePanelFeatureAvailability';
 import { useResourceProtection } from '@/features/resourceProtection/resourceProtection';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
-import { providersApi } from '@/services/api';
+import { configApi, providersApi } from '@/services/api';
+import { apiClient } from '@/services/api/client';
 import { readListPageSize, writeListPageSize } from '@/utils/listPageSize';
 import { loadRuntimeControls, runtimeBalancesReady, subscribeRuntimeControls } from '@/utils/quota/runtimeControls';
 import {
@@ -45,6 +54,7 @@ import {
 import { useAuthStore, useConfigStore, useNotificationStore, useThemeStore } from '@/stores';
 import {
   CloakConfig,
+  type Config,
   coolingPolicyToOverride,
   type CoolingPolicy,
   GeminiKeyConfig,
@@ -68,18 +78,45 @@ export function AiProvidersPage() {
   const { t } = useTranslation();
   const { showNotification, showConfirmation } = useNotificationStore();
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
+  const apiBase = useAuthStore((state) => state.apiBase);
   const balanceManagementKey = useAuthStore((state) => state.managementKey);
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
+  const connection = apiClient.captureConnection();
+  const connectionScope = useMemo(
+    () => ({ apiBase, balanceManagementKey, connectionStatus, connection }),
+    [apiBase, balanceManagementKey, connectionStatus, connection]
+  );
+  const pageTransitionLayer = usePageTransitionLayer();
+  const isCurrentLayer = pageTransitionLayer ? pageTransitionLayer.status === 'current' : true;
+  const loadScope = useMemo(
+    () => (isCurrentLayer && connectionStatus === 'connected' ? connectionScope : null),
+    [connectionScope, connectionStatus, isCurrentLayer]
+  );
+  const activeLoadScope = useRef<typeof loadScope>(null);
+  const configRequestId = useRef(0);
+  const pendingConfigRequest = useRef(false);
+  const reloadAfterInterruption = useRef(false);
+  useLayoutEffect(() => {
+    activeLoadScope.current = loadScope;
+    return () => {
+      activeLoadScope.current = null;
+      configRequestId.current += 1;
+      reloadAfterInterruption.current ||= pendingConfigRequest.current;
+      pendingConfigRequest.current = false;
+    };
+  }, [loadScope]);
   const featureAvailability = usePanelFeatureAvailability();
 
-  const config = useConfigStore((state) => state.config);
-  const fetchConfig = useConfigStore((state) => state.fetchConfig);
   const updateConfigValue = useConfigStore((state) => state.updateConfigValue);
   const clearCache = useConfigStore((state) => state.clearCache);
-  const isCacheValid = useConfigStore((state) => state.isCacheValid);
 
-  const hasMounted = useRef(false);
-  const [loading, setLoading] = useState(() => !isCacheValid());
+  const [configSnapshot, setConfigSnapshot] = useState<{
+    config: Config;
+    scope: typeof connectionScope;
+  } | null>(null);
+  const [finishedBootstrap, setFinishedBootstrap] = useState<typeof loadScope>(null);
+  const hasSnapshot = configSnapshot?.scope === connectionScope;
+  const loading = !hasSnapshot && finishedBootstrap !== connectionScope;
   const balancesReady = useSyncExternalStore(subscribeRuntimeControls, runtimeBalancesReady, () => false);
   const [error, setError] = useState('');
   const [providerPolicyRevision, setProviderPolicyRevision] = useState(0);
@@ -87,12 +124,10 @@ export function AiProvidersPage() {
   const { status: resourceProtection, forProvider, refresh: refreshResourceProtection } =
     useResourceProtection(
       { ...featureAvailability, checking: featureAvailability.checking || loading },
-      config
+      hasSnapshot ? configSnapshot.config : null
     );
 
-  const [geminiKeys, setGeminiKeys] = useState<GeminiKeyConfig[]>(
-    () => config?.geminiApiKeys || []
-  );
+  const [geminiKeys, setGeminiKeys] = useState<GeminiKeyConfig[]>([]);
   const providerPolicyConnection: ProviderPolicyConnection = {
     base: featureAvailability.managerServiceBase,
     managementKey: balanceManagementKey,
@@ -127,30 +162,20 @@ export function AiProvidersPage() {
     balanceManagementKey,
     providerPolicyRevision,
   ]);
-  const [interactionsKeys, setInteractionsKeys] = useState<GeminiKeyConfig[]>(
-    () => config?.interactionsApiKeys || []
-  );
-  const [codexConfigs, setCodexConfigs] = useState<ProviderKeyConfig[]>(
-    () => config?.codexApiKeys || []
-  );
-  const [xaiConfigs, setXAIConfigs] = useState<ProviderKeyConfig[]>(() => config?.xaiApiKeys || []);
-  const [metaConfigs, setMetaConfigs] = useState<ProviderKeyConfig[]>(
-    () => config?.metaApiKeys || []
-  );
-  const [claudeConfigs, setClaudeConfigs] = useState<ProviderKeyConfig[]>(
-    () => config?.claudeApiKeys || []
-  );
-  const [vertexConfigs, setVertexConfigs] = useState<ProviderKeyConfig[]>(
-    () => config?.vertexApiKeys || []
-  );
-  const [openaiProviders, setOpenaiProviders] = useState<OpenAIProviderConfig[]>(
-    () => config?.openaiCompatibility || []
-  );
+  const [interactionsKeys, setInteractionsKeys] = useState<GeminiKeyConfig[]>([]);
+  const [codexConfigs, setCodexConfigs] = useState<ProviderKeyConfig[]>([]);
+  const [xaiConfigs, setXAIConfigs] = useState<ProviderKeyConfig[]>([]);
+  const [metaConfigs, setMetaConfigs] = useState<ProviderKeyConfig[]>([]);
+  const [claudeConfigs, setClaudeConfigs] = useState<ProviderKeyConfig[]>([]);
+  const [vertexConfigs, setVertexConfigs] = useState<ProviderKeyConfig[]>([]);
+  const [openaiProviders, setOpenaiProviders] = useState<OpenAIProviderConfig[]>([]);
 
   const [configSwitchingKey, setConfigSwitchingKey] = useState<string | null>(null);
   const configMutationLockRef = useRef(createConfigMutationLock());
   const beginConfigMutation = useCallback((switchingKey: string) => {
     if (!configMutationLockRef.current.tryAcquire()) return false;
+    configRequestId.current += 1;
+    pendingConfigRequest.current = false;
     setConfigSwitchingKey(switchingKey);
     return true;
   }, []);
@@ -183,9 +208,6 @@ export function AiProvidersPage() {
   const isSwitching = Boolean(configSwitchingKey);
   const actionsDisabled = disableControls || loading || isSwitching;
 
-  const pageTransitionLayer = usePageTransitionLayer();
-  const isCurrentLayer = pageTransitionLayer ? pageTransitionLayer.status === 'current' : true;
-
   const { usageByProvider, loadRecentRequests, refreshRecentRequests } = useProviderRecentRequests({
     enabled: isCurrentLayer,
   });
@@ -200,18 +222,30 @@ export function AiProvidersPage() {
   };
 
   const loadConfigs = useCallback(async () => {
-    const hasValidCache = isCacheValid();
-    if (!hasValidCache) {
-      setLoading(true);
-    }
+    const matchesView = () => {
+      const auth = useAuthStore.getState();
+      return (
+        loadScope !== null &&
+        activeLoadScope.current === loadScope &&
+        auth.connectionStatus === 'connected' &&
+        auth.apiBase === loadScope.apiBase &&
+        auth.managementKey === loadScope.balanceManagementKey &&
+        apiClient.isCurrentConnection(loadScope.connection)
+      );
+    };
+    if (!loadScope || !matchesView()) return;
+    const requestId = ++configRequestId.current;
+    const isCurrent = () => requestId === configRequestId.current && matchesView();
+    pendingConfigRequest.current = true;
     setError('');
     try {
       const [configResult, vertexResult, openaiResult] = await Promise.allSettled([
-        fetchConfig(),
-        providersApi.getVertexConfigs(),
-        providersApi.getOpenAIProviders(),
+        configApi.getConfig(loadScope.connection),
+        providersApi.getVertexConfigs(loadScope.connection),
+        providersApi.getOpenAIProviders(loadScope.connection),
       ]);
 
+      if (!isCurrent()) return;
       if (configResult.status !== 'fulfilled') {
         throw configResult.reason;
       }
@@ -223,39 +257,45 @@ export function AiProvidersPage() {
       setXAIConfigs(data?.xaiApiKeys || []);
       setMetaConfigs(data?.metaApiKeys || []);
       setClaudeConfigs(data?.claudeApiKeys || []);
-      setVertexConfigs(data?.vertexApiKeys || []);
-      setOpenaiProviders(data?.openaiCompatibility || []);
-
-      if (vertexResult.status === 'fulfilled') {
-        setVertexConfigs(vertexResult.value || []);
-        updateConfigValue('vertex-api-key', vertexResult.value || []);
-        clearCache('vertex-api-key');
+      if (!hasSnapshot && openaiResult.status !== 'fulfilled') {
+        setOpenaiProviders((data?.openaiCompatibility || []).map((provider) => {
+          const fallback = { ...provider };
+          delete fallback.nativeFunding;
+          return fallback;
+        }));
       }
+
+      setVertexConfigs(vertexResult.status === 'fulfilled' ? vertexResult.value : data?.vertexApiKeys || []);
 
       if (openaiResult.status === 'fulfilled') {
         setOpenaiProviders(openaiResult.value || []);
-        updateConfigValue('openai-compatibility', openaiResult.value || []);
-        clearCache('openai-compatibility');
+      } else {
+        setError(getErrorMessage(openaiResult.reason) || t('notification.refresh_failed'));
       }
+      setConfigSnapshot({
+        scope: loadScope,
+        config: {
+          ...data,
+          vertexApiKeys: vertexResult.status === 'fulfilled' ? vertexResult.value : data.vertexApiKeys,
+          openaiCompatibility:
+            openaiResult.status === 'fulfilled' ? openaiResult.value : data.openaiCompatibility,
+        },
+      });
     } catch (err: unknown) {
-      const message = getErrorMessage(err) || t('notification.refresh_failed');
-      setError(message);
+      if (isCurrent()) setError(getErrorMessage(err) || t('notification.refresh_failed'));
     } finally {
-      setLoading(false);
+      if (isCurrent()) {
+        pendingConfigRequest.current = false;
+        setFinishedBootstrap(loadScope);
+      }
     }
-  }, [clearCache, fetchConfig, isCacheValid, t, updateConfigValue]);
+  }, [hasSnapshot, loadScope, t]);
 
-  useEffect(() => {
-    if (hasMounted.current) return;
-    hasMounted.current = true;
-    void loadRuntimeControls();
-    loadConfigs();
-  }, [loadConfigs]);
-
+  const lastLoadScope = useRef<typeof loadScope>(null);
   const leftCurrentLayerRef = useRef(false);
 
   useEffect(() => {
-    if (!isCurrentLayer) {
+    if (!loadScope) {
       // Editors invalidate the provider config cache before navigating back
       // (clearCache also drops the full-config cache). When this list becomes
       // the current layer again, reload so a committed save is never hidden
@@ -263,39 +303,27 @@ export function AiProvidersPage() {
       leftCurrentLayerRef.current = true;
       return;
     }
-    if (leftCurrentLayerRef.current) {
+    if (lastLoadScope.current !== loadScope) {
+      lastLoadScope.current = loadScope;
       leftCurrentLayerRef.current = false;
-      if (!isCacheValid()) {
-        void loadConfigs();
-      }
+      reloadAfterInterruption.current = false;
+      void loadRuntimeControls();
+      void loadConfigs();
+    } else if (reloadAfterInterruption.current || leftCurrentLayerRef.current) {
+      reloadAfterInterruption.current = false;
+      void loadConfigs();
     }
+    leftCurrentLayerRef.current = false;
     void loadRecentRequests().catch(() => {});
-  }, [isCurrentLayer, isCacheValid, loadConfigs, loadRecentRequests]);
-
-  useEffect(() => {
-    if (config?.geminiApiKeys) setGeminiKeys(config.geminiApiKeys);
-    if (config?.interactionsApiKeys) setInteractionsKeys(config.interactionsApiKeys);
-    if (config?.codexApiKeys) setCodexConfigs(config.codexApiKeys);
-    if (config?.xaiApiKeys) setXAIConfigs(config.xaiApiKeys);
-    if (config?.metaApiKeys) setMetaConfigs(config.metaApiKeys);
-    if (config?.claudeApiKeys) setClaudeConfigs(config.claudeApiKeys);
-    if (config?.vertexApiKeys) setVertexConfigs(config.vertexApiKeys);
-    if (config?.openaiCompatibility) setOpenaiProviders(config.openaiCompatibility);
-  }, [
-    config?.geminiApiKeys,
-    config?.interactionsApiKeys,
-    config?.codexApiKeys,
-    config?.xaiApiKeys,
-    config?.metaApiKeys,
-    config?.claudeApiKeys,
-    config?.vertexApiKeys,
-    config?.openaiCompatibility,
-  ]);
+  }, [loadConfigs, loadRecentRequests, loadScope]);
 
   const handleRecentRequestsRefresh = useCallback(async () => {
     void refreshResourceProtection();
-    await refreshRecentRequests();
-  }, [refreshRecentRequests, refreshResourceProtection]);
+    await Promise.all([
+      refreshRecentRequests(),
+      configMutationLockRef.current.isLocked() ? undefined : loadConfigs(),
+    ]);
+  }, [loadConfigs, refreshRecentRequests, refreshResourceProtection]);
 
   useHeaderRefresh(handleRecentRequestsRefresh, isCurrentLayer);
 
@@ -318,22 +346,25 @@ export function AiProvidersPage() {
   // 统一行集合与派生数据
   const rows = useMemo(
     () =>
-      buildProviderRows({
-        gemini: geminiKeys,
-        interactions: interactionsKeys,
-        codex: codexConfigs,
-        xai: xaiConfigs,
-        meta: metaConfigs,
-        claude: claudeConfigs,
-        vertex: vertexConfigs,
-        openai: openaiProviders,
-        usageByProvider,
-        providerKeyAliases,
-      }),
+      hasSnapshot
+        ? buildProviderRows({
+            gemini: geminiKeys,
+            interactions: interactionsKeys,
+            codex: codexConfigs,
+            xai: xaiConfigs,
+            meta: metaConfigs,
+            claude: claudeConfigs,
+            vertex: vertexConfigs,
+            openai: openaiProviders,
+            usageByProvider,
+            providerKeyAliases,
+          })
+        : [],
     [
       claudeConfigs,
       codexConfigs,
       geminiKeys,
+      hasSnapshot,
       interactionsKeys,
       metaConfigs,
       openaiProviders,

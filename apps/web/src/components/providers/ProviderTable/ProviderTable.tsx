@@ -2,7 +2,6 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type ChangeEvent,
   type KeyboardEvent,
   type MouseEvent,
@@ -15,7 +14,6 @@ import {
   IconCheck,
   IconEye,
   IconPencil,
-  IconPower,
   IconTrash2,
   IconX,
 } from '@/components/ui/icons';
@@ -24,21 +22,12 @@ import type {
   ResourceProtectionEvidence,
 } from '@/features/resourceProtection/resourceProtection';
 import type { ProviderPolicyConnection } from '../ProviderPolicyControl';
-import {
-  providerAutoId,
-  readProviderAutoUsage,
-  SERVER_PROVIDER_AUTO_USAGE,
-  subscribeProviderAutoUsage,
-  writeProviderAutoUsage,
-} from '../providerAutoUsage';
 import { ProviderMoneySummary } from '../ProviderMoneySummary';
 import {
   useProviderMoneySummaries,
   type ProviderMoneyStatusConfig,
 } from '../useProviderMoneySummaries';
 import { useOfficialBalanceList } from '../useOfficialBalanceList';
-import { apiClient } from '@/services/api/client';
-import { loadRuntimeControls } from '@/utils/quota/runtimeControls';
 import { ProviderStatusBar } from '../ProviderStatusBar';
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from './kindMeta';
 import type { ProviderRow } from './rowData';
@@ -197,105 +186,7 @@ export function ProviderTable({
   const { t } = useTranslation();
   const money = useProviderMoneySummaries(rows, moneyStatus);
   const officialBalances = useOfficialBalanceList(rows, moneyStatus);
-  const autoUsage = useSyncExternalStore(
-    subscribeProviderAutoUsage,
-    readProviderAutoUsage,
-    () => SERVER_PROVIDER_AUTO_USAGE
-  );
-  const hasRemainingQuota = (key: string) => {
-    const official = officialBalances[key];
-    const summary = money[key];
-    const lines = official?.text
-      ? [official.text]
-      : (summary?.data?.funding ?? []).flatMap((source) =>
-          (source.balances ?? []).flatMap((balance) =>
-            balance.currency && balance.total ? [`${balance.currency} ${balance.total}`] : []
-          )
-        );
-    if (lines.length === 0 || ((official?.pending || summary?.pending) && !official?.text))
-      return false;
-    const text = lines.join(' ');
-    if (/unlimited/i.test(text)) return true;
-    const numbers = text.match(/-?\d+(?:\.\d+)?/g);
-    return !!numbers && numbers.some((value) => Number(value) > 0);
-  };
-  const coreOwnsFunding = (row: ProviderRow) =>
-    row.kind === 'openai' && row.raw.nativeFunding === true;
-  // Unknown authority may only read; a failed request cannot transfer control
-  // back to the browser.
-  const browserMayManageFunding = (row: ProviderRow) =>
-    row.kind !== 'openai' || row.raw.nativeFunding === false;
-  const participating = (row: ProviderRow) =>
-    browserMayManageFunding(row) &&
-    autoUsage.enabled &&
-    (autoUsage.ids.length === 0 || autoUsage.ids.includes(providerAutoId(row)));
-  const sentHold = useRef<Record<string, boolean>>({});
-  const holdRows = useRef(rows);
-  const holdBalances = useRef(officialBalances);
-  holdRows.current = rows;
-  holdBalances.current = officialBalances;
-  const holdSignature = [
-    autoUsage.enabled ? '1' : '0',
-    autoUsage.ids.join(','),
-    rows
-      .filter(browserMayManageFunding)
-      .map((row) => {
-        const view = officialBalances[row.key];
-        return `${providerAutoId(row)}:${row.raw.autoHeld === true ? 1 : 0}:${view?.pending ? 1 : 0}:${view?.text ?? ''}`;
-      })
-      .join('|'),
-  ].join(';');
-  useEffect(() => {
-    let cancelled = false;
-    const paths: Record<ProviderRow['kind'], string> = {
-      gemini: '/gemini-api-key',
-      interactions: '/interactions-api-key',
-      codex: '/codex-api-key',
-      xai: '/xai-api-key',
-      meta: '/meta-api-key',
-      claude: '/claude-api-key',
-      vertex: '/vertex-api-key',
-      openai: '/openai-compatibility',
-    };
-    const snapshotRows = holdRows.current;
-    const balances = holdBalances.current;
-    const usage = readProviderAutoUsage();
-    const textIsZero = (key: string) => {
-      const text = balances[key]?.text ?? '';
-      if (!text || /unlimited/i.test(text)) return false;
-      const numbers = text.match(/-?\d+(?:\.\d+)?/g);
-      return !!numbers && numbers.length > 0 && numbers.every((value) => Number(value) === 0);
-    };
-    void (async () => {
-      await loadRuntimeControls();
-      if (cancelled) return;
-      for (const row of snapshotRows) {
-        if (cancelled) return;
-        if (!browserMayManageFunding(row)) continue;
-        const id = providerAutoId(row);
-        const rowParticipating =
-          usage.enabled && (usage.ids.length === 0 || usage.ids.includes(id));
-        const balance = balances[row.key];
-        if (rowParticipating && (!balance || balance.pending)) continue;
-        const held = rowParticipating && textIsZero(row.key);
-        const rawHeld = row.raw.autoHeld === true;
-        if ((sentHold.current[id] ?? rawHeld) === held) continue;
-        sentHold.current[id] = held;
-        try {
-          await apiClient.patch(paths[row.kind], {
-            index: row.originalIndex,
-            value: { 'auto-held': held },
-          });
-        } catch {
-          if (!cancelled) sentHold.current[id] = rawHeld;
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [holdSignature]);
-
+  // Rounded balance text is display-only. Core alone owns funding holds.
   if (loading && rows.length === 0) {
     return <div className="hint">{t('common.loading')}</div>;
   }
@@ -445,7 +336,7 @@ export function ProviderTable({
             </div>
 
             <div className={styles.cellAuto} role="cell" onClick={stopPropagation}>
-              {coreOwnsFunding(row) ? (
+              {row.kind === 'openai' && row.raw.nativeFunding === true ? (
                 <span
                   data-provider-auto-start-stop="core"
                   title={t('ai_providers.auto_start_stop_core')}
@@ -453,41 +344,7 @@ export function ProviderTable({
                   {t('ai_providers.auto_start_stop_core')}
                 </span>
               ) : (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconOnly
-                  onClick={() => {
-                    const id = providerAutoId(row);
-                    if (!participating(row)) {
-                      writeProviderAutoUsage({
-                        enabled: true,
-                        ids: autoUsage.enabled ? [...autoUsage.ids, id] : [id],
-                      });
-                      return;
-                    }
-                    const nextIds =
-                      autoUsage.ids.length === 0
-                        ? rows
-                            .filter((item) => providerAutoId(item) !== id)
-                            .map((item) => providerAutoId(item))
-                        : autoUsage.ids.filter((item) => item !== id);
-                    writeProviderAutoUsage({ enabled: autoUsage.enabled, ids: nextIds });
-                  }}
-                  disabled={actionsDisabled || !browserMayManageFunding(row)}
-                  aria-pressed={participating(row)}
-                  aria-label={t('ai_providers.auto_start_stop')}
-                  data-provider-auto-start-stop={participating(row) ? 'on' : 'off'}
-                  data-auto-quota={
-                    participating(row)
-                      ? hasRemainingQuota(row.key)
-                        ? 'present'
-                        : 'absent'
-                      : undefined
-                  }
-                >
-                  <IconPower size={15} />
-                </Button>
+                <span>—</span>
               )}
             </div>
 

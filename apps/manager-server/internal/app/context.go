@@ -58,6 +58,7 @@ type DatabaseMaintenanceStatusProvider interface {
 // owner tests while allowing additive policy runtime lifecycle wiring.
 type FullRefreshCoordinator interface {
 	Inventory(context.Context) (fullrefreshsvc.Inventory, error)
+	NextPeriodicSourceCheck(context.Context, fullrefreshsvc.SourceRequest) int64
 	StartRound(context.Context, fullrefreshsvc.Purpose) (fullrefreshsvc.Progress, error)
 	StartSingleSource(context.Context, fullrefreshsvc.SourceRequest, fullrefreshsvc.Purpose) (fullrefreshsvc.Progress, error)
 	GetProgress(context.Context, string) (fullrefreshsvc.Progress, error)

@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Select } from '@/components/ui/Select';
+import { useTranslation } from 'react-i18next';
+import { formatDateTime } from '@/utils/format';
 import {
   officialBalanceRequest,
   OfficialBalanceRequestError,
@@ -120,6 +122,7 @@ export function OfficialBalancePanel({
   protocolOnly = false,
 }: OfficialBalancePanelProps) {
   const protocolLabelId = useId();
+  const { t, i18n } = useTranslation();
   const bindingJSON = JSON.stringify(binding);
   const context = useMemo(
     () => ({ base, managementKey, bindingJSON, adapter, compatibleCandidate }),
@@ -479,6 +482,12 @@ export function OfficialBalancePanel({
             {data?.state ?? (baselineRequired ? 'identity_unavailable' : 'loading')}
             {data?.stale ? ' · stale' : ''}
           </p>
+          {!!data?.nextPeriodicCheckMs && Number.isFinite(data.nextPeriodicCheckMs) && (
+            <p>
+              {t('credential_policy.next_periodic_check')}:{' '}
+              {formatDateTime(new Date(data.nextPeriodicCheckMs), i18n?.language)}
+            </p>
+          )}
           {view.context === context && view.error && <p role="alert">{view.error}</p>}
           {(readbackRequired || baselineRequired) && (
             <button type="button" disabled={busy} onClick={() => void run('reload')}>

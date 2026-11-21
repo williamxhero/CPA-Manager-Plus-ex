@@ -14,6 +14,19 @@ func SourceScheduleKey(request SourceRequest) string {
 	return sourceScheduleKey(SourceStatus{Request: request})
 }
 
+// NextPeriodicSourceCheck reports the recorded regular cadence of a source the
+// caller has already verified. It does not start, promise, or authorize a query.
+func (s *Service) NextPeriodicSourceCheck(ctx context.Context, request SourceRequest) int64 {
+	if s == nil {
+		return 0
+	}
+	due, err := s.Store.FullRefreshDue(ctx, SourceScheduleKey(request))
+	if err != nil || due <= s.now().UnixMilli() {
+		return 0
+	}
+	return due
+}
+
 func sourceScheduleKey(src SourceStatus) string {
 	request := src.Request
 	if request.Credential != nil {

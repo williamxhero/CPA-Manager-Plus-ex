@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/Button';
+import { formatDateTime } from '@/utils/format';
 import { useTranslation } from 'react-i18next';
 import { refreshCredentialSource, type RefreshProgress } from '@/services/api/fullRefresh';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -19,7 +20,7 @@ export function CredentialQuotaPanel({
   authIndex?: string;
   revision?: string | number;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const context = useMemo(
     () => ({ base, managementKey, authIndex, revision }),
     [base, managementKey, authIndex, revision]
@@ -157,6 +158,12 @@ export function CredentialQuotaPanel({
             <p>
               {t('credential_policy.last_success')}:{' '}
               {new Date(data.lastSuccess.observedAtMs).toISOString()} {data.stale ? 'stale' : ''}
+            </p>
+          )}
+          {!!data.nextPeriodicCheckMs && Number.isFinite(data.nextPeriodicCheckMs) && (
+            <p>
+              {t('credential_policy.next_periodic_check')}:{' '}
+              {formatDateTime(new Date(data.nextPeriodicCheckMs), i18n?.language)}
             </p>
           )}
           {windows?.windows.map((window, index) => (

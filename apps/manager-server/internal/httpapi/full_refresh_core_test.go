@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -625,6 +626,38 @@ func TestFullRefreshActualCoreHourlyWithoutBrowserOrUsage(t *testing.T) {
 		t.Fatalf("no startup periodic full inventory: %+v", first)
 	}
 	count := f.calls.Load()
+	// The existing status pages read the exact source's scheduled cadence.
+	// These authenticated reads must not start another upstream acquisition.
+	checked := map[fr.Kind]bool{}
+	for _, item := range first.Items {
+		if checked[item.Request.Kind] || !item.Queried || item.NextDueMS == 0 {
+			continue
+		}
+		var path string
+		switch item.Request.Kind {
+		case fr.Credential:
+			path = "/usage-service/credential-quota?authIndex=" + url.QueryEscape(item.AuthIndex)
+		case fr.Official:
+			binding, err := json.Marshal(item.Request.Official.Binding)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path = "/usage-service/official-balance?binding=" + url.QueryEscape(string(binding))
+		default:
+			continue
+		}
+		code, raw := f.api(http.MethodGet, path, nil)
+		var status struct {
+			NextPeriodicCheckMS int64 `json:"nextPeriodicCheckMs"`
+		}
+		if err := json.Unmarshal(raw, &status); code != http.StatusOK || err != nil || status.NextPeriodicCheckMS != item.NextDueMS {
+			t.Fatalf("status for %s: HTTP %d, cadence=%d want %d, decode=%v", item.Request.Kind, code, status.NextPeriodicCheckMS, item.NextDueMS, err)
+		}
+		checked[item.Request.Kind] = true
+	}
+	if !checked[fr.Credential] || !checked[fr.Official] || f.calls.Load() != count {
+		t.Fatalf("periodic status checks: kinds=%v, upstream calls=%d want %d", checked, f.calls.Load(), count)
+	}
 	clock.advance(59 * time.Minute)
 	// Synchronize on persisted scheduler acknowledgement, not an arbitrary sleep.
 	until := time.Now().Add(5 * time.Second)

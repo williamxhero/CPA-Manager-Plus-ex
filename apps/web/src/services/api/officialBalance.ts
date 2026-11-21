@@ -100,6 +100,7 @@ export interface BalanceObservation {
   balances?: { currency: string; total: string; granted: string; toppedUp: string }[];
 }
 export interface OfficialBalanceStatus extends BalanceBinding {
+  nextPeriodicCheckMs?: number;
   web?: WebBalanceSource;
   reason?: string;
   webSourceAuthority?: string;

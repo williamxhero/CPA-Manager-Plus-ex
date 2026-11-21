@@ -88,6 +88,18 @@ describe('ApiClient request scoping', () => {
     });
   });
 
+  it('invalidates a captured connection even after returning to the same server and key', () => {
+    const original = apiClient.captureConnection();
+    const originalCredentials = { apiBase: original.apiBase, managementKey: original.managementKey };
+    apiClient.setConfig(originalCredentials);
+    expect(apiClient.isCurrentConnection(original)).toBe(true);
+
+    apiClient.setConfig({ ...originalCredentials, managementKey: 'rotated-key' });
+    apiClient.setConfig(originalCredentials);
+    expect(apiClient.captureConnection()).toEqual(original);
+    expect(apiClient.isCurrentConnection(original)).toBe(false);
+  });
+
   it('does not let a stale scoped 401 log out the current connection', async () => {
     const staleConfig = applyRequestInterceptor({
       ...(createScopedApiRequestConfig({

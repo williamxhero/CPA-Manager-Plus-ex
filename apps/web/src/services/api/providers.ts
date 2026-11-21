@@ -2,7 +2,7 @@
  * AI 提供商相关 API
  */
 
-import { apiClient } from './client';
+import { apiClient, createScopedApiRequestConfig, type ApiClientRequestScope } from './client';
 import { hasOpenAIKeyEntryConfiguration } from '@/utils/openAIKeyEntries';
 import { configApi } from './config';
 import {
@@ -474,6 +474,8 @@ const mergeOpenAIProviderPayload = (raw: unknown, payload: Record<string, unknow
   const next = mergeKnownFields(raw, payload, OPENAI_PROVIDER_FIELDS);
   delete next['native-funding'];
   preserveOmittedRawField(raw, payload, next, DISABLE_COOLING_FIELDS);
+  // A configuration edit must never write a hold from its older read snapshot.
+  preserveOmittedRawField(raw, payload, next, ['auto-held', 'autoHeld']);
   const rawApiKeyEntries = isRecord(raw)
     ? (raw['api-key-entries'] ?? raw.apiKeyEntries)
     : undefined;
@@ -710,80 +712,70 @@ const extractArrayPayload = (data: unknown, key: string): unknown[] => {
   return Array.isArray(candidate) ? candidate : [];
 };
 
-const getOpenAIProviderKey = (provider: Pick<OpenAIProviderConfig, 'name' | 'baseUrl'>) =>
-  `${String(provider.name ?? '')
-    .trim()
-    .toLowerCase()}\u0000${String(provider.baseUrl ?? '')
-    .trim()
-    .toLowerCase()}`;
-
-const loadNativeFunding = async () => {
-  try {
-    return await apiClient.getV8<unknown>('/config/api-keys/openai-compatibility');
-  } catch {
-    return null;
-  }
-};
 const fundingJoinKey = (provider: OpenAIProviderConfig) =>
   JSON.stringify([
     provider.name.trim(),
     provider.baseUrl.trim(),
     provider.apiKeyEntries.map((key) => [key.apiKey.trim(), (key.proxyUrl ?? '').trim()]).sort(),
   ]);
-const hydrateNativeFunding = (providers: OpenAIProviderConfig[], list: unknown) => {
-    if (!Array.isArray(list)) return providers;
-    const states = new Map<string, OpenAIProviderConfig | null>();
-    for (const raw of list) {
-      const provider = normalizeOpenAIProvider(raw);
-      if (!provider) continue;
-      const id = fundingJoinKey(provider);
-      states.set(id, states.has(id) ? null : provider);
-    }
-    return providers.map((provider) => {
-      const current = states.get(fundingJoinKey(provider));
-      if (current?.nativeFunding === undefined) return provider;
-      if (provider.resourceId && current.resourceId !== provider.resourceId) return provider;
-      return { ...provider, nativeFunding: current.nativeFunding, autoHeld: current.autoHeld };
-    });
+const joinOpenAIProviderConfig = (
+  providers: OpenAIProviderConfig[],
+  list: unknown[],
+  merge: (provider: OpenAIProviderConfig, matched: OpenAIProviderConfig) => OpenAIProviderConfig
+) => {
+  const states = new Map<string, OpenAIProviderConfig | null>();
+  const counts = new Map<string, number>();
+  for (const provider of providers) {
+    const key = fundingJoinKey(provider);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const raw of list) {
+    const provider = normalizeOpenAIProvider(raw);
+    if (!provider) continue;
+    const key = fundingJoinKey(provider);
+    states.set(key, states.has(key) ? null : provider);
+  }
+  return providers.map((provider) => {
+    const key = fundingJoinKey(provider);
+    const matched = states.get(key);
+    return counts.get(key) === 1 && matched &&
+      (!provider.resourceId || matched.resourceId === provider.resourceId)
+      ? merge(provider, matched)
+      : provider;
+  });
 };
 
 // CPA upstream currently omits some OpenAI provider fields from GET /openai-compatibility,
 // so we rehydrate them from /config when they are missing.
 // This is a temporary workaround until upstream fixes the issue.
-const hydrateOpenAIProvidersDisableCooling = async (providers: OpenAIProviderConfig[]) => {
-  if (!providers.some((provider) => provider.disableCooling === undefined)) {
+const hydrateOpenAIProvidersLegacyConfig = async (
+  providers: OpenAIProviderConfig[],
+  scope: Readonly<ApiClientRequestScope>
+) => {
+  if (!providers.some((provider) => provider.disableCooling === undefined || provider.autoHeld === undefined)) {
     return providers;
   }
 
   let rawConfig: unknown;
   try {
-    rawConfig = await apiClient.get('/config');
+    rawConfig = await apiClient.get('/config', createScopedApiRequestConfig(scope));
   } catch {
     return providers;
   }
 
-  const fallbackProviders = extractArrayPayload(rawConfig, 'openai-compatibility')
-    .map((item) => normalizeOpenAIProvider(item))
-    .filter(Boolean) as OpenAIProviderConfig[];
-
-  if (!fallbackProviders.length) {
-    return providers;
-  }
-
-  const fallbackByKey = new Map(
-    fallbackProviders.map((provider) => [getOpenAIProviderKey(provider), provider])
+  return joinOpenAIProviderConfig(
+    providers,
+    extractArrayPayload(rawConfig, 'openai-compatibility'),
+    (provider, fallback) => ({
+      ...provider,
+      ...(provider.disableCooling === undefined && fallback.disableCooling !== undefined
+        ? { disableCooling: fallback.disableCooling }
+        : {}),
+      ...(provider.autoHeld === undefined && fallback.autoHeld !== undefined
+        ? { autoHeld: fallback.autoHeld }
+        : {}),
+    })
   );
-
-  return providers.map((provider) => {
-    if (provider.disableCooling !== undefined) {
-      return provider;
-    }
-    const fallback = fallbackByKey.get(getOpenAIProviderKey(provider));
-    if (!fallback || fallback.disableCooling === undefined) {
-      return provider;
-    }
-    return { ...provider, disableCooling: fallback.disableCooling };
-  });
 };
 
 const buildProviderDeleteQuery = (apiKey: string, baseUrl?: string) => {
@@ -1028,7 +1020,6 @@ const serializeOpenAIProvider = (provider: OpenAIProviderConfig) => {
   if (authIndex) payload['auth-index'] = authIndex;
   if (provider.prefix?.trim()) payload.prefix = provider.prefix.trim();
   if (provider.disabled !== undefined) payload.disabled = provider.disabled;
-  if (provider.autoHeld !== undefined) payload['auto-held'] = provider.autoHeld;
   if (provider.disableCooling !== undefined) payload['disable-cooling'] = provider.disableCooling;
   const headers = serializeHeaders(provider.headers);
   if (headers) payload.headers = headers;
@@ -1282,8 +1273,10 @@ export const providersApi = {
   deleteClaudeConfig: (apiKey: string, baseUrl?: string) =>
     apiClient.delete(`/claude-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
 
-  async getVertexConfigs(): Promise<ProviderKeyConfig[]> {
-    const data = await apiClient.get('/vertex-api-key');
+  async getVertexConfigs(scope?: Readonly<ApiClientRequestScope>): Promise<ProviderKeyConfig[]> {
+    const data = scope
+      ? await apiClient.get('/vertex-api-key', createScopedApiRequestConfig(scope))
+      : await apiClient.get('/vertex-api-key');
     const list = extractArrayPayload(data, 'vertex-api-key');
     return list
       .map((item) => normalizeProviderKeyConfig(item))
@@ -1322,15 +1315,43 @@ export const providersApi = {
   deleteVertexConfig: (apiKey: string, baseUrl?: string) =>
     apiClient.delete(`/vertex-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
 
-  async getOpenAIProviders(): Promise<OpenAIProviderConfig[]> {
-    const read = apiClient.get('/openai-compatibility');
-    const authority = loadNativeFunding();
+  async getOpenAIProviders(
+    scope: Readonly<ApiClientRequestScope> = apiClient.captureConnection()
+  ): Promise<OpenAIProviderConfig[]> {
+    const checkConnection = () => {
+      if (!apiClient.isCurrentConnection(scope)) throw new Error('Core connection changed');
+    };
+    checkConnection();
+    const read = apiClient.get('/openai-compatibility', createScopedApiRequestConfig(scope));
+    const authority = apiClient
+      .getV8<unknown>('/config/api-keys/openai-compatibility', scope)
+      .catch(() => null);
     const list = extractArrayPayload(await read, 'openai-compatibility');
+    checkConnection();
     const providers = list
-      .map((item) => normalizeOpenAIProvider(item))
+      .map((item) => {
+        const provider = normalizeOpenAIProvider(item);
+        // Only v8 establishes funding ownership.
+        if (provider) delete provider.nativeFunding;
+        return provider;
+      })
       .filter(Boolean) as OpenAIProviderConfig[];
-    const hydrated = await hydrateOpenAIProvidersDisableCooling(providers);
-    return hydrateNativeFunding(hydrated, await authority);
+    const [hydrated, funding] = await Promise.all([
+      hydrateOpenAIProvidersLegacyConfig(providers, scope),
+      authority,
+    ]);
+    checkConnection();
+    return Array.isArray(funding)
+      ? joinOpenAIProviderConfig(hydrated, funding, (provider, current) =>
+          current.nativeFunding === undefined
+            ? provider
+            : {
+                ...provider,
+                nativeFunding: current.nativeFunding,
+                autoHeld: current.autoHeld ?? provider.autoHeld,
+              }
+        )
+      : hydrated;
   },
 
   saveOpenAIProviders: async (providers: OpenAIProviderConfig[]) =>

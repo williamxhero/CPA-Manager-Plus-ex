@@ -1,6 +1,6 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CoolingPolicy, GeminiKeyConfig, ProviderKeyConfig } from '@/types';
+import type { CoolingPolicy, GeminiKeyConfig, OpenAIProviderConfig, ProviderKeyConfig } from '@/types';
 
 const mocks = vi.hoisted(() => ({
   config: {} as {
@@ -11,8 +11,9 @@ const mocks = vi.hoisted(() => ({
     metaApiKeys: ProviderKeyConfig[];
     claudeApiKeys: ProviderKeyConfig[];
     vertexApiKeys: ProviderKeyConfig[];
-    openaiCompatibility: never[];
+    openaiCompatibility: OpenAIProviderConfig[];
   },
+  getConfig: vi.fn(),
   fetchConfig: vi.fn(),
   updateConfigValue: vi.fn(),
   clearCache: vi.fn(),
@@ -28,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   providerKeyAliases: [] as Array<{ provider: string; apiKeyHash: string; alias: string }>,
   cacheValid: true,
   transitionLayer: null as { status: string } | null,
+  auth: { apiBase: 'http://core.example', managementKey: 'synthetic-key', connectionStatus: 'connected' },
+  headerRefresh: null as (() => Promise<void>) | null,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -40,7 +43,11 @@ vi.mock('@/hooks/usePanelFeatureAvailability', () => ({
   }),
 }));
 
-vi.mock('@/hooks/useHeaderRefresh', () => ({ useHeaderRefresh: () => undefined }));
+vi.mock('@/hooks/useHeaderRefresh', () => ({
+  useHeaderRefresh: (refresh: () => Promise<void>, enabled: boolean) => {
+    mocks.headerRefresh = enabled ? refresh : null;
+  },
+}));
 vi.mock('@/features/monitoring/hooks/useUsageData', () => ({
   useUsageData: () => ({
     providerKeyAliases: mocks.providerKeyAliases,
@@ -52,8 +59,10 @@ vi.mock('@/components/common/PageTransitionLayer', () => ({
 }));
 
 vi.mock('@/stores', () => ({
-  useAuthStore: (selector: (state: { connectionStatus: string }) => unknown) =>
-    selector({ connectionStatus: 'connected' }),
+  useAuthStore: Object.assign(
+    (selector: (state: typeof mocks.auth) => unknown) => selector(mocks.auth),
+    { getState: () => mocks.auth }
+  ),
   useThemeStore: (selector: (state: { resolvedTheme: string }) => unknown) =>
     selector({ resolvedTheme: 'light' }),
   useConfigStore: (selector: (state: Record<string, unknown>) => unknown) =>
@@ -71,6 +80,7 @@ vi.mock('@/stores', () => ({
 }));
 
 vi.mock('@/services/api', () => ({
+  configApi: { getConfig: mocks.getConfig },
   providersApi: {
     getVertexConfigs: mocks.getVertexConfigs,
     getMetaConfigs: mocks.getMetaConfigs,
@@ -90,10 +100,12 @@ vi.mock('@/components/providers', async () => {
       gemini = [],
       vertex = [],
       meta = [],
+      openai = [],
     }: {
       gemini?: GeminiKeyConfig[];
       vertex?: ProviderKeyConfig[];
       meta?: ProviderKeyConfig[];
+      openai?: OpenAIProviderConfig[];
     }) => [
       ...gemini.map((raw, originalIndex) => ({
         key: `gemini:${originalIndex}`,
@@ -128,6 +140,17 @@ vi.mock('@/components/providers', async () => {
         sortName: raw.apiKey,
         baseUrl: raw.baseUrl ?? '',
       })),
+      ...openai.map((raw, originalIndex) => ({
+        key: `openai:${originalIndex}`,
+        kind: 'openai' as const,
+        originalIndex,
+        raw,
+        modelNames: [],
+        enabled: true,
+        label: raw.name,
+        sortName: raw.name,
+        baseUrl: raw.baseUrl,
+      })),
     ],
     filterAndSortProviderRows: (rows: unknown[]) => rows,
     PROVIDER_KIND_LABELS: {
@@ -151,7 +174,7 @@ vi.mock('@/components/providers', async () => {
     }) =>
       rows[0] ? (
         <button type="button" data-open-detail onClick={() => onShowDetail(rows[0])}>
-          open
+          {String(rows[0].label)}
         </button>
       ) : null,
     ProviderDetailDrawer: ({
@@ -196,6 +219,7 @@ vi.mock('@/components/providers', async () => {
 });
 
 import { AiProvidersPage } from './AiProvidersPage';
+import { apiClient } from '@/services/api/client';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -228,7 +252,7 @@ describe('AiProvidersPage cooling policy mutation', () => {
       vertexApiKeys: [],
       openaiCompatibility: [],
     };
-    mocks.fetchConfig.mockImplementation(async () => mocks.config);
+    mocks.getConfig.mockImplementation(async () => mocks.config);
     mocks.getVertexConfigs.mockImplementation(async () => mocks.config.vertexApiKeys);
     mocks.getMetaConfigs.mockImplementation(async () => mocks.config.metaApiKeys);
     mocks.getOpenAIProviders.mockResolvedValue([]);
@@ -427,8 +451,21 @@ describe('AiProvidersPage cooling policy mutation', () => {
 });
 
 describe('AiProvidersPage current-layer config refresh', () => {
+  const openai = (name: string, nativeFunding = true): OpenAIProviderConfig => ({
+    name, baseUrl: 'https://fixture.invalid', apiKeyEntries: [], nativeFunding,
+  });
+  const pendingRows = () => {
+    let resolve!: (rows: OpenAIProviderConfig[]) => void;
+    const promise = new Promise<OpenAIProviderConfig[]>((done) => { resolve = done; });
+    return { promise, resolve };
+  };
+  const label = (renderer: ReactTestRenderer) =>
+    renderer.root.findAllByProps({ 'data-open-detail': true })[0]?.children.join('');
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.auth = { apiBase: 'http://core.example', managementKey: 'synthetic-key', connectionStatus: 'connected' };
+    apiClient.setConfig(mocks.auth);
     mocks.cacheValid = true;
     mocks.transitionLayer = null;
     mocks.config = {
@@ -441,7 +478,7 @@ describe('AiProvidersPage current-layer config refresh', () => {
       vertexApiKeys: [],
       openaiCompatibility: [],
     };
-    mocks.fetchConfig.mockImplementation(async () => mocks.config);
+    mocks.getConfig.mockImplementation(async () => mocks.config);
     mocks.getVertexConfigs.mockImplementation(async () => mocks.config.vertexApiKeys);
     mocks.getOpenAIProviders.mockResolvedValue([]);
     mocks.updateGeminiKey.mockResolvedValue(undefined);
@@ -464,32 +501,96 @@ describe('AiProvidersPage current-layer config refresh', () => {
     await flush();
   };
 
-  it('reloads provider configs when the invalidated cache meets the current layer again', async () => {
+  it('revalidates provider configs on re-entry while keeping the local snapshot in view', async () => {
+    mocks.getOpenAIProviders.mockResolvedValueOnce([openai('initial')]);
     const renderer = await renderPage();
-    expect(mocks.fetchConfig).toHaveBeenCalledTimes(1);
+    expect(mocks.getConfig).toHaveBeenCalledTimes(1);
 
     mocks.transitionLayer = { status: 'background' };
     await updatePage(renderer);
 
-    mocks.cacheValid = false;
+    const next = pendingRows();
+    mocks.getOpenAIProviders.mockReturnValueOnce(next.promise);
     mocks.transitionLayer = { status: 'current' };
     await updatePage(renderer);
 
-    expect(mocks.fetchConfig).toHaveBeenCalledTimes(2);
+    expect(mocks.getConfig).toHaveBeenCalledTimes(2);
+    expect(label(renderer)).toBe('initial');
+    await act(async () => next.resolve([]));
+    expect(label(renderer)).toBeUndefined();
     act(() => renderer.unmount());
   });
 
-  it('does not reload provider configs when the cache is still valid on re-entry', async () => {
-    const renderer = await renderPage();
-    expect(mocks.fetchConfig).toHaveBeenCalledTimes(1);
-
-    mocks.transitionLayer = { status: 'background' };
-    await updatePage(renderer);
-
-    mocks.transitionLayer = { status: 'current' };
-    await updatePage(renderer);
-
-    expect(mocks.fetchConfig).toHaveBeenCalledTimes(1);
-    act(() => renderer.unmount());
+  it('does not adopt the previous connection’s shared cache while a scoped bootstrap is pending or fails', async () => {
+    mocks.config = { ...mocks.config, openaiCompatibility: [openai('previous Core', false)] };
+    const connected = { ...mocks.auth, apiBase: 'http://next-core.example', managementKey: 'next-key' };
+    mocks.auth = connected;
+    apiClient.setConfig(connected);
+    let reject!: (error: Error) => void;
+    mocks.getConfig.mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail; }));
+    const view = await renderPage();
+    expect(label(view)).toBeUndefined();
+    expect(mocks.getConfig).toHaveBeenCalledWith(apiClient.captureConnection());
+    expect(mocks.fetchConfig).not.toHaveBeenCalled();
+    await act(async () => reject(new Error('scoped configuration unavailable')));
+    expect(label(view)).toBeUndefined();
+    expect(JSON.stringify(view.toJSON())).toContain('scoped configuration unavailable');
+    expect(mocks.updateConfigValue).not.toHaveBeenCalled();
+    act(() => view.unmount());
   });
+
+  it('keeps the current rows visible and discards a refresh that resolves out of order', async () => {
+    mocks.getOpenAIProviders.mockResolvedValueOnce([openai('initial')]);
+    const view = await renderPage();
+    expect(label(view)).toBe('initial');
+    const stale = pendingRows();
+    mocks.getOpenAIProviders.mockReturnValueOnce(stale.promise);
+    let refresh!: Promise<void>;
+    await act(async () => { refresh = mocks.headerRefresh!(); });
+    expect(label(view)).toBe('initial');
+    mocks.getOpenAIProviders.mockResolvedValueOnce([openai('replacement')]);
+    await act(async () => { await mocks.headerRefresh!(); });
+    expect(label(view)).toBe('replacement');
+
+    await act(async () => {
+      stale.resolve([openai('stale', false)]);
+      await refresh;
+    });
+    expect(label(view)).toBe('replacement');
+    expect(mocks.updateConfigValue.mock.calls).not.toContainEqual([
+      'openai-compatibility', [openai('stale', false)],
+    ]);
+    act(() => view.unmount());
+  });
+
+  it.each(['connection', 'authorization', 'layer'])(
+    'does not publish a response after leaving its %s, including re-entry',
+    async (cause) => {
+      const stale = pendingRows();
+      mocks.getOpenAIProviders.mockReturnValueOnce(stale.promise);
+      const view = await renderPage();
+      if (cause === 'layer') {
+        mocks.transitionLayer = { status: 'background' };
+      } else {
+        mocks.auth = {
+          ...mocks.auth,
+          ...(cause === 'connection' ? { apiBase: 'http://other.example' } : { managementKey: 'other-key' }),
+        };
+        apiClient.setConfig(mocks.auth);
+      }
+      mocks.getOpenAIProviders.mockResolvedValueOnce([openai('current')]);
+      await updatePage(view);
+      if (cause === 'layer') {
+        mocks.transitionLayer = { status: 'current' };
+        await updatePage(view);
+      }
+      expect(label(view)).toBe('current');
+      await act(async () => stale.resolve([openai('stale', false)]));
+      expect(label(view)).toBe('current');
+      expect(mocks.updateConfigValue.mock.calls).not.toContainEqual([
+        'openai-compatibility', [openai('stale', false)],
+      ]);
+      act(() => view.unmount());
+    }
+  );
 });

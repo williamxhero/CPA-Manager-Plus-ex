@@ -2,7 +2,7 @@
  * 配置相关 API
  */
 
-import { apiClient } from './client';
+import { apiClient, createScopedApiRequestConfig, type ApiClientRequestScope } from './client';
 import type { Config } from '@/types';
 import { normalizeConfigResponse } from './transformers';
 
@@ -10,8 +10,10 @@ export const configApi = {
   /**
    * 获取配置（会进行字段规范化）
    */
-  async getConfig(): Promise<Config> {
-    const raw = await apiClient.get('/config');
+  async getConfig(scope?: Readonly<ApiClientRequestScope>): Promise<Config> {
+    const raw = scope
+      ? await apiClient.get('/config', createScopedApiRequestConfig(scope))
+      : await apiClient.get('/config');
     return normalizeConfigResponse(raw);
   },
 

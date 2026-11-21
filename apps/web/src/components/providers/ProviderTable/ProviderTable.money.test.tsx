@@ -4,6 +4,7 @@ import { ProviderTable } from './ProviderTable';
 import { buildProviderRows } from './rowData';
 import type { BalanceBinding } from '@/services/api/officialBalance';
 import { saveProviderPolicy } from '@/services/api/providerPolicy';
+import { apiClient } from '@/services/api/client';
 import { beforeEach } from 'vitest';
 import { setRuntimeControlsForTests } from '@/utils/quota/runtimeControls';
 import {
@@ -491,6 +492,33 @@ it('paints a cached balance before a runtime read settles', async () => {
   release(Response.json({}));
 });
 
+it('shows rounded legacy balances without writing or clearing legacy holds', async () => {
+  const patch = vi.spyOn(apiClient, 'patch').mockResolvedValue({});
+  try {
+    setRuntimeControlsForTests({
+      autoStartStopEnabled: true,
+      quotaFetchedAtMs: Date.now(),
+      balanceTexts: { [`openai:${IDS.A}`]: 'USD 0.00', [`openai:${IDS.B}`]: 'CNY 1.25' },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({})));
+    const legacy = buildProviderRows({
+      gemini: [], codex: [], claude: [], vertex: [], usageByProvider: new Map(),
+      openai: [
+        { name: 'A', baseUrl: 'https://synthetic.invalid', resourceId: IDS.A, nativeFunding: false, apiKeyEntries: [] },
+        { name: 'B', baseUrl: 'https://synthetic.invalid', resourceId: IDS.B, nativeFunding: false, apiKeyEntries: [], autoHeld: true },
+      ],
+    });
+    await act(async () => {
+      view = create(<ProviderTable {...props} rows={legacy} moneyStatus={undefined} />);
+    });
+    expect(text()).toContain('USD 0.00');
+    expect(text()).toContain('CNY 1.25');
+    expect(patch).not.toHaveBeenCalled();
+  } finally {
+    patch.mockRestore();
+  }
+});
+
 it('shows a one-decimal cached balance with two decimal places', async () => {
   setRuntimeControlsForTests({
     quotaRefreshIntervalMs: 3_600_000,
@@ -529,7 +557,23 @@ it('shows a fresh cached balance without requesting full-refresh', async () => {
   );
 });
 
-it('refreshes a cached insufficient balance before the interval elapses', async () => {
+function observedOfficialBalance(url: string, amountDecimal: string, queryable: boolean) {
+  const binding = JSON.parse(new URL(url).searchParams.get('binding') ?? 'null') as BalanceBinding;
+  const rowA = binding.targets[0]?.resource_id === IDS.A;
+  return Response.json({
+    adapter: 'deepinfra',
+    configured: queryable,
+    managerDirectQuery: queryable,
+    version: 1,
+    lastSuccess: {
+      queryStatus: 'success',
+      currency: rowA ? 'USD' : 'CNY',
+      amountDecimal: rowA ? amountDecimal : '1.25',
+    },
+  });
+}
+
+it('reads bound status for a cached zero without starting a live query', async () => {
   setRuntimeControlsForTests({
     quotaRefreshIntervalMs: 3_600_000,
     quotaFetchedAtMs: Date.now(),
@@ -538,26 +582,10 @@ it('refreshes a cached insufficient balance before the interval elapses', async 
       [`openai:${IDS.B}`]: 'CNY 1.25',
     },
   });
-  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+  const fetcher = vi.fn(async (url: string, _init?: RequestInit) => {
     const href = String(url);
-    if (init?.method === 'POST' && href.includes('/usage-service/official-balance')) {
-      return Response.json({
-        id: 'job-1',
-        state: 'complete',
-        status: {
-          adapter: 'deepinfra',
-          lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '2.50' },
-        },
-      });
-    }
     if (href.includes('/usage-service/official-balance')) {
-      return Response.json({
-        adapter: 'deepinfra',
-        configured: true,
-        managerDirectQuery: true,
-        version: 1,
-        lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '0.00' },
-      });
+      return observedOfficialBalance(url, '2.50', true);
     }
     return Response.json({});
   });
@@ -572,9 +600,10 @@ it('refreshes a cached insufficient balance before the interval elapses', async 
   expect(
     fetcher.mock.calls.some(
       (call) =>
-        String(call[0]).includes('/usage-service/official-balance') && call[1]?.method === 'POST'
+        String(call[0]).includes('/usage-service/official-balance') && call[1]?.method === 'GET'
     )
   ).toBe(true);
+  expect(fetcher.mock.calls.some((call) => call[1]?.method === 'POST')).toBe(false);
 });
 
 it('keeps the cached balance when the binding arrives after the first paint', async () => {
@@ -590,26 +619,10 @@ it('keeps the cached balance when the binding arrives after the first paint', as
   });
   const issued = (r: (typeof rows)[number]) =>
     issue ? (r.raw.resourceId === IDS.A ? binding('A', 'KA') : binding('B', 'KB')) : undefined;
-  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+  const fetcher = vi.fn(async (url: string, _init?: RequestInit) => {
     const href = String(url);
-    if (init?.method === 'POST' && href.includes('/usage-service/official-balance')) {
-      return Response.json({
-        id: 'job-1',
-        state: 'complete',
-        status: {
-          adapter: 'deepinfra',
-          lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '2.50' },
-        },
-      });
-    }
     if (href.includes('/usage-service/official-balance')) {
-      return Response.json({
-        adapter: 'deepinfra',
-        configured: true,
-        managerDirectQuery: true,
-        version: 1,
-        lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '0.00' },
-      });
+      return observedOfficialBalance(url, '2.50', true);
     }
     return Response.json({});
   });
@@ -642,12 +655,13 @@ it('keeps the cached balance when the binding arrives after the first paint', as
   expect(
     fetcher.mock.calls.some(
       (call) =>
-        String(call[0]).includes('/usage-service/official-balance') && call[1]?.method === 'POST'
+        String(call[0]).includes('/usage-service/official-balance') && call[1]?.method === 'GET'
     )
   ).toBe(true);
+  expect(fetcher.mock.calls.some((call) => call[1]?.method === 'POST')).toBe(false);
 });
 
-it('refreshes a cached insufficient balance with no binding before the quota interval', async () => {
+it('reads inventory on the normal cadence for an unbound cached zero without starting a live query', async () => {
   vi.useFakeTimers();
   setRuntimeControlsForTests({
     quotaRefreshIntervalMs: 3_600_000,
@@ -657,23 +671,8 @@ it('refreshes a cached insufficient balance with no binding before the quota int
       [`openai:${IDS.B}`]: 'CNY 1.25',
     },
   });
-  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+  const fetcher = vi.fn(async (url: string, _init?: RequestInit) => {
     const href = String(url);
-    if (init?.method === 'POST' && href.includes('/usage-service/full-refresh')) {
-      return Response.json({
-        id: 'job-1',
-        state: 'complete',
-        items: [
-          {
-            request: { kind: 'official', official: {} },
-            targets: [target(IDS.A)],
-            state: 'complete',
-            stale: false,
-            lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '2.50' },
-          },
-        ],
-      });
-    }
     if (href.includes('/usage-service/full-refresh')) {
       return Response.json({
         sources: [
@@ -684,7 +683,7 @@ it('refreshes a cached insufficient balance with no binding before the quota int
             targets: [target(IDS.A)],
             state: 'idle',
             stale: true,
-            lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '0.00' },
+            lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '2.50' },
           },
         ],
       });
@@ -705,11 +704,12 @@ it('refreshes a cached insufficient balance with no binding before the quota int
   expect(text()).toContain('USD 0.00');
   expect(fullRefresh()).toHaveLength(0);
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(CACHED_BALANCE_SETTLE_MS);
+    await vi.advanceTimersByTimeAsync(3_600_000);
   });
   expect(text()).toContain('USD 2.50');
   expect(text()).toContain('CNY 1.25');
-  expect(fullRefresh().some((call) => call[1]?.method === 'POST')).toBe(true);
+  expect(fullRefresh().map((call) => call[1]?.method)).toEqual(['GET']);
+  expect(fetcher.mock.calls.some((call) => call[1]?.method === 'POST')).toBe(false);
 });
 
 it('keeps a cached insufficient balance when that source cannot be queried directly', async () => {
@@ -723,13 +723,7 @@ it('keeps a cached insufficient balance when that source cannot be queried direc
   });
   const fetcher = vi.fn(async (url: string) => {
     if (String(url).includes('/usage-service/official-balance')) {
-      return Response.json({
-        adapter: 'deepinfra',
-        configured: false,
-        managerDirectQuery: false,
-        version: 1,
-        lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '0.00' },
-      });
+      return observedOfficialBalance(url, '0.00', false);
     }
     return Response.json({ sources: [] });
   });

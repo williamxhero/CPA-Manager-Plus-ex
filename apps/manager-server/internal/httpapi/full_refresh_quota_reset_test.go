@@ -283,6 +283,14 @@ func testFullRefreshConfirmedReset(t *testing.T, fail bool) {
 		run()
 		clock.advance(time.Minute)
 		f.waitSchedulerChecked(clock.Now().UnixMilli())
+		code, data := f.api("GET", "/usage-service/full-refresh", nil)
+		var inv fr.Inventory
+		if code != http.StatusOK || json.Unmarshal(data, &inv) != nil || inv.LatestRound == nil {
+			t.Fatalf("latest round missing after restart: %d %s", code, data)
+		}
+		if inv.LatestRound.ID != recheck.ID {
+			t.Fatalf("restart enqueued a new round: got %s, want %s", inv.LatestRound.ID, recheck.ID)
+		}
 		if f.resetSourceCalls.Load() != initialSource+1 || f.calls.Load() != initialTotal+1 || !f.confirmedResetGate() {
 			t.Fatal("restart repeated a terminal reset attempt or cleared a confirmed gate")
 		}

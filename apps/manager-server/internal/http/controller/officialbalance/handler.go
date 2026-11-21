@@ -6,12 +6,14 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/app"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/middleware"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/response"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
 	svc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
@@ -92,7 +94,19 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 				response.JSON(w, 400, map[string]string{"error": "invalid_binding"})
 				return
 			}
-			out, err = h.App.OfficialBalanceService.Status(ctx, b)
+			var status svc.Status
+			status, err = h.App.OfficialBalanceService.Status(ctx, b)
+			var due int64
+			if err == nil && status.Configured && status.DirectQuery {
+				q := svc.Query{Binding: status.Binding, Version: status.Version}
+				q.Targets = append(q.Targets[:0:0], q.Targets...)
+				sort.Slice(q.Targets, func(i, j int) bool { return q.Targets[i].ResourceID < q.Targets[j].ResourceID })
+				due = h.App.FullRefreshService.NextPeriodicSourceCheck(ctx, fullrefresh.SourceRequest{Kind: fullrefresh.Official, Official: &q})
+			}
+			out = struct {
+				svc.Status
+				NextPeriodicCheckMS int64 `json:"nextPeriodicCheckMs,omitempty"`
+			}{status, due}
 		default:
 			response.MethodNotAllowed(w)
 			return

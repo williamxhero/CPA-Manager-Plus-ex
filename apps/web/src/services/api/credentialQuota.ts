@@ -24,6 +24,7 @@ export interface CredentialQuotaObservation {
   errorCode?: string;
 }
 export interface CredentialQuotaStatus extends CredentialQuotaSource {
+  nextPeriodicCheckMs?: number;
   credentialQuery: { state: 'available' | 'unknown'; reason: string };
   version: number;
   stale: boolean;

@@ -41,8 +41,7 @@ export const createScopedApiRequestConfig = (
 
 class ApiClient {
   private instance: AxiosInstance;
-  private apiBase: string = '';
-  private managementKey: string = '';
+  private connection: Readonly<ApiClientRequestScope> = { apiBase: '', managementKey: '' };
 
   constructor() {
     this.instance = axios.create({
@@ -59,14 +58,25 @@ class ApiClient {
    * 设置 API 配置
    */
   setConfig(config: ApiClientConfig): void {
-    this.apiBase = computeApiUrl(config.apiBase);
-    this.managementKey = config.managementKey;
+    const apiBase = computeApiUrl(config.apiBase);
+    if (this.connection.apiBase !== apiBase || this.connection.managementKey !== config.managementKey) {
+      this.connection = { apiBase, managementKey: config.managementKey };
+    }
 
     if (config.timeout) {
       this.instance.defaults.timeout = config.timeout;
     } else {
       this.instance.defaults.timeout = REQUEST_TIMEOUT_MS;
     }
+  }
+
+  /** Keep the identity stable for the lifetime of this connection, including across awaits. */
+  captureConnection(): Readonly<ApiClientRequestScope> {
+    return this.connection;
+  }
+
+  isCurrentConnection(connection: Readonly<ApiClientRequestScope>): boolean {
+    return this.connection === connection;
   }
 
   private readHeader(headers: Record<string, unknown> | undefined, keys: string[]): string | null {
@@ -126,10 +136,11 @@ class ApiClient {
       config?.headers as Record<string, unknown> | undefined,
       ['Authorization']
     );
-    const currentAuthorization = this.managementKey ? `Bearer ${this.managementKey}` : '';
+    const { apiBase, managementKey } = this.connection;
+    const currentAuthorization = managementKey ? `Bearer ${managementKey}` : '';
 
     return (
-      requestBase === this.apiBase.replace(/\/+$/, '') &&
+      requestBase === apiBase.replace(/\/+$/, '') &&
       (requestAuthorization ?? '') === currentAuthorization
     );
   }
@@ -142,10 +153,11 @@ class ApiClient {
     this.instance.interceptors.request.use(
       (config) => {
         const scopedRequest = (config as ScopedApiRequestConfig).cpampScopedRequest === true;
+        const { apiBase, managementKey } = this.connection;
         // Explicitly scoped requests retain the connection captured when a multi-step
         // operation began. Regular requests continue to use the current global config.
         if (!scopedRequest) {
-          config.baseURL = this.apiBase;
+          config.baseURL = apiBase;
         }
         if (config.url) {
           // Normalize deprecated Gemini endpoint to the current path.
@@ -153,8 +165,8 @@ class ApiClient {
         }
 
         // 添加认证头
-        if (!scopedRequest && this.managementKey) {
-          config.headers.Authorization = `Bearer ${this.managementKey}`;
+        if (!scopedRequest && managementKey) {
+          config.headers.Authorization = `Bearer ${managementKey}`;
         }
 
         return config;
@@ -254,13 +266,17 @@ class ApiClient {
     return response.data;
   }
 
-  /** Read the current Core's v8 view under the same connection and identity. */
-  async getV8<T = unknown>(url: string): Promise<T> {
-    if (!this.apiBase || (__DEMO_SITE__ && isDemoMode())) throw new Error('Core v8 unavailable');
-    return this.get<T>(url, createScopedApiRequestConfig(
-      { apiBase: this.apiBase, managementKey: this.managementKey },
-      this.apiBase.replace(/\/v0\/management$/, '/v8/management')
-    ));
+  /** Read Core's v8 view using the connection captured by the caller. */
+  async getV8<T = unknown>(
+    url: string,
+    scope: Readonly<ApiClientRequestScope> = this.captureConnection()
+  ): Promise<T> {
+    const baseURL = computeApiUrl(scope.apiBase);
+    if (!baseURL || (__DEMO_SITE__ && isDemoMode())) throw new Error('Core v8 unavailable');
+    return this.get<T>(
+      url,
+      createScopedApiRequestConfig(scope, baseURL.replace(/\/v0\/management$/, '/v8/management'))
+    );
   }
 
   /**
