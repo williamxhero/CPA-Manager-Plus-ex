@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
+import { isDemoRoutePath, prefixRouteBase } from '@/features/demo/demoMode';
 import { Button } from '@/components/ui/Button';
 import {
   IconChartLine,
@@ -71,10 +73,13 @@ export function AccountDiagnosticsTab({
   onLoadMoreEvents,
 }: AccountDiagnosticsTabProps) {
   const { t, i18n } = useTranslation();
+  const { pathname } = useLocation();
   const conclusion = detailView.strategy.conclusion;
   const activity = detailView.strategy.activity;
   const monitoringParams = new URLSearchParams({ auth_file: row.fileName });
   if (row.authIndex) monitoringParams.set('auth_index', row.authIndex);
+  const monitoringPath = isDemoRoutePath(pathname) ? prefixRouteBase('/monitoring') : '/monitoring';
+  const monitoringHref = `#${monitoringPath}?${monitoringParams.toString()}`;
 
   const evidenceStatusClass = {
     current: styles.diagnosticEvidenceStatusCurrent,
@@ -231,7 +236,7 @@ export function AccountDiagnosticsTab({
             {events.length === 0 ? (
               <div className={styles.diagnosticActivityFooter}>
                 <span>{t('accounts.detail_events_empty')}</span>
-                <a href={`#/monitoring?${monitoringParams.toString()}`}>
+                <a href={monitoringHref}>
                   <span>{t('accounts.detail_event_footer_open_monitoring')}</span>
                   <IconChevronRight size={17} />
                 </a>
@@ -316,7 +321,7 @@ export function AccountDiagnosticsTab({
                       total: eventsTotalCount || events.length,
                     })}
                   </span>
-                  <a href={`#/monitoring?${monitoringParams.toString()}`}>
+                  <a href={monitoringHref}>
                     <span>{t('accounts.detail_event_footer_open_monitoring')}</span>
                     <IconChevronRight size={17} />
                   </a>

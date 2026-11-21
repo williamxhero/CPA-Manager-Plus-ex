@@ -22,6 +22,7 @@ export const DEFAULT_MONITORING_TABLE_PAGE_SIZE = 12;
 export const DEFAULT_MONITORING_REALTIME_PAGE_SIZE = 10;
 
 export const MONITORING_CENTER_UI_STATE_STORAGE_KEY = 'monitoring.centerUiState';
+const WORKSPACE_PREFERENCES_STORAGE_KEY = 'monitoring.workspacePreferences';
 
 export type MonitoringCenterUiState = {
   activeDataTab: MonitoringDataTab;
@@ -180,3 +181,57 @@ export const writeMonitoringCenterUiState = (state: Partial<MonitoringCenterUiSt
     // Ignore storage failures and keep the runtime state in memory only.
   }
 };
+
+type WorkspacePreferences = Pick<MonitoringCenterUiState, 'activeDataTab' | 'autoRefreshMs'>;
+
+const normalizeWorkspacePreferences = (value: Partial<WorkspacePreferences> | undefined) => ({
+  activeDataTab: normalizeMonitoringDataTab(value?.activeDataTab),
+  autoRefreshMs: normalizeMonitoringAutoRefreshMs(value?.autoRefreshMs),
+});
+
+export function readMonitoringWorkspacePreferences(scope: string | null): WorkspacePreferences {
+  if (scope && typeof window !== 'undefined') {
+    try {
+      const raw = window.localStorage.getItem(WORKSPACE_PREFERENCES_STORAGE_KEY);
+      // Migrate only scalar preferences; legacy filters were not scoped to a connection.
+      if (raw === null) return normalizeWorkspacePreferences(readMonitoringCenterUiState());
+      return normalizeWorkspacePreferences(JSON.parse(raw)?.[scope]);
+    } catch {
+      // Storage may be unavailable or corrupt.
+    }
+  }
+  return normalizeWorkspacePreferences(undefined);
+}
+
+export function writeMonitoringWorkspacePreferences(
+  scope: string | null,
+  preferences: Partial<WorkspacePreferences>
+) {
+  if (!scope || typeof window === 'undefined') return;
+  try {
+    const raw = window.localStorage.getItem(WORKSPACE_PREFERENCES_STORAGE_KEY);
+    let entries: Record<string, WorkspacePreferences> = {};
+    if (raw !== null) {
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          entries = parsed as typeof entries;
+        }
+      } catch {
+        // Replace a corrupt preferences record.
+      }
+    }
+    const baseline = raw === null ? readMonitoringCenterUiState() : entries[scope];
+    const next = normalizeWorkspacePreferences({ ...baseline, ...preferences });
+    if (
+      entries[scope]?.activeDataTab === next.activeDataTab &&
+      entries[scope]?.autoRefreshMs === next.autoRefreshMs
+    ) return;
+    window.localStorage.setItem(
+      WORKSPACE_PREFERENCES_STORAGE_KEY,
+      JSON.stringify({ ...entries, [scope]: next })
+    );
+  } catch {
+    // Keep the current workspace in memory if storage is unavailable.
+  }
+}

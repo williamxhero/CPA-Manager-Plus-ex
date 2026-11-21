@@ -10,6 +10,8 @@ import { configApi } from '@/services/api/config';
 import { logsApi } from '@/services/api/logs';
 import { normalizePluginList, pluginsApi } from '@/services/api/plugins';
 import { usageServiceApi } from '@/services/api/usageService';
+import { MonitoringFiltersPanel } from '@/features/monitoring/components/MonitoringFiltersPanel';
+import { MONITORING_CENTER_UI_STATE_STORAGE_KEY } from '@/features/monitoring/monitoringCenterUiState';
 import { MainLayout } from './MainLayout';
 
 let renderer: ReactTestRenderer | undefined;
@@ -62,6 +64,7 @@ afterEach(async () => {
     apiBase: '',
     managementKey: '',
     connectionStatus: 'disconnected',
+    isAuthenticated: false,
     supportsPlugin: false,
   });
   vi.unstubAllGlobals();
@@ -449,6 +452,10 @@ describe('Usage and monitoring navigation', () => {
     expect(search()?.props.value).toBe('first-drill');
     await act(async () => search()?.props.onChange({ target: { value: 'edited-drill' } }));
     await click(tabs()[4]);
+    await act(async () => router.navigate(-1));
+    expect(router.state.location.search).toBe('?search=first-drill');
+    expect(search()?.props.value).toBe('edited-drill');
+    await click(tabs()[4]);
     await click(tabs()[2]);
     expect(search()?.props.value).toBe('edited-drill');
     await act(async () => router.navigate('/demo/monitoring?search=new-drill'));
@@ -462,6 +469,42 @@ describe('Usage and monitoring navigation', () => {
     });
     await click(tabs()[2]);
     expect(search()).toBeUndefined();
+  });
+
+  it('keeps monitoring preferences per connection and does not migrate legacy filters', async () => {
+    useAuthStore.setState({ managementKey: 'first-fixture', isAuthenticated: true });
+    localStorage.setItem(
+      MONITORING_CENTER_UI_STATE_STORAGE_KEY,
+      JSON.stringify({ activeDataTab: 'apiKeys', autoRefreshMs: '60000', searchInput: 'private' })
+    );
+    const router = await renderNavigation('/monitoring');
+    const filters = () => renderer!.root.findByType(MonitoringFiltersPanel).props;
+    const selectedTab = () =>
+      renderer!.root.findByType('main').findAllByType('a')
+        .find((node) => node.props.role === 'tab' && node.props['aria-selected'])?.props.id;
+
+    expect(selectedTab()).toBe('monitoring-workspace-apiKeys');
+    expect(filters().autoRefreshMs).toBe('60000');
+    expect(filters().searchInput).toBe('');
+    await act(async () => filters().onAutoRefreshChange('30000'));
+    await act(async () => router.navigate('/monitoring?search=fresh-drill'));
+    expect(selectedTab()).toBe('monitoring-workspace-realtime');
+    expect(filters().searchInput).toBe('fresh-drill');
+    expect(filters().autoRefreshMs).toBe('30000');
+
+    await act(async () => router.navigate('/logs'));
+    await act(async () => {
+      useAuthStore.setState({ managementKey: 'second-fixture' });
+    });
+    await act(async () => router.navigate('/monitoring'));
+    expect(filters().autoRefreshMs).toBe('5000');
+    expect(filters().searchInput).toBe('');
+
+    await act(async () => {
+      useAuthStore.setState({ managementKey: 'first-fixture' });
+    });
+    expect(filters().autoRefreshMs).toBe('30000');
+    expect(selectedTab()).toBe('monitoring-workspace-apiKeys');
   });
 
   it('keeps log tabs in the monitoring workspace and restores the selected log from history', async () => {
