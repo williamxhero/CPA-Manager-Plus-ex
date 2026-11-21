@@ -20,6 +20,32 @@ import (
 
 type Handler struct{ App *app.Context }
 
+type scheduledStatus struct {
+	svc.Status
+	NextPeriodicCheckMS int64 `json:"nextPeriodicCheckMs,omitempty"`
+}
+
+func (h *Handler) scheduled(ctx context.Context, status *svc.Status) *scheduledStatus {
+	if status == nil {
+		return nil
+	}
+	result := &scheduledStatus{Status: *status}
+	if status.Configured && status.DirectQuery {
+		q := svc.Query{Binding: status.Binding, Version: status.Version}
+		q.Targets = append(q.Targets[:0:0], q.Targets...)
+		sort.Slice(q.Targets, func(i, j int) bool { return q.Targets[i].ResourceID < q.Targets[j].ResourceID })
+		result.NextPeriodicCheckMS = h.App.FullRefreshService.NextPeriodicSourceCheck(ctx, fullrefresh.SourceRequest{Kind: fullrefresh.Official, Official: &q})
+	}
+	return result
+}
+
+func (h *Handler) scheduledJob(ctx context.Context, job svc.Job) any {
+	return struct {
+		svc.Job
+		Status *scheduledStatus `json:"status,omitempty"`
+	}{job, h.scheduled(ctx, job.Status)}
+}
+
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	middleware.WriteCORS(h.App.Config, w, r)
@@ -79,14 +105,19 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 				response.JSON(w, 400, map[string]string{"error": "invalid_query"})
 				return
 			}
-			out, err = h.App.FullRefreshService.StartOfficial(ctx, q)
+			var job svc.Job
+			job, err = h.App.FullRefreshService.StartOfficial(ctx, q)
 			if err == nil {
-				response.JSON(w, 202, out)
+				response.JSON(w, 202, h.scheduledJob(ctx, job))
 				return
 			}
 		case "GET":
 			if id := r.URL.Query().Get("job"); id != "" {
-				out, err = h.App.OfficialBalanceService.Job(ctx, id)
+				var job svc.Job
+				job, err = h.App.OfficialBalanceService.Job(ctx, id)
+				if err == nil {
+					out = h.scheduledJob(ctx, job)
+				}
 				break
 			}
 			var b svc.Binding
@@ -96,17 +127,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			}
 			var status svc.Status
 			status, err = h.App.OfficialBalanceService.Status(ctx, b)
-			var due int64
-			if err == nil && status.Configured && status.DirectQuery {
-				q := svc.Query{Binding: status.Binding, Version: status.Version}
-				q.Targets = append(q.Targets[:0:0], q.Targets...)
-				sort.Slice(q.Targets, func(i, j int) bool { return q.Targets[i].ResourceID < q.Targets[j].ResourceID })
-				due = h.App.FullRefreshService.NextPeriodicSourceCheck(ctx, fullrefresh.SourceRequest{Kind: fullrefresh.Official, Official: &q})
+			if err == nil {
+				out = h.scheduled(ctx, &status)
 			}
-			out = struct {
-				svc.Status
-				NextPeriodicCheckMS int64 `json:"nextPeriodicCheckMs,omitempty"`
-			}{status, due}
 		default:
 			response.MethodNotAllowed(w)
 			return

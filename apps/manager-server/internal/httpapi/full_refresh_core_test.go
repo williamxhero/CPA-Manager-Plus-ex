@@ -653,6 +653,21 @@ func TestFullRefreshActualCoreHourlyWithoutBrowserOrUsage(t *testing.T) {
 		if err := json.Unmarshal(raw, &status); code != http.StatusOK || err != nil || status.NextPeriodicCheckMS != item.NextDueMS {
 			t.Fatalf("status for %s: HTTP %d, cadence=%d want %d, decode=%v", item.Request.Kind, code, status.NextPeriodicCheckMS, item.NextDueMS, err)
 		}
+		if item.Request.Kind == fr.Official {
+			if item.JobID == "" {
+				t.Fatal("queried official source is missing a completed job")
+			}
+			code, raw := f.api(http.MethodGet, "/usage-service/official-balance?job="+url.QueryEscape(item.JobID), nil)
+			var job struct {
+				State  string `json:"state"`
+				Status struct {
+					NextPeriodicCheckMS int64 `json:"nextPeriodicCheckMs"`
+				} `json:"status"`
+			}
+			if err := json.Unmarshal(raw, &job); code != http.StatusOK || err != nil || job.State != "complete" || job.Status.NextPeriodicCheckMS != item.NextDueMS {
+				t.Fatalf("completed official job: HTTP %d, state=%s, cadence=%d want %d, decode=%v", code, job.State, job.Status.NextPeriodicCheckMS, item.NextDueMS, err)
+			}
+		}
 		checked[item.Request.Kind] = true
 	}
 	if !checked[fr.Credential] || !checked[fr.Official] || f.calls.Load() != count {
