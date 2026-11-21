@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   install: vi.fn(),
   deletePlugin: vi.fn(),
   showConfirmation: vi.fn(),
+  hideConfirmation: vi.fn(),
+  confirmation: { options: null as { onConfirm: () => Promise<void> } | null },
   notify: vi.fn(),
   key: 'test-key',
   noop: () => {},
@@ -31,8 +33,16 @@ vi.mock('@/stores', () => ({
       supportsPlugin: true,
     }),
   useConfigStore: (selector: (state: object) => unknown) => selector({ clearCache: mocks.noop }),
-  useNotificationStore: (selector: (state: object) => unknown) =>
-    selector({ showNotification: mocks.notify, showConfirmation: mocks.showConfirmation }),
+  useNotificationStore: Object.assign(
+    (selector: (state: object) => unknown) =>
+      selector({ showNotification: mocks.notify, showConfirmation: mocks.showConfirmation }),
+    {
+      getState: () => ({
+        confirmation: mocks.confirmation,
+        hideConfirmation: mocks.hideConfirmation,
+      }),
+    }
+  ),
 }));
 
 vi.mock('@/services/api', () => ({
@@ -47,6 +57,13 @@ vi.mock('@/components/ui/Modal', () => ({
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.key = 'test-key';
+  mocks.confirmation.options = null;
+  mocks.showConfirmation.mockImplementation((options) => {
+    mocks.confirmation.options = options;
+  });
+  mocks.hideConfirmation.mockImplementation(() => {
+    mocks.confirmation.options = null;
+  });
 });
 
 it('preserves store filters across tab navigation and only refreshes the visible tab', async () => {
@@ -170,6 +187,52 @@ function Back() {
     </button>
   );
 }
+
+it.each([false, true])(
+  'dismisses the old Store confirmation on key change only if still owned (replaced=%s)',
+  async (replaced) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    mocks.listStore.mockResolvedValue({
+      pluginsEnabled: true,
+      pluginsDir: 'plugins',
+      sources: [],
+      sourceErrors: [],
+      plugins: [{ ...storeEntry, installed: true, installedVersion: '1.0.0' }],
+    });
+    const page = () => (
+      <MemoryRouter initialEntries={['/plugins?tab=store']}>
+        <PluginsPage />
+      </MemoryRouter>
+    );
+    let renderer!: ReactTestRenderer;
+    try {
+      await act(async () => {
+        renderer = create(page());
+      });
+      await act(async () => {
+        renderer.root
+          .findAllByType(Button)
+          .find((button) => button.props.children.includes?.('plugin_store.reinstall_plugin'))!
+          .props.onClick();
+      });
+      const stale = mocks.confirmation.options!;
+      expect(stale).toBeTruthy();
+      const other = { onConfirm: async () => {} };
+      if (replaced) mocks.showConfirmation(other);
+      mocks.key = 'new-connection-key';
+      await act(async () => renderer.update(page()));
+      expect(mocks.confirmation.options).toBe(replaced ? other : null);
+      expect(mocks.hideConfirmation).toHaveBeenCalledTimes(replaced ? 0 : 1);
+      await act(async () => {
+        await stale.onConfirm();
+      });
+      expect(mocks.deletePlugin).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => renderer?.unmount());
+      vi.unstubAllGlobals();
+    }
+  }
+);
 
 it.each([false, true])(
   'continues an approved reinstall after Back only on the same connection (changed=%s)',
