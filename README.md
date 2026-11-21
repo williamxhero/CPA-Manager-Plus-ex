@@ -1,51 +1,14 @@
-<img align="right" src="./ex-badge.svg" alt="EX fork" width="76" />
+# CPA-Manager-Plus-ex
 
-# CPAMP-EX 主要能力
+本库基于 [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus)。基础安装与配置见[上游使用说明（中文）](README_CN.md)。
 
-## 开始使用
+## 使用本库的改进
 
-Manager 提供 CPA 配置、凭证、余额及自动启停管理；`apps/web` 是面板，`apps/manager-server` 是服务，`providers` 保存纳入统一发布的插件源码。
+在 `/plan-credentials` 选择计划凭证并设置别名；在余额页核对最近一次成功查询的值，再决定是否启用自动暂停。恢复额度不会重新打开人工禁用的凭证。
 
-- 上游使用说明：[README-source.md](README-source.md)。
-- 插件来源及构建边界：[providers/README.md](providers/README.md)。
-- 自动启停将人工禁用与额度暂停分别保存，并核对 Core 实际生效的状态。Core 的 `disable-cooling` 不影响额度耗尽停止。
+## 相对上游的主要改进
 
-```powershell
-npm ci
-npm run type-check
-npm test
-npm run build
-Set-Location apps/manager-server
-go test ./...
-go build -o cpa-manager-plus.exe ./cmd/cpa-manager-plus
-```
-
-部分服务集成测试需要指定带 SHA-256 和源码版本的 Core 验收产物；运行条件见对应测试及发布脚本。插件检查需要显式提供兼容 Core 与 Qwen 源码路径。
-
-本项目部署到本机 Windows。构建候选产物后使用 `ops/windows/deploy-cpamp.ps1`，保留部署回执；脚本在健康检查失败时自动回退。
-
-## Documentation and product modes
-
-CPA / CLIProxyAPI management panel. The upstream documentation now lives at [cpamp-hq/docs](https://github.com/cpamp-hq/docs). This fork retains its local guides for EX-specific deployment and provider behavior; the legacy Pages workflow follows the upstream static redirects.
-
-- [Choosing A CPA Panel](apps/docs/en/guide/choosing-a-panel.md)
-- [Capability Matrix](apps/docs/en/reference/capability-matrix.md)
-- [中文文档](apps/docs/guide/choosing-a-panel.md)
-
-| Mode | Purpose |
-| --- | --- |
-| CPAMP Lightweight Panel | Static panel connected to CPA Core. |
-| CPAMP Full Mode | Panel plus Manager Server for persistent management and automation. |
-
-The demo previews the interface with fictional data. It is not a deployment or runtime mode.
-
-Copyright 2026 Seakee. Original license and attribution are retained in [LICENSE](LICENSE).
-
-## Fork 功能记录
-
-本页只列相对上游 seakee/CPA-Manager-Plus 的主要功能。上游面板适合管理 CPA 配置，但插件、凭证、配额和长期运营数据分散在不同工具里；本 fork 把它们收进同一条可验证的管理链路。
-
-- **插件单仓与统一发布**：上游面板与插件源码分开，升级时容易出现版本和构建边界不一致。本 fork 将 OpenCode Go、Qwen 及 bailian-quota CLI 收入 providers/，由同一仓库构建，并用导入边界与 CI 约束来源和发布结果。对应 [issue #5](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/5)、[#6](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/6) 和 [#134](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/134)。
+- **插件单仓与统一发布**：上游面板与插件源码分开，升级时容易出现版本和构建边界不一致。本 fork 将 [OpenCode Go](providers/opencode-go/)、[Qwen](providers/qwen/) 及 [bailian-quota CLI](providers/qwen/cmd/bailian-quota/) 收入 providers/，由同一仓库构建，并用导入边界与 CI 约束来源和发布结果。对应 [issue #5](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/5)、[#6](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/6) 和 [#134](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/134)。
 - **凭证、计划与身份管理**：上游缺少面向插件计划凭证的统一编辑入口，别名、掩码和宿主身份也难以保持一致。本 fork 提供统一的 /plan-credentials、Provider key 别名、插件凭证表单和受保护的凭证策略，让保存、展示、刷新都绑定到选定的真实凭证；同时修复别名修改不生效、凭证表单布局和保存回滚误报。对应 [issue #8](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/8)、[#56](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/56) 和 [#88](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/88)。
 - **配额、余额与 Credits 观测**：上游主要展示 CPA 基础状态，无法把不同 Provider 的余额、预付费账户、Codex Credits 和凭证窗口放在同一套证据链里。本 fork 增加官方余额/预付费查询、按密钥缓存的余额、Codex Credits 与 Qwen 月度窗口，并在刷新间隔内稳定复用已确认的值；刷新失败会保留旧成功值并给出可操作状态。对应 [issue #38](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/38)、[#57](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/57)、[#80](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/80)、[#87](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/87) 和 [#92](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/92)。
 - **请求、成本与排行分析**：上游的请求信息难以支撑长期成本核算和跨维度比较。本 fork 将请求历史、双成本、时间窗口、Provider/凭证/Key/渠道维度和排行统一到持久化分析中，保留可追溯的价格快照。
@@ -55,9 +18,3 @@ Copyright 2026 Seakee. Original license and attribution are retained in [LICENSE
 - **无 API 来源的只读网页额度闭环**：上游管理面通常只能读取 API/CLI 提供的额度，遇到没有公开接口的来源就无法形成可审计的刷新结果。本 fork 增加只读网页额度查询、缓存、失败分类和本机闭环验收。对应 [issue #97](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/97)。
 - **Keeper 实时接入与 EX 品牌**：上游无法在 Keeper 订阅期间同时兼容 HTTP 采集，采集器断线后也可能长期停在无效的 HTTP 空拉路径，且没有清晰区分本 fork 的发布物。本 fork 保留订阅与 HTTP 双通道用量接入、自动重连和 EX 资产标识。对应 [issue #7](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/7)、[#17](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/17) 和 [#86](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/86)。
 - **可回退部署与跨平台交付**：上游升级面板、Core 和插件时缺少统一的自动回退、Linux 无感部署与配置迁移入口，失败容易留下半升级状态。本 fork 提供独立部署脚本、失败自动回退、本机/远端配置同步和完整链路验收。对应 [issue #52](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/52)、[#62](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/62) 和 [#65](https://github.com/williamxhero/CPA-Manager-Plus-ex/issues/65)。
-
-本页不替代上游使用文档；部署、配置和完整 API 说明仍以仓库其他文档为准。
-
-> 完成 issue 归档更新时间：2026-11-09 08:34:40 SGT（UTC+08:00）。已列入上述条目的 issue 后续不再重复归档。
-
-Repository tests that exercise the Bash installer require POSIX file permissions and process behavior. On Windows, `npm run test:repo` runs the complete suite in local WSL. Install Node.js and Linux native npm dependencies in that WSL environment first; `CPAMP_TEST_WSL_DISTRO` optionally selects the local distribution.
