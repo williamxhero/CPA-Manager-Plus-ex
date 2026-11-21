@@ -11616,6 +11616,42 @@ describe('AccountsPage replacement flows', () => {
     ].forEach((key) => expect(overviewText).not.toContain(key));
   });
 
+  it('shows structured renewal diagnostics independently of manual status', async () => {
+    mocks.files = [
+      {
+        ...makeCodexFile('codex.json', 'auth-1', 'codex@example.com'),
+        disabled: true,
+        renewal_state: 'credential_recovery_needed',
+        next_action: 'recover_credential',
+        last_renewal_verified_at: '2026-11-20T01:30:00Z',
+        refresh_error: {
+          code: 'refresh_outcome_unknown',
+          message: 'DO NOT RENDER private@example.invalid sensitive-grant',
+        },
+        renewal_warning: 'repeated_refresh_failures',
+      },
+    ];
+
+    const renderer = await renderAccountsPage();
+    await act(async () => {
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+    });
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
+    });
+    await flushPromises();
+
+    const overview = treeText(renderer);
+    expect(overview).toContain('accounts.detail_auth_status_disabled');
+    expect(overview).toContain('accounts.renewal_state_credential_recovery_needed');
+    expect(overview).toContain('accounts.renewal_action_recover_credential');
+    expect(overview).toContain('accounts.renewal_last_success');
+    expect(overview).toContain('accounts.renewal_failure_refresh_outcome_unknown');
+    expect(overview).toContain('accounts.renewal_warning_repeated_refresh_failures');
+    expect(overview).not.toContain('private@example.invalid');
+    expect(overview).not.toContain('sensitive-grant');
+  });
+
   it('aggregates recent request buckets and shows the current status explanation', async () => {
     mocks.files = [
       {

@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { CodexQuotaState, QuotaResetAccuracy, XaiQuotaState } from '@/types';
+import type { AuthFileItem, CodexQuotaState, QuotaResetAccuracy, XaiQuotaState } from '@/types';
 import { getSortedCodexResetCreditExpiries } from '@/components/quota/quotaConfigs';
 import type {
   AccountActionCandidate,
@@ -1086,6 +1086,84 @@ const buildOverviewCapacity = (
   };
 };
 
+const renewalStates: readonly string[] = [
+  'awaiting_first_renewal',
+  'renewal_verified',
+  'retry_scheduled',
+  'credential_recovery_needed',
+  'sign_in_required',
+  'expired_sign_in_required',
+];
+
+const renewalActions: readonly string[] = ['retry', 'recover_credential', 'sign_in'];
+
+const renewalFailureLabel = (code: unknown): string => {
+  switch (code) {
+    case 'refresh_outcome_unknown':
+    case 'refresh_transport_before_send':
+      return 'accounts.renewal_failure_' + code;
+    case 'invalid_grant':
+    case 'refresh_token_reused':
+    case 'refresh_token_expired':
+    case 'refresh_token_invalidated':
+    case 'token_revoked':
+      return 'accounts.renewal_failure_grant_rejected';
+    default:
+      return 'accounts.renewal_failure_refresh_failed';
+  }
+};
+
+const renewalTime = (value: unknown): number | null => {
+  if (typeof value !== 'string') return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+};
+
+const buildRenewalOverviewFields = (raw: AuthFileItem): Array<AccountDetailField | null> => {
+  const { renewal_state: state, next_action: action, refresh_error: failure } = raw;
+  if (typeof state !== 'string' || !renewalStates.includes(state)) return [];
+
+  return [
+    field('renewalState', 'accounts.renewal_state', 'accounts.renewal_state_' + state, 'i18n'),
+    field(
+      'renewalLastSuccess',
+      'accounts.renewal_last_success',
+      renewalTime(raw.last_renewal_verified_at),
+      'timestamp'
+    ),
+    field(
+      'renewalLastFailure',
+      'accounts.renewal_last_failure',
+      failure && typeof failure === 'object'
+        ? renewalFailureLabel('code' in failure ? failure.code : undefined)
+        : null,
+      'i18n'
+    ),
+    field(
+      'renewalNextAction',
+      'accounts.renewal_next_action',
+      typeof action === 'string' && renewalActions.includes(action)
+        ? 'accounts.renewal_action_' + action
+        : null,
+      'i18n'
+    ),
+    field(
+      'renewalNextRetry',
+      'accounts.renewal_next_retry',
+      action === 'retry' ? renewalTime(raw.next_refresh_after) : null,
+      'timestamp'
+    ),
+    field(
+      'renewalWarning',
+      'accounts.renewal_warning',
+      raw.renewal_warning === 'repeated_refresh_failures'
+        ? 'accounts.renewal_warning_repeated_refresh_failures'
+        : null,
+      'i18n'
+    ),
+  ];
+};
+
 const buildOverviewCredential = (
   row: AccountRow,
   codexQuota: CodexQuotaState | null | undefined,
@@ -1111,6 +1189,7 @@ const buildOverviewCredential = (
       field('subscriptionUntilMs', subscription.subscriptionUntilLabelKey, subscription.subscriptionUntilMs, 'quota_reset'),
       field('authIndex', 'accounts.detail_auth_index', presentOverviewText(row.authIndex)),
       field('priority', 'accounts.col_priority', row.priority ?? 0, 'number'),
+      ...buildRenewalOverviewFields(row.raw),
     ]),
     targetTab: 'config',
   };
