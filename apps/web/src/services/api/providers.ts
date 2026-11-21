@@ -75,6 +75,8 @@ const COMMON_PROVIDER_KEY_FIELDS = [
   'autoHeld',
 ] as const;
 
+const LEGACY_HOLD_FIELDS = ['auto-held', 'autoHeld'] as const;
+
 const COOLING_PROVIDER_KEY_FIELDS = [
   ...COMMON_PROVIDER_KEY_FIELDS,
   ...DISABLE_COOLING_FIELDS,
@@ -441,6 +443,7 @@ const mergeProviderKeyPayload = (
     });
   }
   preserveOmittedRawField(raw, payload, next, DISABLE_COOLING_FIELDS);
+  preserveOmittedRawField(raw, payload, next, LEGACY_HOLD_FIELDS);
   if (!fingerprintDefined) {
     preserveOmittedRawField(raw, payload, next, FINGERPRINT_PROFILE_FIELDS);
   }
@@ -465,6 +468,7 @@ const mergeProviderKeyPayload = (
 const mergeMetaProviderKeyPayload = (raw: unknown, payload: Record<string, unknown>) => {
   const next = mergeKnownFields(raw, payload, META_KEY_FIELDS);
   preserveOmittedRawField(raw, payload, next, DISABLE_COOLING_FIELDS);
+  preserveOmittedRawField(raw, payload, next, LEGACY_HOLD_FIELDS);
   const models = mergeModelPayloads(raw, payload.models);
   if (models) next.models = models;
   return next;
@@ -474,8 +478,7 @@ const mergeOpenAIProviderPayload = (raw: unknown, payload: Record<string, unknow
   const next = mergeKnownFields(raw, payload, OPENAI_PROVIDER_FIELDS);
   delete next['native-funding'];
   preserveOmittedRawField(raw, payload, next, DISABLE_COOLING_FIELDS);
-  // A configuration edit must never write a hold from its older read snapshot.
-  preserveOmittedRawField(raw, payload, next, ['auto-held', 'autoHeld']);
+  preserveOmittedRawField(raw, payload, next, LEGACY_HOLD_FIELDS);
   const rawApiKeyEntries = isRecord(raw)
     ? (raw['api-key-entries'] ?? raw.apiKeyEntries)
     : undefined;
@@ -587,6 +590,23 @@ export const replaceLatestProviderRecord = (
 /** Serializes read-modify-write updates per CPA config section to avoid lost updates. */
 const providerSectionWriteQueues = new Map<string, Promise<unknown>>();
 
+export interface ProviderMutationScope {
+  connection: Readonly<ApiClientRequestScope>;
+  isCurrent?: () => boolean;
+}
+
+const assertMutationScope = (scope: ProviderMutationScope) => {
+  if (!apiClient.isCurrentConnection(scope.connection) || scope.isCurrent?.() === false) {
+    throw new Error('Core connection changed');
+  }
+};
+
+const deleteProvider = (path: string, scope?: ProviderMutationScope) => {
+  if (!scope) return apiClient.delete(path);
+  assertMutationScope(scope);
+  return apiClient.delete(path, createScopedApiRequestConfig(scope.connection));
+};
+
 const enqueueProviderSectionWrite = <T>(section: string, task: () => Promise<T>): Promise<T> => {
   const previous = providerSectionWriteQueues.get(section) ?? Promise.resolve();
   const run = previous.then(task, task);
@@ -602,12 +622,16 @@ const enqueueProviderSectionWrite = <T>(section: string, task: () => Promise<T>)
 
 const mutateLatestProviderList = async (
   section: string,
-  mutate: (latestItems: unknown[]) => unknown[]
+  mutate: (latestItems: unknown[]) => unknown[],
+  activeScope: ProviderMutationScope = { connection: apiClient.captureConnection() }
 ) =>
   enqueueProviderSectionWrite(section, async () => {
-    const rawConfig = await apiClient.get('/config');
+    assertMutationScope(activeScope);
+    const config = createScopedApiRequestConfig(activeScope.connection);
+    const rawConfig = await apiClient.get('/config', config);
+    assertMutationScope(activeScope);
     const latestItems = getRawSectionList(rawConfig, section);
-    await apiClient.put(`/${section}`, mutate(latestItems));
+    await apiClient.put(`/${section}`, mutate(latestItems), config);
   });
 
 const matchesProviderConfig = (
@@ -875,7 +899,6 @@ const serializeProviderKey = (config: ProviderKeyConfig) => {
   if (config.excludedModels && config.excludedModels.length) {
     payload['excluded-models'] = config.excludedModels;
   }
-  if (config.autoHeld !== undefined) payload['auto-held'] = config.autoHeld;
   if (config.cloak) {
     const cloakPayload: Record<string, unknown> = {};
     const mode = config.cloak.mode?.trim();
@@ -938,7 +961,6 @@ export const serializeMetaProviderKey = (config: ProviderKeyConfig) => {
     payload['excluded-models'] = config.excludedModels;
   }
   if (config.disableCooling !== undefined) payload['disable-cooling'] = config.disableCooling;
-  if (config.autoHeld !== undefined) payload['auto-held'] = config.autoHeld;
   return payload;
 };
 
@@ -976,7 +998,6 @@ const serializeVertexKey = (config: ProviderKeyConfig) => {
   if (config.excludedModels && config.excludedModels.length) {
     payload['excluded-models'] = config.excludedModels;
   }
-  if (config.autoHeld !== undefined) payload['auto-held'] = config.autoHeld;
   return payload;
 };
 
@@ -1001,7 +1022,6 @@ const serializeGeminiKey = (config: GeminiKeyConfig) => {
   if (config.excludedModels && config.excludedModels.length) {
     payload['excluded-models'] = config.excludedModels;
   }
-  if (config.autoHeld !== undefined) payload['auto-held'] = config.autoHeld;
   return payload;
 };
 
@@ -1056,18 +1076,19 @@ export const providersApi = {
       )
     ),
 
-  updateGeminiKey: (original: GeminiKeyConfig, value: GeminiKeyConfig) =>
+  updateGeminiKey: (original: GeminiKeyConfig, value: GeminiKeyConfig, scope?: ProviderMutationScope) =>
     mutateLatestProviderList('gemini-api-key', (latestItems) =>
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
         serializeGeminiKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, GEMINI_KEY_FIELDS)
-      )
+      ),
+      scope
     ),
 
-  deleteGeminiKey: (apiKey: string, baseUrl?: string) =>
-    apiClient.delete(`/gemini-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
+  deleteGeminiKey: (apiKey: string, baseUrl?: string, scope?: ProviderMutationScope) =>
+    deleteProvider(`/gemini-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`, scope),
 
   async getInteractionsKeys(): Promise<GeminiKeyConfig[]> {
     const data = await apiClient.get('/interactions-api-key');
@@ -1094,18 +1115,19 @@ export const providersApi = {
       )
     ),
 
-  updateInteractionsKey: (original: GeminiKeyConfig, value: GeminiKeyConfig) =>
+  updateInteractionsKey: (original: GeminiKeyConfig, value: GeminiKeyConfig, scope?: ProviderMutationScope) =>
     mutateLatestProviderList('interactions-api-key', (latestItems) =>
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
         serializeGeminiKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, GEMINI_KEY_FIELDS)
-      )
+      ),
+      scope
     ),
 
-  deleteInteractionsKey: (apiKey: string, baseUrl?: string) =>
-    apiClient.delete(`/interactions-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
+  deleteInteractionsKey: (apiKey: string, baseUrl?: string, scope?: ProviderMutationScope) =>
+    deleteProvider(`/interactions-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`, scope),
 
   async getCodexConfigs(): Promise<ProviderKeyConfig[]> {
     const data = await apiClient.get('/codex-api-key');
@@ -1134,18 +1156,19 @@ export const providersApi = {
       )
     ),
 
-  updateCodexConfig: (original: ProviderKeyConfig, value: ProviderKeyConfig) =>
+  updateCodexConfig: (original: ProviderKeyConfig, value: ProviderKeyConfig, scope?: ProviderMutationScope) =>
     mutateLatestProviderList('codex-api-key', (latestItems) =>
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
         serializeProviderKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, CODEX_KEY_FIELDS)
-      )
+      ),
+      scope
     ),
 
-  deleteCodexConfig: (apiKey: string, baseUrl?: string) =>
-    apiClient.delete(`/codex-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
+  deleteCodexConfig: (apiKey: string, baseUrl?: string, scope?: ProviderMutationScope) =>
+    deleteProvider(`/codex-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`, scope),
 
   async getXAIConfigs(): Promise<ProviderKeyConfig[]> {
     const data = await apiClient.get('/xai-api-key');
@@ -1174,18 +1197,19 @@ export const providersApi = {
       )
     ),
 
-  updateXAIConfig: (original: ProviderKeyConfig, value: ProviderKeyConfig) =>
+  updateXAIConfig: (original: ProviderKeyConfig, value: ProviderKeyConfig, scope?: ProviderMutationScope) =>
     mutateLatestProviderList('xai-api-key', (latestItems) =>
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
         serializeProviderKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, XAI_KEY_FIELDS)
-      )
+      ),
+      scope
     ),
 
-  deleteXAIConfig: (apiKey: string, baseUrl?: string) =>
-    apiClient.delete(`/xai-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
+  deleteXAIConfig: (apiKey: string, baseUrl?: string, scope?: ProviderMutationScope) =>
+    deleteProvider(`/xai-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`, scope),
 
   async getMetaConfigs(): Promise<ProviderKeyConfig[]> {
     const data = await apiClient.get('/meta-api-key');
@@ -1218,7 +1242,7 @@ export const providersApi = {
     );
   },
 
-  updateMetaConfig: (original: ProviderKeyConfig, value: ProviderKeyConfig) => {
+  updateMetaConfig: (original: ProviderKeyConfig, value: ProviderKeyConfig, scope?: ProviderMutationScope) => {
     assertValidMetaProviderConfig(value);
     return mutateLatestProviderList('meta-api-key', (latestItems) =>
       replaceLatestProviderRecord(
@@ -1226,12 +1250,13 @@ export const providersApi = {
         (record) => matchesProviderConfig(record, original),
         serializeMetaProviderKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeMetaProviderKeyPayload(raw, payload)
-      )
+      ),
+      scope
     );
   },
 
-  deleteMetaConfig: (apiKey: string, baseUrl?: string) =>
-    apiClient.delete(`/meta-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
+  deleteMetaConfig: (apiKey: string, baseUrl?: string, scope?: ProviderMutationScope) =>
+    deleteProvider(`/meta-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`, scope),
 
   async getClaudeConfigs(): Promise<ProviderKeyConfig[]> {
     const data = await apiClient.get('/claude-api-key');
@@ -1260,18 +1285,19 @@ export const providersApi = {
       )
     ),
 
-  updateClaudeConfig: (original: ProviderKeyConfig, value: ProviderKeyConfig) =>
+  updateClaudeConfig: (original: ProviderKeyConfig, value: ProviderKeyConfig, scope?: ProviderMutationScope) =>
     mutateLatestProviderList('claude-api-key', (latestItems) =>
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
         serializeClaudeUpdatePayload(original, value),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, CLAUDE_KEY_FIELDS)
-      )
+      ),
+      scope
     ),
 
-  deleteClaudeConfig: (apiKey: string, baseUrl?: string) =>
-    apiClient.delete(`/claude-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
+  deleteClaudeConfig: (apiKey: string, baseUrl?: string, scope?: ProviderMutationScope) =>
+    deleteProvider(`/claude-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`, scope),
 
   async getVertexConfigs(scope?: Readonly<ApiClientRequestScope>): Promise<ProviderKeyConfig[]> {
     const data = scope
@@ -1302,18 +1328,19 @@ export const providersApi = {
       )
     ),
 
-  updateVertexConfig: (original: ProviderKeyConfig, value: ProviderKeyConfig) =>
+  updateVertexConfig: (original: ProviderKeyConfig, value: ProviderKeyConfig, scope?: ProviderMutationScope) =>
     mutateLatestProviderList('vertex-api-key', (latestItems) =>
       replaceLatestProviderRecord(
         latestItems,
         (record) => matchesProviderConfig(record, original),
         serializeVertexKey({ ...value, resourceId: original.resourceId }),
         (raw, payload) => mergeProviderKeyPayload(raw, payload, VERTEX_KEY_FIELDS)
-      )
+      ),
+      scope
     ),
 
-  deleteVertexConfig: (apiKey: string, baseUrl?: string) =>
-    apiClient.delete(`/vertex-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
+  deleteVertexConfig: (apiKey: string, baseUrl?: string, scope?: ProviderMutationScope) =>
+    deleteProvider(`/vertex-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`, scope),
 
   async getOpenAIProviders(
     scope: Readonly<ApiClientRequestScope> = apiClient.captureConnection()
@@ -1378,7 +1405,8 @@ export const providersApi = {
   updateOpenAIProvider: (
     originalName: string,
     originalIndex: number,
-    value: OpenAIProviderConfig
+    value: OpenAIProviderConfig,
+    scope?: ProviderMutationScope
   ) =>
     mutateLatestProviderList('openai-compatibility', (latestItems) =>
       replaceLatestProviderRecord(
@@ -1389,9 +1417,10 @@ export const providersApi = {
             : index === originalIndex && openAIProviderIdentity(record) === originalName.trim(),
         serializeOpenAIProvider(value),
         mergeOpenAIProviderPayload
-      )
+      ),
+      scope
     ),
 
-  deleteOpenAIProvider: (name: string) =>
-    apiClient.delete(`/openai-compatibility?name=${encodeURIComponent(name)}`),
+  deleteOpenAIProvider: (name: string, scope?: ProviderMutationScope) =>
+    deleteProvider(`/openai-compatibility?name=${encodeURIComponent(name)}`, scope),
 };

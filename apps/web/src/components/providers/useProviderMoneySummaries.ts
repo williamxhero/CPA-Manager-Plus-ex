@@ -8,8 +8,7 @@ import {
 } from '@/services/api/providerPolicy';
 import type { BalanceBinding } from '@/services/api/officialBalance';
 import type { ProviderRow } from './ProviderTable/rowData';
-import { quotaRefreshDelayMs, quotaRefreshDue, readQuotaRefreshIntervalMs } from '@/utils/quota/refreshCadence';
-import { loadRuntimeControls, readRuntimeControls, writeRuntimeControls } from '@/utils/quota/runtimeControls';
+import { readQuotaRefreshIntervalMs } from '@/utils/quota/refreshCadence';
 
 export interface ProviderMoneyStatusConfig {
   base: string;
@@ -100,13 +99,7 @@ export function useProviderMoneySummaries(rows: ProviderRow[], config?: Provider
     let mounted = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const active = new Set<AbortController>();
-    const sweep = async (force = false) => {
-      await loadRuntimeControls();
-      if (!force && !quotaRefreshDue(readRuntimeControls().quotaFetchedAtMs)) {
-        const delay = quotaRefreshDelayMs();
-        if (mounted && delay) timer = setTimeout(() => void sweep(true), delay);
-        return;
-      }
+    const sweep = async () => {
       if (mounted)
         setView((previous) => ({
           context,
@@ -166,12 +159,9 @@ export function useProviderMoneySummaries(rows: ProviderRow[], config?: Provider
       };
       await Promise.all([worker(), worker()]);
       const interval = readQuotaRefreshIntervalMs();
-      if (mounted && interval > 0) timer = setTimeout(() => void sweep(true), interval);
-      if (mounted) {
-        void writeRuntimeControls({ ...readRuntimeControls(), quotaFetchedAtMs: Date.now() });
-      }
+      if (mounted && interval > 0) timer = setTimeout(() => void sweep(), interval);
     };
-    void sweep(revision > 0);
+    void sweep();
     return () => {
       mounted = false;
       clearTimeout(timer);

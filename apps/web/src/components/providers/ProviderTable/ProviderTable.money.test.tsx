@@ -7,10 +7,7 @@ import { saveProviderPolicy } from '@/services/api/providerPolicy';
 import { apiClient } from '@/services/api/client';
 import { beforeEach } from 'vitest';
 import { setRuntimeControlsForTests } from '@/utils/quota/runtimeControls';
-import {
-  CACHED_BALANCE_SETTLE_MS,
-  clearOfficialBalanceCachesForTests,
-} from '../useOfficialBalanceList';
+import { clearOfficialBalanceCachesForTests } from '../useOfficialBalanceList';
 
 beforeEach(() => {
   clearOfficialBalanceCachesForTests();
@@ -188,7 +185,7 @@ it('shows live native per-member money and independent manual/policy state on ev
   expect(text()).not.toContain('人工关闭');
   expect(text()).not.toContain('本策略已确认暂停');
   expect(text()).not.toContain('provider_policy.unavailable');
-  expect(fetcher).toHaveBeenCalledTimes(5);
+  expect(fetcher).toHaveBeenCalledTimes(4);
   expect(props.onShowDetail).not.toHaveBeenCalled();
   expect(props.onToggle).not.toHaveBeenCalled();
 });
@@ -330,11 +327,11 @@ it('bounds concurrent reads, times out blocked rows, and cancels only its own re
       />
     );
   });
-  expect(fetcher).toHaveBeenCalledTimes(5);
+  expect(fetcher).toHaveBeenCalledTimes(4);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(12000);
   });
-  expect(fetcher).toHaveBeenCalledTimes(9);
+  expect(fetcher).toHaveBeenCalledTimes(8);
   expect(signals.filter((signal) => signal.aborted).length).toBeGreaterThanOrEqual(4);
   expect(text()).not.toContain('读取失败');
   await act(async () => {
@@ -345,7 +342,7 @@ it('bounds concurrent reads, times out blocked rows, and cancels only its own re
   await act(async () => {
     await vi.advanceTimersByTimeAsync(60000);
   });
-  expect(fetcher).toHaveBeenCalledTimes(9);
+  expect(fetcher).toHaveBeenCalledTimes(8);
 });
 
 it('keeps missing and non-finite money unknown, stale funding visible and rejects foreign versions', async () => {
@@ -467,96 +464,6 @@ it('invalidates reads overlapping a policy write and revalidates without revivin
   expect(text()).not.toContain('USD 0.05');
 });
 
-it('paints a cached balance before a runtime read settles', async () => {
-  setRuntimeControlsForTests({
-    quotaRefreshIntervalMs: 3_600_000,
-    quotaFetchedAtMs: Date.now(),
-    balanceTexts: {
-      [`openai:${IDS.A}`]: 'USD 4.56',
-      [`openai:${IDS.B}`]: 'CNY 1.25',
-    },
-  });
-  let release: (response: Response) => void = () => {};
-  const fetcher = vi.fn(
-    () =>
-      new Promise<Response>((resolve) => {
-        release = resolve;
-      })
-  );
-  vi.stubGlobal('fetch', fetcher);
-  await act(async () => {
-    view = create(<ProviderTable {...props} />);
-  });
-  expect(text()).toContain('USD 4.56');
-  expect(text()).toContain('CNY 1.25');
-  release(Response.json({}));
-});
-
-it('shows rounded legacy balances without writing or clearing legacy holds', async () => {
-  const patch = vi.spyOn(apiClient, 'patch').mockResolvedValue({});
-  try {
-    setRuntimeControlsForTests({
-      autoStartStopEnabled: true,
-      quotaFetchedAtMs: Date.now(),
-      balanceTexts: { [`openai:${IDS.A}`]: 'USD 0.00', [`openai:${IDS.B}`]: 'CNY 1.25' },
-    });
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({})));
-    const legacy = buildProviderRows({
-      gemini: [], codex: [], claude: [], vertex: [], usageByProvider: new Map(),
-      openai: [
-        { name: 'A', baseUrl: 'https://synthetic.invalid', resourceId: IDS.A, nativeFunding: false, apiKeyEntries: [] },
-        { name: 'B', baseUrl: 'https://synthetic.invalid', resourceId: IDS.B, nativeFunding: false, apiKeyEntries: [], autoHeld: true },
-      ],
-    });
-    await act(async () => {
-      view = create(<ProviderTable {...props} rows={legacy} moneyStatus={undefined} />);
-    });
-    expect(text()).toContain('USD 0.00');
-    expect(text()).toContain('CNY 1.25');
-    expect(patch).not.toHaveBeenCalled();
-  } finally {
-    patch.mockRestore();
-  }
-});
-
-it('shows a one-decimal cached balance with two decimal places', async () => {
-  setRuntimeControlsForTests({
-    quotaRefreshIntervalMs: 3_600_000,
-    quotaFetchedAtMs: Date.now(),
-    balanceTexts: {
-      [`openai:${IDS.A}`]: 'USD 4.5',
-      [`openai:${IDS.B}`]: 'CNY 50.3',
-    },
-  });
-  vi.stubGlobal('fetch', vi.fn(async () => Response.json({})));
-  await act(async () => {
-    view = create(<ProviderTable {...props} />);
-  });
-  expect(text()).toContain('USD 4.50');
-  expect(text()).toContain('CNY 50.30');
-});
-
-it('shows a fresh cached balance without requesting full-refresh', async () => {
-  setRuntimeControlsForTests({
-    quotaRefreshIntervalMs: 3_600_000,
-    quotaFetchedAtMs: Date.now(),
-    balanceTexts: {
-      [`openai:${IDS.A}`]: 'USD 4.56',
-      [`openai:${IDS.B}`]: 'CNY 1.25',
-    },
-  });
-  const fetcher = vi.fn(async (_url: string) => Response.json({}));
-  vi.stubGlobal('fetch', fetcher);
-  await act(async () => {
-    view = create(<ProviderTable {...props} />);
-  });
-  expect(text()).toContain('USD 4.56');
-  expect(text()).toContain('CNY 1.25');
-  expect(fetcher.mock.calls.some((call) => String(call[0]).includes('/usage-service/full-refresh'))).toBe(
-    false
-  );
-});
-
 function observedOfficialBalance(url: string, amountDecimal: string, queryable: boolean) {
   const binding = JSON.parse(new URL(url).searchParams.get('binding') ?? 'null') as BalanceBinding;
   const rowA = binding.targets[0]?.resource_id === IDS.A;
@@ -573,200 +480,162 @@ function observedOfficialBalance(url: string, amountDecimal: string, queryable: 
   });
 }
 
-it('reads bound status for a cached zero without starting a live query', async () => {
-  setRuntimeControlsForTests({
-    quotaRefreshIntervalMs: 3_600_000,
-    quotaFetchedAtMs: Date.now(),
-    balanceTexts: {
-      [`openai:${IDS.A}`]: 'USD 0.00',
-      [`openai:${IDS.B}`]: 'CNY 1.25',
-    },
+const inventory = (amountDecimal = '0.00') =>
+  Response.json({
+    sources: [
+      [IDS.A, 'USD', amountDecimal],
+      [IDS.B, 'CNY', '1.25'],
+    ].map(([resourceId, currency, amount]) => ({
+      request: { kind: 'official', official: { adapter: 'deepinfra' } },
+      targets: [target(resourceId)],
+      lastSuccess: { queryStatus: 'success', currency, amountDecimal: amount },
+    })),
   });
-  const fetcher = vi.fn(async (url: string, _init?: RequestInit) => {
-    const href = String(url);
-    if (href.includes('/usage-service/official-balance')) {
-      return observedOfficialBalance(url, '2.50', true);
-    }
-    return Response.json({});
-  });
-  vi.stubGlobal('fetch', fetcher);
-  await act(async () => {
-    view = create(<ProviderTable {...props} />);
-  });
-  expect(text()).toContain('USD 2.50');
-  expect(text()).toContain('CNY 1.25');
-  const urls = fetcher.mock.calls.map((call) => String(call[0]));
-  expect(urls.some((url) => url.includes('/usage-service/full-refresh'))).toBe(false);
-  expect(
-    fetcher.mock.calls.some(
-      (call) =>
-        String(call[0]).includes('/usage-service/official-balance') && call[1]?.method === 'GET'
-    )
-  ).toBe(true);
-  expect(fetcher.mock.calls.some((call) => call[1]?.method === 'POST')).toBe(false);
+
+const isStatus = (url: string) => url.includes('/usage-service/official-balance');
+const isInventory = (url: string) => url.includes('/usage-service/full-refresh');
+const assertReadOnly = (calls: [string, RequestInit?][]) => {
+  expect(calls.filter(([, init]) => init?.method === 'POST' || init?.method === 'PUT')).toEqual([]);
+};
+
+it('shows rounded legacy balances without writing or clearing legacy holds', async () => {
+  const patch = vi.spyOn(apiClient, 'patch').mockResolvedValue({});
+  try {
+    setRuntimeControlsForTests({ autoStartStopEnabled: true });
+    const fetcher = vi.fn(async (url: string, _init?: RequestInit) =>
+      isStatus(url) ? observedOfficialBalance(url, '0.001', false) : Response.json({})
+    );
+    vi.stubGlobal('fetch', fetcher);
+    const legacy = buildProviderRows({
+      gemini: [], codex: [], claude: [], vertex: [], usageByProvider: new Map(),
+      openai: [
+        { name: 'A', baseUrl: 'https://synthetic.invalid', resourceId: IDS.A, nativeFunding: false, apiKeyEntries: [] },
+        { name: 'B', baseUrl: 'https://synthetic.invalid', resourceId: IDS.B, nativeFunding: false, apiKeyEntries: [], autoHeld: true },
+      ],
+    });
+    await act(async () => {
+      view = create(<ProviderTable {...props} rows={legacy} />);
+    });
+    expect(text()).toContain('USD 0.00');
+    expect(text()).toContain('CNY 1.25');
+    expect(patch).not.toHaveBeenCalled();
+    expect(fetcher.mock.calls.filter(([url]) => isStatus(url)).map(([, init]) => init?.method))
+      .toEqual(['GET', 'GET']);
+    assertReadOnly(fetcher.mock.calls);
+  } finally {
+    patch.mockRestore();
+  }
 });
 
-it('keeps the cached balance when the binding arrives after the first paint', async () => {
-  vi.useFakeTimers();
-  let issue = false;
-  setRuntimeControlsForTests({
-    quotaRefreshIntervalMs: 3_600_000,
-    quotaFetchedAtMs: Date.now(),
-    balanceTexts: {
-      [`openai:${IDS.A}`]: 'USD 0.00',
-      [`openai:${IDS.B}`]: 'CNY 1.25',
-    },
-  });
-  const issued = (r: (typeof rows)[number]) =>
-    issue ? (r.raw.resourceId === IDS.A ? binding('A', 'KA') : binding('B', 'KB')) : undefined;
-  const fetcher = vi.fn(async (url: string, _init?: RequestInit) => {
-    const href = String(url);
-    if (href.includes('/usage-service/official-balance')) {
-      return observedOfficialBalance(url, '2.50', true);
-    }
-    return Response.json({});
-  });
+it('keeps a connection-scoped cached balance when bindings arrive after the first paint', async () => {
+  let isBound = false;
+  let directAmount = '0.00';
+  const connection = {
+    ...props.moneyStatus,
+    bindingForRow: (row: (typeof rows)[number]) =>
+      isBound ? props.moneyStatus.bindingForRow(row) : undefined,
+  };
+  const fetcher = vi.fn(async (url: string, _init?: RequestInit) =>
+    isInventory(url) ? inventory() :
+      isStatus(url) ? observedOfficialBalance(url, directAmount, true) : Response.json({})
+  );
   vi.stubGlobal('fetch', fetcher);
-  const fullRefresh = () =>
-    fetcher.mock.calls.some((call) => String(call[0]).includes('/usage-service/full-refresh'));
   await act(async () => {
-    view = create(
-      <ProviderTable {...props} moneyStatus={{ ...props.moneyStatus, bindingForRow: issued }} />
-    );
+    view = create(<ProviderTable {...props} moneyStatus={connection} />);
   });
   expect(text()).toContain('USD 0.00');
   expect(text()).toContain('CNY 1.25');
+  isBound = true;
+  directAmount = '2.5';
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(CACHED_BALANCE_SETTLE_MS - 1);
-  });
-  expect(fullRefresh()).toBe(false);
-  issue = true;
-  await act(async () => {
-    view!.update(
-      <ProviderTable {...props} moneyStatus={{ ...props.moneyStatus, bindingForRow: issued }} />
-    );
-  });
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(2000);
+    view!.update(<ProviderTable {...props} moneyStatus={connection} />);
   });
   expect(text()).toContain('USD 2.50');
   expect(text()).toContain('CNY 1.25');
-  expect(fullRefresh()).toBe(false);
-  expect(
-    fetcher.mock.calls.some(
-      (call) =>
-        String(call[0]).includes('/usage-service/official-balance') && call[1]?.method === 'GET'
-    )
-  ).toBe(true);
-  expect(fetcher.mock.calls.some((call) => call[1]?.method === 'POST')).toBe(false);
+  expect(fetcher.mock.calls.filter(([url]) => isInventory(url)).map(([, init]) => init?.method))
+    .toEqual(['GET']);
+  expect(fetcher.mock.calls.filter(([url]) => isStatus(url)).map(([, init]) => init?.method))
+    .toEqual(['GET', 'GET']);
+  assertReadOnly(fetcher.mock.calls);
 });
 
 it('reads inventory on the normal cadence for an unbound cached zero without starting a live query', async () => {
   vi.useFakeTimers();
-  setRuntimeControlsForTests({
-    quotaRefreshIntervalMs: 3_600_000,
-    quotaFetchedAtMs: Date.now(),
-    balanceTexts: {
-      [`openai:${IDS.A}`]: 'USD 0.00',
-      [`openai:${IDS.B}`]: 'CNY 1.25',
-    },
-  });
-  const fetcher = vi.fn(async (url: string, _init?: RequestInit) => {
-    const href = String(url);
-    if (href.includes('/usage-service/full-refresh')) {
-      return Response.json({
-        sources: [
-          {
-            id: 'source-a',
-            queryCapable: true,
-            request: { kind: 'official', official: { adapter: 'deepinfra' } },
-            targets: [target(IDS.A)],
-            state: 'idle',
-            stale: true,
-            lastSuccess: { queryStatus: 'success', currency: 'USD', amountDecimal: '2.50' },
-          },
-        ],
-      });
-    }
-    return Response.json({});
-  });
+  setRuntimeControlsForTests({ quotaRefreshIntervalMs: 3_600_000, quotaFetchedAtMs: Date.now() });
+  let amount = '0.00';
+  const fetcher = vi.fn(async (url: string, _init?: RequestInit) =>
+    isInventory(url) ? inventory(amount) : Response.json({})
+  );
   vi.stubGlobal('fetch', fetcher);
-  const fullRefresh = () =>
-    fetcher.mock.calls.filter((call) => String(call[0]).includes('/usage-service/full-refresh'));
   await act(async () => {
     view = create(
-      <ProviderTable
-        {...props}
-        moneyStatus={{ ...props.moneyStatus, bindingForRow: () => undefined }}
-      />
+      <ProviderTable {...props} moneyStatus={{ ...props.moneyStatus, bindingForRow: () => undefined }} />
     );
   });
   expect(text()).toContain('USD 0.00');
-  expect(fullRefresh()).toHaveLength(0);
+  amount = '2.50';
   await act(async () => {
     await vi.advanceTimersByTimeAsync(3_600_000);
   });
   expect(text()).toContain('USD 2.50');
   expect(text()).toContain('CNY 1.25');
-  expect(fullRefresh().map((call) => call[1]?.method)).toEqual(['GET']);
-  expect(fetcher.mock.calls.some((call) => call[1]?.method === 'POST')).toBe(false);
+  expect(fetcher.mock.calls.filter(([url]) => isInventory(url)).map(([, init]) => init?.method))
+    .toEqual(['GET', 'GET']);
+  assertReadOnly(fetcher.mock.calls);
 });
 
-it('keeps a cached insufficient balance when that source cannot be queried directly', async () => {
-  setRuntimeControlsForTests({
-    quotaRefreshIntervalMs: 3_600_000,
-    quotaFetchedAtMs: Date.now(),
-    balanceTexts: {
-      [`openai:${IDS.A}`]: 'USD 0.00',
-      [`openai:${IDS.B}`]: 'CNY 1.25',
-    },
+it('does not read the inventory while bindings are still loading', async () => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => Response.json({}));
+  vi.stubGlobal('fetch', fetcher);
+  await act(async () => {
+    view = create(
+      <ProviderTable
+        {...props}
+        moneyStatus={{ ...props.moneyStatus, bindingForRow: () => undefined, bindingsSettled: false }}
+      />
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
   });
-  const fetcher = vi.fn(async (url: string) => {
-    if (String(url).includes('/usage-service/official-balance')) {
-      return observedOfficialBalance(url, '0.00', false);
-    }
-    return Response.json({ sources: [] });
+  expect(fetcher.mock.calls.some(([url]) => isInventory(url))).toBe(false);
+  assertReadOnly(fetcher.mock.calls);
+});
+
+it('does not restore a former connection balance after authorization changes', async () => {
+  vi.useFakeTimers();
+  setRuntimeControlsForTests({
+    quotaRefreshIntervalMs: 15_000,
+    balanceTexts: { ['openai:' + IDS.A]: 'USD 88.88' },
+  });
+  let isRefresh = false;
+  const late: Array<() => void> = [];
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (!isStatus(url)) return Response.json({});
+    const token = new Headers(init?.headers).get('Authorization');
+    if (token === 'Bearer different-admin') return observedOfficialBalance(url, '2.5', true);
+    if (!isRefresh) return observedOfficialBalance(url, '47.25', true);
+    return new Promise<Response>((resolve) => {
+      late.push(() => resolve(observedOfficialBalance(url, '91.25', true)));
+    });
   });
   vi.stubGlobal('fetch', fetcher);
   await act(async () => {
     view = create(<ProviderTable {...props} />);
   });
-  expect(text()).toContain('USD 0.00');
-  expect(text()).toContain('CNY 1.25');
-  expect(fetcher.mock.calls.some((call) => String(call[0]).includes('/usage-service/full-refresh'))).toBe(
-    false
-  );
-});
-
-it('does not read the inventory while bindings are still loading', async () => {
-  vi.useFakeTimers();
-  setRuntimeControlsForTests({
-    quotaRefreshIntervalMs: 3_600_000,
-    quotaFetchedAtMs: Date.now(),
-    balanceTexts: {
-      [`openai:${IDS.A}`]: 'USD 0.00',
-      [`openai:${IDS.B}`]: 'CNY 1.25',
-    },
-  });
-  const fetcher = vi.fn(async (_url: string) => Response.json({ sources: [] }));
-  vi.stubGlobal('fetch', fetcher);
-  const fullRefresh = () =>
-    fetcher.mock.calls.some((call) => String(call[0]).includes('/usage-service/full-refresh'));
+  expect(text()).toContain('USD 47.25');
+  expect(text()).not.toContain('USD 88.88');
+  isRefresh = true;
+  await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+  expect(late).toHaveLength(2);
   await act(async () => {
-    view = create(
-      <ProviderTable
-        {...props}
-        moneyStatus={{
-          ...props.moneyStatus,
-          bindingForRow: () => undefined,
-          bindingsSettled: false,
-        }}
-      />
+    view!.update(
+      <ProviderTable {...props} moneyStatus={{ ...props.moneyStatus, managementKey: 'different-admin' }} />
     );
   });
-  expect(text()).toContain('USD 0.00');
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(CACHED_BALANCE_SETTLE_MS + 1000);
-  });
-  expect(fullRefresh()).toBe(false);
+  expect(text()).toContain('USD 2.50');
+  expect(text()).not.toContain('USD 47.25');
+  await act(async () => { late.forEach((resolve) => resolve()); });
+  expect(text()).toContain('USD 2.50');
+  expect(text()).not.toContain('USD 91.25');
+  assertReadOnly(fetcher.mock.calls);
 });

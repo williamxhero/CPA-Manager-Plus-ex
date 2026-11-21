@@ -16,6 +16,7 @@ const { mocks } = vi.hoisted(() => ({
     isCurrentConnection: vi.fn(),
     scopedConfig: vi.fn(),
     put: vi.fn(),
+    scopedPut: vi.fn(),
     delete: vi.fn(),
   },
 }));
@@ -26,7 +27,10 @@ vi.mock('./client', () => ({
     getV8: mocks.getV8,
     captureConnection: mocks.captureConnection,
     isCurrentConnection: mocks.isCurrentConnection,
-    put: mocks.put,
+    put: (path: string, payload: unknown, scope?: unknown) => {
+      if (scope) mocks.scopedPut(path, payload, scope);
+      return mocks.put(path, payload);
+    },
     delete: mocks.delete,
   },
   createScopedApiRequestConfig: mocks.scopedConfig,
@@ -50,6 +54,7 @@ beforeEach(() => {
   mocks.isCurrentConnection.mockReset().mockReturnValue(true);
   mocks.scopedConfig.mockReset().mockImplementation((scope: typeof connection) => ({ scope }));
   mocks.put.mockReset();
+  mocks.scopedPut.mockReset();
   mocks.delete.mockReset();
 });
 
@@ -125,6 +130,48 @@ describe('providersApi auth-index preservation', () => {
     expect(result.map((row) => [row.nativeFunding, row.autoHeld])).toEqual([
       [true, true], [undefined, undefined], [false, true],
     ]);
+  });
+
+  it('does not PUT a provider list after the original connection changes during its GET', async () => {
+    const connection = mocks.captureConnection();
+    let finishRead!: (value: unknown) => void;
+    let markReadStarted!: () => void;
+    const readStarted = new Promise<void>((resolve) => { markReadStarted = resolve; });
+    mocks.get.mockImplementationOnce(() => {
+      markReadStarted();
+      return new Promise((resolve) => { finishRead = resolve; });
+    });
+    const pending = providersApi.updateGeminiKey({ apiKey: 'fixture' }, { apiKey: 'fixture', priority: 2 });
+    await readStarted;
+    expect(mocks.get).toHaveBeenCalledWith('/config', { scope: connection });
+    const current = { apiBase: 'http://other.example', managementKey: 'other-key' };
+    mocks.captureConnection.mockReturnValue(current);
+    mocks.isCurrentConnection.mockImplementation((candidate) => candidate === current);
+    finishRead({ 'gemini-api-key': [{ 'api-key': 'fixture' }] });
+    await expect(pending).rejects.toThrow('Core connection changed');
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['gemini-api-key', providersApi.updateGeminiKey, 'https://fixture.invalid'],
+    ['interactions-api-key', providersApi.updateInteractionsKey, 'https://fixture.invalid'],
+    ['codex-api-key', providersApi.updateCodexConfig, 'https://fixture.invalid'],
+    ['xai-api-key', providersApi.updateXAIConfig, 'https://fixture.invalid'],
+    ['claude-api-key', providersApi.updateClaudeConfig, 'https://fixture.invalid'],
+    ['vertex-api-key', providersApi.updateVertexConfig, 'https://fixture.invalid'],
+    ['meta-api-key', providersApi.updateMetaConfig, 'https://api.meta.ai/v1'],
+  ] as const)('keeps the latest %s hold during a manual configuration edit', async (section, update, baseUrl) => {
+    const connection = mocks.captureConnection();
+    mocks.get.mockResolvedValueOnce({
+      [section]: [{ 'api-key': 'fixture', 'base-url': baseUrl, 'auto-held': true }],
+    });
+    const original = { apiKey: 'fixture', baseUrl, autoHeld: false };
+    await update(original, { ...original, priority: 15 }, { connection });
+    expect(mocks.scopedPut).toHaveBeenCalledWith(
+      '/' + section,
+      [expect.objectContaining({ 'auto-held': true, priority: 15 })],
+      { scope: connection }
+    );
   });
 
   it('keeps v0, v8 and delayed cooling hydration on one connection and discards stale authority', async () => {

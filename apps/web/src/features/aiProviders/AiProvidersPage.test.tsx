@@ -308,7 +308,8 @@ describe('AiProvidersPage cooling policy mutation', () => {
         expect.objectContaining({
           apiKey: 'gemini-key',
           disableCooling: expectedOverride,
-        })
+        }),
+        expect.objectContaining({ connection: apiClient.captureConnection() })
       );
       expect(renderer.root.findByProps({ 'data-current-policy': true }).children.join('')).toBe(
         nextPolicy
@@ -378,7 +379,8 @@ describe('AiProvidersPage cooling policy mutation', () => {
         expect.objectContaining({
           apiKey: 'vertex-key',
           disableCooling: expectedOverride,
-        })
+        }),
+        expect.objectContaining({ connection: apiClient.captureConnection() })
       );
       expect(renderer.root.findByProps({ 'data-current-policy': true }).children.join('')).toBe(
         nextPolicy
@@ -440,7 +442,8 @@ describe('AiProvidersPage cooling policy mutation', () => {
 
     expect(mocks.updateMetaConfig).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: 'meta-key' }),
-      expect.objectContaining({ apiKey: 'meta-key', disableCooling: false })
+      expect.objectContaining({ apiKey: 'meta-key', disableCooling: false }),
+      expect.objectContaining({ connection: apiClient.captureConnection() })
     );
     expect(renderer.root.findByProps({ 'data-current-policy': true }).children.join('')).toBe(
       'enabled'
@@ -500,6 +503,40 @@ describe('AiProvidersPage current-layer config refresh', () => {
     });
     await flush();
   };
+
+  it('ignores a failed optimistic edit after switching Core connections', async () => {
+    mocks.config.geminiApiKeys = [{ apiKey: 'A-config' }];
+    let rejectSave!: (error: Error) => void;
+    mocks.updateGeminiKey.mockImplementationOnce(() =>
+      new Promise((_resolve, reject) => { rejectSave = reject; })
+    );
+    const renderer = await renderPage();
+    await openDetail(renderer);
+    const a = apiClient.captureConnection();
+    await act(async () => {
+      renderer.root.findByProps({ 'data-policy': 'disabled' }).props.onClick();
+    });
+    expect(mocks.updateGeminiKey).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'A-config' }),
+      expect.objectContaining({ disableCooling: true }),
+      expect.objectContaining({ connection: a })
+    );
+    mocks.auth = { ...mocks.auth, apiBase: 'http://other.example', managementKey: 'other-key' };
+    apiClient.setConfig(mocks.auth);
+    mocks.config.geminiApiKeys = [{ apiKey: 'B-config', disableCooling: false }];
+    await updatePage(renderer);
+    expect(label(renderer)).toBe('B-config');
+    mocks.clearCache.mockClear();
+    mocks.updateConfigValue.mockClear();
+    const configReads = mocks.getConfig.mock.calls.length;
+    await act(async () => { rejectSave(new Error('old save failed')); });
+    expect(label(renderer)).toBe('B-config');
+    expect(mocks.getConfig).toHaveBeenCalledTimes(configReads);
+    expect(mocks.updateConfigValue).not.toHaveBeenCalled();
+    expect(mocks.clearCache).not.toHaveBeenCalled();
+    expect(mocks.showNotification).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
 
   it('revalidates provider configs on re-entry while keeping the local snapshot in view', async () => {
     mocks.getOpenAIProviders.mockResolvedValueOnce([openai('initial')]);
