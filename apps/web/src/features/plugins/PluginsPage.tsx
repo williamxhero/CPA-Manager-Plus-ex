@@ -103,17 +103,26 @@ export function PluginsPage() {
 function PluginsPageContent() {
   const { search, hash } = useLocation();
   const navigate = useNavigate();
-  if (getPluginManagementTab(search) === 'store') {
-    return (
-      <PluginStorePage
-        onManageInstalled={() => navigate(pluginManagementTarget('installed', search, hash))}
-      />
-    );
-  }
+  const storeActive = getPluginManagementTab(search) === 'store';
+  const [storeVisited, setStoreVisited] = useState(storeActive);
+  if (storeActive && !storeVisited) setStoreVisited(true);
+
   return (
-    <InstalledPluginsView
-      onOpenStore={() => navigate(pluginManagementTarget('store', search, hash))}
-    />
+    <>
+      {!storeActive ? (
+        <InstalledPluginsView
+          onOpenStore={() => navigate(pluginManagementTarget('store', search, hash))}
+        />
+      ) : null}
+      {storeVisited ? (
+        <div hidden={!storeActive}>
+          <PluginStorePage
+            active={storeActive}
+            onManageInstalled={() => navigate(pluginManagementTarget('installed', search, hash))}
+          />
+        </div>
+      ) : null}
+    </>
   );
 }
 
