@@ -15,7 +15,6 @@ import {
   IconCheck,
   IconEye,
   IconPencil,
-  IconPower,
   IconTrash2,
   IconX,
 } from '@/components/ui/icons';
@@ -26,7 +25,6 @@ import {
   readProviderAutoUsage,
   SERVER_PROVIDER_AUTO_USAGE,
   subscribeProviderAutoUsage,
-  writeProviderAutoUsage,
 } from '../providerAutoUsage';
 import { ProviderMoneySummary } from '../ProviderMoneySummary';
 import {
@@ -66,6 +64,34 @@ const stopPropagation = (event: MouseEvent) => {
 
 const priorityToDraft = (priority: number | undefined) =>
   Number.isFinite(priority) ? String(Math.trunc(priority ?? 0)) : '';
+
+// 余额文本中所有数值都为零时才视为额度已耗尽，未知或无限额度不算。
+const isZeroBalanceText = (text: string) => {
+  if (!text || /unlimited/i.test(text)) return false;
+  const numbers = text.match(/-?\d+(?:\.\d+)?/g);
+  return !!numbers && numbers.length > 0 && numbers.every((value) => Number(value) === 0);
+};
+
+function AutoStateIcon({ stopped }: { stopped: boolean }) {
+  return stopped ? (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="8" fill="var(--danger-color, #ef4444)" />
+      <rect x="5" y="4.6" width="2.2" height="6.8" rx="1.1" fill="white" />
+      <rect x="8.8" y="4.6" width="2.2" height="6.8" rx="1.1" fill="white" />
+    </svg>
+  ) : (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="8" fill="var(--success-color, #22c55e)" />
+      <path
+        d="M4.5 8L7 10.5L11.5 6"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 interface PriorityControlProps {
   row: ProviderRow;
@@ -204,24 +230,6 @@ export function ProviderTable({
     readProviderAutoUsage,
     () => SERVER_PROVIDER_AUTO_USAGE
   );
-  const hasRemainingQuota = (key: string) => {
-    const official = officialBalances[key];
-    const summary = money[key];
-    const lines = official?.text
-      ? [official.text]
-      : (summary?.data?.funding ?? []).flatMap((source) =>
-          (source.balances ?? []).flatMap((balance) =>
-            balance.currency && balance.total ? [`${balance.currency} ${balance.total}`] : []
-          )
-        );
-    if (lines.length === 0 || ((official?.pending || summary?.pending) && !official?.text)) return false;
-    const text = lines.join(' ');
-    if (/unlimited/i.test(text)) return true;
-    const numbers = text.match(/-?\d+(?:\.\d+)?/g);
-    return !!numbers && numbers.some((value) => Number(value) > 0);
-  };
-  const participating = (row: ProviderRow) =>
-    autoUsage.enabled && (autoUsage.ids.length === 0 || autoUsage.ids.includes(providerAutoId(row)));
   const sentHold = useRef<Record<string, boolean>>({});
   const holdRows = useRef(rows);
   const holdBalances = useRef(officialBalances);
@@ -229,7 +237,6 @@ export function ProviderTable({
   holdBalances.current = officialBalances;
   const holdSignature = [
     autoUsage.enabled ? '1' : '0',
-    autoUsage.ids.join(','),
     rows
       .map((row) => {
         const view = officialBalances[row.key];
@@ -252,22 +259,16 @@ export function ProviderTable({
     const snapshotRows = holdRows.current;
     const balances = holdBalances.current;
     const usage = readProviderAutoUsage();
-    const textIsZero = (key: string) => {
-      const text = balances[key]?.text ?? '';
-      if (!text || /unlimited/i.test(text)) return false;
-      const numbers = text.match(/-?\d+(?:\.\d+)?/g);
-      return !!numbers && numbers.length > 0 && numbers.every((value) => Number(value) === 0);
-    };
+    const textIsZero = (key: string) => isZeroBalanceText(balances[key]?.text ?? '');
     void (async () => {
       await loadRuntimeControls();
       if (cancelled) return;
       for (const row of snapshotRows) {
         if (cancelled) return;
         const id = providerAutoId(row);
-        const rowParticipating = usage.enabled && (usage.ids.length === 0 || usage.ids.includes(id));
         const balance = balances[row.key];
-        if (rowParticipating && (!balance || balance.pending)) continue;
-        const held = rowParticipating && textIsZero(row.key);
+        if (usage.enabled && (!balance || balance.pending)) continue;
+        const held = usage.enabled && textIsZero(row.key);
         const rawHeld = row.raw.autoHeld === true;
         if ((sentHold.current[id] ?? rawHeld) === held) continue;
         sentHold.current[id] = held;
@@ -324,6 +325,16 @@ export function ProviderTable({
 
       {rows.map((row) => {
         const kindLabel = PROVIDER_KIND_LABELS[row.kind];
+        // 已写入的 auto-held 是权威状态；策略开启时同时按当前余额预判，
+        // 避免刚自动停用、列表尚未重新拉取时仍显示可用。
+        const autoStopped =
+          row.raw.autoHeld === true ||
+          (autoUsage.enabled && isZeroBalanceText(officialBalances[row.key]?.text ?? ''));
+        const autoStateLabel = t(
+          autoStopped
+            ? 'ai_providers.auto_state_stopped_aria'
+            : 'ai_providers.auto_state_available_aria'
+        );
         return (
           <div
             key={row.key}
@@ -431,36 +442,16 @@ export function ProviderTable({
               />
             </div>
 
-            <div className={styles.cellAuto} role="cell" onClick={stopPropagation}>
-              <Button
-                variant="secondary"
-                size="sm"
-                iconOnly
-                onClick={() => {
-                  const id = providerAutoId(row);
-                  if (!participating(row)) {
-                    writeProviderAutoUsage({
-                      enabled: true,
-                      ids: autoUsage.enabled ? [...autoUsage.ids, id] : [id],
-                    });
-                    return;
-                  }
-                  const nextIds =
-                    autoUsage.ids.length === 0
-                      ? rows.filter((item) => providerAutoId(item) !== id).map((item) => providerAutoId(item))
-                      : autoUsage.ids.filter((item) => item !== id);
-                  writeProviderAutoUsage({ enabled: autoUsage.enabled, ids: nextIds });
-                }}
-                disabled={actionsDisabled}
-                aria-pressed={participating(row)}
-                aria-label={t('ai_providers.auto_start_stop')}
-                data-provider-auto-start-stop={participating(row) ? 'on' : 'off'}
-                data-auto-quota={
-                  participating(row) ? (hasRemainingQuota(row.key) ? 'present' : 'absent') : undefined
-                }
+            <div className={styles.cellAuto} role="cell">
+              <span
+                role="img"
+                className={styles.autoState}
+                aria-label={autoStateLabel}
+                title={autoStateLabel}
+                data-provider-auto-state={autoStopped ? 'stopped' : 'available'}
               >
-                <IconPower size={15} />
-              </Button>
+                <AutoStateIcon stopped={autoStopped} />
+              </span>
             </div>
 
             <div className={styles.cellActions} role="cell" onClick={stopPropagation}>

@@ -94,6 +94,14 @@ const keyDownInput = (input: ReactTestInstance, key: string) => {
   });
 };
 
+const getAutoState = (row: ReactTestInstance) => {
+  const state = row.find(
+    (node) => node.type === 'span' && node.props['data-provider-auto-state'] !== undefined
+  );
+  if (!state) throw new Error('Auto state icon not found');
+  return state;
+};
+
 const getPriorityEditTrigger = (row: ReactTestInstance) => {
   const trigger = row
     .findAll((node) => node.type === 'button')
@@ -172,7 +180,7 @@ describe('ProviderTable', () => {
     return renderer;
   };
 
-  it('keeps automatic usage participation separate from manual toggles on every row', () => {
+  it('shows the automatic stop state as a status icon instead of a second toggle', () => {
     const rows = buildProviderRows({ ...emptyInput, codex: codexConfigs });
     const renderer = renderTable(rows);
     for (const row of getRows(renderer)) {
@@ -180,13 +188,35 @@ describe('ProviderTable', () => {
       expect(row.findAll((node) => node.type === 'button' &&
         String(node.props['aria-label']).includes('resource_protection.'))).toHaveLength(0);
       expect(row.findAll((node) => node.type === 'button' &&
-        node.props['aria-pressed'] !== undefined)).toHaveLength(1);
+        node.props['aria-pressed'] !== undefined)).toHaveLength(0);
+      expect(getAutoState(row).props['data-provider-auto-state']).toBe('available');
     }
     act(() => renderer.unmount());
   });
 
+  it('marks quota auto-stopped providers with the stopped status icon', () => {
+    const rows = buildProviderRows({
+      ...emptyInput,
+      codex: [
+        { apiKey: 'available-key', baseUrl: 'https://available.example.com/v1' },
+        { apiKey: 'held-key', baseUrl: 'https://held.example.com/v1', autoHeld: true },
+      ],
+    });
+    const renderer = renderTable(rows);
+    const renderedRows = getRows(renderer);
+    expect(getAutoState(renderedRows[0]).props).toMatchObject({
+      'data-provider-auto-state': 'available',
+      'aria-label': 'ai_providers.auto_state_available_aria',
+    });
+    expect(getAutoState(renderedRows[1]).props).toMatchObject({
+      'data-provider-auto-state': 'stopped',
+      'aria-label': 'ai_providers.auto_state_stopped_aria',
+    });
+    act(() => renderer.unmount());
+  });
+
   it.each(['unknown', 'unavailable', 'identity_only', 'unsupported_mode'] as const)(
-    'preserves automatic participation, keyboard actions and manual toggles with %s capability',
+    'preserves row keyboard actions and manual toggles with %s capability',
     (resourceProtection) => {
       const rows = buildProviderRows({ ...emptyInput, codex: [codexConfigs[1]] });
       const onShowDetail = vi.fn();
@@ -195,15 +225,9 @@ describe('ProviderTable', () => {
       const onDelete = vi.fn();
       const renderer = renderTable(rows, { onShowDetail, onToggle, onEdit, onDelete }, { resourceProtection });
       const row = getRows(renderer)[0];
-      const automatic = row.findAll((node) => node.type === 'button' &&
-        node.props['aria-pressed'] !== undefined)[0];
-      expect(automatic).toBeDefined();
-      const stop = vi.fn();
-      act(() => {
-        automatic.props.onClick();
-        automatic.parent!.parent!.props.onClick({ stopPropagation: stop });
-      });
-      expect(stop).toHaveBeenCalled();
+      expect(getAutoState(row).props['data-provider-auto-state']).toBe('available');
+      expect(row.findAll((node) => node.type === 'button' &&
+        node.props['aria-pressed'] !== undefined)).toHaveLength(0);
       expect(onShowDetail).not.toHaveBeenCalled();
       expect(row.findAll((node) => node.type === 'span' && node.props.title === rows[0].label)[0].children)
         .toEqual([rows[0].label]);

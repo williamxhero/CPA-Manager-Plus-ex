@@ -4,32 +4,6 @@
 // 类型 / 标识 / 余额 / 地址 / 模型 / 优先级 / 近期请求 / 启用 / 自动启停 / 操作
 $table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1fr) 96px 72px minmax(220px, 0.82fr) 68px 72px 112px;
 
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='off'],
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='off']:hover,
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='off']:active,
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='off']:focus-visible {
-  color: var(--text-tertiary);
-  opacity: 0.45;
-}
-
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='present'],
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='present']:hover,
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='present']:active,
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='present']:focus-visible {
-  color: var(--success-color, #16a34a);
-  opacity: 1;
-  background: color-mix(in srgb, var(--success-color, #16a34a) 16%, transparent);
-}
-
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='absent'],
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='absent']:hover,
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='absent']:active,
-:global(button.btn.btn-secondary)[data-provider-auto-start-stop='on'][data-auto-quota='absent']:focus-visible {
-  color: var(--danger-color, #dc2626);
-  opacity: 1;
-  background: color-mix(in srgb, var(--danger-color, #dc2626) 16%, transparent);
-}
-
 @mixin provider-card-layout {
   @include narrow-laptop {
     @content;
@@ -474,6 +448,17 @@ $table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1
   @include provider-card-layout {
     grid-area: auto;
     justify-content: flex-end;
+  }
+}
+
+.autoState {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  svg {
+    display: block;
   }
 }
 
