@@ -94,6 +94,14 @@ const keyDownInput = (input: ReactTestInstance, key: string) => {
   });
 };
 
+const getAutoState = (row: ReactTestInstance) => {
+  const state = row.find(
+    (node) => node.type === 'span' && node.props['data-provider-auto-state'] !== undefined
+  );
+  if (!state) throw new Error('Auto state icon not found');
+  return state;
+};
+
 const getPriorityEditTrigger = (row: ReactTestInstance) => {
   const trigger = row
     .findAll((node) => node.type === 'button')
@@ -172,7 +180,7 @@ describe('ProviderTable', () => {
     return renderer;
   };
 
-  it('shows Core funding ownership without a browser switch and keeps manual disable independent', () => {
+  it('shows the automatic stop state as an icon without a browser switch and keeps manual disable independent', () => {
     const rows = buildProviderRows({ ...emptyInput, openai: [
       { name: 'native', baseUrl: 'https://api.deepseek.com', apiKeyEntries: [], nativeFunding: true, autoHeld: true, disabled: true },
       { name: 'legacy', baseUrl: 'https://synthetic.invalid', apiKeyEntries: [], disabled: false, nativeFunding: false },
@@ -180,7 +188,14 @@ describe('ProviderTable', () => {
     const onToggle = vi.fn();
     const renderer = renderTable(rows, { onToggle });
     const [native, legacy] = getRows(renderer);
-    expect(native.findAll((node) => node.type === 'span' && node.props['data-provider-auto-start-stop'] === 'core')).toHaveLength(1);
+    expect(getAutoState(native).props).toMatchObject({
+      'data-provider-auto-state': 'stopped',
+      'aria-label': 'ai_providers.auto_state_stopped_aria',
+    });
+    expect(getAutoState(legacy).props).toMatchObject({
+      'data-provider-auto-state': 'available',
+      'aria-label': 'ai_providers.auto_state_available_aria',
+    });
     for (const row of [native, legacy]) {
       expect(row.findAll((node) => node.type === 'button' && node.props['aria-pressed'] !== undefined)).toHaveLength(0);
     }

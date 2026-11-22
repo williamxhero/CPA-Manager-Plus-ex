@@ -59,6 +59,27 @@ const stopPropagation = (event: MouseEvent) => {
 const priorityToDraft = (priority: number | undefined) =>
   Number.isFinite(priority) ? String(Math.trunc(priority ?? 0)) : '';
 
+function AutoStateIcon({ stopped }: { stopped: boolean }) {
+  return stopped ? (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="8" fill="var(--danger-color, #ef4444)" />
+      <rect x="5" y="4.6" width="2.2" height="6.8" rx="1.1" fill="white" />
+      <rect x="8.8" y="4.6" width="2.2" height="6.8" rx="1.1" fill="white" />
+    </svg>
+  ) : (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="8" fill="var(--success-color, #22c55e)" />
+      <path
+        d="M4.5 8L7 10.5L11.5 6"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 interface PriorityControlProps {
   row: ProviderRow;
   disabled: boolean;
@@ -228,6 +249,12 @@ export function ProviderTable({
 
       {rows.map((row) => {
         const kindLabel = PROVIDER_KIND_LABELS[row.kind];
+        const autoStopped = row.raw.autoHeld === true;
+        const autoStateLabel = t(
+          autoStopped
+            ? 'ai_providers.auto_state_stopped_aria'
+            : 'ai_providers.auto_state_available_aria'
+        );
         return (
           <div
             key={row.key}
@@ -336,16 +363,15 @@ export function ProviderTable({
             </div>
 
             <div className={styles.cellAuto} role="cell" onClick={stopPropagation}>
-              {row.kind === 'openai' && row.raw.nativeFunding === true ? (
-                <span
-                  data-provider-auto-start-stop="core"
-                  title={t('ai_providers.auto_start_stop_core')}
-                >
-                  {t('ai_providers.auto_start_stop_core')}
-                </span>
-              ) : (
-                <span>—</span>
-              )}
+              <span
+                role="img"
+                className={styles.autoState}
+                aria-label={autoStateLabel}
+                title={autoStateLabel}
+                data-provider-auto-state={autoStopped ? 'stopped' : 'available'}
+              >
+                <AutoStateIcon stopped={autoStopped} />
+              </span>
             </div>
 
             <div className={styles.cellActions} role="cell" onClick={stopPropagation}>
