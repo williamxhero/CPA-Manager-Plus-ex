@@ -26,6 +26,12 @@ var ErrIdentity = errors.New("credential quota identity changed")
 var ErrInput = errors.New("invalid credential quota request")
 var ErrBusy = errors.New("credential quota busy")
 
+// ErrSourceUnavailable means the inventory is authenticated and current, but it
+// publishes no runtime binding for the requested credential. That is not proof
+// that the instance or the credential source changed, so it must never be
+// reported as an identity conflict.
+var ErrSourceUnavailable = errors.New("credential quota source unavailable")
+
 type Binding struct {
 	Scope   rc.Scope    `json:"scope"`
 	Targets []rc.Target `json:"targets"`
@@ -259,7 +265,10 @@ func (s *Service) source(ctx context.Context, index string) (Source, error) {
 			return source, nil
 		}
 	}
-	return Source{}, ErrIdentity
+	// Absence from a valid inventory is an unbound credential, not a changed
+	// instance. Callers that already hold a binding still treat the absence as
+	// an identity change by comparing the descriptor themselves.
+	return Source{}, ErrSourceUnavailable
 }
 
 func sameSourceIdentity(source Source, query Query) bool {

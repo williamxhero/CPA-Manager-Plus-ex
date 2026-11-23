@@ -53,6 +53,31 @@ export interface CredentialQuotaJob {
   deadlineMs: number;
 }
 
+// A 409 only says "the request conflicts with the current source state". The
+// machine reason distinguishes a changed binding from a credential that simply
+// has no bound source, so the operator is not told to refresh a page that will
+// keep failing.
+const QUOTA_FAILURE_CODES: Record<string, string> = {
+  identity_changed: 'identity_or_source_changed',
+  source_version_conflict: 'identity_or_source_changed',
+  current_credential_source_unavailable: 'current_credential_source_unavailable',
+};
+
+const quotaFailureCode = async (response: Response): Promise<string> => {
+  let reason = '';
+  try {
+    const body: unknown = await response.json();
+    if (body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string')
+      reason = (body as { error: string }).error;
+  } catch {
+    /* Non-JSON rejection: fall back to the HTTP status. */
+  }
+  return (
+    QUOTA_FAILURE_CODES[reason] ??
+    (response.status === 409 ? 'identity_or_source_changed' : 'credential_quota_request_failed')
+  );
+};
+
 // GET reads persisted observations only. No legacy API-call/credential download.
 export async function credentialQuotaRequest<T>(
   base: string,
@@ -73,9 +98,6 @@ export async function credentialQuotaRequest<T>(
       redirect: 'error',
     }
   );
-  if (!response.ok)
-    throw new Error(
-      response.status === 409 ? 'identity_or_source_changed' : 'credential_quota_request_failed'
-    );
+  if (!response.ok) throw new Error(await quotaFailureCode(response));
   return response.json() as Promise<T>;
 }

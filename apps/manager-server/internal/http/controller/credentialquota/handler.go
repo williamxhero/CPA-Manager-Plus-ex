@@ -90,6 +90,10 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			code = 409
 			reason = "identity_changed"
 		}
+		if errors.Is(err, svc.ErrSourceUnavailable) {
+			code = 409
+			reason = "current_credential_source_unavailable"
+		}
 		if errors.Is(err, svc.ErrInput) {
 			code = 400
 			reason = "invalid_query"

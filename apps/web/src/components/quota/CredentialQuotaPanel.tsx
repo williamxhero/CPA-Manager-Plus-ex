@@ -9,6 +9,13 @@ import {
   type QuotaWindows,
 } from '@/services/api/credentialQuota';
 
+// Read failures this panel renders as-is; anything else is a transport failure.
+const KNOWN_QUOTA_READ_ERRORS = new Set([
+  'identity_or_source_changed',
+  'current_credential_source_unavailable',
+  'credential_quota_request_failed',
+]);
+
 export function CredentialQuotaPanel({
   base,
   managementKey,
@@ -53,9 +60,17 @@ export function CredentialQuotaPanel({
         .then((data) => {
           if (!abort.signal.aborted && current.current === context) setView({ context, data });
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (!abort.signal.aborted && current.current === context)
-            setView({ context, error: 'credential_quota_unavailable' });
+            setView({
+              context,
+              // Surface a machine reason this panel already prints verbatim; a
+              // transport failure keeps the generic unavailable state.
+              error:
+                error instanceof Error && KNOWN_QUOTA_READ_ERRORS.has(error.message)
+                  ? error.message
+                  : 'credential_quota_unavailable',
+            });
         });
     return () => {
       abort.abort();
