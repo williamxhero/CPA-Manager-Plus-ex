@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -1143,6 +1144,9 @@ func Migrate(db *sql.DB) error {
 		return err
 	}
 	if err := ensureDashboardHourlyRollupFormatVersion(db); err != nil {
+		return err
+	}
+	if err := ensureCredentialPolicyAlwaysOnIntent(db); err != nil {
 		return err
 	}
 	return ensureModelPriceColumns(db)
@@ -3188,6 +3192,82 @@ func ensureUsageEventSnapshotColumns(db *sql.DB) error {
 		return err
 	}
 	return nil
+}
+
+// Automatic pause is always on, so no supported code path can persist a close
+// intent any more. Rows written by older builds are backfilled in place to
+// participating intent and advance exactly one generation; every field other
+// than enabled/generation keeps its stored bytes. Advancing the generation is
+// what fences automatic actions issued before the upgrade, so no pause is
+// cleared, no Core gate is written and no operation receipt is produced here.
+// Rows with unreadable JSON, no explicit enabled flag, or a document generation
+// that disagrees with the generation column are left untouched.
+func ensureCredentialPolicyAlwaysOnIntent(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	type legacyIntent struct {
+		Enabled    *bool        `json:"enabled"`
+		Generation *json.Number `json:"generation"`
+	}
+	type candidate struct {
+		id         string
+		generation int64
+		document   string
+	}
+
+	rows, err := tx.Query(`SELECT id,generation,document FROM credential_policies WHERE json_valid(document)`)
+	if err != nil {
+		return err
+	}
+	var pending []candidate
+	for rows.Next() {
+		var c candidate
+		if err := rows.Scan(&c.id, &c.generation, &c.document); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if c.generation <= 0 || c.generation >= 9007199254740991 {
+			continue
+		}
+		var intent legacyIntent
+		if err := json.Unmarshal([]byte(c.document), &intent); err != nil || intent.Enabled == nil || *intent.Enabled {
+			continue
+		}
+		if intent.Generation != nil {
+			documentGeneration, err := intent.Generation.Int64()
+			if err != nil || documentGeneration != c.generation {
+				continue
+			}
+		}
+		pending = append(pending, c)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+
+	for _, c := range pending {
+		next := c.generation + 1
+		result, err := tx.Exec(`UPDATE credential_policies SET generation=?,document=json_set(document,'$.enabled',json('true'),'$.generation',?) WHERE id=? AND generation=? AND document=?`, next, next, c.id, c.generation, c.document)
+		if err != nil {
+			return err
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n != 1 {
+			return fmt.Errorf("credential policy %s changed during intent backfill", c.id)
+		}
+	}
+	return tx.Commit()
 }
 
 func ensureModelPriceColumns(db *sql.DB) error {

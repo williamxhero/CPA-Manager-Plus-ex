@@ -3,6 +3,7 @@ package store_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"path/filepath"
 	"testing"
 
@@ -220,7 +221,7 @@ func TestCredentialPolicyScheduleHintDischargeRequiresOriginalCurrentStarted(t *
 	}
 }
 
-func TestCredentialPolicyScheduleHintMigrationPreservesExistingIntentAndCredit(t *testing.T) {
+func TestCredentialPolicyScheduleHintMigrationBackfillsClosedIntentAndKeepsCredit(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "old-policy.sqlite")
 	db, err := store.Open(path)
@@ -261,8 +262,28 @@ func TestCredentialPolicyScheduleHintMigrationPreservesExistingIntentAndCredit(t
 	if id, err := db.CredentialPolicyInstallation(ctx); err != nil || id != installation {
 		t.Fatal("migration changed owner identity", id, err)
 	}
-	if got, err := db.CredentialPolicy(ctx, r.ID); err != nil || got != r {
-		t.Fatal("migration changed intent", got, err)
+	// Automatic pause is always on, so startup migration backfills the legacy
+	// close intent in place to participating intent and advances one generation.
+	got, err := db.CredentialPolicy(ctx, r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var intent struct {
+		Owner      string `json:"owner"`
+		Enabled    *bool  `json:"enabled"`
+		Generation int64  `json:"generation"`
+	}
+	if err := json.Unmarshal([]byte(got.Document), &intent); err != nil {
+		t.Fatal(err)
+	}
+	if got.Generation != 2 || intent.Generation != 2 {
+		t.Fatalf("migration did not advance one generation: column=%d document=%d", got.Generation, intent.Generation)
+	}
+	if intent.Enabled == nil || !*intent.Enabled {
+		t.Fatalf("migration did not backfill closed intent to participating: %s", got.Document)
+	}
+	if want := "cpa-manager.credential-policy.v1/" + installation; intent.Owner != want {
+		t.Fatalf("migration changed owner: %q want %q", intent.Owner, want)
 	}
 	if err := db.ActivateCredentialPolicyScheduleHints(ctx); err != nil {
 		t.Fatal("new hint schema unavailable", err)
