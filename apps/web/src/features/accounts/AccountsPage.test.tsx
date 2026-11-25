@@ -4125,6 +4125,38 @@ describe('AccountsPage replacement flows', () => {
     expect(requested.filter((url) => url.includes('view=intents'))).toHaveLength(0);
   });
 
+  it('reads the credential policy once when the overview opens, never while the list renders', async () => {
+    const requested: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      requested.push(String(url));
+      return Response.json({});
+    });
+    const policyReads = () =>
+      requested.filter((url) => url.includes('/usage-service/credential-policy?authIndex='));
+
+    const renderer = await renderAccountsPage();
+    await flushPromises();
+    expect(policyReads()).toHaveLength(0);
+
+    await act(async () => {
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+    });
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
+    });
+    await flushPromises();
+    expect(policyReads()).toEqual([
+      'http://manager.local:18317/usage-service/credential-policy?authIndex=auth-1',
+    ]);
+    expect(treeText(renderer)).toContain('accounts.detail_overview_auto_pause_state_unavailable');
+
+    await act(async () => {
+      renderer.root.findByType(Drawer).props.onClose();
+    });
+    await flushPromises();
+    expect(policyReads()).toHaveLength(1);
+  });
+
   it('disables inline credential refresh while that credential is refreshing', async () => {
     const file = mocks.files[0];
     mocks.credentialRefreshing[getAuthFileSelectionKey(file)] = true;
@@ -11680,6 +11712,7 @@ describe('AccountsPage replacement flows', () => {
       .map((node) => node.props['data-overview-section']);
     expect(overviewSectionNames).toEqual([
       'decision',
+      'automatic-pause',
       'recent-status',
       'capacity',
       'credential',

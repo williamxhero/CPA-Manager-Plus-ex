@@ -10800,6 +10800,9 @@ function AccountsPageInner({
           detailView={detailView}
           getHealthStatusClass={getHealthStatusClass}
           onSelectTab={(tab) => void openAccountDetail(selectedRow, tab)}
+          managerServiceBase={featureAvailability.managerServiceBase ?? ''}
+          managementKey={managementKey}
+          credentialAuthIndex={selectedRow.authIndex}
         />
       );
     };

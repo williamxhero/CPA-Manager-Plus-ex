@@ -27,30 +27,18 @@ import type {
   UsageSummaryCardTone,
 } from '@/features/usage-analytics/usageAnalyticsPresentation';
 import { statusBarDataFromRecentRequests } from '@/utils/recentRequests';
+import { AccountAutomaticPauseSection } from './AccountAutomaticPauseSection';
 import { AccountDetailFieldValue } from './AccountDetailFieldList';
+import { AccountOverviewFieldGrid } from './AccountOverviewFieldGrid';
 import styles from '@/features/accounts/AccountsPage.module.scss';
 
 interface AccountOverviewTabProps {
   detailView: AccountDetailViewModel;
   getHealthStatusClass: (status: AccountListHealthStatusKey) => string;
   onSelectTab: (tab: AccountDetailOverviewTargetTab) => void;
-}
-
-function OverviewFieldGrid({ fields }: { fields: AccountDetailField[] }) {
-  const { t } = useTranslation();
-  if (fields.length === 0) return null;
-  return (
-    <dl className={styles.overviewFieldGrid}>
-      {fields.map((field) => (
-        <div key={field.key}>
-          <dt>{t(field.labelKey, { defaultValue: field.labelKey })}</dt>
-          <dd>
-            <AccountDetailFieldValue field={field} />
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
+  managerServiceBase?: string;
+  managementKey?: string;
+  credentialAuthIndex?: string;
 }
 
 type ActivityCardPresentation = Pick<UsageSummaryCard, 'accent' | 'icon' | 'variant'>;
@@ -99,7 +87,13 @@ const getActivityMetricTone = (metric: AccountDetailField): UsageSummaryCardTone
   return undefined;
 };
 
-export function AccountOverviewTab({ detailView, getHealthStatusClass }: AccountOverviewTabProps) {
+export function AccountOverviewTab({
+  detailView,
+  getHealthStatusClass,
+  managerServiceBase,
+  managementKey,
+  credentialAuthIndex,
+}: AccountOverviewTabProps) {
   const { t, i18n } = useTranslation();
   const { decision, capacity, credential, recentStatus, activity, attention } = detailView.overview;
   const recentStatusData = statusBarDataFromRecentRequests(recentStatus.recentRequests);
@@ -185,6 +179,12 @@ export function AccountOverviewTab({ detailView, getHealthStatusClass }: Account
           </div>
         </div>
       </section>
+
+      <AccountAutomaticPauseSection
+        managerServiceBase={managerServiceBase}
+        managementKey={managementKey}
+        authIndex={credentialAuthIndex}
+      />
 
       <section
         className={styles.overviewRecentStatusCard}
@@ -274,7 +274,7 @@ export function AccountOverviewTab({ detailView, getHealthStatusClass }: Account
             </strong>
             <span className={styles.overviewStatusPill}>{t(capacity.statusLabelKey)}</span>
           </div>
-          <OverviewFieldGrid fields={capacity.fields} />
+          <AccountOverviewFieldGrid fields={capacity.fields} />
         </section>
 
         <section className={styles.overviewCard} data-overview-section="credential">
@@ -290,7 +290,7 @@ export function AccountOverviewTab({ detailView, getHealthStatusClass }: Account
             <strong>{t(credential.statusLabelKey)}</strong>
             <span>{t(credential.sourceLabelKey)}</span>
           </div>
-          <OverviewFieldGrid fields={credential.fields} />
+          <AccountOverviewFieldGrid fields={credential.fields} />
         </section>
       </div>
 
