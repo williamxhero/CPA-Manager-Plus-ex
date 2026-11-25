@@ -27,6 +27,11 @@ var ErrIdentity = errors.New("credential policy identity unavailable")
 var ErrInput = errors.New("invalid credential policy request")
 var ErrUnavailable = errors.New("credential policy gate unavailable")
 
+// ErrAutomaticPauseAlwaysOn rejects every disable attempt. Automatic pause is
+// always on, so no local fast path, Core gate write or receipt may exist for a
+// close intent; the request is refused before identity, Core or storage work.
+var ErrAutomaticPauseAlwaysOn = errors.New("automatic pause is always on")
+
 type Update struct {
 	cq.Binding
 	AuthIndex          string `json:"auth_index"`
@@ -283,10 +288,7 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 		return Status{}, ErrInput
 	}
 	if !*q.Enabled {
-		out, known, err := s.localOff(ctx, q)
-		if known || err != nil {
-			return out, err
-		}
+		return Status{}, ErrAutomaticPauseAlwaysOn
 	}
 	src, err := s.source(ctx, q.AuthIndex)
 	if err != nil || !reflect.DeepEqual(src.Binding, q.Binding) || src.SourceVersion == "" || q.SourceVersion != src.SourceVersion {
@@ -305,43 +307,34 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 	var prerequisite store.CredentialPolicyQueryFence
 	var completed string
 	var associationEvidence store.CredentialAssociationEvidence
-	if *q.Enabled {
-		if out.Availability.State != "available" {
-			return Status{}, &UnavailableError{Reason: out.Availability.Reason}
-		}
-		if src.State == "ready" {
-			prerequisite, completed, err = s.enablePrerequisite(ctx, out)
-		} else {
-			associationEvidence, err = s.officialPrerequisite(ctx, out)
-		}
-		if err != nil {
-			return Status{}, err
-		}
-		out.Enabled = true
-		out.State = "armed"
-		out.Reason = "policy_enabled"
-	} else {
-		out.Enabled = false
-		out.State = "off"
+	if out.Availability.State != "available" {
+		return Status{}, &UnavailableError{Reason: out.Availability.Reason}
 	}
+	if src.State == "ready" {
+		prerequisite, completed, err = s.enablePrerequisite(ctx, out)
+	} else {
+		associationEvidence, err = s.officialPrerequisite(ctx, out)
+	}
+	if err != nil {
+		return Status{}, err
+	}
+	out.Enabled = true
+	out.State = "armed"
+	out.Reason = "policy_enabled"
 	out.Generation++
 	document, err := marshalPolicyDocument(out)
 	if err != nil {
 		return Status{}, err
 	}
 	record := store.CredentialPolicyRecord{ID: policyKey(src), Generation: out.Generation, Document: string(document)}
-	if *q.Enabled {
-		record.RefreshScheduleKey, err = s.enableScheduleKey(ctx, prerequisite, associationEvidence)
-		if err != nil {
-			return Status{}, err
-		}
-		if src.State == "ready" {
-			err = s.Store.SaveCredentialPolicyWithPrerequisite(ctx, record, *q.ExpectedGeneration, prerequisite, completed)
-		} else {
-			err = s.Store.SaveCredentialPolicyWithAssociation(ctx, record, *q.ExpectedGeneration, associationEvidence)
-		}
+	record.RefreshScheduleKey, err = s.enableScheduleKey(ctx, prerequisite, associationEvidence)
+	if err != nil {
+		return Status{}, err
+	}
+	if src.State == "ready" {
+		err = s.Store.SaveCredentialPolicyWithPrerequisite(ctx, record, *q.ExpectedGeneration, prerequisite, completed)
 	} else {
-		err = s.Store.SaveCredentialPolicy(ctx, record, *q.ExpectedGeneration)
+		err = s.Store.SaveCredentialPolicyWithAssociation(ctx, record, *q.ExpectedGeneration, associationEvidence)
 	}
 	if err != nil {
 		return Status{}, err
@@ -355,8 +348,9 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 }
 
 // StoredStatus is explicitly a local intent read, not current Core authority.
-// A previously issued subject handle is useful for emergency OFF while Core is
-// unavailable; it cannot enroll a new subject or authorize ON/resume.
+// It reports the stored intent and generation truthfully, so a historical
+// disabled record stays readable and inert; it cannot enroll a new subject or
+// authorize ON/resume.
 func (s *Service) StoredStatus(ctx context.Context, id string) (Status, error) {
 	decoded, err := hex.DecodeString(id)
 	if err != nil || len(decoded) != 32 {
@@ -395,41 +389,6 @@ func (s *Service) StoredStatus(ctx context.Context, id string) (Status, error) {
 		return Status{}, err
 	}
 	return out, nil
-}
-
-func (s *Service) localOff(ctx context.Context, q Update) (Status, bool, error) {
-	id := policyKey(cq.Source{Binding: q.Binding})
-	r, err := s.Store.CredentialPolicy(ctx, id)
-	if err != nil {
-		return Status{}, true, err
-	}
-	if r.Document == "" {
-		return Status{}, false, nil
-	}
-	out, err := s.StoredStatus(ctx, id)
-	if err != nil {
-		return Status{}, true, err
-	}
-	if out.Generation != *q.ExpectedGeneration {
-		return Status{}, true, store.ErrPolicyConflict
-	}
-	if !reflect.DeepEqual(out.Binding, q.Binding) || out.SourceVersion != q.SourceVersion || q.Owner != "" && q.Owner != out.Owner {
-		return Status{}, true, ErrIdentity
-	}
-	out.Enabled = false
-	out.State = "off"
-	out.Reason = "local_intent_off"
-	out.Generation++
-	document, err := marshalPolicyDocument(out)
-	if err != nil {
-		return Status{}, true, err
-	}
-	err = s.Store.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: out.Generation, Document: string(document)}, *q.ExpectedGeneration)
-	if err == nil {
-		s.wakeWorker()
-		err = s.attachOperation(ctx, &out, false)
-	}
-	return out, true, err
 }
 
 type UnavailableError struct{ Reason string }

@@ -158,8 +158,16 @@ func runSelectedKeyPolicyFixture(t *testing.T, f *selectedKeyPolicyFixture, grou
 			}
 		}
 	}
+	// Automatic pause is always on, so B cannot be enrolled as OFF either: the
+	// disable write is refused and leaves no participation behind.
 	enabled = false
-	f.api("PUT", "/usage-service/credential-policy", cp.Update{Binding: other.Binding, AuthIndex: other.AuthIndex, SourceVersion: other.SourceVersion, ExpectedGeneration: &generation, Enabled: &enabled}, 200, &saved)
+	var disabled struct {
+		Error string `json:"error"`
+	}
+	f.api("PUT", "/usage-service/credential-policy", cp.Update{Binding: other.Binding, AuthIndex: other.AuthIndex, SourceVersion: other.SourceVersion, ExpectedGeneration: &generation, Enabled: &enabled}, 400, &disabled)
+	if disabled.Error != "automatic_pause_always_on" {
+		t.Fatalf("disable intent was not refused: %+v", disabled)
+	}
 	send()
 	if f.sends[0].Load() != 1 || f.sends[1].Load() != 0 {
 		t.Fatal("actual configured priority did not choose A")

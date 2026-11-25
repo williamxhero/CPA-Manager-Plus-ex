@@ -81,20 +81,24 @@ func runCredentialPolicyONPrerequisite(t *testing.T, timeout int64) {
 	if !saved.Enabled || saved.Generation != 1 || saved.Applied || saved.Operation != nil {
 		t.Fatalf("ON not truthful: %+v", saved)
 	}
-	// The pre-ON completion captured OFF. It cannot be recaptured as ON or
-	// authorize a later action, even though the upstream quota was authoritative.
-	generation = 1
-	enabled = false
-	update(200, &saved)
-	generation = 2
-	enabled = true
-	update(503, &rejected)
-	if rejected.Error != "fresh_authoritative_evidence_required" {
-		t.Fatal("OFF/ON reused an earlier generation")
+	// The evidence captured for the first ON can never be replayed into a later
+	// generation, and a disable write can no longer retire the armed intent.
+	generation = 0
+	update(409, &rejected)
+	if rejected.Error != "policy_generation_conflict" {
+		t.Fatalf("stale generation reused captured evidence: %+v", rejected)
 	}
+	enabled = false
+	generation = saved.Generation
+	update(400, &rejected)
+	if rejected.Error != "automatic_pause_always_on" {
+		t.Fatalf("disable intent was not refused: %+v", rejected)
+	}
+	enabled = true
+	generation = saved.Generation
 	query()
 	update(200, &saved)
-	if !saved.Enabled || saved.Generation != 3 || saved.Applied || saved.Operation != nil {
+	if !saved.Enabled || saved.Generation != 2 || saved.Applied || saved.Operation != nil {
 		t.Fatalf("fresh generation not armed independently: %+v", saved)
 	}
 	if f.quotaCalls[0].Load() != 2 || f.quotaCalls[1].Load() != 0 || f.sends[0].Load() != 0 || f.sends[1].Load() != 0 {

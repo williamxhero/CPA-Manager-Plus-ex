@@ -180,8 +180,10 @@ func TestCredentialGateActualNativeEligibilityCannotReplaceFreshONPrerequisite(t
 	if status.Enabled || status.Generation != 0 || status.Applied || status.Operation != nil {
 		t.Fatal("failed ON created intent or gate authority")
 	}
+	// Automatic pause is always on: the disable that used to follow a failed ON
+	// is refused, so nothing may reach Core or move the gate revision.
 	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, source, 0, false), testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 200)
+	testutil.RequireStatus(t, rr, 400)
 	var gates cp.GateSnapshot
 	req, _ := http.NewRequest("GET", base+"/v8/management/inference-gates", nil)
 	req.Header.Set("Authorization", "Bearer test-password")
@@ -191,11 +193,11 @@ func TestCredentialGateActualNativeEligibilityCannotReplaceFreshONPrerequisite(t
 	}
 	defer response.Body.Close()
 	if json.NewDecoder(response.Body).Decode(&gates) != nil || gates.GateRevision != 0 || len(gates.Gates) != 0 {
-		t.Fatal("healthy ON/OFF mutated gate without quota evidence")
+		t.Fatal("failed ON or refused disable mutated gate without quota evidence")
 	}
 }
 
-func TestCredentialGateActualOwnResumePreservesOtherOwnerAndOFF(t *testing.T) {
+func TestCredentialGateActualOwnResumePreservesOtherOwnerAndHistoricalOff(t *testing.T) {
 	base := policyProductionGateCore(t, true)
 	upstreamURL, _ := url.Parse(base)
 	proxy := httputil.NewSingleHostReverseProxy(upstreamURL)
@@ -230,12 +232,37 @@ func TestCredentialGateActualOwnResumePreservesOtherOwnerAndOFF(t *testing.T) {
 	if source.AuthIndex == "" {
 		t.Fatal("no actual native source")
 	}
-	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, source, 0, false), testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 200)
-	var saved cp.Status
-	testutil.DecodeJSON(t, rr, &saved)
+	// Disable writes no longer exist, so the base state is the historical
+	// disabled record that migration backfills: seed it directly to keep the
+	// resume and owner fences under test, and prove the API refuses that write.
+	seedHistoricalOff := func(db *store.Store) cp.Status {
+		t.Helper()
+		installation, err := db.CredentialPolicyInstallation(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		state := cp.Status{Source: source, SubjectID: cp.SubjectID(source), Owner: cp.OwnerNamespace + installation, Generation: 1, Enabled: false, State: "off"}
+		document, err := json.Marshal(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.SaveCredentialPolicy(context.Background(), store.CredentialPolicyRecord{ID: state.SubjectID, Generation: state.Generation, Document: string(document)}, 0); err != nil {
+			t.Fatal(err)
+		}
+		return state
+	}
+	saved := seedHistoricalOff(db)
 	if !source.ManualDisabled {
 		t.Fatal("manual-disabled precondition was not actually present")
+	}
+	var disable struct {
+		Error string `json:"error"`
+	}
+	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, source, saved.Generation, false), testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 400)
+	testutil.DecodeJSON(t, rr, &disable)
+	if disable.Error != "automatic_pause_always_on" {
+		t.Fatalf("disable intent was not refused: %s", rr.Body.String())
 	}
 	cfg2 := testutil.NewConfig(t)
 	db2 := testutil.NewStore(t, cfg2)
@@ -243,10 +270,7 @@ func TestCredentialGateActualOwnResumePreservesOtherOwnerAndOFF(t *testing.T) {
 		t.Fatal(err)
 	}
 	h2 := New(cfg2, db2, collector.NewManager(cfg2, db2)).Handler()
-	rr = testutil.Request(t, h2, "PUT", "/usage-service/credential-policy", policyBody(t, source, 0, false), testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 200)
-	var independent cp.Status
-	testutil.DecodeJSON(t, rr, &independent)
+	independent := seedHistoricalOff(db2)
 	if independent.Owner == saved.Owner {
 		t.Fatal("independent DB acquired another installation owner")
 	}
@@ -300,7 +324,7 @@ func TestCredentialGateActualOwnResumePreservesOtherOwnerAndOFF(t *testing.T) {
 	testutil.RequireStatus(t, rr, 200)
 	testutil.DecodeJSON(t, rr, &resumed)
 	if resumed.Enabled || resumed.Generation != saved.Generation || !resumed.Applied || resumed.Operation == nil || resumed.Operation.Action != "clear" || !resumed.Operation.CurrentApplied || !resumed.Operation.ReceiptConfirmed {
-		t.Fatalf("own resume lacked actual current ACK/readback or changed OFF: %s", rr.Body.String())
+		t.Fatalf("own resume lacked actual current ACK/readback or changed stored intent: %s", rr.Body.String())
 	}
 	req, _ := http.NewRequest("GET", base+"/v8/management/inference-gates", nil)
 	req.Header.Set("Authorization", "Bearer test-password")

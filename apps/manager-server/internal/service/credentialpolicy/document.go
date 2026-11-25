@@ -25,7 +25,7 @@ func marshalPolicyDocument(status Status) ([]byte, error) {
 	if hasSourceAuthority(status.Source) {
 		document.IssuedSource = &status.Source
 	}
-	// An emergency OFF of an old incomplete record must not invent authority.
+	// A stored record without real source authority must not invent any.
 	return json.Marshal(document)
 }
 
