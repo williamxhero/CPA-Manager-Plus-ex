@@ -4693,6 +4693,16 @@ describe('AccountsPage replacement flows', () => {
           node.props.title.includes('accounts.health_tip_')
       );
 
+    // The badge is a plain span, so its pause meaning travels as visually hidden
+    // text inside it instead of an aria-label on a roleless element.
+    const findHiddenHint = (badge: ReactTestInstance) =>
+      badge.findAll(
+        (node) =>
+          node.type === 'span' &&
+          typeof node.props.className === 'string' &&
+          node.props.className.includes('srOnly')
+      );
+
     const expectPausedBadge = (renderer: ReactTestRenderer) => {
       const badges = findHealthBadges(renderer, pausedSelectionKey);
       expect(badges).toHaveLength(1);
@@ -4701,8 +4711,10 @@ describe('AccountsPage replacement flows', () => {
       expect(readText(badge)).toContain('accounts.health_weekly_exhausted');
       expect(badge.props.title).toContain('accounts.health_tip_weekly_exhausted');
       expect(badge.props.title).toContain('accounts.auto_pause_badge_hint');
-      expect(badge.props['aria-label']).toContain('accounts.health_weekly_exhausted');
-      expect(badge.props['aria-label']).toContain('accounts.auto_pause_badge_hint');
+      expect(badge.props['aria-label']).toBeUndefined();
+      const hiddenHint = findHiddenHint(badge);
+      expect(hiddenHint).toHaveLength(1);
+      expect(readText(hiddenHint[0])).toContain('accounts.auto_pause_badge_hint');
       expect(readText({ children: badge.props.children })).toContain('accounts.health_weekly_exhausted');
       expect(
         badge.findAll((node) => node.type === 'svg' && node.props['aria-hidden'] === 'true')
@@ -4715,6 +4727,8 @@ describe('AccountsPage replacement flows', () => {
       const badge = badges[0];
       expect(badge.props['data-account-health-auto-paused']).toBeUndefined();
       expect(badge.props['aria-label']).toBeUndefined();
+      expect(findHiddenHint(badge)).toHaveLength(0);
+      expect(readText(badge)).not.toContain('accounts.auto_pause_badge_hint');
       expect(badge.props.title).not.toContain('accounts.auto_pause_badge_hint');
       expect(
         badge.findAll((node) => node.type === 'svg' && node.props['aria-hidden'] === 'true')

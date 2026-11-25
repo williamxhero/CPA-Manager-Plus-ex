@@ -4873,6 +4873,18 @@ function AccountsPageInner({
   const selectedRowIdentitySignature = selectedRow
     ? (accountHistoryIdentityByRowKey.get(selectedRow.selectionKey) ?? '')
     : '';
+  // One auth index is not a lease on one credential: a workspace refresh, a new
+  // login, or a different file at the same index all change the object behind
+  // it. This digest names the credential the drawer is showing, so the automatic
+  // pause read can follow a change instead of reusing the previous answer.
+  const selectedCredentialRevision = useMemo(() => {
+    if (!selectedRow) return '';
+    return JSON.stringify([
+      accountHistoryIdentityByRowKey.get(selectedRow.selectionKey) ?? '',
+      readAuthFileCredentialRefreshAtMs(selectedRow.raw) ?? 0,
+      readAuthFileUpdatedAtMs(selectedRow.raw) ?? 0,
+    ]);
+  }, [accountHistoryIdentityByRowKey, selectedRow]);
   const accountHistoryAutoContextKey = useMemo(
     () =>
       JSON.stringify({
@@ -5070,13 +5082,14 @@ function AccountsPageInner({
     [confirmConfigurationDiscard, handleDelete, selectedRowKey]
   );
   const hasSelectedAccountDetail = activeView === 'accounts' && Boolean(selectedRowKey);
-  // The detail drawer owns the automatic pause read: one read per open, scoped to
-  // this connection and this open.
+  // The detail drawer owns the automatic pause read: one read per open, repeated
+  // when the credential behind the open changes.
   const automaticPauseRead = useAccountAutomaticPause(
     featureAvailability.managerServiceBase,
     managementKey,
     hasSelectedAccountDetail ? selectedRow?.authIndex : undefined,
-    detailReadToken
+    detailReadToken,
+    selectedCredentialRevision
   );
   const needsInspectionSummary = canLoadInspectionSummary;
   const needsQuotaCooldowns =

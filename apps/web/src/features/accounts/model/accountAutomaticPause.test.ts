@@ -229,9 +229,58 @@ describe('buildAccountAutomaticPausePresentation', () => {
         legacyMigration: { state: 'default_off', reason: 'no_proven_per_subject_legacy_intent' },
       }),
     });
-    expect(presentation.state).toBe('no_record');
+    expect(presentation.state).toBe('unavailable');
+    expect(presentation.stateLabelKey).toBe('accounts.detail_overview_auto_pause_state_unavailable');
+    expect(presentation.hintKey).toBe('accounts.detail_overview_auto_pause_unavailable_hint');
+    expect(fieldByKey(presentation, 'automaticPauseState')).toMatchObject({
+      value: 'accounts.detail_overview_auto_pause_state_unavailable',
+      valueKind: 'i18n',
+    });
     expect(fieldByKey(presentation, 'automaticPauseReason')).toMatchObject({
       value: 'accounts.auto_pause_reason_gate_core_unavailable',
+      valueKind: 'i18n',
+    });
+  });
+
+  it('reads an unverified current binding as unreadable instead of participating', () => {
+    const presentation = buildAccountAutomaticPausePresentation({
+      kind: 'ready',
+      status: makeStatus({
+        availability: { state: 'unavailable', reason: 'current_binding_unverified' },
+        reason: 'current_binding_unverified',
+      }),
+    });
+    expect(presentation.state).toBe('unavailable');
+    expect(fieldByKey(presentation, 'automaticPauseState')).toMatchObject({
+      value: 'accounts.detail_overview_auto_pause_state_unavailable',
+      valueKind: 'i18n',
+    });
+    expect(fieldByKey(presentation, 'automaticPauseReason')).toMatchObject({
+      value: 'accounts.auto_pause_reason_current_binding_unverified',
+      valueKind: 'i18n',
+    });
+  });
+
+  it('never reports a manually stopped history as participating', () => {
+    const presentation = buildAccountAutomaticPausePresentation({
+      kind: 'ready',
+      status: makeStatus({
+        reason: '',
+        legacyMigration: {
+          state: 'pending_confirmation',
+          reason: 'legacy_identity_owner_manual_history_unproven',
+        },
+      }),
+    });
+    expect(presentation.state).toBe('no_record');
+    expect(presentation.stateLabelKey).toBe('accounts.detail_overview_auto_pause_state_no_record');
+    expect(presentation.hintKey).toBe('accounts.detail_overview_auto_pause_no_record_hint');
+    expect(fieldByKey(presentation, 'automaticPauseState')).toMatchObject({
+      value: 'accounts.detail_overview_auto_pause_state_no_record',
+      valueKind: 'i18n',
+    });
+    expect(fieldByKey(presentation, 'automaticPauseReason')).toMatchObject({
+      value: 'accounts.auto_pause_reason_no_policy_record',
       valueKind: 'i18n',
     });
   });

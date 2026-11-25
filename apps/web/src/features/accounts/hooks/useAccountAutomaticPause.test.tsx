@@ -9,6 +9,7 @@ interface ProbeProps {
   managementKey?: string;
   authIndex?: string;
   openToken: number;
+  revision?: string;
 }
 
 function Probe(props: ProbeProps) {
@@ -16,7 +17,8 @@ function Probe(props: ProbeProps) {
     props.base,
     props.managementKey,
     props.authIndex,
-    props.openToken
+    props.openToken,
+    props.revision ?? ''
   );
   return (
     <span
@@ -91,6 +93,7 @@ const OPEN = {
   managementKey: 'manager-key',
   authIndex: 'auth-1',
   openToken: 1,
+  revision: 'credential-1',
 };
 
 describe('useAccountAutomaticPause', () => {
@@ -159,6 +162,26 @@ describe('useAccountAutomaticPause', () => {
 
     // A new open of the same auth index with a credential that changed behind it.
     await updateProbe(renderer, { ...OPEN, openToken: 2 });
+    expect(policyCalls(calls)).toHaveLength(2);
+    expect(readOf(renderer)['data-kind']).toBe('reading');
+    expect(readOf(renderer)['data-subject']).toBe('');
+
+    await settle(policyCalls(calls)[1], policyStatus({ subjectId: 'current' }));
+    expect(readOf(renderer)['data-subject']).toBe('current');
+    expect(readOf(renderer)['data-applied']).toBe('false');
+    renderer.unmount();
+  });
+
+  it('reads again inside one open when the credential behind the index changes', async () => {
+    const { calls } = stubDeferredPolicyFetch();
+    const renderer = await renderProbe(OPEN);
+    await settle(policyCalls(calls)[0], policyStatus({ applied: true, subjectId: 'former' }));
+    expect(readOf(renderer)['data-subject']).toBe('former');
+
+    // Same auth index inside the same open, but the credential behind it changed:
+    // refreshing the workspace or logging the same index in again must not keep
+    // showing the answer read for the previous credential.
+    await updateProbe(renderer, { ...OPEN, revision: 'credential-2' });
     expect(policyCalls(calls)).toHaveLength(2);
     expect(readOf(renderer)['data-kind']).toBe('reading');
     expect(readOf(renderer)['data-subject']).toBe('');

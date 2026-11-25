@@ -2472,6 +2472,21 @@
   stroke-width: 2.4;
 }
 
+// Visually hidden text for assistive technology only: the health badge is a
+// plain span, so its pause meaning is carried as text inside it instead of an
+// aria-label on a roleless element.
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .statusStack {
   display: flex;
   align-items: flex-start;

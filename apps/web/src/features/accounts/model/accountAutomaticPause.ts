@@ -35,8 +35,18 @@ export const PANEL_IDENTITY_UNAVAILABLE_REASON = 'panel_identity_unavailable';
 export const PANEL_POLICY_IDENTITY_MISSING_REASON = 'panel_policy_identity_missing';
 export const NO_POLICY_RECORD_REASON = 'no_policy_record';
 
-/** Backend read classification for a credential the manager holds no record for. */
-const NO_POLICY_RECORD_MIGRATION_STATE = 'default_off';
+/**
+ * Backend read classification for a credential the manager holds no record for.
+ *
+ * `default_off` means no per-subject legacy intent was ever proven;
+ * `pending_confirmation` means the credential was manually stopped in the past
+ * and that history is unproven. Both are "no separate policy record", so neither
+ * may be rendered as ordinary participation.
+ */
+const NO_POLICY_RECORD_MIGRATION_STATES: readonly string[] = [
+  'default_off',
+  'pending_confirmation',
+];
 
 const REASON_LABEL_KEYS: Readonly<Record<string, string>> = {
   current_source_gate_ready: 'accounts.auto_pause_reason_current_source_gate_ready',
@@ -235,6 +245,10 @@ export function buildAccountAutomaticPausePresentation(
 
   const { status } = read;
   const operation = status.operation;
+  // Without a policy subject there is no identity to read a state for.
+  if (!status.subjectId) {
+    return unavailablePresentation(status, PANEL_POLICY_IDENTITY_MISSING_REASON, true);
+  }
   // A confirmed clear is a current ACK as well: its action says the restriction
   // was lifted, so it must never be rendered as an applied pause. A pause is
   // claimed only when the backend reports a current restriction that is not a
@@ -246,22 +260,24 @@ export function buildAccountAutomaticPausePresentation(
     const reasonCode = firstNonEmpty(operation?.reason, status.reason, status.availability?.reason);
     return buildPresentation('paused', reasonCode, readAccountAutomaticPauseTiming(status));
   }
-  if (!status.subjectId) {
-    return unavailablePresentation(status, PANEL_POLICY_IDENTITY_MISSING_REASON, true);
+  // The backend reports that today's automatic state cannot be read at all (for
+  // example `gate_core_unavailable` or `current_binding_unverified`). That ranks
+  // above the no-record wording: "the manager holds no record" must never be
+  // used to describe a capability that could not be read.
+  if (status.availability?.state !== 'available') {
+    return unavailablePresentation(status, '');
   }
   // Most credentials carry no policy record at all: automatic pause is always on
   // and Core pauses them on live evidence. That is a real state, not a failed
-  // read, so it is named instead of being reported as unreadable.
-  if (status.legacyMigration?.state === NO_POLICY_RECORD_MIGRATION_STATE) {
-    const reasonCode =
-      firstNonEmpty(
-        status.availability?.state === 'available' ? '' : status.availability?.reason,
-        status.reason
-      ) || NO_POLICY_RECORD_REASON;
+  // read, so it is named instead of being reported as unreadable. The same holds
+  // when the credential was manually stopped in the past: its history is
+  // unproven, so it participates in no separate policy either.
+  if (
+    status.legacyMigration &&
+    NO_POLICY_RECORD_MIGRATION_STATES.includes(status.legacyMigration.state)
+  ) {
+    const reasonCode = firstNonEmpty(status.reason) || NO_POLICY_RECORD_REASON;
     return buildPresentation('no_record', reasonCode, readAccountAutomaticPauseTiming(status));
-  }
-  if (status.availability?.state !== 'available') {
-    return unavailablePresentation(status, '');
   }
   const reasonCode = firstNonEmpty(
     status.reason,
