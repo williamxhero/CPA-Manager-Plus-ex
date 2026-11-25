@@ -53,6 +53,7 @@ import {
   type ProviderPolicyMigrationStatus,
 } from '@/services/api/providerPolicy';
 import {
+  autoStateDigest,
   getProviderAutoState,
   indexProviderAutoStates,
   type ProviderAutoStateMap,
@@ -176,7 +177,10 @@ export function AiProvidersPage() {
   ]);
   const [providerAutoStates, setProviderAutoStates] = useState<ProviderAutoStateMap>({});
   const [autoStateRefreshToken, setAutoStateRefreshToken] = useState(0);
-  const appliedAutoState = useRef<{ target: string; revision: number } | null>(null);
+  // Dedupe on the projected content, not on Core's revision: a changed gate
+  // applicability can repaint a row without bumping the revision, and a stale
+  // "available" is exactly the red-turned-green the panel must never show.
+  const appliedAutoState = useRef<{ target: string; digest: string } | null>(null);
   useEffect(() => {
     if (
       !featureAvailability.managerServiceAvailable ||
@@ -193,9 +197,10 @@ export function AiProvidersPage() {
       controller.signal
     ).then((projection) => {
       if (!projection || controller.signal.aborted) return;
+      const digest = autoStateDigest(projection);
       const applied = appliedAutoState.current;
-      if (applied && applied.target === target && applied.revision === projection.revision) return;
-      appliedAutoState.current = { target, revision: projection.revision };
+      if (applied && applied.target === target && applied.digest === digest) return;
+      appliedAutoState.current = { target, digest };
       setProviderAutoStates(indexProviderAutoStates(projection));
     });
     return () => controller.abort();

@@ -101,7 +101,17 @@ func TestProviderAutoStateMapsCoreFailuresToExplicitCodes(t *testing.T) {
 		{name: "invalid_json", coreStatus: 200, coreBody: `{"version":1,`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "invalid_json"},
 		{name: "unsupported_version", coreStatus: 200, coreBody: `{"version":2,"ready":true,"providers":[]}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "unsupported_contract_version"},
 		{name: "providers_missing", coreStatus: 200, coreBody: `{"version":1,"ready":true,"revision":3}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "providers_missing"},
+		{name: "providers_not_array", coreStatus: 200, coreBody: `{"version":1,"ready":true,"revision":3,"providers":{}}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "providers_missing"},
 		{name: "ready_missing", coreStatus: 200, coreBody: `{"version":1,"revision":3,"providers":[]}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "ready_missing"},
+		// Core saying "not ready" is an upstream fault, never an empty projection the
+		// panel could paint as available.
+		{name: "ready_false", coreStatus: 200, coreBody: `{"version":1,"ready":false,"revision":3,"providers":[]}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "ready_not_true"},
+		{name: "provider_without_resource_id", coreStatus: 200, coreBody: `{"version":1,"ready":true,"revision":3,"providers":[{"state":"available"}]}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "provider_resource_id_missing"},
+		{name: "provider_state_unknown", coreStatus: 200, coreBody: `{"version":1,"ready":true,"revision":3,"providers":[{"resourceId":"rid","state":"exploded"}]}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "provider_state_invalid"},
+		{name: "provider_state_missing", coreStatus: 200, coreBody: `{"version":1,"ready":true,"revision":3,"providers":[{"resourceId":"rid"}]}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "provider_state_invalid"},
+		{name: "member_state_missing", coreStatus: 200, coreBody: `{"version":1,"ready":true,"revision":3,"providers":[{"resourceId":"rid","state":"auto_paused","members":[{}]}]}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "member_state_invalid"},
+		{name: "member_state_unknown", coreStatus: 200, coreBody: `{"version":1,"ready":true,"revision":3,"providers":[{"resourceId":"rid","state":"auto_paused","members":[{"resourceId":"rid","state":"exploded"}]}]}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "member_state_invalid"},
+		{name: "provider_entry_not_object", coreStatus: 200, coreBody: `{"version":1,"ready":true,"revision":3,"providers":["nope"]}`, wantStatus: 502, wantError: "core_response_invalid", wantReason: "provider_resource_id_missing"},
 		{name: "core_auth_error", coreStatus: 401, coreBody: `{"error":"unauthorized"}`, wantStatus: 502, wantError: "core_auth_error", wantReason: "core_auth_error"},
 		{name: "core_internal_error", coreStatus: 500, coreBody: `{"error":"boom"}`, wantStatus: 503, wantError: "core_unavailable", wantReason: "core_status_500"},
 	} {

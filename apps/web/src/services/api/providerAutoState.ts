@@ -120,6 +120,37 @@ export function parseProviderAutoState(value: unknown): ProviderAutoStateProject
   };
 }
 
+/**
+ * Deterministic digest of everything the panel renders from the projection.
+ *
+ * The revision Core stamps is not enough to decide whether a refresh carries
+ * new content: a changed gate applicability can repaint a row without bumping
+ * it. Callers compare digests, so an unchanged read costs no re-render and a
+ * changed read always lands, even at the same revision.
+ */
+export function autoStateDigest(projection: ProviderAutoStateProjection | null): string {
+  const reason = (item: ProviderAutoStateReason) => [
+    item.owner,
+    item.reason,
+    item.observedAtMs ?? null,
+    item.resourceId ?? null,
+  ];
+  const member = (item: ProviderAutoStateMember) => [
+    item.resourceId,
+    item.state,
+    item.reasons.map(reason),
+  ];
+  const provider = (item: ProviderAutoState) => [
+    item.resourceId,
+    item.state,
+    item.memberCount ?? null,
+    item.pausedCount ?? null,
+    (item.reasons ?? []).map(reason),
+    (item.members ?? []).map(member),
+  ];
+  return JSON.stringify((projection?.providers ?? []).map(provider));
+}
+
 export function indexProviderAutoStates(
   projection: ProviderAutoStateProjection | null
 ): ProviderAutoStateMap {

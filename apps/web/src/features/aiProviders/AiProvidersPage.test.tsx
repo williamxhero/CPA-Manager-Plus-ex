@@ -1,5 +1,5 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CoolingPolicy, GeminiKeyConfig, OpenAIProviderConfig, ProviderKeyConfig } from '@/types';
 
 const mocks = vi.hoisted(() => ({
@@ -31,6 +31,14 @@ const mocks = vi.hoisted(() => ({
   transitionLayer: null as { status: string } | null,
   auth: { apiBase: 'http://core.example', managementKey: 'synthetic-key', connectionStatus: 'connected' },
   headerRefresh: null as (() => Promise<void>) | null,
+  featureAvailability: {
+    checking: false,
+    managerServiceAvailable: false,
+    managerServiceBase: '',
+  },
+  getProviderAutoState: vi.fn(),
+  getProviderPolicyMigration: vi.fn(async () => null),
+  providerTableAutoStates: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -38,8 +46,23 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@/hooks/usePanelFeatureAvailability', () => ({
-  usePanelFeatureAvailability: () => ({
-    checking: false, managerServiceAvailable: false, managerServiceBase: '',
+  usePanelFeatureAvailability: () => mocks.featureAvailability,
+}));
+
+vi.mock('@/services/api/providerAutoState', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/api/providerAutoState')>();
+  return { ...actual, getProviderAutoState: mocks.getProviderAutoState };
+});
+
+vi.mock('@/services/api/providerPolicy', () => ({
+  getProviderPolicyMigration: mocks.getProviderPolicyMigration,
+}));
+
+vi.mock('@/features/resourceProtection/resourceProtection', () => ({
+  useResourceProtection: () => ({
+    status: 'unknown',
+    forProvider: () => ({ status: 'unknown' }),
+    refresh: async () => undefined,
   }),
 }));
 
@@ -172,15 +195,19 @@ vi.mock('@/components/providers', async () => {
     ProviderTable: ({
       rows,
       onShowDetail,
+      autoStates,
     }: {
       rows: Array<Record<string, unknown>>;
       onShowDetail: (row: Record<string, unknown>) => void;
-    }) =>
-      rows[0] ? (
+      autoStates: Record<string, unknown>;
+    }) => {
+      mocks.providerTableAutoStates.push(autoStates);
+      return rows[0] ? (
         <button type="button" data-open-detail onClick={() => onShowDetail(rows[0])}>
           {String(rows[0].label)}
         </button>
-      ) : null,
+      ) : null;
+    },
     ProviderDetailDrawer: ({
       row,
       open,
@@ -657,4 +684,115 @@ describe('AiProvidersPage current-layer config refresh', () => {
       act(() => view.unmount());
     }
   );
+});
+
+describe('AiProvidersPage automatic start/stop projection', () => {
+  const projection = (state: 'available' | 'auto_paused', revision: number) => ({
+    version: 1,
+    ready: true,
+    revision,
+    providers: [
+      {
+        resourceId: 'rid-group',
+        state,
+        memberCount: 1,
+        pausedCount: state === 'auto_paused' ? 1 : 0,
+        reasons: [],
+        members: [
+          {
+            resourceId: 'rid-member',
+            state: state === 'auto_paused' ? 'paused' : 'available',
+            reasons: [],
+          },
+        ],
+      },
+    ],
+  });
+
+  const lastAutoStates = () =>
+    mocks.providerTableAutoStates[mocks.providerTableAutoStates.length - 1] ?? {};
+  const appliedState = () => (lastAutoStates() as { 'rid-group'?: { state?: string } })['rid-group']?.state;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.providerTableAutoStates.length = 0;
+    mocks.auth = {
+      apiBase: 'http://core.example',
+      managementKey: 'synthetic-key',
+      connectionStatus: 'connected',
+    };
+    apiClient.setConfig(mocks.auth);
+    mocks.cacheValid = true;
+    mocks.transitionLayer = null;
+    mocks.featureAvailability = {
+      checking: false,
+      managerServiceAvailable: true,
+      managerServiceBase: 'http://manager.example',
+    };
+    mocks.getProviderAutoState.mockResolvedValue(null);
+    mocks.getProviderPolicyMigration.mockResolvedValue(null);
+    mocks.config = {
+      geminiApiKeys: [],
+      interactionsApiKeys: [],
+      codexApiKeys: [],
+      xaiApiKeys: [],
+      metaApiKeys: [],
+      claudeApiKeys: [],
+      vertexApiKeys: [],
+      openaiCompatibility: [],
+    };
+    mocks.getConfig.mockImplementation(async () => mocks.config);
+    mocks.getVertexConfigs.mockImplementation(async () => mocks.config.vertexApiKeys);
+    mocks.getOpenAIProviders.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    mocks.featureAvailability = {
+      checking: false,
+      managerServiceAvailable: false,
+      managerServiceBase: '',
+    };
+  });
+
+  const renderPage = async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<AiProvidersPage />);
+    });
+    await flush();
+    return renderer;
+  };
+
+  const refresh = async () => {
+    await act(async () => {
+      await mocks.headerRefresh!();
+    });
+    await flush();
+  };
+
+  it('applies a refreshed projection whose providers changed at the same revision', async () => {
+    mocks.getProviderAutoState.mockResolvedValueOnce(projection('available', 7));
+    const view = await renderPage();
+    expect(appliedState()).toBe('available');
+
+    mocks.getProviderAutoState.mockResolvedValueOnce(projection('auto_paused', 7));
+    await refresh();
+
+    expect(appliedState()).toBe('auto_paused');
+    act(() => view.unmount());
+  });
+
+  it('keeps the applied state untouched when a refresh repeats the same content', async () => {
+    mocks.getProviderAutoState.mockResolvedValueOnce(projection('auto_paused', 7));
+    const view = await renderPage();
+    const applied = lastAutoStates();
+    expect(appliedState()).toBe('auto_paused');
+
+    mocks.getProviderAutoState.mockResolvedValueOnce(projection('auto_paused', 8));
+    await refresh();
+
+    expect(appliedState()).toBe('auto_paused');
+    expect(lastAutoStates()).toBe(applied);
+    act(() => view.unmount());
+  });
 });
