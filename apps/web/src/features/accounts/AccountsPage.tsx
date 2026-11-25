@@ -1,10 +1,6 @@
 import { refreshCredentialSource } from '@/services/api/fullRefresh';
 import { credentialQuotaRequest, type CredentialQuotaStatus } from '@/services/api/credentialQuota';
-import { CredentialAutoStartStopToggle } from '@/features/accounts/components/CredentialAutoStartStopToggle';
-import {
-  credentialHasRemainingQuota,
-  formatCredentialCredits,
-} from '@/features/accounts/model/accountQuotaSummary';
+import { formatCredentialCredits } from '@/features/accounts/model/accountQuotaSummary';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   KeyboardEvent,
@@ -18,7 +14,6 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
-import { useAccountCredentialMutationRevisionStore } from '@/stores/useAccountCredentialMutationRevisionStore';
 import { createWorkspaceConnectionState } from '@/stores/workspaceConnectionState';
 import { useWorkspaceConnectionRoute } from '@/hooks/useWorkspaceConnectionRoute';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/DropdownMenu';
@@ -1392,13 +1387,6 @@ function AccountsPageInner({
     [connectionFingerprint]
   );
   const [credentialListRevision, setCredentialListRevision] = useState(0);
-  const credentialQuotaRevision = useAccountCredentialMutationRevisionStore((state) =>
-    Object.values(state.events)
-      .filter(
-        (event) => event.connectionFingerprint === connectionFingerprint && event.kind !== 'quota'
-      )
-      .reduce((sum, event) => sum + event.revision, 0)
-  );
   const authFilesRequestScope = useMemo(
     () => ({ apiBase, managementKey }),
     [apiBase, managementKey]
@@ -1458,11 +1446,10 @@ function AccountsPageInner({
     requestScope: authFilesRequestScope,
     onCredentialMutation: handleCredentialMutation,
   });
-  const { forCredential: credentialProtection, refresh: refreshResourceProtection } =
-    useResourceProtection(
-      { ...featureAvailability, checking: featureAvailability.checking || loading },
-      files
-    );
+  const { refresh: refreshResourceProtection } = useResourceProtection(
+    { ...featureAvailability, checking: featureAvailability.checking || loading },
+    files
+  );
 
   const backendCredentialQuota = Boolean(featureAvailability.managerServiceAvailable);
   // While the panel probe is still running the embedded manager is the expected
@@ -9222,21 +9209,6 @@ function AccountsPageInner({
     hideSideActions = false,
     isGridCard = false
   ) => {
-    const automaticSwitch = (
-      <CredentialAutoStartStopToggle
-        key={`${connectionFingerprint}:${row.selectionKey}`}
-        managerServiceBase={featureAvailability.managerServiceBase ?? ''}
-        managementKey={managementKey}
-        authIndex={row.authIndex || undefined}
-        hasQuota={
-          credentialHasRemainingQuota(row.quota) ||
-          buildQuotaDisplayWindows(row).some(
-            (window) => typeof window.remainingPercent === 'number' && window.remainingPercent > 0
-          )
-        }
-        revision={`${credentialQuotaRevision}:${managerConnectionFingerprint}:${JSON.stringify(credentialProtection(row.authIndex).binding ?? null)}`}
-      />
-    );
     const credentialRefreshInProgress =
       credentialRefreshing[getAuthFileSelectionKey(row.raw)] === true;
     const credentialRefreshButton =
@@ -9343,7 +9315,6 @@ function AccountsPageInner({
           <div className={styles.accountGridCardSecondaryActions}>
             {reauthButton}
             {deleteButton}
-            {automaticSwitch}
             {credentialRefreshButton}
             {downloadButton}
           </div>
@@ -9363,7 +9334,6 @@ function AccountsPageInner({
           {settingsButton}
           {downloadButton}
           {deleteButton}
-          {automaticSwitch}
           {credentialRefreshButton}
         </div>
         {!hideSideActions ? (

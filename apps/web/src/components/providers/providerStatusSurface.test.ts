@@ -44,5 +44,8 @@ describe('providerStatusSurface registry (#84)', () => {
     expect(credential).toHaveLength(1);
     expect(credential[0]?.id).toBe('accounts-credential');
     expect(credential[0]?.notes).toMatch(/Credential owner/i);
+    // #94: credential auto-pause is always on, so this surface is read-only.
+    expect(credential[0]?.notes).toMatch(/read-only/i);
+    expect(credential[0]?.path).toContain('AccountOverviewTab.tsx');
   });
 });

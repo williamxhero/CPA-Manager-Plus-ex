@@ -43,9 +43,10 @@ export const PROVIDER_STATUS_CONSUMERS: readonly ProviderStatusConsumer[] = [
   {
     id: 'accounts-credential',
     surface: 'Accounts grid / list / detail',
-    path: 'CredentialAutoStartStopToggle.tsx',
+    path: 'components/accountDetail/AccountOverviewTab.tsx',
     evidence: 'credential_auto',
-    notes: 'Credential owner, not provider monetary; resume clears credential pause only',
+    notes:
+      'Credential owner, not provider monetary; automatic pause is always on, so this surface is a read-only status expression with no switch',
   },
   {
     id: 'monitoring-filter',

@@ -77,7 +77,13 @@ import { AccountModelsTab } from './components/accountDetail/AccountModelsTab';
 import { AccountOverviewTab } from './components/accountDetail/AccountOverviewTab';
 import { AccountQuotaTab } from './components/accountDetail/AccountQuotaTab';
 import { QuotaWindowCard } from './components/QuotaWindowCard';
-import { IconChartLine, IconRefreshCw, IconTrendingUp, IconUserRound } from '@/components/ui/icons';
+import {
+  IconChartLine,
+  IconPower,
+  IconRefreshCw,
+  IconTrendingUp,
+  IconUserRound,
+} from '@/components/ui/icons';
 import {
   formatQuotaResetTimestamp,
   formatQuotaResetDisplay,
@@ -915,20 +921,6 @@ vi.mock('@/features/oauth/CodexReauthDialog', () => ({
     mocks.lastCodexReauthProps = props;
     return props.open ? <div data-codex-reauth-open="true" /> : null;
   },
-}));
-
-// Isolate the credential-toolbar auto start/stop switch so this page suite does
-// not depend on the Manager account-processing-policy network lifecycle.
-// Its states and persistence wiring are covered by
-// CredentialAutoStartStopToggle.test.tsx.
-vi.mock('@/features/accounts/components/CredentialAutoStartStopToggle', () => ({
-  CredentialAutoStartStopToggle: (props: { managerServiceBase: string; managementKey: string }) => (
-    <span
-      data-credential-auto-start-stop-stub
-      data-manager-service-base={props.managerServiceBase}
-      data-management-key={props.managementKey}
-    />
-  ),
 }));
 
 vi.mock('@/services/api/apiCall', async (importOriginal) => {
@@ -4061,56 +4053,76 @@ describe('AccountsPage replacement flows', () => {
     expect(mocks.handleCredentialRefresh).not.toHaveBeenCalled();
   });
 
-  it('offers inline Codex credential refresh after auto start/stop', async () => {
-    const renderer = await renderAccountsPage();
-    const selectionKey = getAuthFileSelectionKey(mocks.files[0]);
-    const card = findAccountCardByKey(renderer, selectionKey);
-    const refreshButton = findAccountCardButtonByAriaLabel(
-      renderer,
-      selectionKey,
-      'auth_files.credential_refresh_button'
-    );
+  it.each(['table', 'grid'] as const)(
+    'keeps inline Codex credential refresh without a pause switch in the %s actions',
+    async (layout) => {
+      mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+      const renderer = await renderAccountsPage();
+      const selectionKey = getAuthFileSelectionKey(mocks.files[0]);
+      const card = findAccountCardByKey(renderer, selectionKey);
+      const refreshButton = findAccountCardButtonByAriaLabel(
+        renderer,
+        selectionKey,
+        'auth_files.credential_refresh_button'
+      );
 
-    expect(refreshButton.props.title).toBe('auth_files.credential_refresh_button');
-    expect(refreshButton.findAllByType(IconUserRound)).toHaveLength(1);
-    expect(refreshButton.findAllByType(IconRefreshCw)).toHaveLength(0);
-    const quickActions = card.findAll(
-      (node) =>
-        typeof node.props.className === 'string' &&
-        node.props.className.includes('accountQuickActionsGrid')
-    )[0];
-    expect(quickActions).toBeDefined();
-    const actionChildren = quickActions?.children ?? [];
-    const autoIndex = actionChildren.findIndex(
-      (child) =>
-        child !== null &&
-        typeof child === 'object' &&
-        'type' in child &&
-        typeof (child as ReactTestInstance).type === 'function' &&
-        ((child as ReactTestInstance).type as { name?: string }).name ===
-          'CredentialAutoStartStopToggle'
-    );
-    const refreshIndex = actionChildren.findIndex(
-      (child) =>
-        child !== null &&
-        typeof child === 'object' &&
-        'props' in child &&
-        (child as { props?: { 'aria-label'?: string } }).props?.['aria-label'] ===
-          'auth_files.credential_refresh_button'
-    );
-    expect(autoIndex).toBeGreaterThanOrEqual(0);
-    expect(refreshIndex).toBe(autoIndex + 1);
+      expect(refreshButton.props.title).toBe('auth_files.credential_refresh_button');
+      expect(refreshButton.findAllByType(IconUserRound)).toHaveLength(1);
+      expect(refreshButton.findAllByType(IconRefreshCw)).toHaveLength(0);
 
-    await act(async () => {
-      refreshButton.props.onClick();
-      await Promise.resolve();
+      // The action area holds explicit, labelled actions only: no toggle state,
+      // no power glyph, and no focusable leftover from a removed control.
+      const actionAreas = card.findAll(
+        (node) =>
+          typeof node.props.className === 'string' &&
+          (node.props.className.includes('accountQuickActionsGrid') ||
+            node.props.className.includes('accountGridCardPrimaryActions') ||
+            node.props.className.includes('accountGridCardSecondaryActions'))
+      );
+      expect(actionAreas.length).toBeGreaterThan(0);
+      const actionButtons = actionAreas.flatMap((node) =>
+        node.findAll((child) => child.type === 'button')
+      );
+      expect(actionButtons.map((node) => node.props['aria-label']).sort()).toEqual(
+        [
+          'accounts.refresh_quota',
+          'accounts.detail_tab_config',
+          'auth_files.download_button',
+          'auth_files.delete_button',
+          'auth_files.credential_refresh_button',
+        ].sort()
+      );
+      expect(actionAreas.flatMap((node) => node.findAllByType(IconPower))).toHaveLength(0);
+      expect(
+        actionAreas.flatMap((node) =>
+          node.findAll((child) => child.props['aria-pressed'] !== undefined)
+        )
+      ).toHaveLength(0);
+
+      await act(async () => {
+        refreshButton.props.onClick();
+        await Promise.resolve();
+      });
+      expect(mocks.lastCodexReauthProps?.open).toBe(true);
+      expect(mocks.lastCodexReauthProps?.target).toMatchObject({
+        fileName: mocks.files[0].name,
+        account: mocks.files[0].account,
+      });
+      expect(mocks.handleCredentialRefresh).not.toHaveBeenCalled();
+    }
+  );
+
+  it('never requests per-credential pause intents while loading the page', async () => {
+    const requested: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      requested.push(String(url));
+      return Response.json({});
     });
-    expect(mocks.lastCodexReauthProps?.open).toBe(true);
-    expect(mocks.lastCodexReauthProps?.target).toMatchObject({
-      fileName: mocks.files[0].name,
-      account: mocks.files[0].account,
-    });
-    expect(mocks.handleCredentialRefresh).not.toHaveBeenCalled();
+
+    await renderAccountsPage();
+    await flushPromises();
+
+    expect(requested.filter((url) => url.includes('view=intents'))).toHaveLength(0);
   });
 
   it('disables inline credential refresh while that credential is refreshing', async () => {
@@ -22451,20 +22463,6 @@ describe('AccountsPage replacement flows', () => {
     });
   });
 
-  it('renders each credential automatic control inside its row, never in the global toolbar', async () => {
-    const renderer = await renderAccountsPage();
-    const stub = renderer.root.findByProps({ 'data-credential-auto-start-stop-stub': true });
-    expect(stub.props['data-manager-service-base']).toBe('http://manager.local:18317');
-    expect(stub.props['data-management-key']).toBe('manager-key');
-    let current: ReactTestInstance | null = stub.parent;
-    let inCard = false;
-    while (current) {
-      expect(String(current.props.className ?? '')).not.toContain('batchActions');
-      if (current.props['data-account-card']) inCard = true;
-      current = current.parent;
-    }
-    expect(inCard).toBe(true);
-  });
   it.each(['table', 'grid'] as const)(
     'ticket93 removes actual outer duplicate nodes in %s',
     async (layout) => {
@@ -22483,9 +22481,6 @@ describe('AccountsPage replacement flows', () => {
           (n) => n.type === 'button' && n.props['aria-label'] === 'accounts.detail_tab_config'
         ).length
       ).toBeGreaterThan(0);
-      expect(
-        renderer.root.findAllByProps({ 'data-credential-auto-start-stop-stub': true })
-      ).toHaveLength(mocks.files.length);
     }
   );
 
