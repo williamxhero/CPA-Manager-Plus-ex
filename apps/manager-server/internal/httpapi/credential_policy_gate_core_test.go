@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -18,13 +17,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/collector"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/config"
 	cp "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialpolicy"
 	cq "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/credentialquota"
+	fr "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/fullrefresh"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
 )
@@ -206,7 +209,33 @@ func TestCredentialGateActualOwnResumePreservesOtherOwnerAndHistoricalOff(t *tes
 		}
 		return nil
 	}
-	edge := httptest.NewServer(proxy)
+	edge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" || r.URL.Path != "/v8/management/credential-quota/query" {
+			proxy.ServeHTTP(w, r)
+			return
+		}
+		// Supply a controlled positive quota observation at the query boundary.
+		// Inventory, eligibility, gate writes, receipts and ledger are real Core.
+		var query cq.Query
+		if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+			http.Error(w, "invalid quota fixture query", 400)
+			return
+		}
+		now := time.Now()
+		reset := now.Add(time.Hour).Format(time.RFC3339)
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(cq.CoreObservation{
+			Binding: query.Binding, SourceVersion: query.SourceVersion, Protocol: "codex-oauth-wham", ProtocolVersion: 1,
+			QueryStatus: "success", Complete: true, RecoveryEligible: true, ObservedAtMS: now.UnixMilli(), ReceivedAtMS: now.UnixMilli(),
+			AccountProvenance: "selected_oauth_account", TimestampProvenance: "upstream_http_date",
+			Windows: []cq.Window{
+				{Name: "primary", UsedPercent: 25, RemainingFraction: .75, SourceStatus: "allowed", ResetAt: reset},
+				{Name: "secondary", UsedPercent: 25, RemainingFraction: .75, SourceStatus: "allowed", ResetAt: reset},
+			},
+		}); err != nil {
+			t.Error(err)
+		}
+	}))
 	defer edge.Close()
 	cfg := testutil.NewConfig(t)
 	db := testutil.NewStore(t, cfg)
@@ -230,53 +259,73 @@ func TestCredentialGateActualOwnResumePreservesOtherOwnerAndHistoricalOff(t *tes
 	if source.AuthIndex == "" {
 		t.Fatal("no actual native source")
 	}
-	seedHistoricalOff := func(db *store.Store) cp.Status {
+	if !source.ManualDisabled {
+		t.Fatal("manual-disabled precondition was not actually present")
+	}
+	reopenWithHistoricalOff := func(cfg config.Config, db *store.Store) (*store.Store, http.Handler, cp.Status) {
 		t.Helper()
-		installation, err := db.CredentialPolicyInstallation(context.Background())
+		ctx := context.Background()
+		installation, err := db.CredentialPolicyInstallation(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Seed a pre-upgrade document, with the sealed Core receipt and explicit
+		// enabled:false from the embedded Status. Only startup may backfill it.
 		state := cp.Status{Source: source, SubjectID: cp.SubjectID(source), Owner: cp.OwnerNamespace + installation, Generation: 1, Enabled: false, State: "off"}
 		document, err := json.Marshal(struct {
 			cp.Status
-			IssuedSource *cq.Source `json:"issuedSource,omitempty"`
-			Enabled      *bool      `json:"enabled,omitempty"`
+			IssuedSource *cq.Source `json:"issuedSource"`
 		}{Status: state, IssuedSource: &source})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := db.SaveCredentialPolicy(context.Background(), store.CredentialPolicyRecord{ID: state.SubjectID, Generation: state.Generation, Document: string(document)}, 0); err != nil {
+		if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: state.SubjectID, Generation: state.Generation, Document: string(document)}, 0); err != nil {
 			t.Fatal(err)
 		}
-		return state
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db = testutil.NewStore(t, cfg)
+		h := New(cfg, db, collector.NewManager(cfg, db)).Handler()
+		rr := testutil.Request(t, h, "GET", "/usage-service/credential-policy?subjectId="+state.SubjectID, "", testutil.AdminKey)
+		testutil.RequireStatus(t, rr, 200)
+		var migrated cp.Status
+		testutil.DecodeJSON(t, rr, &migrated)
+		if !migrated.Enabled || migrated.Generation != state.Generation+1 || migrated.Owner != state.Owner || migrated.SubjectID != state.SubjectID || migrated.Applied || migrated.Operation != nil {
+			t.Fatalf("startup did not backfill participation without changing owner or fabricating a receipt: %s", rr.Body.String())
+		}
+		return db, h, state
 	}
-	saved := seedHistoricalOff(db)
-	if !source.ManualDisabled {
-		t.Fatal("manual-disabled precondition was not actually present")
+	var saved cp.Status
+	db, h, saved = reopenWithHistoricalOff(cfg, db)
+	generation := saved.Generation + 1
+	requirePolicyError := func(rr *httptest.ResponseRecorder, status int, want string) {
+		t.Helper()
+		testutil.RequireStatus(t, rr, status)
+		var reply struct {
+			Error string `json:"error"`
+		}
+		testutil.DecodeJSON(t, rr, &reply)
+		if reply.Error != want {
+			t.Fatalf("policy error = %q, want %q", reply.Error, want)
+		}
 	}
-	var disable struct {
-		Error string `json:"error"`
-	}
-	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, source, saved.Generation, false), testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 400)
-	testutil.DecodeJSON(t, rr, &disable)
-	if disable.Error != "automatic_pause_always_on" {
-		t.Fatalf("disable intent was not refused: %s", rr.Body.String())
-	}
+	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, source, generation, false), testutil.AdminKey)
+	requirePolicyError(rr, 400, "automatic_pause_always_on")
 	cfg2 := testutil.NewConfig(t)
 	db2 := testutil.NewStore(t, cfg2)
 	if err := db2.SaveManagerConfig(context.Background(), store.ManagerConfig{CPAConnection: store.ManagerCPAConnectionConfig{CPABaseURL: base, ManagementKey: "test-password"}}); err != nil {
 		t.Fatal(err)
 	}
-	h2 := New(cfg2, db2, collector.NewManager(cfg2, db2)).Handler()
-	independent := seedHistoricalOff(db2)
+	_, h2, independent := reopenWithHistoricalOff(cfg2, db2)
 	if independent.Owner == saved.Owner {
 		t.Fatal("independent DB acquired another installation owner")
 	}
-	// Explicit REAL management seed: not synthetic quota evidence, not automatic
-	// exhaustion proof. Every operation ACK/readback comes from actual Core99c.
-	for i, owner := range []string{saved.Owner, independent.Owner} {
-		op := cp.GateOperation{Version: 1, OpID: uuid.NewString(), ExpectedGateRevision: uint64(i), Binding: source.Binding, AuthIndex: source.AuthIndex, SourceVersion: source.SourceVersion, Subject: "credential", Owner: owner, Action: "pause", Reason: "quota_windows_exhausted", EvidenceID: uuid.NewString()}
+	// Seed pauses through actual Core management, without claiming that the
+	// pauses came from automatic exhaustion detection.
+	pauseOwner := func(owner string, revision uint64) {
+		t.Helper()
+		op := cp.GateOperation{Version: 1, OpID: uuid.NewString(), ExpectedGateRevision: revision, Binding: source.Binding, AuthIndex: source.AuthIndex, SourceVersion: source.SourceVersion, Subject: "credential", Owner: owner, Action: "pause", Reason: "quota_windows_exhausted", EvidenceID: uuid.NewString()}
 		body, _ := json.Marshal(op)
 		req, _ := http.NewRequest("POST", base+"/v8/management/inference-gates/operations", bytes.NewReader(body))
 		req.Header.Set("Authorization", "Bearer test-password")
@@ -292,21 +341,53 @@ func TestCredentialGateActualOwnResumePreservesOtherOwnerAndHistoricalOff(t *tes
 			t.Fatalf("real pause seed not durably applied: status=%d", response.StatusCode)
 		}
 	}
-	request := map[string]any{"scope": source.Scope, "targets": source.Targets, "auth_index": source.AuthIndex, "sourceVersion": source.SourceVersion, "expectedGeneration": saved.Generation, "owner": saved.Owner, "opId": uuid.NewString()}
-	body, _ := json.Marshal(request)
-	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", string(body), "")
+	pauseOwner(saved.Owner, 0)
+	pauseOwner(independent.Owner, 1)
+	readGates := func() cp.GateSnapshot {
+		t.Helper()
+		req, _ := http.NewRequest("GET", base+"/v8/management/inference-gates", nil)
+		req.Header.Set("Authorization", "Bearer test-password")
+		response, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		var gates cp.GateSnapshot
+		if err := json.NewDecoder(response.Body).Decode(&gates); response.StatusCode != 200 || err != nil || !gates.Ready {
+			t.Fatalf("real gate ledger unavailable: status=%d decode=%v", response.StatusCode, err)
+		}
+		return gates
+	}
+	before := readGates()
+	var foreignGate cp.GateRestriction
+	for _, gate := range before.Gates {
+		if gate.Owner == independent.Owner {
+			foreignGate = gate
+		}
+	}
+	if before.GateRevision != 2 || len(before.Gates) != 2 || foreignGate.Owner == "" {
+		t.Fatal("missing both real pauses before own resume")
+	}
+	resumeBody := func(owner string, expected int64, opID string) string {
+		t.Helper()
+		body, err := json.Marshal(cp.ResumeRequest{Binding: source.Binding, AuthIndex: source.AuthIndex, SourceVersion: source.SourceVersion, ExpectedGeneration: &expected, Owner: owner, OpID: opID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(body)
+	}
+	opID := uuid.NewString()
+	body := resumeBody(saved.Owner, generation, opID)
+	stale := resumeBody(saved.Owner, saved.Generation, opID)
+	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", body, "")
 	testutil.RequireStatus(t, rr, 401)
-	request["owner"] = independent.Owner
-	foreign, _ := json.Marshal(request)
-	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", string(foreign), testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 409)
-	request["owner"] = saved.Owner
-	request["expectedGeneration"] = saved.Generation + 1
-	stale, _ := json.Marshal(request)
-	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", string(stale), testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 409)
-	request["expectedGeneration"] = saved.Generation
-	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", string(body), testutil.AdminKey)
+	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", resumeBody(independent.Owner, generation, opID), testutil.AdminKey)
+	requirePolicyError(rr, 409, "identity_changed")
+	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", resumeBody(saved.Owner, generation+1, opID), testutil.AdminKey)
+	requirePolicyError(rr, 409, "policy_generation_conflict")
+	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", stale, testutil.AdminKey)
+	requirePolicyError(rr, 409, "policy_generation_conflict")
+	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", body, testutil.AdminKey)
 	testutil.RequireStatus(t, rr, 200)
 	var resumed cp.Status
 	testutil.DecodeJSON(t, rr, &resumed)
@@ -318,47 +399,99 @@ func TestCredentialGateActualOwnResumePreservesOtherOwnerAndHistoricalOff(t *tes
 		t.Fatal(err)
 	}
 	db = testutil.NewStore(t, cfg)
-	h = New(cfg, db, collector.NewManager(cfg, db)).Handler()
-	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", string(body), testutil.AdminKey)
+	manager := New(cfg, db, collector.NewManager(cfg, db))
+	h = manager.Handler()
+	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", body, testutil.AdminKey)
 	testutil.RequireStatus(t, rr, 200)
 	testutil.DecodeJSON(t, rr, &resumed)
-	if resumed.Enabled || resumed.Generation != saved.Generation || !resumed.Applied || resumed.Operation == nil || resumed.Operation.Action != "clear" || !resumed.Operation.CurrentApplied || !resumed.Operation.ReceiptConfirmed {
+	if !resumed.Enabled || resumed.Generation != generation || !resumed.Applied || resumed.Operation == nil || resumed.Operation.PolicyGeneration != generation || resumed.Operation.Action != "clear" || !resumed.Operation.CurrentApplied || !resumed.Operation.ReceiptConfirmed {
 		t.Fatalf("own resume lacked actual current ACK/readback or changed stored intent: %s", rr.Body.String())
 	}
-	req, _ := http.NewRequest("GET", base+"/v8/management/inference-gates", nil)
-	req.Header.Set("Authorization", "Bearer test-password")
-	response, err := http.DefaultClient.Do(req)
+	if gates := readGates(); gates.GateRevision != 3 || len(gates.Gates) != 1 || !reflect.DeepEqual(gates.Gates[0], foreignGate) {
+		t.Fatal("own resume cleared or changed the other owner's pause")
+	}
+	// The old generation cannot replay even after the same opId has a receipt.
+	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", stale, testutil.AdminKey)
+	requirePolicyError(rr, 409, "policy_generation_conflict")
+	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", body, testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	testutil.DecodeJSON(t, rr, &resumed)
+	if !resumed.Applied || resumed.Operation == nil || resumed.Operation.OpID != opID || resumed.Operation.GateRevision != 3 {
+		t.Fatal("idempotent resume replay changed receipt")
+	}
+	rr = testutil.Request(t, h2, "POST", "/usage-service/credential-policy/resume", resumeBody(independent.Owner, independent.Generation+1, uuid.NewString()), testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	testutil.DecodeJSON(t, rr, &resumed)
+	if !resumed.Applied || resumed.Operation == nil || resumed.Operation.GateRevision != 4 || !resumed.Enabled || resumed.Generation != independent.Generation+1 {
+		t.Fatal("second DB could not clear only its own restriction without changing backfilled intent")
+	}
+	requireManualDisabled := func() {
+		t.Helper()
+		rr := testutil.Request(t, h, "GET", "/usage-service/credential-quota", "", testutil.AdminKey)
+		testutil.RequireStatus(t, rr, 200)
+		var inventory struct {
+			Sources []cq.Source `json:"sources"`
+		}
+		testutil.DecodeJSON(t, rr, &inventory)
+		for _, s := range inventory.Sources {
+			if s.AuthIndex == source.AuthIndex && s.SourceVersion == source.SourceVersion {
+				if !s.ManualDisabled {
+					t.Fatal("clearing an automatic pause changed manualDisabled")
+				}
+				return
+			}
+		}
+		t.Fatal("manually disabled credential missing after clear")
+	}
+	requireManualDisabled()
+
+	// Now prove the automatic clear too, independently of explicit resume. Use
+	// the real Manager start/completion path, with no plugin or provider access.
+	pauseOwner(saved.Owner, 4)
+	app := manager.AppContext()
+	completed := make(chan fr.CompletedObservation, 1)
+	app.FullRefreshService.Subscribe(func(_ context.Context, event fr.CompletedObservation) { completed <- event })
+	rr = testutil.Request(t, h, "GET", "/usage-service/credential-quota?authIndex="+source.AuthIndex, "", testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var current cq.Status
+	testutil.DecodeJSON(t, rr, &current)
+	query, err := json.Marshal(cq.Query{Binding: current.Binding, AuthIndex: current.AuthIndex, SourceID: current.SourceID, SubjectID: current.SubjectID, SourceVersion: current.SourceVersion, Version: current.Version})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var gates cp.GateSnapshot
-	err = json.NewDecoder(response.Body).Decode(&gates)
-	response.Body.Close()
-	if err != nil || gates.GateRevision != 3 || len(gates.Gates) != 1 || gates.Gates[0].Owner != independent.Owner {
-		t.Fatal("own resume cleared another owner or readback changed")
-	}
-	rr = testutil.Request(t, h, "POST", "/usage-service/credential-policy/resume", string(body), testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 200)
-	testutil.DecodeJSON(t, rr, &resumed)
-	if !resumed.Applied || resumed.Operation.OpID != request["opId"] || resumed.Operation.GateRevision != 3 {
-		t.Fatal("idempotent resume replay changed receipt")
-	}
-	request["owner"] = independent.Owner
-	request["opId"] = uuid.NewString()
-	request["expectedGeneration"] = independent.Generation
-	secondBody, _ := json.Marshal(request)
-	rr = testutil.Request(t, h2, "POST", "/usage-service/credential-policy/resume", string(secondBody), testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 200)
-	testutil.DecodeJSON(t, rr, &resumed)
-	if !resumed.Applied || resumed.Operation.GateRevision != 4 || resumed.Enabled {
-		t.Fatal("second DB could not clear only its own restriction")
-	}
-	rr = testutil.Request(t, h, "GET", "/usage-service/credential-quota", "", testutil.AdminKey)
-	testutil.RequireStatus(t, rr, 200)
-	testutil.DecodeJSON(t, rr, &sources)
-	for _, s := range sources.Sources {
-		if s.AuthIndex == source.AuthIndex && !s.ManualDisabled {
-			t.Fatal("own management resume changed manualDisabled")
+	rr = testutil.Request(t, h, "POST", "/usage-service/credential-quota", string(query), testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 202)
+	var job cq.Job
+	testutil.DecodeJSON(t, rr, &job)
+	select {
+	case event := <-completed:
+		if event.AttemptID != job.ID || event.Credential == nil || event.Credential.Stale || event.Credential.Attempt == nil || event.Credential.Attempt.QueryStatus != "success" {
+			t.Fatalf("controlled quota query did not complete successfully: %+v", event)
 		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("missing quota completion for automatic recovery")
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := app.CredentialPolicyService.ProcessCompletions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.CredentialPolicyService.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	rr = testutil.Request(t, h, "GET", "/usage-service/credential-policy?authIndex="+source.AuthIndex, "", testutil.AdminKey)
+	testutil.RequireStatus(t, rr, 200)
+	var recovered cp.Status
+	testutil.DecodeJSON(t, rr, &recovered)
+	if !recovered.Enabled || recovered.Generation != generation || !recovered.Applied || recovered.Operation == nil || recovered.Operation.Action != "clear" || !recovered.Operation.ReceiptConfirmed || !recovered.Operation.CurrentApplied || recovered.Operation.GateRevision != 6 {
+		t.Fatalf("automatic clear not confirmed under backfilled intent: %s", rr.Body.String())
+	}
+	record, err := db.CredentialPolicyOperation(ctx, recovered.Operation.OpID)
+	if err != nil || !record.Automatic || record.Generation != generation {
+		t.Fatalf("recovery did not come from an automatic operation: automatic=%v generation=%d err=%v", record.Automatic, record.Generation, err)
+	}
+	if gates := readGates(); gates.GateRevision != 6 || len(gates.Gates) != 0 {
+		t.Fatalf("expected no automatic pause after recovery: revision=%d gates=%d", gates.GateRevision, len(gates.Gates))
+	}
+	requireManualDisabled()
 }
