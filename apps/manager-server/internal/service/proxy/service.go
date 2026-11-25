@@ -93,10 +93,11 @@ type authFileWriteMutation struct {
 const cpaPluginResourcePrefix = "/v0/resource/plugins"
 const cpaManagementPrefix = "/v0/management"
 
-// cpaV8APIKeysConfigPath is the only CPA v8 management subtree Manager Server
-// forwards. Other v8 routes stay unreachable because the auth-file and config
-// mutation guards in this package only recognize their v0 paths.
+// Manager forwards a limited set of v8 routes. Other v8 routes stay
+// unreachable because the auth-file and config mutation guards in this package
+// only recognize their v0 paths.
 const cpaV8APIKeysConfigPath = "/v8/management/config/api-keys"
+const cpaV8CodexReauthPath = "/v8/management/oauth/auth-url"
 const codexInviteOriginHeader = "X-Codex-Invite-Origin"
 const managementOriginJSONField = "management_origin"
 const authFilePhysicalNameHeader = "X-CPAMP-Auth-File-Physical-Name"
@@ -208,6 +209,31 @@ func (s *Service) ProxyV8APIKeysConfig(w http.ResponseWriter, r *http.Request, w
 	}
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
+		return
+	}
+	s.proxyToSavedSetup(w, r, writeError, true, false)
+}
+
+// ProxyV8CodexReauth forwards only the panel's targeted Codex web
+// reauthentication start request, so Core resolves the selected credential.
+func (s *Service) ProxyV8CodexReauth(w http.ResponseWriter, r *http.Request, writeError func(http.ResponseWriter, int, error), methodNotAllowed func(http.ResponseWriter)) {
+	if !IsCPAV8CodexReauthPath(r.URL.Path) || !isCanonicalRequestPath(r.URL) {
+		writeError(w, http.StatusNotFound, errors.New("unknown Codex reauthentication path"))
+		return
+	}
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	params, err := url.ParseQuery(r.URL.RawQuery)
+	provider, webUI := params["provider"], params["is_webui"]
+	selector := params["auth_index"]
+	if len(selector) == 0 {
+		selector = params["name"]
+	}
+	if err != nil || len(params) != 3 || len(provider) != 1 || provider[0] != "codex" ||
+		len(webUI) != 1 || webUI[0] != "true" || len(selector) != 1 || strings.TrimSpace(selector[0]) == "" {
+		writeError(w, http.StatusBadRequest, errors.New("Codex reauthentication requires one credential selector"))
 		return
 	}
 	s.proxyToSavedSetup(w, r, writeError, true, false)
@@ -1638,6 +1664,12 @@ func IsCPAPluginResourcePath(path string) bool {
 // segment boundary, so siblings such as /config/api-keys-x are excluded.
 func IsCPAV8APIKeysConfigPath(path string) bool {
 	return path == cpaV8APIKeysConfigPath || strings.HasPrefix(path, cpaV8APIKeysConfigPath+"/")
+}
+
+// IsCPAV8CodexReauthPath matches only the exact OAuth start path. Siblings such
+// as /oauth/status and trailing-slash aliases stay unreachable.
+func IsCPAV8CodexReauthPath(path string) bool {
+	return path == cpaV8CodexReauthPath
 }
 
 // isCanonicalRequestPath rejects percent-encoded or dot-segment paths. The

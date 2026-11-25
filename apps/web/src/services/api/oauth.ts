@@ -44,7 +44,24 @@ export interface OAuthCancelResponse {
   cancelled: boolean;
 }
 
+/**
+ * Polled completion state for a Web-driven OAuth session. Core reports the
+ * targeted credential it saved and whether it was adopted as the credential
+ * that started the session, so the panel never has to infer adoption from the
+ * mere presence of a fresh OAuth result.
+ */
+export interface OAuthAuthStatusResponse {
+  status: 'ok' | 'wait' | 'error';
+  error?: string;
+  auth_id?: string;
+  saved?: boolean;
+  adopted?: boolean;
+  adoption_error?: string;
+}
+
 const WEBUI_SUPPORTED: string[] = ['codex', 'anthropic', 'antigravity', 'xai', 'devin'];
+
+type CodexReauthSelector = { authIndex: string } | { name: string };
 
 export const oauthApi = {
   startAuth: (provider: OAuthProvider, requestScope?: ApiClientRequestScope) => {
@@ -56,6 +73,32 @@ export const oauthApi = {
       ...(requestScope ? createScopedApiRequestConfig(requestScope) : {}),
       params: Object.keys(params).length ? params : undefined,
     });
+  },
+
+  /**
+   * Start a targeted Codex reauthentication on the selected credential.
+   *
+   * This intentionally has no add-login fallback: when Core cannot target the
+   * selected credential (stale, missing or unconfirmed) it must fail instead of
+   * publishing a second credential through `/codex-auth-url`.
+   */
+  startCodexReauth: async (
+    selector: CodexReauthSelector,
+    requestScope?: ApiClientRequestScope
+  ): Promise<OAuthStartResponse & { target_auth_id: string }> => {
+    const params = new URLSearchParams({ provider: 'codex', is_webui: 'true' });
+    const usesAuthIndex = 'authIndex' in selector;
+    const value = (usesAuthIndex ? selector.authIndex : selector.name).trim();
+    if (!value) throw new Error('Missing target credential');
+    params.set(usesAuthIndex ? 'auth_index' : 'name', value);
+    const response = await apiClient.getV8<OAuthStartResponse & { target_auth_id?: string }>(
+      `/oauth/auth-url?${params.toString()}`,
+      requestScope
+    );
+    const targetAuthId =
+      typeof response?.target_auth_id === 'string' ? response.target_auth_id.trim() : '';
+    if (!targetAuthId) throw new Error('Core did not confirm the target credential');
+    return { ...response, target_auth_id: targetAuthId };
   },
 
   submitPluginCredential: async (
@@ -89,7 +132,7 @@ export const oauthApi = {
   },
 
   getAuthStatus: (state: string, requestScope?: ApiClientRequestScope) =>
-    apiClient.get<{ status: 'ok' | 'wait' | 'error'; error?: string }>(`/get-auth-status`, {
+    apiClient.get<OAuthAuthStatusResponse>(`/get-auth-status`, {
       ...(requestScope ? createScopedApiRequestConfig(requestScope) : {}),
       params: { state },
     }),

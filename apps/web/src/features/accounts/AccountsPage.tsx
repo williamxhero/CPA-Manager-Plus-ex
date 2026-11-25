@@ -47,7 +47,6 @@ import {
   IconPlus,
   IconPin,
   IconRefreshCw,
-  IconRecycle,
   IconRotateCcw,
   IconSearch,
   IconSettings,
@@ -55,6 +54,7 @@ import {
   IconSlidersHorizontal,
   IconTrash2,
   IconTrendingUp,
+  IconUserRound,
   IconX,
 } from '@/components/ui/icons';
 import {
@@ -3615,6 +3615,88 @@ function AccountsPageInner({
     [buildCurrentCredentialEvidenceBoundary, files, setCredentialEvidenceBoundaries]
   );
 
+  // Adoption is only complete once Core's current quota descriptor for the
+  // adopted credential authorizes the host query. The pre-login generation, a
+  // cached policy subject or a stale inventory revision never does.
+  const refreshHostCredentialQuota = useCallback(
+    async (authIndex: string): Promise<void> => {
+      const base = featureAvailability.managerServiceBase;
+      if (!base || !authIndex) throw new Error('current_credential_source_unavailable');
+      const isCurrent = () =>
+        isMountedRef.current &&
+        activeCredentialEvidenceScopeKeyRef.current === credentialEvidenceScopeKey;
+
+      const quota = await credentialQuotaRequest<CredentialQuotaStatus>(
+        base,
+        managementKey,
+        'GET',
+        `?authIndex=${encodeURIComponent(authIndex)}`
+      );
+      if (!isCurrent()) return;
+      if (
+        (quota.auth_index !== undefined && quota.auth_index !== authIndex) ||
+        !quota.scope ||
+        !quota.targets ||
+        !quota.sourceId
+      ) {
+        throw new Error('identity_or_source_changed');
+      }
+      await refreshCredentialSource(base, managementKey, {
+        scope: quota.scope,
+        targets: quota.targets,
+        authIndex: quota.auth_index ?? authIndex,
+        sourceId: quota.sourceId,
+        subjectId: quota.subjectId,
+        queryVersion: quota.queryVersion ?? quota.version,
+        sourceVersion: quota.sourceVersion,
+      });
+      if (isCurrent()) setCredentialListRevision((value) => value + 1);
+    },
+    [credentialEvidenceScopeKey, featureAvailability.managerServiceBase, managementKey]
+  );
+
+  // Core-direct (lightweight) connections have no host quota descriptor; the
+  // adopted credential is refreshed through the same scoped provider read the
+  // row refresh uses, fenced by the same request generation.
+  const refreshCoreDirectCredentialQuota = useCallback(
+    async (file: AuthFileItem): Promise<void> => {
+      const isCurrent = () =>
+        isMountedRef.current &&
+        activeCredentialEvidenceScopeKeyRef.current === credentialEvidenceScopeKey;
+      if (!isCurrent()) return;
+      const storeKey = CODEX_SUMMARY_CONFIG.getStoreKey?.(file) ?? file.name;
+      // The request generation gate alone is not a connection guard: the store
+      // write happens inside refreshQuotaWithConfig, so both must hold.
+      const requestGate = beginAccountQuotaRequest(
+        quotaRequestVersionsRef.current,
+        `${CODEX_CONFIG.type}:${storeKey}`
+      );
+      const result = await refreshQuotaWithConfig({
+        config: CODEX_SUMMARY_CONFIG,
+        file,
+        setQuota: setCodexQuota,
+        t,
+        isCurrent: () => isCurrent() && requestGate(),
+        requestScope: authFilesRequestScope,
+        // Read the live store so the adoption evidence written earlier in this
+        // tick is the current state, not the render-time snapshot.
+        currentState: getScopedQuotaState(
+          CODEX_CONFIG,
+          useQuotaStore.getState().codexQuota,
+          file
+        ),
+      });
+      if (!isCurrent()) return;
+      // A null result means a newer request for this credential superseded the
+      // follow-up; that is not a quota failure.
+      if (!result) return;
+      if (result.status !== 'success') {
+        throw new Error(result.error || 'common_refresh_unavailable');
+      }
+    },
+    [authFilesRequestScope, credentialEvidenceScopeKey, setCodexQuota, t]
+  );
+
   const completeConfirmedAccountDirectReauth = useCallback(
     (
       baseline: AccountDirectReauthBaseline,
@@ -3650,11 +3732,51 @@ function AccountsPageInner({
         kind: 'reauth',
         credentialIdentity: getAuthFileSelectionKey(confirmedFile),
       });
+
+      // Quota for the adopted credential is a separate follow-up: a quota
+      // failure must not turn a confirmed reauthentication into an OAuth
+      // failure, and a result belonging to a superseded connection is dropped.
+      const quotaScopeKey = credentialEvidenceScopeKey;
+      const isQuotaContextCurrent = () =>
+        isMountedRef.current && activeCredentialEvidenceScopeKeyRef.current === quotaScopeKey;
+      const reportQuotaFailure = (error: unknown) => {
+        if (!isQuotaContextCurrent()) return;
+        const rawName = String(confirmedFile.label || confirmedFile.name);
+        showNotification(
+          t('accounts.quota_refresh_failed', {
+            name: accountDisplayMode === 'full' ? rawName : maskQuotaAccountText(rawName),
+            message: formatQuotaRefreshErrorMessage(
+              error instanceof Error ? error.message : 'common_refresh_unavailable',
+              t
+            ),
+          }),
+          'warning'
+        );
+      };
+      if (backendCredentialQuota) {
+        const { authIndex } = resolveCredentialIdentity(confirmedFile);
+        if (authIndex) {
+          void refreshHostCredentialQuota(String(authIndex)).catch(reportQuotaFailure);
+        } else {
+          // The adopted credential lost its auth index: the host query has no
+          // subject, so say so instead of silently skipping the follow-up.
+          reportQuotaFailure(new Error('current_credential_source_unavailable'));
+        }
+      } else {
+        void refreshCoreDirectCredentialQuota(confirmedFile).catch(reportQuotaFailure);
+      }
     },
     [
+      accountDisplayMode,
+      backendCredentialQuota,
       captureReloadedCodexOperationalEvidence,
       connectionFingerprint,
+      credentialEvidenceScopeKey,
       invalidateCodexCredentialEvidenceForMatchedFile,
+      refreshCoreDirectCredentialQuota,
+      refreshHostCredentialQuota,
+      showNotification,
+      t,
     ]
   );
 
@@ -6901,31 +7023,7 @@ function AccountsPageInner({
         if (!row.authIndex || !featureAvailability.managerServiceBase)
           return { status: 'error', error: 'current_credential_source_unavailable' };
         const refreshViaCommonChannel = async (): Promise<AccountQuotaRefreshOutcome> => {
-          // Policy subjectId is a local persistence key, not query authority.
-          // Read the public host-issued quota descriptor before common refresh.
-          const quota = await credentialQuotaRequest<CredentialQuotaStatus>(
-            featureAvailability.managerServiceBase!,
-            managementKey,
-            'GET',
-            `?authIndex=${encodeURIComponent(String(row.authIndex))}`
-          );
-          if (
-            (quota.auth_index !== undefined && quota.auth_index !== String(row.authIndex)) ||
-            !quota.scope ||
-            !quota.targets ||
-            !quota.sourceId
-          )
-            return { status: 'error', error: 'identity_or_source_changed' };
-          await refreshCredentialSource(featureAvailability.managerServiceBase!, managementKey, {
-            scope: quota.scope,
-            targets: quota.targets,
-            authIndex: quota.auth_index ?? String(row.authIndex),
-            sourceId: quota.sourceId,
-            subjectId: quota.subjectId,
-            queryVersion: quota.queryVersion ?? quota.version,
-            sourceVersion: quota.sourceVersion,
-          });
-          setCredentialListRevision((value) => value + 1);
+          await refreshHostCredentialQuota(String(row.authIndex));
           return { status: 'success' };
         };
         try {
@@ -7087,8 +7185,8 @@ function AccountsPageInner({
     [
       backendCredentialQuota,
       featureAvailability.managerServiceBase,
-      managementKey,
       invalidateCodexCredentialStatusForSelectionKeys,
+      refreshHostCredentialQuota,
       setAntigravityQuota,
       setClaudeQuota,
       setCodexQuota,
@@ -9152,7 +9250,7 @@ function AccountsPageInner({
           title={t('auth_files.credential_refresh_button')}
           aria-label={t('auth_files.credential_refresh_button')}
         >
-          {!credentialRefreshInProgress ? <IconRecycle size={15} /> : null}
+          {!credentialRefreshInProgress ? <IconUserRound size={15} /> : null}
         </Button>
       ) : null;
     const reauthButton = needsReauth ? (
@@ -10728,7 +10826,7 @@ function AccountsPageInner({
             {
               key: 'refresh-credential',
               label: t('auth_files.credential_refresh_button'),
-              icon: <IconRecycle size={15} />,
+              icon: <IconUserRound size={15} />,
               onClick: () => {
                 handleReauthAccount(selectedRow.raw);
               },

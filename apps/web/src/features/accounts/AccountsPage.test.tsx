@@ -77,7 +77,7 @@ import { AccountModelsTab } from './components/accountDetail/AccountModelsTab';
 import { AccountOverviewTab } from './components/accountDetail/AccountOverviewTab';
 import { AccountQuotaTab } from './components/accountDetail/AccountQuotaTab';
 import { QuotaWindowCard } from './components/QuotaWindowCard';
-import { IconChartLine, IconRefreshCw, IconTrendingUp } from '@/components/ui/icons';
+import { IconChartLine, IconRefreshCw, IconTrendingUp, IconUserRound } from '@/components/ui/icons';
 import {
   formatQuotaResetTimestamp,
   formatQuotaResetDisplay,
@@ -1025,28 +1025,33 @@ vi.mock('@/stores', () => ({
       connectionStatus: 'connected',
       managementKey: mocks.managementKey,
     }),
-  useQuotaStore: (
-    selector: (state: {
-      antigravityQuota: Record<string, never>;
-      claudeQuota: Record<string, never>;
-      codexQuota: Record<string, never>;
-      devinQuota: Record<string, never>;
-      kimiQuota: Record<string, never>;
-      metaQuota: Record<string, never>;
-      opencodeGoQuota: Record<string, never>;
-      qwenQuota: Record<string, never>;
-      xaiQuota: Record<string, never>;
-      setAntigravityQuota: () => void;
-      setClaudeQuota: () => void;
-      setCodexQuota: () => void;
-      setDevinQuota: () => void;
-      setKimiQuota: () => void;
-      setMetaQuota: () => void;
-      setOpencodeGoQuota: () => void;
-      setQwenQuota: () => void;
-      setXaiQuota: () => void;
-    }) => unknown
-  ) => selector(mocks.quotaState as Parameters<typeof selector>[0]),
+  useQuotaStore: Object.assign(
+    (
+      selector: (state: {
+        antigravityQuota: Record<string, never>;
+        claudeQuota: Record<string, never>;
+        codexQuota: Record<string, never>;
+        devinQuota: Record<string, never>;
+        kimiQuota: Record<string, never>;
+        metaQuota: Record<string, never>;
+        opencodeGoQuota: Record<string, never>;
+        qwenQuota: Record<string, never>;
+        xaiQuota: Record<string, never>;
+        setAntigravityQuota: () => void;
+        setClaudeQuota: () => void;
+        setCodexQuota: () => void;
+        setDevinQuota: () => void;
+        setKimiQuota: () => void;
+        setMetaQuota: () => void;
+        setOpencodeGoQuota: () => void;
+        setQwenQuota: () => void;
+        setXaiQuota: () => void;
+      }) => unknown
+    ) => selector(mocks.quotaState as Parameters<typeof selector>[0]),
+    // Mirror the real store's imperative read for callers that need the value
+    // written earlier in the same tick.
+    { getState: () => mocks.quotaState }
+  ),
   useThemeStore: (selector: (state: { resolvedTheme: 'light' | 'dark' }) => unknown) =>
     selector({ resolvedTheme: 'light' }),
 }));
@@ -1484,6 +1489,15 @@ const runCodexReauthSuccessAndCaptureError = async (): Promise<unknown> => {
     }
   });
   return caught;
+};
+
+// Adoption-evidence migration tests assert what the confirmed re-login itself
+// leaves behind. The separate post-adoption quota follow-up is covered by its
+// own tests, so keep its provider read pending here instead of letting a
+// stubbed-empty response rewrite the migrated evidence.
+const runCodexReauthSuccessWithPendingQuotaFollowUp = async (): Promise<unknown> => {
+  vi.spyOn(CODEX_SUMMARY_CONFIG, 'fetchQuota').mockReturnValue(new Promise(() => {}));
+  return runCodexReauthSuccessAndCaptureError();
 };
 
 const runInspectionCodexReauth = async (target: CodexReauthTarget): Promise<void> => {
@@ -2681,7 +2695,7 @@ describe('AccountsPage replacement flows', () => {
       return mocks.files;
     });
 
-    expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+    expect(await runCodexReauthSuccessWithPendingQuotaFollowUp()).toBeUndefined();
     await flushPromises();
 
     const retainedQuota = (mocks.quotaState.codexQuota as Record<string, CodexQuotaState>)[
@@ -2746,7 +2760,7 @@ describe('AccountsPage replacement flows', () => {
       return mocks.files;
     });
 
-    expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+    expect(await runCodexReauthSuccessWithPendingQuotaFollowUp()).toBeUndefined();
     await flushPromises();
 
     const retainedQuota = (mocks.quotaState.codexQuota as Record<string, CodexQuotaState>)[
@@ -2961,7 +2975,7 @@ describe('AccountsPage replacement flows', () => {
       return mocks.files;
     });
 
-    expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+    expect(await runCodexReauthSuccessWithPendingQuotaFollowUp()).toBeUndefined();
     await flushPromises();
 
     expect(mocks.quotaState.codexQuota).not.toHaveProperty(originalStoreKey);
@@ -3028,7 +3042,7 @@ describe('AccountsPage replacement flows', () => {
       return mocks.files;
     });
 
-    expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+    expect(await runCodexReauthSuccessWithPendingQuotaFollowUp()).toBeUndefined();
     await flushPromises();
 
     expect(mocks.quotaState.codexQuota).not.toHaveProperty(originalStoreKey);
@@ -3101,7 +3115,7 @@ describe('AccountsPage replacement flows', () => {
       return mocks.files;
     });
 
-    expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+    expect(await runCodexReauthSuccessWithPendingQuotaFollowUp()).toBeUndefined();
     await flushPromises();
 
     expect(mocks.quotaState.codexQuota).toMatchObject({
@@ -3198,7 +3212,7 @@ describe('AccountsPage replacement flows', () => {
       return mocks.files;
     });
 
-    expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+    expect(await runCodexReauthSuccessWithPendingQuotaFollowUp()).toBeUndefined();
     await flushPromises();
 
     expect(mocks.quotaState.codexQuota).not.toHaveProperty(firstStoreKey);
@@ -4033,6 +4047,7 @@ describe('AccountsPage replacement flows', () => {
     const refreshItem = findDrawerMoreItem(renderer, 'refresh-credential');
 
     expect(refreshItem.label).toBe('auth_files.credential_refresh_button');
+    expect(refreshItem.icon.type).toBe(IconUserRound);
     expect(refreshItem.disabled).toBe(false);
     await act(async () => {
       refreshItem.onClick();
@@ -4057,6 +4072,8 @@ describe('AccountsPage replacement flows', () => {
     );
 
     expect(refreshButton.props.title).toBe('auth_files.credential_refresh_button');
+    expect(refreshButton.findAllByType(IconUserRound)).toHaveLength(1);
+    expect(refreshButton.findAllByType(IconRefreshCw)).toHaveLength(0);
     const quickActions = card.findAll(
       (node) =>
         typeof node.props.className === 'string' &&
@@ -7344,6 +7361,9 @@ describe('AccountsPage replacement flows', () => {
     } as AuthFileItem;
     mocks.files = [first, second];
     installCodexQuotaStoreMutationMock();
+    // The post-adoption quota follow-up is covered by its own tests; keep its
+    // provider read pending so it cannot rewrite the migrated evidence here.
+    vi.spyOn(CODEX_SUMMARY_CONFIG, 'fetchQuota').mockReturnValue(new Promise(() => {}));
     mocks.quotaState.codexQuota = {
       ...buildCredentialScopedQuotaRecord(first, {
         status: 'error',
@@ -7511,7 +7531,7 @@ describe('AccountsPage replacement flows', () => {
       return mocks.files;
     });
 
-    expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+    expect(await runCodexReauthSuccessWithPendingQuotaFollowUp()).toBeUndefined();
     await flushPromises();
     expect(mocks.quotaState.codexQuota).toMatchObject({
       [replacementStoreKey]: expect.objectContaining({
@@ -23387,4 +23407,252 @@ describe('AccountsPage replacement flows', () => {
       expect(direct).not.toHaveBeenCalled();
     }
   );
+
+  const installHostQuotaHarness = ({
+    authIndex,
+    queryVersion,
+    postStatus = 200,
+  }: {
+    authIndex: string;
+    queryVersion: number;
+    postStatus?: number;
+  }) => {
+    const scope = {
+      instance_id: '11111111-1111-4111-8111-111111111111',
+      instance_incarnation: '22222222-2222-4222-8222-222222222222',
+      boot_epoch: '33333333-3333-4333-8333-333333333333',
+      snapshot_revision: 7,
+    };
+    const target = {
+      resource_id: '44444444-4444-4444-8444-444444444444',
+      incarnation: '55555555-5555-4555-8555-555555555555',
+      identity_version: 2,
+      credential_version: 3,
+      config_version: 4,
+      membership_version: 0,
+    };
+    const quota = {
+      scope,
+      targets: [target],
+      auth_index: authIndex,
+      sourceId: 'host-issued-source',
+      subjectId: '66666666-6666-4666-8666-666666666666',
+      sourceVersion: 'host-v1',
+      queryVersion,
+      version: queryVersion,
+    };
+    const source = {
+      kind: 'credential_quota',
+      credential: {
+        scope,
+        targets: [target],
+        auth_index: authIndex,
+        sourceId: quota.sourceId,
+        subjectId: quota.subjectId,
+        sourceVersion: quota.sourceVersion,
+        version: queryVersion,
+      },
+    };
+    installCapabilitiesAdapter(async () => ({
+      ...capabilitySummary(),
+      negotiated: {
+        contractVersion: 1,
+        identity: { state: 'available', reason: 'durable_inventory' },
+        policyLocked: true,
+        independentGate: { state: 'unavailable', reason: 'consumer_contract_unconfigured' },
+        bindingCapability: { state: 'available', reason: 'host_issued_bindings' },
+        snapshot: {
+          version: 1,
+          complete: true,
+          ...scope,
+          resources: [{ ...target, identity: 'valid', catalog_readiness: 'ready' }],
+        },
+        bindings: [
+          { scope, targets: [target], auth_index: authIndex, runtime_alias: target.resource_id },
+        ],
+      },
+    }));
+    const calls: Array<[string, RequestInit | undefined]> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push([url, init]);
+        if (url.includes('/credential-policy?'))
+          return Response.json({ ...quota, subjectId: 'local-policy-hash' });
+        if (url.includes('/credential-quota?')) return Response.json(quota);
+        if (init?.method === 'POST') {
+          if (postStatus !== 200) {
+            return Response.json({ error: 'common_refresh_unavailable' }, { status: postStatus });
+          }
+          return Response.json({ id: 'job', state: 'complete', pending: 0, failed: 0, items: [] });
+        }
+        return Response.json({
+          scope,
+          sources: [
+            {
+              id: 'host',
+              queryCapable: true,
+              request: source,
+              targets: [target],
+              sourceId: quota.sourceId,
+              subjectId: quota.subjectId,
+              queryVersion,
+            },
+          ],
+        });
+      })
+    );
+    return { calls, source, quota };
+  };
+
+  it('refreshes the adopted credential quota on the host subject after a confirmed reauthentication', async () => {
+    const authIndex = '0123456789abcdef';
+    const file = {
+      ...makeCodexFile('bound.json', authIndex, 'bound@example.com'),
+      account_id: 'bound-space',
+      last_refresh: 1_000,
+      modified: 1_100,
+    } as AuthFileItem;
+    mocks.files = [file];
+    const { calls, source } = installHostQuotaHarness({ authIndex, queryVersion: 7 });
+    const renderer = await renderAccountsPage();
+
+    await act(async () => {
+      findAccountCardButtonByAriaLabel(
+        renderer,
+        getAuthFileSelectionKey(file),
+        'auth_files.credential_refresh_button'
+      ).props.onClick();
+    });
+    expect(calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+
+    mocks.loadFiles.mockImplementationOnce(async () => {
+      mocks.files = [{ ...file, last_refresh: 3_000, modified: 3_100 }];
+      return mocks.files;
+    });
+
+    expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+    await flushPromises();
+
+    const posts = calls.filter(([, init]) => init?.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0][0]).toBe('http://manager.local:18317/usage-service/full-refresh');
+    expect(JSON.parse(String(posts[0][1]?.body))).toEqual({ purpose: 'manual', source });
+  });
+
+  it('reports a post-adoption quota failure separately from the confirmed reauthentication', async () => {
+    const authIndex = '0123456789abcdef';
+    const file = {
+      ...makeCodexFile('bound.json', authIndex, 'bound@example.com'),
+      account_id: 'bound-space',
+      last_refresh: 1_000,
+      modified: 1_100,
+    } as AuthFileItem;
+    mocks.files = [file];
+    installHostQuotaHarness({ authIndex, queryVersion: 0, postStatus: 500 });
+    const renderer = await renderAccountsPage();
+
+    await act(async () => {
+      findAccountCardButtonByAriaLabel(
+        renderer,
+        getAuthFileSelectionKey(file),
+        'auth_files.credential_refresh_button'
+      ).props.onClick();
+    });
+    mocks.loadFiles.mockImplementationOnce(async () => {
+      mocks.files = [{ ...file, last_refresh: 3_000, modified: 3_100 }];
+      return mocks.files;
+    });
+
+    expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+    await flushPromises();
+
+    expect(mocks.showNotification).toHaveBeenCalledWith(
+      expect.stringContaining('accounts.quota_refresh_failed'),
+      'warning'
+    );
+    expect(mocks.showNotification).not.toHaveBeenCalledWith('codex_reauth.success', 'warning');
+  });
+
+  it('uses the scoped Core-direct provider read after adoption when no host quota service exists', async () => {
+    const file = {
+      ...makeCodexFile('direct.json', 'auth-direct', 'direct@example.com'),
+      account_id: 'direct-space',
+      last_refresh: 1_000,
+      modified: 1_100,
+    } as AuthFileItem;
+    mocks.files = [file];
+    const summaryFetch = vi
+      .spyOn(CODEX_SUMMARY_CONFIG, 'fetchQuota')
+      .mockResolvedValue(makeCodexQuotaData());
+    const renderer = await renderAccountsPage();
+
+    await act(async () => {
+      findAccountCardButtonByAriaLabel(
+        renderer,
+        getAuthFileSelectionKey(file),
+        'auth_files.credential_refresh_button'
+      ).props.onClick();
+    });
+    summaryFetch.mockClear();
+    mocks.loadFiles.mockImplementationOnce(async () => {
+      mocks.files = [{ ...file, last_refresh: 3_000, modified: 3_100 }];
+      return mocks.files;
+    });
+
+    expect(await runCodexReauthSuccessAndCaptureError()).toBeUndefined();
+    await flushPromises();
+
+    expect(summaryFetch).toHaveBeenCalledTimes(1);
+    expect(summaryFetch.mock.calls[0][0]).toMatchObject({ name: 'direct.json' });
+    expect(summaryFetch.mock.calls[0][2]).toEqual({
+      apiBase: 'http://cpa-a.local:8317',
+      managementKey: 'manager-key',
+    });
+    expect(mocks.showNotification).not.toHaveBeenCalledWith(
+      expect.stringContaining('accounts.quota_refresh_failed'),
+      'warning'
+    );
+  });
+
+  it('does not adopt a reauthentication that landed on another account', async () => {
+    const authIndex = '0123456789abcdef';
+    const file = {
+      ...makeCodexFile('bound.json', authIndex, 'bound@example.com'),
+      account_id: 'bound-space',
+      last_refresh: 1_000,
+      modified: 1_100,
+    } as AuthFileItem;
+    mocks.files = [file];
+    const { calls } = installHostQuotaHarness({ authIndex, queryVersion: 7 });
+    const renderer = await renderAccountsPage();
+
+    await act(async () => {
+      findAccountCardButtonByAriaLabel(
+        renderer,
+        getAuthFileSelectionKey(file),
+        'auth_files.credential_refresh_button'
+      ).props.onClick();
+    });
+    mocks.loadFiles.mockImplementationOnce(async () => {
+      mocks.files = [
+        {
+          ...makeCodexFile('other.json', 'auth-other', 'other@example.com'),
+          account_id: 'other-space',
+          last_refresh: 3_000,
+          modified: 3_100,
+        } as AuthFileItem,
+      ];
+      return mocks.files;
+    });
+
+    expect(await runCodexReauthSuccessAndCaptureError()).toMatchObject({
+      name: 'CodexReauthReconciliationError',
+      code: 'identity_changed',
+    });
+    await flushPromises();
+
+    expect(calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+    expect(mocks.showNotification).not.toHaveBeenCalledWith('codex_reauth.success', 'success');
+  });
 });

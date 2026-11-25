@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/app"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/middleware"
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/response"
 	proxysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/proxy"
 )
@@ -51,6 +52,15 @@ func (h *Handler) V8APIKeysConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.App.ProxyService.ProxyV8APIKeysConfig(w, r, response.Error, response.MethodNotAllowed)
+}
+
+// V8CodexReauth starts a targeted Core OAuth session for a verified Manager
+// admin, using the saved Core binding instead of the caller's credentials.
+func (h *Handler) V8CodexReauth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if middleware.AuthorizeAdmin(w, r, h.App.AdminAuthService) {
+		h.App.ProxyService.ProxyV8CodexReauth(w, r, response.Error, response.MethodNotAllowed)
+	}
 }
 
 func (h *Handler) CPAResource(w http.ResponseWriter, r *http.Request) {

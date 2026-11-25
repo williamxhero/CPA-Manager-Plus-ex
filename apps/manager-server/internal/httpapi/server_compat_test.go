@@ -1526,6 +1526,74 @@ func TestServerCompatV8APIKeysConfigProxy(t *testing.T) {
 	}
 }
 
+func TestServerCompatV8CodexReauthProxy(t *testing.T) {
+	const path = "/v8/management/oauth/auth-url"
+	const validQuery = "provider=codex&is_webui=true&auth_index=0123456789abcdef"
+	cpa := testutil.NewCPAMock(t)
+	setup := &store.Setup{CPAUpstreamURL: cpa.URL(), ManagementKey: "management-key", Queue: "usage", PopSide: "right"}
+	handler, _ := newCompatHandler(t, testutil.NewConfig(t), setup)
+
+	for _, query := range []string{validQuery, "provider=codex&is_webui=true&name=codex-local%2Bplus.json"} {
+		rr := testutil.Request(t, handler, http.MethodGet, path+"?"+query, "", testutil.AdminKey)
+		testutil.RequireStatus(t, rr, http.StatusOK)
+		got, ok := cpa.LastRequest(path)
+		if !ok {
+			t.Fatalf("CPA mock did not receive %s", path)
+		}
+		if got.Method != http.MethodGet || got.Authorization != "Bearer management-key" || got.Query != query {
+			t.Fatalf("%s?%s proxy request = %#v", path, query, got)
+		}
+		if rr.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("OAuth start response could be cached: %v", rr.Header())
+		}
+	}
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		target string
+		key    string
+		want   int
+	}{
+		{name: "missing admin key", method: http.MethodGet, target: path + "?" + validQuery, want: http.StatusUnauthorized},
+		{name: "wrong admin key", method: http.MethodGet, target: path + "?" + validQuery, key: "wrong-key", want: http.StatusUnauthorized},
+		{name: "CPA management key", method: http.MethodGet, target: path + "?" + validQuery, key: "management-key", want: http.StatusUnauthorized},
+		{name: "post", method: http.MethodPost, target: path + "?" + validQuery, key: testutil.AdminKey, want: http.StatusMethodNotAllowed},
+		{name: "head", method: http.MethodHead, target: path + "?" + validQuery, key: testutil.AdminKey, want: http.StatusMethodNotAllowed},
+		{name: "missing selector", method: http.MethodGet, target: path + "?provider=codex&is_webui=true", key: testutil.AdminKey, want: http.StatusBadRequest},
+		{name: "blank name", method: http.MethodGet, target: path + "?provider=codex&is_webui=true&name=%20", key: testutil.AdminKey, want: http.StatusBadRequest},
+		{name: "blank auth index", method: http.MethodGet, target: path + "?provider=codex&is_webui=true&auth_index=", key: testutil.AdminKey, want: http.StatusBadRequest},
+		{name: "duplicate selector", method: http.MethodGet, target: path + "?" + validQuery + "&auth_index=second", key: testutil.AdminKey, want: http.StatusBadRequest},
+		{name: "two selectors", method: http.MethodGet, target: path + "?" + validQuery + "&name=second.json", key: testutil.AdminKey, want: http.StatusBadRequest},
+		{name: "different provider", method: http.MethodGet, target: path + "?provider=anthropic&is_webui=true&name=a.json", key: testutil.AdminKey, want: http.StatusBadRequest},
+		{name: "missing web ui flag", method: http.MethodGet, target: path + "?provider=codex&auth_index=a", key: testutil.AdminKey, want: http.StatusBadRequest},
+		{name: "web ui flag false", method: http.MethodGet, target: path + "?provider=codex&is_webui=false&auth_index=a", key: testutil.AdminKey, want: http.StatusBadRequest},
+		{name: "extra parameter", method: http.MethodGet, target: path + "?" + validQuery + "&verify=true", key: testutil.AdminKey, want: http.StatusBadRequest},
+		{name: "empty query", method: http.MethodGet, target: path, key: testutil.AdminKey, want: http.StatusBadRequest},
+		{name: "trailing slash alias", method: http.MethodGet, target: path + "/?" + validQuery, key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "escaped slash alias", method: http.MethodGet, target: "/v8/management/oauth%2Fauth-url?" + validQuery, key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "encoded dot segments", method: http.MethodGet, target: path + "/%2e%2e/status?" + validQuery, key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "encoded slash dot segments", method: http.MethodGet, target: path + "%2F..%2Fstatus?" + validQuery, key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "sibling oauth operation", method: http.MethodGet, target: "/v8/management/oauth/status?" + validQuery, key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "other v8 route", method: http.MethodGet, target: "/v8/management/credentials/download?name=a.json", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "generic v8 root", method: http.MethodGet, target: "/v8/management/oauth", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "dot segments", method: http.MethodGet, target: path + "/../status?" + validQuery, key: testutil.AdminKey},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := len(cpa.Requests())
+			rr := testutil.Request(t, handler, tc.method, tc.target, "", tc.key)
+			if tc.want != 0 {
+				testutil.RequireStatus(t, rr, tc.want)
+			} else if rr.Code == http.StatusOK {
+				t.Fatalf("%s %s status = 200, body = %s", tc.method, tc.target, rr.Body.String())
+			}
+			if requests := cpa.Requests(); len(requests) != before {
+				t.Fatalf("%s %s reached CPA: %#v", tc.method, tc.target, requests[before:])
+			}
+		})
+	}
+}
+
 func TestServerCompatPluginProxyRoutes(t *testing.T) {
 	type observedRequest struct {
 		method            string

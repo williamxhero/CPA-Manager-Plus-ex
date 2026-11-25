@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     get: vi.fn(),
+    getV8: vi.fn(),
     post: vi.fn(),
     delete: vi.fn(),
     getRaw: vi.fn(),
@@ -13,6 +14,7 @@ const { mocks } = vi.hoisted(() => ({
 vi.mock('./client', () => ({
   apiClient: {
     get: mocks.get,
+    getV8: mocks.getV8,
     post: mocks.post,
     delete: mocks.delete,
     getRaw: mocks.getRaw,
@@ -30,6 +32,7 @@ import { sha256RawTextHex } from '@/utils/apiKeyHash';
 
 beforeEach(() => {
   mocks.get.mockReset();
+  mocks.getV8.mockReset();
   mocks.post.mockReset();
   mocks.delete.mockReset();
   mocks.getRaw.mockReset();
@@ -38,6 +41,66 @@ beforeEach(() => {
 
 describe('oauthApi', () => {
   const requestScope = { apiBase: 'http://cpa.example:8317', managementKey: 'test-key' };
+
+  it('targets the selected auth index on Core v8 and requires a confirmed target', async () => {
+    mocks.getV8.mockResolvedValue({
+      url: 'https://oauth.example/authorize',
+      state: 'test-state',
+      target_auth_id: 'runtime-auth-1',
+    });
+
+    await expect(
+      oauthApi.startCodexReauth({ authIndex: 'auth-1' }, requestScope)
+    ).resolves.toMatchObject({ target_auth_id: 'runtime-auth-1' });
+
+    const [url, scope] = mocks.getV8.mock.calls[0];
+    const parsed = new URL(url, 'https://core.example');
+    expect(parsed.pathname).toBe('/oauth/auth-url');
+    expect(Object.fromEntries(parsed.searchParams)).toEqual({
+      provider: 'codex',
+      is_webui: 'true',
+      auth_index: 'auth-1',
+    });
+    expect(scope).toBe(requestScope);
+    expect(mocks.get).not.toHaveBeenCalled();
+  });
+
+  it('uses the explicit runtime name only when no auth index is selected', async () => {
+    mocks.getV8.mockResolvedValue({
+      url: 'https://oauth.example/authorize',
+      state: 'test-state',
+      target_auth_id: 'runtime-auth-2',
+    });
+
+    await oauthApi.startCodexReauth({ name: 'runtime-auth-2' }, requestScope);
+
+    const parsed = new URL(mocks.getV8.mock.calls[0][0], 'https://core.example');
+    expect(Object.fromEntries(parsed.searchParams)).toEqual({
+      provider: 'codex',
+      is_webui: 'true',
+      name: 'runtime-auth-2',
+    });
+    expect(mocks.get).not.toHaveBeenCalled();
+  });
+
+  it('never falls back to the add-login route when Core does not confirm the target', async () => {
+    mocks.getV8.mockResolvedValue({
+      url: 'https://oauth.example/authorize',
+      state: 'test-state',
+    });
+
+    await expect(
+      oauthApi.startCodexReauth({ authIndex: 'auth-1' }, requestScope)
+    ).rejects.toThrow('Core did not confirm the target credential');
+    expect(mocks.get).not.toHaveBeenCalled();
+    expect(mocks.post).not.toHaveBeenCalled();
+
+    mocks.getV8.mockReset();
+    await expect(oauthApi.startCodexReauth({ authIndex: '  ' }, requestScope)).rejects.toThrow(
+      'Missing target credential'
+    );
+    expect(mocks.getV8).not.toHaveBeenCalled();
+  });
 
   it.each(['cpa-credential-qwen', 'cpa-credential-opencode'])(
     'publishes %s credentials to scoped core file APIs before returning the created label',

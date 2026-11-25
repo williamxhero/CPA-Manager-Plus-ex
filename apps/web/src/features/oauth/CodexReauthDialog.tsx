@@ -34,6 +34,10 @@ type CodexReauthDialogProps = {
 };
 
 const POLL_INTERVAL_MS = 3000;
+// Core reports whether the saved credential was adopted by the session target.
+// Saved-but-not-adopted is a transient state worth a bounded number of polls;
+// it must never collapse into success on its own.
+const ADOPTION_POLL_LIMIT = 20;
 
 type CodexReauthDialogContext = {
   open: boolean;
@@ -88,6 +92,10 @@ export function CodexReauthDialog({
   const successHandledRef = useRef(false);
   const operationGenerationRef = useRef(0);
   const oauthStateRef = useRef('');
+  // Core-confirmed target of the running session. A completion reported for a
+  // different auth id belongs to another credential and is never adopted here.
+  const expectedAuthIdRef = useRef('');
+  const adoptionPollAttemptsRef = useRef(0);
 
   const targetKey = useMemo(
     () =>
@@ -212,7 +220,46 @@ export function CodexReauthDialog({
     ) => {
       if (!isCurrentOperation(operationGeneration, operationContext)) return;
       if (response.status === 'ok') {
-        await markSuccess(operationGeneration, operationContext);
+        const failCompletion = (message: string) => {
+          operationGenerationRef.current += 1;
+          clearPolling();
+          setStatus('error');
+          setError(message);
+          setCallbackSubmitting(false);
+          setCallbackStatus('error');
+          setCallbackError(message);
+          showNotification(message, 'error');
+        };
+        // Core only reports completion for a saved credential. `status: 'ok'`
+        // alone is not adoption evidence: the reported auth id must be the
+        // credential this session targeted, and the credential must be flagged
+        // as saved and adopted. Missing or contradictory fields fail closed.
+        const reportedAuthId =
+          typeof response.auth_id === 'string' ? response.auth_id.trim() : '';
+        const expectedAuthId = expectedAuthIdRef.current;
+        if (response.adoption_error) {
+          failCompletion(response.adoption_error);
+          return;
+        }
+        if (!expectedAuthId) {
+          failCompletion(t('codex_reauth.identity_unconfirmed'));
+          return;
+        }
+        if (!reportedAuthId || reportedAuthId !== expectedAuthId) {
+          failCompletion(t('codex_reauth.target_mismatch'));
+          return;
+        }
+        if (response.saved === true && response.adopted === true) {
+          await markSuccess(operationGeneration, operationContext);
+          return;
+        }
+        if (response.saved === true && response.adopted === false) {
+          // Saved without adoption is transient. Wait a bounded number of polls
+          // instead of reporting a re-login the original credential never saw.
+          adoptionPollAttemptsRef.current += 1;
+          if (adoptionPollAttemptsRef.current < ADOPTION_POLL_LIMIT) return;
+        }
+        failCompletion(t('codex_reauth.identity_unconfirmed'));
         return;
       }
       if (response.status === 'error') {
@@ -259,6 +306,8 @@ export function CodexReauthDialog({
       clearPolling();
       successHandledRef.current = false;
       oauthStateRef.current = '';
+      expectedAuthIdRef.current = '';
+      adoptionPollAttemptsRef.current = 0;
       setAuthUrl('');
       setStatus('loading');
       setError('');
@@ -269,8 +318,40 @@ export function CodexReauthDialog({
       setCopiedTarget(null);
       setLinkRefreshed(false);
       try {
-        const response = await oauthApi.startAuth('codex', requestScope);
-        if (!isCurrentOperation(operationGeneration, operationContext)) return;
+        // Targeted reauthentication only. auth_index identifies the selected
+        // runtime credential; the name fallback is the explicit runtime id and
+        // never a generic add-login request.
+        const authIndex = String(target?.authIndex ?? '').trim();
+        const runtimeId = String(target?.runtimeId ?? '').trim();
+        if (!authIndex && !runtimeId) {
+          throw new Error(t('codex_reauth.identity_unconfirmed'));
+        }
+        const response = await oauthApi.startCodexReauth(
+          authIndex ? { authIndex } : { name: runtimeId },
+          requestScope
+        );
+        const confirmedAuthId = response.target_auth_id;
+        const isCurrent = isCurrentOperation(operationGeneration, operationContext);
+        if (!isCurrent || (runtimeId && confirmedAuthId !== runtimeId)) {
+          // Drop stale or mismatched sessions in their original scope without
+          // publishing the link or changing the active operation's identity.
+          if (response.state) {
+            const state = response.state;
+            void (async () => {
+              try {
+                await oauthApi.cancelSession(state, requestScope);
+              } catch {
+                // Best effort: the session expires on its own.
+              }
+            })();
+          }
+          if (!isCurrent) return;
+          const message = t('codex_reauth.target_mismatch');
+          setStatus('error');
+          setError(message);
+          showNotification(message, 'error');
+          return;
+        }
         if (!response.state) {
           const message = t('codex_reauth.missing_state');
           setAuthUrl(response.url);
@@ -279,6 +360,7 @@ export function CodexReauthDialog({
           showNotification(message, 'error');
           return;
         }
+        expectedAuthIdRef.current = confirmedAuthId;
         setAuthUrl(response.url);
         oauthStateRef.current = response.state;
         setStatus('waiting');
@@ -302,6 +384,8 @@ export function CodexReauthDialog({
       showTemporaryFeedback,
       startPolling,
       t,
+      target?.authIndex,
+      target?.runtimeId,
     ]
   );
   const loadAuthLinkRef = useRef(loadAuthLink);
