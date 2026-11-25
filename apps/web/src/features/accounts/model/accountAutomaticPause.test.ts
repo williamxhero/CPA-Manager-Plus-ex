@@ -142,6 +142,100 @@ describe('buildAccountAutomaticPausePresentation', () => {
     });
   });
 
+  it('never reads a confirmed clear as an applied pause', () => {
+    const presentation = buildAccountAutomaticPausePresentation({
+      kind: 'ready',
+      status: makeStatus({
+        applied: true,
+        operation: {
+          reason: 'current_gate_confirmed',
+          action: 'clear',
+          currentApplied: true,
+        } as never,
+      }),
+    });
+    expect(presentation.state).toBe('active');
+    expect(presentation.hintKey).toBe('accounts.detail_overview_auto_pause_active_hint');
+    expect(presentation.stateLabelKey).not.toBe(
+      'accounts.detail_overview_auto_pause_state_paused'
+    );
+  });
+
+  it('never claims protection from an unapplied intent', () => {
+    const presentation = buildAccountAutomaticPausePresentation({
+      kind: 'ready',
+      status: makeStatus({
+        enabled: true,
+        applied: false,
+        operation: {
+          reason: 'current_gate_unverified',
+          action: 'pause',
+          currentApplied: false,
+        } as never,
+      }),
+    });
+    expect(presentation.state).toBe('active');
+    expect(presentation.fields.map((field) => field.value)).not.toContain(
+      'accounts.detail_overview_auto_pause_state_paused'
+    );
+  });
+
+  it('names an always-on credential that has no separate policy record', () => {
+    const presentation = buildAccountAutomaticPausePresentation({
+      kind: 'ready',
+      status: makeStatus({
+        reason: '',
+        legacyMigration: { state: 'default_off', reason: 'no_proven_per_subject_legacy_intent' },
+      }),
+    });
+    expect(presentation.state).toBe('no_record');
+    expect(presentation.stateLabelKey).toBe('accounts.detail_overview_auto_pause_state_no_record');
+    expect(presentation.hintKey).toBe('accounts.detail_overview_auto_pause_no_record_hint');
+    expect(fieldByKey(presentation, 'automaticPauseState')).toMatchObject({
+      value: 'accounts.detail_overview_auto_pause_state_no_record',
+      valueKind: 'i18n',
+    });
+    expect(fieldByKey(presentation, 'automaticPauseReason')).toMatchObject({
+      value: 'accounts.auto_pause_reason_no_policy_record',
+      valueKind: 'i18n',
+    });
+  });
+
+  it('still reports a real pause for a credential without a policy record', () => {
+    const presentation = buildAccountAutomaticPausePresentation({
+      kind: 'ready',
+      status: makeStatus({
+        applied: true,
+        legacyMigration: { state: 'default_off', reason: 'no_proven_per_subject_legacy_intent' },
+        operation: {
+          reason: 'current_gate_confirmed',
+          action: 'pause',
+          currentApplied: true,
+        } as never,
+      }),
+    });
+    expect(presentation.state).toBe('paused');
+    expect(fieldByKey(presentation, 'automaticPauseReason')).toMatchObject({
+      value: 'accounts.auto_pause_reason_current_gate_confirmed',
+      valueKind: 'i18n',
+    });
+  });
+
+  it('keeps an unreadable capability ahead of the no-record wording', () => {
+    const presentation = buildAccountAutomaticPausePresentation({
+      kind: 'ready',
+      status: makeStatus({
+        availability: { state: 'unavailable', reason: 'gate_core_unavailable' },
+        legacyMigration: { state: 'default_off', reason: 'no_proven_per_subject_legacy_intent' },
+      }),
+    });
+    expect(presentation.state).toBe('no_record');
+    expect(fieldByKey(presentation, 'automaticPauseReason')).toMatchObject({
+      value: 'accounts.auto_pause_reason_gate_core_unavailable',
+      valueKind: 'i18n',
+    });
+  });
+
   it('falls back to the raw reason when the code is unknown', () => {
     const presentation = buildAccountAutomaticPausePresentation({
       kind: 'ready',
@@ -220,6 +314,19 @@ describe('account automatic pause i18n keys', () => {
       buildAccountAutomaticPausePresentation({ kind: 'missing' }),
       buildAccountAutomaticPausePresentation({
         kind: 'ready',
+        status: makeStatus({
+          legacyMigration: { state: 'default_off', reason: 'no_proven_per_subject_legacy_intent' },
+        }),
+      }),
+      buildAccountAutomaticPausePresentation({
+        kind: 'ready',
+        status: makeStatus({
+          applied: true,
+          operation: { reason: 'current_gate_confirmed', action: 'clear', currentApplied: true } as never,
+        }),
+      }),
+      buildAccountAutomaticPausePresentation({
+        kind: 'ready',
         status: makeStatus({ availability: { state: 'unavailable', reason: 'gate_future_reason' } }),
       }),
     ];
@@ -229,6 +336,7 @@ describe('account automatic pause i18n keys', () => {
       'accounts.detail_overview_auto_pause_paused_hint',
       'accounts.detail_overview_auto_pause_unavailable_hint',
       'accounts.detail_overview_auto_pause_reading_hint',
+      'accounts.detail_overview_auto_pause_no_record_hint',
     ]);
     for (const presentation of presentations) {
       rendered.add(presentation.stateLabelKey);

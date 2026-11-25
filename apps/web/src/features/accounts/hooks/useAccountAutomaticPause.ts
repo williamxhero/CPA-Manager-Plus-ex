@@ -1,47 +1,56 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getCredentialPolicy } from '@/services/api/credentialPolicy';
 import type { AccountAutomaticPauseRead } from '../model/accountAutomaticPause';
 
-type ReadView = { identity: string; read: AccountAutomaticPauseRead };
+type ReadEntry = { scope: string; read: AccountAutomaticPauseRead };
 
-const ReadCacheContext = createContext<Map<string, AccountAutomaticPauseRead> | null>(null);
+const readScope = (
+  base: string | undefined,
+  managementKey: string | undefined,
+  authIndex: string | undefined,
+  openToken: number
+): string =>
+  base && managementKey && authIndex
+    ? JSON.stringify([base, managementKey, authIndex, openToken])
+    : '';
 
-/** Supplies the per-page policy read cache; without it every mount reads again. */
-export const AccountAutomaticPauseReadCache = ReadCacheContext.Provider;
-
+/**
+ * The detail drawer owns one credential-policy read per open.
+ *
+ * `openToken` identifies the open: a new open reads once, and every tab switch
+ * inside that same open keeps the answer it already has. When the drawer closes
+ * the request is aborted and the answer dropped, so reopening reads again
+ * instead of showing a previous open's stale result, and a changed credential
+ * behind the same auth index can never inherit the old one.
+ */
 export function useAccountAutomaticPause(
   base: string | undefined,
   managementKey: string | undefined,
-  authIndex: string | undefined
+  authIndex: string | undefined,
+  openToken: number
 ): AccountAutomaticPauseRead {
-  const cache = useContext(ReadCacheContext);
-  const [view, setView] = useState<ReadView | null>(null);
-  const identity = useMemo(
-    () => (base && managementKey && authIndex ? JSON.stringify([base, managementKey, authIndex]) : ''),
-    [base, managementKey, authIndex]
-  );
-  const cached = identity ? cache?.get(identity) : undefined;
+  const scope = readScope(base, managementKey, authIndex, openToken);
+  const [entry, setEntry] = useState<ReadEntry | null>(null);
 
   useEffect(() => {
-    if (!base || !managementKey || !authIndex) return;
-    if (cache?.has(identity)) return;
+    if (!base || !managementKey || !authIndex || !scope) return;
     let active = true;
     const controller = new AbortController();
-    const settle = (read: AccountAutomaticPauseRead) => {
-      if (!active) return;
-      cache?.set(identity, read);
-      setView({ identity, read });
-    };
-    getCredentialPolicy(base, managementKey, authIndex, controller.signal)
-      .then((status) => settle({ kind: 'ready', status }))
-      .catch(() => settle({ kind: 'failed' }));
+    getCredentialPolicy(base, managementKey, authIndex, controller.signal).then(
+      (status) => {
+        if (active) setEntry({ scope, read: { kind: 'ready', status } });
+      },
+      () => {
+        if (active) setEntry({ scope, read: { kind: 'failed' } });
+      }
+    );
     return () => {
       active = false;
       controller.abort();
     };
-  }, [base, managementKey, authIndex, identity, cache]);
+  }, [authIndex, base, managementKey, scope]);
 
-  if (!identity) return { kind: 'missing' };
-  const settled = cached ?? (view?.identity === identity ? view.read : undefined);
-  return settled ?? { kind: 'reading' };
+  if (!scope) return { kind: 'missing' };
+  if (entry && entry.scope === scope) return entry.read;
+  return { kind: 'reading' };
 }

@@ -248,6 +248,18 @@ func (f *nativeAdmissionFixture) enableAB() {
 		src := f.sources[name]
 		generation := int64(0)
 		enabled := name == "A"
+		if !enabled {
+			// Automatic pause is always on, so a disable write is refused. B keeps
+			// no stored intent at all instead of acquiring a durable OFF record.
+			var disabled struct {
+				Error string `json:"error"`
+			}
+			f.api("PUT", "/usage-service/credential-policy", cp.Update{Binding: src.Binding, AuthIndex: src.AuthIndex, SourceVersion: src.SourceVersion, ExpectedGeneration: &generation, Enabled: &enabled}, 400, &disabled)
+			if disabled.Error != "automatic_pause_always_on" {
+				t.Fatalf("%s disable intent was not refused: %+v", name, disabled)
+			}
+			continue
+		}
 		var saved cp.Status
 		f.api("PUT", "/usage-service/credential-policy", cp.Update{Binding: src.Binding, AuthIndex: src.AuthIndex, SourceVersion: src.SourceVersion, ExpectedGeneration: &generation, Enabled: &enabled}, 200, &saved)
 		if saved.Enabled != enabled || saved.Generation != 1 {

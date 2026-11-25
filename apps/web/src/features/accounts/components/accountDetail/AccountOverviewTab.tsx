@@ -28,6 +28,7 @@ import type {
 } from '@/features/usage-analytics/usageAnalyticsPresentation';
 import { statusBarDataFromRecentRequests } from '@/utils/recentRequests';
 import { AccountAutomaticPauseSection } from './AccountAutomaticPauseSection';
+import type { AccountAutomaticPauseRead } from '@/features/accounts/model/accountAutomaticPause';
 import { AccountDetailFieldValue } from './AccountDetailFieldList';
 import { AccountOverviewFieldGrid } from './AccountOverviewFieldGrid';
 import styles from '@/features/accounts/AccountsPage.module.scss';
@@ -36,9 +37,7 @@ interface AccountOverviewTabProps {
   detailView: AccountDetailViewModel;
   getHealthStatusClass: (status: AccountListHealthStatusKey) => string;
   onSelectTab: (tab: AccountDetailOverviewTargetTab) => void;
-  managerServiceBase?: string;
-  managementKey?: string;
-  credentialAuthIndex?: string;
+  automaticPauseRead: AccountAutomaticPauseRead;
 }
 
 type ActivityCardPresentation = Pick<UsageSummaryCard, 'accent' | 'icon' | 'variant'>;
@@ -90,9 +89,7 @@ const getActivityMetricTone = (metric: AccountDetailField): UsageSummaryCardTone
 export function AccountOverviewTab({
   detailView,
   getHealthStatusClass,
-  managerServiceBase,
-  managementKey,
-  credentialAuthIndex,
+  automaticPauseRead,
 }: AccountOverviewTabProps) {
   const { t, i18n } = useTranslation();
   const { decision, capacity, credential, recentStatus, activity, attention } = detailView.overview;
@@ -180,11 +177,7 @@ export function AccountOverviewTab({
         </div>
       </section>
 
-      <AccountAutomaticPauseSection
-        managerServiceBase={managerServiceBase}
-        managementKey={managementKey}
-        authIndex={credentialAuthIndex}
-      />
+      <AccountAutomaticPauseSection read={automaticPauseRead} />
 
       <section
         className={styles.overviewRecentStatusCard}

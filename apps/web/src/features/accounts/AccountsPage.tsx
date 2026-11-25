@@ -178,8 +178,7 @@ import {
   type AccountListHealthStatusKey,
 } from '@/features/accounts/model/accountListPresentation';
 import { AccountListHealthBadge } from '@/features/accounts/components/AccountListHealthBadge';
-import { AccountAutomaticPauseReadCache } from '@/features/accounts/hooks/useAccountAutomaticPause';
-import type { AccountAutomaticPauseRead } from '@/features/accounts/model/accountAutomaticPause';
+import { useAccountAutomaticPause } from '@/features/accounts/hooks/useAccountAutomaticPause';
 import {
   buildAccountHistoryByRowKey,
   buildAccountHistoryTargetBatches,
@@ -1355,7 +1354,6 @@ function AccountsPageInner({
   );
   const modelsLoadKeyRef = useRef('');
   const modelRulesLoadKeyRef = useRef('');
-  const automaticPauseReads = useMemo(() => new Map<string, AccountAutomaticPauseRead>(), []);
   const connectionFingerprint = useMemo(
     () => createCodexInspectionConnectionFingerprint(apiBase, managementKey) ?? '',
     [apiBase, managementKey]
@@ -1569,6 +1567,9 @@ function AccountsPageInner({
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(
     () => initialWorkspaceUrlState.current.account
   );
+  // Bumped only when a detail drawer open starts or ends, never on a tab switch:
+  // it is the identity of one open for the automatic pause read.
+  const [detailReadToken, setDetailReadToken] = useState(0);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>(
     () => initialWorkspaceUrlState.current.detailTab
@@ -5069,6 +5070,14 @@ function AccountsPageInner({
     [confirmConfigurationDiscard, handleDelete, selectedRowKey]
   );
   const hasSelectedAccountDetail = activeView === 'accounts' && Boolean(selectedRowKey);
+  // The detail drawer owns the automatic pause read: one read per open, scoped to
+  // this connection and this open.
+  const automaticPauseRead = useAccountAutomaticPause(
+    featureAvailability.managerServiceBase,
+    managementKey,
+    hasSelectedAccountDetail ? selectedRow?.authIndex : undefined,
+    detailReadToken
+  );
   const needsInspectionSummary = canLoadInspectionSummary;
   const needsQuotaCooldowns =
     managerStorageAvailable &&
@@ -5735,6 +5744,9 @@ function AccountsPageInner({
         DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE
       );
       setSelectedRowKey(row.selectionKey);
+      if (row.selectionKey !== selectedRowKey) {
+        setDetailReadToken((token) => token + 1);
+      }
       setDetailTab(tab);
       if (searchValue !== location.search) {
         lastWorkspaceNavigationRef.current = searchValue;
@@ -5760,6 +5772,7 @@ function AccountsPageInner({
     detailAnchorRef.current = null;
     setDetailAnchor(null);
     setSelectedRowKey(null);
+    setDetailReadToken((token) => token + 1);
     setDetailTab('overview');
     const searchValue = writeAccountsWorkspaceUrlSearch(
       location.search,
@@ -5790,6 +5803,11 @@ function AccountsPageInner({
       setPageSize(next.pageSize);
       setAccountDisplayMode(next.accountDisplayMode);
       setLayoutMode(next.layoutMode);
+      // A drawer opened by navigation is a new open too, so it reads again rather
+      // than inheriting the answer of the open it replaced.
+      if (next.account !== selectedRowKeyRef.current) {
+        setDetailReadToken((token) => token + 1);
+      }
       setSelectedRowKey(next.account);
       setDetailTab(next.detailTab);
       setOauthExcludedEditorProvider(next.editor === 'excluded' ? next.editorProvider : null);
@@ -10794,9 +10812,7 @@ function AccountsPageInner({
           detailView={detailView}
           getHealthStatusClass={getHealthStatusClass}
           onSelectTab={(tab) => void openAccountDetail(selectedRow, tab)}
-          managerServiceBase={featureAvailability.managerServiceBase ?? ''}
-          managementKey={managementKey}
-          credentialAuthIndex={selectedRow.authIndex}
+          automaticPauseRead={automaticPauseRead}
         />
       );
     };
@@ -11237,9 +11253,7 @@ function AccountsPageInner({
       {activeView === 'accounts' ? (
         <section className={styles.controlsFilterPanel}>{renderToolbar()}</section>
       ) : null}
-      <AccountAutomaticPauseReadCache value={automaticPauseReads}>
-        {renderActiveView()}
-      </AccountAutomaticPauseReadCache>
+      {renderActiveView()}
       {renderMobileFilterPanel()}
       {renderFloatingBatchActions()}
       <AuthJsonPasteModal

@@ -14,13 +14,17 @@ export function AccountListHealthBadge({
   autoPaused: boolean;
 }) {
   const { t } = useTranslation();
+  const label = t(labelKey);
   return (
     <span
       className={`${styles.badge} ${statusClass}`}
       title={title}
+      // The pause glyph carries meaning, so the badge itself names it rather
+      // than leaving auto-pause to the hover-only title.
+      aria-label={autoPaused ? `${label} · ${t('accounts.auto_pause_badge_hint')}` : undefined}
       data-account-health-auto-paused={autoPaused ? 'true' : undefined}
     >
-      {t(labelKey)}
+      {label}
       {autoPaused ? <IconPause size={12} className={styles.badgePauseGlyph} /> : null}
     </span>
   );

@@ -1,7 +1,12 @@
 import type { CredentialPolicyStatus } from '@/services/api/credentialPolicy';
 import type { AccountDetailField } from './accountDetailViewModel';
 
-export type AccountAutomaticPauseState = 'reading' | 'active' | 'paused' | 'unavailable';
+export type AccountAutomaticPauseState =
+  | 'reading'
+  | 'active'
+  | 'paused'
+  | 'no_record'
+  | 'unavailable';
 
 export type AccountAutomaticPauseRead =
   | { kind: 'reading' }
@@ -28,6 +33,10 @@ export interface AccountAutomaticPausePresentation {
 export const PANEL_READ_FAILED_REASON = 'panel_read_failed';
 export const PANEL_IDENTITY_UNAVAILABLE_REASON = 'panel_identity_unavailable';
 export const PANEL_POLICY_IDENTITY_MISSING_REASON = 'panel_policy_identity_missing';
+export const NO_POLICY_RECORD_REASON = 'no_policy_record';
+
+/** Backend read classification for a credential the manager holds no record for. */
+const NO_POLICY_RECORD_MIGRATION_STATE = 'default_off';
 
 const REASON_LABEL_KEYS: Readonly<Record<string, string>> = {
   current_source_gate_ready: 'accounts.auto_pause_reason_current_source_gate_ready',
@@ -43,6 +52,7 @@ const REASON_LABEL_KEYS: Readonly<Record<string, string>> = {
   verified_selected_key_evidence_required:
     'accounts.auto_pause_reason_verified_selected_key_evidence_required',
   environment_locked_off: 'accounts.auto_pause_reason_environment_locked_off',
+  [NO_POLICY_RECORD_REASON]: 'accounts.auto_pause_reason_no_policy_record',
   [PANEL_READ_FAILED_REASON]: 'accounts.auto_pause_reason_panel_read_failed',
   [PANEL_IDENTITY_UNAVAILABLE_REASON]: 'accounts.auto_pause_reason_panel_identity_unavailable',
   [PANEL_POLICY_IDENTITY_MISSING_REASON]:
@@ -53,6 +63,7 @@ const STATE_LABEL_KEYS: Readonly<Record<AccountAutomaticPauseState, string>> = {
   reading: 'accounts.detail_overview_auto_pause_state_reading',
   active: 'accounts.detail_overview_auto_pause_state_active',
   paused: 'accounts.detail_overview_auto_pause_state_paused',
+  no_record: 'accounts.detail_overview_auto_pause_state_no_record',
   unavailable: 'accounts.detail_overview_auto_pause_state_unavailable',
 };
 
@@ -60,6 +71,7 @@ const HINT_KEYS: Readonly<Record<AccountAutomaticPauseState, string>> = {
   reading: 'accounts.detail_overview_auto_pause_reading_hint',
   active: 'accounts.detail_overview_auto_pause_active_hint',
   paused: 'accounts.detail_overview_auto_pause_paused_hint',
+  no_record: 'accounts.detail_overview_auto_pause_no_record_hint',
   unavailable: 'accounts.detail_overview_auto_pause_unavailable_hint',
 };
 
@@ -222,17 +234,31 @@ export function buildAccountAutomaticPausePresentation(
   if (read.kind === 'missing') return unavailablePresentation(null, PANEL_IDENTITY_UNAVAILABLE_REASON);
 
   const { status } = read;
-  const applied = status.applied === true || status.operation?.currentApplied === true;
-  if (applied) {
-    const reasonCode = firstNonEmpty(
-      status.operation?.reason,
-      status.reason,
-      status.availability?.reason
-    );
+  const operation = status.operation;
+  // A confirmed clear is a current ACK as well: its action says the restriction
+  // was lifted, so it must never be rendered as an applied pause. A pause is
+  // claimed only when the backend reports a current restriction that is not a
+  // clear, and its reason travels with it.
+  const restrictedNow =
+    (status.applied === true || operation?.currentApplied === true) &&
+    operation?.action !== 'clear';
+  if (restrictedNow) {
+    const reasonCode = firstNonEmpty(operation?.reason, status.reason, status.availability?.reason);
     return buildPresentation('paused', reasonCode, readAccountAutomaticPauseTiming(status));
   }
   if (!status.subjectId) {
     return unavailablePresentation(status, PANEL_POLICY_IDENTITY_MISSING_REASON, true);
+  }
+  // Most credentials carry no policy record at all: automatic pause is always on
+  // and Core pauses them on live evidence. That is a real state, not a failed
+  // read, so it is named instead of being reported as unreadable.
+  if (status.legacyMigration?.state === NO_POLICY_RECORD_MIGRATION_STATE) {
+    const reasonCode =
+      firstNonEmpty(
+        status.availability?.state === 'available' ? '' : status.availability?.reason,
+        status.reason
+      ) || NO_POLICY_RECORD_REASON;
+    return buildPresentation('no_record', reasonCode, readAccountAutomaticPauseTiming(status));
   }
   if (status.availability?.state !== 'available') {
     return unavailablePresentation(status, '');

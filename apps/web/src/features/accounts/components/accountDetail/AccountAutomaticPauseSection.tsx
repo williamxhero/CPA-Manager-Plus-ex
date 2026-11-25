@@ -4,25 +4,19 @@ import { IconPower } from '@/components/ui/icons';
 import {
   ACCOUNT_AUTOMATIC_PAUSE_TITLE_KEY,
   buildAccountAutomaticPausePresentation,
+  type AccountAutomaticPauseRead,
 } from '@/features/accounts/model/accountAutomaticPause';
-import { useAccountAutomaticPause } from '@/features/accounts/hooks/useAccountAutomaticPause';
 import { AccountOverviewFieldGrid } from './AccountOverviewFieldGrid';
 import styles from '@/features/accounts/AccountsPage.module.scss';
 
 export interface AccountAutomaticPauseSectionProps {
-  managerServiceBase?: string;
-  managementKey?: string;
-  authIndex?: string;
+  /** The drawer owns the read; this section only presents what it was given. */
+  read: AccountAutomaticPauseRead;
 }
 
-export function AccountAutomaticPauseSection({
-  managerServiceBase,
-  managementKey,
-  authIndex,
-}: AccountAutomaticPauseSectionProps) {
+export function AccountAutomaticPauseSection({ read }: AccountAutomaticPauseSectionProps) {
   const { t } = useTranslation();
   const headingId = useId();
-  const read = useAccountAutomaticPause(managerServiceBase, managementKey, authIndex);
   const presentation = buildAccountAutomaticPausePresentation(read);
   const hint = t(presentation.hintKey);
 

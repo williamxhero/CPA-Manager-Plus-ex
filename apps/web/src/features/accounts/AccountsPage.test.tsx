@@ -4166,6 +4166,90 @@ describe('AccountsPage replacement flows', () => {
     });
     await flushPromises();
     expect(policyReads()).toHaveLength(1);
+
+    // A closed drawer owns nothing: reopening is a new read, and the tab switch
+    // inside that second open still must not read again.
+    await act(async () => {
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+    });
+    await flushPromises();
+    expect(policyReads()).toHaveLength(2);
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
+    });
+    await flushPromises();
+    expect(policyReads()).toHaveLength(2);
+    expect(treeText(renderer)).toContain('accounts.detail_overview_auto_pause_state_unavailable');
+  });
+
+  it('never shows a previous open policy answer after the drawer reopens', async () => {
+    const requested: string[] = [];
+    let paused = true;
+    vi.stubGlobal('fetch', async (url: string) => {
+      const target = String(url);
+      requested.push(target);
+      if (!target.includes('/usage-service/credential-policy?authIndex=')) {
+        return Response.json({});
+      }
+      return paused
+        ? Response.json({
+            subjectId: 'subject-1',
+            bindingCurrent: true,
+            enabled: true,
+            generation: 1,
+            state: 'armed',
+            reason: 'policy_enabled',
+            availability: { state: 'available', reason: 'current_source_gate_ready' },
+            applied: true,
+            operation: {
+              state: 'applied',
+              action: 'pause',
+              currentApplied: true,
+              receiptConfirmed: true,
+              reason: 'current_gate_confirmed',
+            },
+          })
+        : Response.json({
+            subjectId: 'subject-1',
+            bindingCurrent: true,
+            enabled: true,
+            generation: 1,
+            state: 'armed',
+            reason: 'policy_enabled',
+            availability: { state: 'available', reason: 'current_source_gate_ready' },
+            applied: false,
+          });
+    });
+    const policyReads = () =>
+      requested.filter((url) => url.includes('/usage-service/credential-policy?authIndex='));
+
+    const renderer = await renderAccountsPage();
+    await flushPromises();
+    await act(async () => {
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+    });
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
+    });
+    await flushPromises();
+    expect(treeText(renderer)).toContain('accounts.detail_overview_auto_pause_state_paused');
+
+    await act(async () => {
+      renderer.root.findByType(Drawer).props.onClose();
+    });
+    await flushPromises();
+
+    paused = false;
+    await act(async () => {
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+    });
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
+    });
+    await flushPromises();
+    expect(policyReads()).toHaveLength(2);
+    expect(treeText(renderer)).toContain('accounts.detail_overview_auto_pause_state_active');
+    expect(treeText(renderer)).not.toContain('accounts.detail_overview_auto_pause_state_paused');
   });
 
   it('disables inline credential refresh while that credential is refreshing', async () => {
@@ -4617,6 +4701,9 @@ describe('AccountsPage replacement flows', () => {
       expect(readText(badge)).toContain('accounts.health_weekly_exhausted');
       expect(badge.props.title).toContain('accounts.health_tip_weekly_exhausted');
       expect(badge.props.title).toContain('accounts.auto_pause_badge_hint');
+      expect(badge.props['aria-label']).toContain('accounts.health_weekly_exhausted');
+      expect(badge.props['aria-label']).toContain('accounts.auto_pause_badge_hint');
+      expect(readText({ children: badge.props.children })).toContain('accounts.health_weekly_exhausted');
       expect(
         badge.findAll((node) => node.type === 'svg' && node.props['aria-hidden'] === 'true')
       ).toHaveLength(1);
@@ -4627,6 +4714,7 @@ describe('AccountsPage replacement flows', () => {
       expect(badges).toHaveLength(1);
       const badge = badges[0];
       expect(badge.props['data-account-health-auto-paused']).toBeUndefined();
+      expect(badge.props['aria-label']).toBeUndefined();
       expect(badge.props.title).not.toContain('accounts.auto_pause_badge_hint');
       expect(
         badge.findAll((node) => node.type === 'svg' && node.props['aria-hidden'] === 'true')
