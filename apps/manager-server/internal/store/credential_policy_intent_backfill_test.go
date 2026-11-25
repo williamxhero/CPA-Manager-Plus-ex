@@ -12,11 +12,6 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/store"
 )
 
-// Start from a database that a pre-#93 build could produce: a stored close
-// intent at generation 2 together with an automatic action still in flight at
-// that same generation. Opening the store runs the real startup migration
-// entry; the record must participate again, advance one generation, and the
-// in-flight old-generation action must stay fenced by that generation alone.
 func TestCredentialPolicyStartupBackfillFencesInFlightOldGenerationAction(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "legacy-off-policy.sqlite")
@@ -92,7 +87,6 @@ func TestCredentialPolicyStartupBackfillFencesInFlightOldGenerationAction(t *tes
 		t.Fatalf("backfill changed other stored fields: want %v got %v", legacyDocument, document)
 	}
 
-	// Every per-credential intent now reads as participating.
 	records, err := db.CredentialPolicies(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +103,6 @@ func TestCredentialPolicyStartupBackfillFencesInFlightOldGenerationAction(t *tes
 		}
 	}
 
-	// The migration writes no operation receipt and leaves no new schedule hint.
 	var operations int
 	if err := raw.QueryRow(`SELECT count(*) FROM credential_policy_operations`).Scan(&operations); err != nil {
 		t.Fatal(err)
@@ -125,8 +118,6 @@ func TestCredentialPolicyStartupBackfillFencesInFlightOldGenerationAction(t *tes
 		t.Fatalf("startup backfill wrote schedule hints: %d", hints)
 	}
 
-	// The in-flight automatic action is fenced by the generation advance alone:
-	// intent is now enabled, so enabled=0 cannot be the reason it is rejected.
 	now := int64(1_760_000_000_000)
 	lease, err := db.AcquireCredentialPolicyLease(ctx, "00000000-0000-4000-8000-000000000091", now, 30000)
 	if err != nil {
@@ -143,7 +134,6 @@ func TestCredentialPolicyStartupBackfillFencesInFlightOldGenerationAction(t *tes
 		t.Fatalf("in-flight action was rewritten by the backfill: %+v %v", restored, err)
 	}
 
-	// A second startup changes nothing: no further generation advance.
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}

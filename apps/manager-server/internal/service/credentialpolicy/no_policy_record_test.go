@@ -13,8 +13,6 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/testutil"
 )
 
-// "No policy record yet" and "stored, but not participating" must not share a
-// word: the first names the absence, the second is refused by the query fence.
 func TestCredentialPolicyCompletionDistinguishesNoRecordFromNonParticipation(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.NewStore(t, testutil.NewConfig(t))
@@ -35,8 +33,6 @@ func TestCredentialPolicyCompletionDistinguishesNoRecordFromNonParticipation(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A historical disabled record only proves lifetime of the intent; it is
-	// never a close-intent reason and never yields evidence.
 	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: 1, Document: string(document)}, 0); err != nil {
 		t.Fatal(err)
 	}

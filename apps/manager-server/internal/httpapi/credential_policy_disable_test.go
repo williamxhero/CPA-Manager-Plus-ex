@@ -55,8 +55,6 @@ func TestCredentialPolicyRejectsDisableIntent(t *testing.T) {
 	if err != nil || record.Document != "" {
 		t.Fatalf("rejected disable wrote a policy record: %+v %v", record, err)
 	}
-	// A participating intent that already exists is never rewritten by a
-	// disable attempt, not even its generation.
 	seeded := `{"enabled":true,"generation":4,"owner":"owner-seeded","subjectId":"` + id + `"}`
 	if err := db.SaveCredentialPolicy(ctx, store.CredentialPolicyRecord{ID: id, Generation: 4, Document: seeded}, 0); err != nil {
 		t.Fatal(err)

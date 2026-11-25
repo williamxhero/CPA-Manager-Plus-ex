@@ -4070,8 +4070,6 @@ describe('AccountsPage replacement flows', () => {
       expect(refreshButton.findAllByType(IconUserRound)).toHaveLength(1);
       expect(refreshButton.findAllByType(IconRefreshCw)).toHaveLength(0);
 
-      // The action area holds explicit, labelled actions only: no toggle state,
-      // no power glyph, and no focusable leftover from a removed control.
       const actionAreas = card.findAll(
         (node) =>
           typeof node.props.className === 'string' &&
@@ -4141,6 +4139,19 @@ describe('AccountsPage replacement flows', () => {
     await act(async () => {
       findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
+    });
+    await flushPromises();
+    expect(policyReads()).toEqual([
+      'http://manager.local:18317/usage-service/credential-policy?authIndex=auth-1',
+    ]);
+    expect(treeText(renderer)).toContain('accounts.detail_overview_auto_pause_state_unavailable');
+
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
+    });
+    await flushPromises();
     await act(async () => {
       findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
     });

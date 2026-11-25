@@ -180,8 +180,6 @@ func TestCredentialGateActualNativeEligibilityCannotReplaceFreshONPrerequisite(t
 	if status.Enabled || status.Generation != 0 || status.Applied || status.Operation != nil {
 		t.Fatal("failed ON created intent or gate authority")
 	}
-	// Automatic pause is always on: the disable that used to follow a failed ON
-	// is refused, so nothing may reach Core or move the gate revision.
 	rr = testutil.Request(t, h, "PUT", "/usage-service/credential-policy", policyBody(t, source, 0, false), testutil.AdminKey)
 	testutil.RequireStatus(t, rr, 400)
 	var gates cp.GateSnapshot
@@ -232,9 +230,6 @@ func TestCredentialGateActualOwnResumePreservesOtherOwnerAndHistoricalOff(t *tes
 	if source.AuthIndex == "" {
 		t.Fatal("no actual native source")
 	}
-	// Disable writes no longer exist, so the base state is the historical
-	// disabled record that migration backfills: seed it directly to keep the
-	// resume and owner fences under test, and prove the API refuses that write.
 	seedHistoricalOff := func(db *store.Store) cp.Status {
 		t.Helper()
 		installation, err := db.CredentialPolicyInstallation(context.Background())
@@ -242,7 +237,11 @@ func TestCredentialGateActualOwnResumePreservesOtherOwnerAndHistoricalOff(t *tes
 			t.Fatal(err)
 		}
 		state := cp.Status{Source: source, SubjectID: cp.SubjectID(source), Owner: cp.OwnerNamespace + installation, Generation: 1, Enabled: false, State: "off"}
-		document, err := json.Marshal(state)
+		document, err := json.Marshal(struct {
+			cp.Status
+			IssuedSource *cq.Source `json:"issuedSource,omitempty"`
+			Enabled      *bool      `json:"enabled,omitempty"`
+		}{Status: state, IssuedSource: &source})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,47 +1,47 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { getCredentialPolicy } from '@/services/api/credentialPolicy';
 import type { AccountAutomaticPauseRead } from '../model/accountAutomaticPause';
 
 type ReadView = { identity: string; read: AccountAutomaticPauseRead };
 
-/**
- * One policy read per detail-open. The overview is only mounted while its
- * drawer is open, so the list never issues one request per row, and a failed
- * read is a state for the row to report, never a thrown error or empty flicker.
- */
+const ReadCacheContext = createContext<Map<string, AccountAutomaticPauseRead> | null>(null);
+
+/** Supplies the per-page policy read cache; without it every mount reads again. */
+export const AccountAutomaticPauseReadCache = ReadCacheContext.Provider;
+
 export function useAccountAutomaticPause(
   base: string | undefined,
   managementKey: string | undefined,
   authIndex: string | undefined
 ): AccountAutomaticPauseRead {
+  const cache = useContext(ReadCacheContext);
   const [view, setView] = useState<ReadView | null>(null);
-  const identity =
-    base && managementKey && authIndex ? JSON.stringify([base, managementKey, authIndex]) : '';
+  const identity = useMemo(
+    () => (base && managementKey && authIndex ? JSON.stringify([base, managementKey, authIndex]) : ''),
+    [base, managementKey, authIndex]
+  );
+  const cached = identity ? cache?.get(identity) : undefined;
 
   useEffect(() => {
     if (!base || !managementKey || !authIndex) return;
-    const authority = { base, managementKey, authIndex };
-    const readIdentity = JSON.stringify([authority.base, authority.managementKey, authority.authIndex]);
+    if (cache?.has(identity)) return;
     let active = true;
     const controller = new AbortController();
-    getCredentialPolicy(
-      authority.base,
-      authority.managementKey,
-      authority.authIndex,
-      controller.signal
-    )
-      .then((status) => {
-        if (active) setView({ identity: readIdentity, read: { kind: 'ready', status } });
-      })
-      .catch(() => {
-        if (active) setView({ identity: readIdentity, read: { kind: 'failed' } });
-      });
+    const settle = (read: AccountAutomaticPauseRead) => {
+      if (!active) return;
+      cache?.set(identity, read);
+      setView({ identity, read });
+    };
+    getCredentialPolicy(base, managementKey, authIndex, controller.signal)
+      .then((status) => settle({ kind: 'ready', status }))
+      .catch(() => settle({ kind: 'failed' }));
     return () => {
       active = false;
       controller.abort();
     };
-  }, [base, managementKey, authIndex]);
+  }, [base, managementKey, authIndex, identity, cache]);
 
   if (!identity) return { kind: 'missing' };
-  return view?.identity === identity ? view.read : { kind: 'reading' };
+  const settled = cached ?? (view?.identity === identity ? view.read : undefined);
+  return settled ?? { kind: 'reading' };
 }

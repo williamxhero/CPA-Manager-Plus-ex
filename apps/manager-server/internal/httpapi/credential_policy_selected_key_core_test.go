@@ -158,8 +158,6 @@ func runSelectedKeyPolicyFixture(t *testing.T, f *selectedKeyPolicyFixture, grou
 			}
 		}
 	}
-	// Automatic pause is always on, so B cannot be enrolled as OFF either: the
-	// disable write is refused and leaves no participation behind.
 	enabled = false
 	var disabled struct {
 		Error string `json:"error"`

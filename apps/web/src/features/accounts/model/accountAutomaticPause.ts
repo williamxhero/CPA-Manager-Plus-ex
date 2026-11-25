@@ -1,16 +1,6 @@
 import type { CredentialPolicyStatus } from '@/services/api/credentialPolicy';
 import type { AccountDetailField } from './accountDetailViewModel';
 
-/**
- * Read-only automatic start/stop row for the account detail overview.
- *
- * The list can only say "exhausted/cooling", so it cannot distinguish "still
- * participating" from "the panel cannot read the policy at all". This model
- * renders exactly what the backend credential-policy read answered, and says
- * "unavailable" when nothing authoritative came back. It never derives a state
- * from the manual disabled flag, so manual stop and automatic pause stay
- * independent.
- */
 export type AccountAutomaticPauseState = 'reading' | 'active' | 'paused' | 'unavailable';
 
 export type AccountAutomaticPauseRead =
@@ -27,6 +17,7 @@ export interface AccountAutomaticPauseTiming {
 export interface AccountAutomaticPausePresentation {
   state: AccountAutomaticPauseState;
   stateLabelKey: string;
+  hintKey: string;
   reasonCode: string;
   reasonLabelKey: string | null;
   observedAtMs: number | null;
@@ -34,7 +25,6 @@ export interface AccountAutomaticPausePresentation {
   fields: AccountDetailField[];
 }
 
-/** Pseudo codes the panel owns: a read that never reached the backend. */
 export const PANEL_READ_FAILED_REASON = 'panel_read_failed';
 export const PANEL_IDENTITY_UNAVAILABLE_REASON = 'panel_identity_unavailable';
 export const PANEL_POLICY_IDENTITY_MISSING_REASON = 'panel_policy_identity_missing';
@@ -66,6 +56,15 @@ const STATE_LABEL_KEYS: Readonly<Record<AccountAutomaticPauseState, string>> = {
   unavailable: 'accounts.detail_overview_auto_pause_state_unavailable',
 };
 
+const HINT_KEYS: Readonly<Record<AccountAutomaticPauseState, string>> = {
+  reading: 'accounts.detail_overview_auto_pause_reading_hint',
+  active: 'accounts.detail_overview_auto_pause_active_hint',
+  paused: 'accounts.detail_overview_auto_pause_paused_hint',
+  unavailable: 'accounts.detail_overview_auto_pause_unavailable_hint',
+};
+
+export const ACCOUNT_AUTOMATIC_PAUSE_TITLE_KEY = 'accounts.detail_overview_auto_pause_title';
+
 const LABEL_KEYS = {
   state: 'accounts.detail_overview_auto_pause_state',
   reason: 'accounts.detail_overview_auto_pause_reason',
@@ -80,11 +79,8 @@ const MISSING_VALUE_KEYS = {
 } as const;
 
 export const ACCOUNT_AUTOMATIC_PAUSE_I18N_KEYS: readonly string[] = [
-  'accounts.detail_overview_auto_pause_title',
-  'accounts.detail_overview_auto_pause_active_hint',
-  'accounts.detail_overview_auto_pause_paused_hint',
-  'accounts.detail_overview_auto_pause_unavailable_hint',
-  'accounts.detail_overview_auto_pause_reading_hint',
+  ACCOUNT_AUTOMATIC_PAUSE_TITLE_KEY,
+  ...Object.values(HINT_KEYS),
   ...Object.values(LABEL_KEYS),
   ...Object.values(STATE_LABEL_KEYS),
   ...Object.values(MISSING_VALUE_KEYS),
@@ -96,21 +92,12 @@ const readTimestamp = (value: unknown): number | null =>
     ? value
     : null;
 
-/**
- * The Manager's current credential-policy read issues neither an evaluation
- * timestamp nor a review schedule. Read them defensively so a newer payload is
- * shown exactly as sent, and never derive one from the local clock.
- */
 export function readAccountAutomaticPauseTiming(
   status: CredentialPolicyStatus
 ): AccountAutomaticPauseTiming {
-  const payload = status as CredentialPolicyStatus & {
-    observedAtMs?: unknown;
-    nextReviewAtMs?: unknown;
-  };
   return {
-    observedAtMs: readTimestamp(payload.observedAtMs),
-    nextReviewAtMs: readTimestamp(payload.nextReviewAtMs),
+    observedAtMs: readTimestamp(status.observedAtMs),
+    nextReviewAtMs: readTimestamp(status.nextReviewAtMs),
   };
 }
 
@@ -128,7 +115,6 @@ const reasonField = (code: string): AccountDetailField => {
     };
   }
   if (code) {
-    // Unknown backend codes stay verbatim; a blank reason never happens.
     return {
       key: 'automaticPauseReason',
       labelKey: LABEL_KEYS.reason,
@@ -159,6 +145,7 @@ const readingPresentation = (): AccountAutomaticPausePresentation => {
   return {
     state: 'reading',
     stateLabelKey: readingValue,
+    hintKey: HINT_KEYS.reading,
     reasonCode: '',
     reasonLabelKey: null,
     observedAtMs: null,
@@ -172,50 +159,14 @@ const readingPresentation = (): AccountAutomaticPausePresentation => {
   };
 };
 
-const unavailablePresentation = (
-  status: CredentialPolicyStatus | null,
-  fallbackReason: string,
-  preferFallback = false
-): AccountAutomaticPausePresentation => {
-  const timing = status
-    ? readAccountAutomaticPauseTiming(status)
-    : { observedAtMs: null, nextReviewAtMs: null };
-  const backendReason = firstNonEmpty(
-    status?.availability?.reason,
-    status?.reason,
-    status?.operation?.reason
-  );
-  const reasonCode = preferFallback
-    ? firstNonEmpty(fallbackReason, backendReason)
-    : firstNonEmpty(backendReason, fallbackReason);
-  return {
-    state: 'unavailable',
-    stateLabelKey: STATE_LABEL_KEYS.unavailable,
-    reasonCode,
-    reasonLabelKey: REASON_LABEL_KEYS[reasonCode] ?? null,
-    observedAtMs: timing.observedAtMs,
-    nextReviewAtMs: timing.nextReviewAtMs,
-    fields: [
-      {
-        key: 'automaticPauseState',
-        labelKey: LABEL_KEYS.state,
-        value: STATE_LABEL_KEYS.unavailable,
-        valueKind: 'i18n',
-      },
-      reasonField(reasonCode),
-      timeField('automaticPauseObservedAt', LABEL_KEYS.observed, timing.observedAtMs, MISSING_VALUE_KEYS.observed),
-      timeField('automaticPauseNextReview', LABEL_KEYS.nextReview, timing.nextReviewAtMs, MISSING_VALUE_KEYS.nextReview),
-    ],
-  };
-};
-
-const readyPresentation = (
-  state: 'active' | 'paused',
+const buildPresentation = (
+  state: AccountAutomaticPauseState,
   reasonCode: string,
   timing: AccountAutomaticPauseTiming
 ): AccountAutomaticPausePresentation => ({
   state,
   stateLabelKey: STATE_LABEL_KEYS[state],
+  hintKey: HINT_KEYS[state],
   reasonCode,
   reasonLabelKey: REASON_LABEL_KEYS[reasonCode] ?? null,
   observedAtMs: timing.observedAtMs,
@@ -243,6 +194,26 @@ const readyPresentation = (
   ],
 });
 
+const unavailablePresentation = (
+  status: CredentialPolicyStatus | null,
+  fallbackReason: string,
+  preferFallback = false
+): AccountAutomaticPausePresentation => {
+  const backendReason = firstNonEmpty(
+    status?.availability?.reason,
+    status?.reason,
+    status?.operation?.reason
+  );
+  const reasonCode = preferFallback
+    ? firstNonEmpty(fallbackReason, backendReason)
+    : firstNonEmpty(backendReason, fallbackReason);
+  return buildPresentation(
+    'unavailable',
+    reasonCode,
+    status ? readAccountAutomaticPauseTiming(status) : { observedAtMs: null, nextReviewAtMs: null }
+  );
+};
+
 export function buildAccountAutomaticPausePresentation(
   read: AccountAutomaticPauseRead
 ): AccountAutomaticPausePresentation {
@@ -253,23 +224,17 @@ export function buildAccountAutomaticPausePresentation(
   const { status } = read;
   const applied = status.applied === true || status.operation?.currentApplied === true;
   if (applied) {
-    // An applied pause is a real restriction: show it even when the quota
-    // capability is unavailable, never as "unreadable unprotection".
     const reasonCode = firstNonEmpty(
       status.operation?.reason,
       status.reason,
       status.availability?.reason
     );
-    return readyPresentation('paused', reasonCode, readAccountAutomaticPauseTiming(status));
+    return buildPresentation('paused', reasonCode, readAccountAutomaticPauseTiming(status));
   }
   if (!status.subjectId) {
-    // Without a policy subject the panel cannot attribute the rest of the
-    // payload, so the missing identity is the only honest reason to report.
     return unavailablePresentation(status, PANEL_POLICY_IDENTITY_MISSING_REASON, true);
   }
   if (status.availability?.state !== 'available') {
-    // An unavailable capability explains itself; a silent one keeps the
-    // "no reason was reported" text instead of borrowing another cause.
     return unavailablePresentation(status, '');
   }
   const reasonCode = firstNonEmpty(
@@ -277,5 +242,5 @@ export function buildAccountAutomaticPausePresentation(
     status.availability?.reason,
     status.operation?.reason
   );
-  return readyPresentation('active', reasonCode, readAccountAutomaticPauseTiming(status));
+  return buildPresentation('active', reasonCode, readAccountAutomaticPauseTiming(status));
 }

@@ -64,7 +64,6 @@ export type AccountListHealthStatusKey =
   | 'available'
   | 'raw';
 
-// Windows that have stepped out of serving requests: exhausted or cooling down.
 const AUTO_PAUSED_HEALTH_STATUSES = new Set<AccountListHealthStatusKey>([
   'five_hour_exhausted',
   'weekly_exhausted',

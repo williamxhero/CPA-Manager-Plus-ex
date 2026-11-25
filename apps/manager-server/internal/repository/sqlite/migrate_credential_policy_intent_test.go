@@ -9,9 +9,6 @@ import (
 	"testing"
 )
 
-// Automatic pause is always on, so no supported path can store a close intent
-// any more. Rows written by older builds must be backfilled to participating at
-// startup, in place, without touching any other stored field.
 func TestMigrateBackfillsLegacyDisabledCredentialPolicyIntent(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "credential-policy-intent.sqlite"))
 	if err != nil {
@@ -24,6 +21,7 @@ func TestMigrateBackfillsLegacyDisabledCredentialPolicyIntent(t *testing.T) {
 	alreadyOn := `{"subjectId":"already-on","enabled":true,"generation":3,"owner":"` + owner + `","state":"pending","reason":"quota_native_key_exhausted"}`
 	brokenJSON := `{"subjectId":"broken-json","enabled":false,"generation":2,`
 	noEnabled := `{"subjectId":"no-enabled","generation":1,"owner":"` + owner + `","state":"pending"}`
+	generationDrift := `{"subjectId":"generation-drift","enabled":false,"generation":9,"owner":"` + owner + `","state":"off"}`
 
 	insertPolicy := func(id string, generation int64, document string) {
 		t.Helper()
@@ -35,7 +33,7 @@ func TestMigrateBackfillsLegacyDisabledCredentialPolicyIntent(t *testing.T) {
 	insertPolicy("already-on", 3, alreadyOn)
 	insertPolicy("broken-json", 2, brokenJSON)
 	insertPolicy("no-enabled", 1, noEnabled)
-	// In-flight automatic action issued against the pre-migration generation.
+	insertPolicy("generation-drift", 6, generationDrift)
 	if _, err := db.Exec(`INSERT INTO credential_policy_operations(id,subject_id,generation,owner,automatic,state,body,result,last_error,revision,attempted) VALUES('op-legacy','legacy-off',4,?,1,'queued','','','',1,0)`, owner); err != nil {
 		t.Fatalf("insert in-flight operation: %v", err)
 	}
@@ -74,6 +72,7 @@ func TestMigrateBackfillsLegacyDisabledCredentialPolicyIntent(t *testing.T) {
 		{id: "already-on", generation: 3, document: alreadyOn},
 		{id: "broken-json", generation: 2, document: brokenJSON},
 		{id: "no-enabled", generation: 1, document: noEnabled},
+		{id: "generation-drift", generation: 6, document: generationDrift},
 	} {
 		generation, document := readCredentialPolicyRow(t, db, want.id)
 		if generation != want.generation || document != want.document {
@@ -81,8 +80,6 @@ func TestMigrateBackfillsLegacyDisabledCredentialPolicyIntent(t *testing.T) {
 		}
 	}
 
-	// The migration issues no operation receipt and leaves the in-flight
-	// pre-migration action untouched for the existing generation fence.
 	var operations int
 	if err := db.QueryRow(`SELECT count(*) FROM credential_policy_operations`).Scan(&operations); err != nil {
 		t.Fatal(err)
@@ -99,7 +96,6 @@ func TestMigrateBackfillsLegacyDisabledCredentialPolicyIntent(t *testing.T) {
 		t.Fatalf("backfill rewrote the in-flight operation: (%d,%s)", operationGeneration, operationState)
 	}
 
-	// A second startup must be a no-op: no further generation advance.
 	before := credentialPolicyRows(t, db)
 	if err := Migrate(db); err != nil {
 		t.Fatalf("second migrate: %v", err)

@@ -25,7 +25,6 @@ func marshalPolicyDocument(status Status) ([]byte, error) {
 	if hasSourceAuthority(status.Source) {
 		document.IssuedSource = &status.Source
 	}
-	// A stored record without real source authority must not invent any.
 	return json.Marshal(document)
 }
 

@@ -81,11 +81,9 @@ func runCredentialPolicyONPrerequisite(t *testing.T, timeout int64) {
 	if !saved.Enabled || saved.Generation != 1 || saved.Applied || saved.Operation != nil {
 		t.Fatalf("ON not truthful: %+v", saved)
 	}
-	// The evidence captured for the first ON can never be replayed into a later
-	// generation, and a disable write can no longer retire the armed intent.
-	generation = 0
-	update(409, &rejected)
-	if rejected.Error != "policy_generation_conflict" {
+	generation = saved.Generation
+	update(503, &rejected)
+	if rejected.Error != "fresh_authoritative_evidence_required" {
 		t.Fatalf("stale generation reused captured evidence: %+v", rejected)
 	}
 	enabled = false

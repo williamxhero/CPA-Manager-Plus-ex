@@ -27,9 +27,6 @@ var ErrIdentity = errors.New("credential policy identity unavailable")
 var ErrInput = errors.New("invalid credential policy request")
 var ErrUnavailable = errors.New("credential policy gate unavailable")
 
-// ErrAutomaticPauseAlwaysOn rejects every disable attempt. Automatic pause is
-// always on, so no local fast path, Core gate write or receipt may exist for a
-// close intent; the request is refused before identity, Core or storage work.
 var ErrAutomaticPauseAlwaysOn = errors.New("automatic pause is always on")
 
 type Update struct {
@@ -348,9 +345,6 @@ func (s *Service) Update(ctx context.Context, q Update) (Status, error) {
 }
 
 // StoredStatus is explicitly a local intent read, not current Core authority.
-// It reports the stored intent and generation truthfully, so a historical
-// disabled record stays readable and inert; it cannot enroll a new subject or
-// authorize ON/resume.
 func (s *Service) StoredStatus(ctx context.Context, id string) (Status, error) {
 	decoded, err := hex.DecodeString(id)
 	if err != nil || len(decoded) != 32 {

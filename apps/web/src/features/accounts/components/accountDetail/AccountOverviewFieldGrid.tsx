@@ -3,7 +3,6 @@ import type { AccountDetailField } from '@/features/accounts/model/accountDetail
 import { AccountDetailFieldValue } from './AccountDetailFieldList';
 import styles from '@/features/accounts/AccountsPage.module.scss';
 
-/** Shared two-column field grid used by every overview card. */
 export function AccountOverviewFieldGrid({ fields }: { fields: AccountDetailField[] }) {
   const { t } = useTranslation();
   if (fields.length === 0) return null;

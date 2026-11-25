@@ -262,8 +262,6 @@ func TestCredentialPolicyScheduleHintMigrationBackfillsClosedIntentAndKeepsCredi
 	if id, err := db.CredentialPolicyInstallation(ctx); err != nil || id != installation {
 		t.Fatal("migration changed owner identity", id, err)
 	}
-	// Automatic pause is always on, so startup migration backfills the legacy
-	// close intent in place to participating intent and advances one generation.
 	got, err := db.CredentialPolicy(ctx, r.ID)
 	if err != nil {
 		t.Fatal(err)

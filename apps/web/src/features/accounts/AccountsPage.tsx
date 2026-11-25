@@ -40,7 +40,6 @@ import {
   IconKey,
   IconMoreVertical,
   IconPlus,
-  IconPause,
   IconPin,
   IconRefreshCw,
   IconRotateCcw,
@@ -178,6 +177,9 @@ import {
   isAccountHealthAutoPaused,
   type AccountListHealthStatusKey,
 } from '@/features/accounts/model/accountListPresentation';
+import { AccountListHealthBadge } from '@/features/accounts/components/AccountListHealthBadge';
+import { AccountAutomaticPauseReadCache } from '@/features/accounts/hooks/useAccountAutomaticPause';
+import type { AccountAutomaticPauseRead } from '@/features/accounts/model/accountAutomaticPause';
 import {
   buildAccountHistoryByRowKey,
   buildAccountHistoryTargetBatches,
@@ -1353,6 +1355,7 @@ function AccountsPageInner({
   );
   const modelsLoadKeyRef = useRef('');
   const modelRulesLoadKeyRef = useRef('');
+  const automaticPauseReads = useMemo(() => new Map<string, AccountAutomaticPauseRead>(), []);
   const connectionFingerprint = useMemo(
     () => createCodexInspectionConnectionFingerprint(apiBase, managementKey) ?? '',
     [apiBase, managementKey]
@@ -9629,7 +9632,6 @@ function AccountsPageInner({
         item.health.cooldown?.recoverAtMs
       )
     );
-    // The window/reset explanation stays intact; the pause hint is appended to it.
     const healthTitle = healthAutoPaused
       ? `${healthTooltip} ${t('accounts.auto_pause_badge_hint')}`
       : healthTooltip;
@@ -9887,16 +9889,12 @@ function AccountsPageInner({
                       className={styles.accountGridCardHeaderRight}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <span
-                        className={`${styles.badge} ${getHealthStatusClass(ctx.item.health.status)}`}
+                      <AccountListHealthBadge
+                        statusClass={getHealthStatusClass(ctx.item.health.status)}
+                        labelKey={ctx.item.health.labelKey}
                         title={ctx.healthTitle}
-                        data-account-health-auto-paused={ctx.healthAutoPaused ? 'true' : undefined}
-                      >
-                        {t(ctx.item.health.labelKey)}
-                        {ctx.healthAutoPaused ? (
-                          <IconPause size={12} className={styles.badgePauseGlyph} />
-                        ) : null}
-                      </span>
+                        autoPaused={ctx.healthAutoPaused}
+                      />
                       <ToggleSwitch
                         checked={!row.disabled}
                         onChange={(enabled) => void handleBatchStatus(enabled, [row])}
@@ -10414,16 +10412,12 @@ function AccountsPageInner({
 
                     <div className={styles.accountCardHealth}>
                       <div className={styles.accountCardLine}>
-                        <span
-                          className={`${styles.badge} ${getHealthStatusClass(ctx.item.health.status)}`}
+                        <AccountListHealthBadge
+                          statusClass={getHealthStatusClass(ctx.item.health.status)}
+                          labelKey={ctx.item.health.labelKey}
                           title={ctx.healthTitle}
-                          data-account-health-auto-paused={ctx.healthAutoPaused ? 'true' : undefined}
-                        >
-                          {t(ctx.item.health.labelKey)}
-                          {ctx.healthAutoPaused ? (
-                            <IconPause size={12} className={styles.badgePauseGlyph} />
-                          ) : null}
-                        </span>
+                          autoPaused={ctx.healthAutoPaused}
+                        />
                       </div>
                       <div className={styles.accountHealthMetaRow}>
                         {editingPriorityState?.rowKey === row.selectionKey ? (
@@ -11243,7 +11237,9 @@ function AccountsPageInner({
       {activeView === 'accounts' ? (
         <section className={styles.controlsFilterPanel}>{renderToolbar()}</section>
       ) : null}
-      {renderActiveView()}
+      <AccountAutomaticPauseReadCache value={automaticPauseReads}>
+        {renderActiveView()}
+      </AccountAutomaticPauseReadCache>
       {renderMobileFilterPanel()}
       {renderFloatingBatchActions()}
       <AuthJsonPasteModal
