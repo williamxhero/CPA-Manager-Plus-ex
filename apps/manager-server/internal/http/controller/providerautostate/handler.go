@@ -16,7 +16,6 @@ type Handler struct{ App *app.Context }
 
 // Handle exposes Core's automatic-pause projection as a read-only panel view.
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
-	// Set this before CORS, method checks, and auth so every response is private.
 	w.Header().Set("Cache-Control", "no-store")
 	middleware.WriteCORS(h.App.Config, w, r)
 	if r.Method == http.MethodOptions {

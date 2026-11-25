@@ -256,8 +256,8 @@ export function ProviderTable({
         const kindLabel = PROVIDER_KIND_LABELS[row.kind];
         const resourceId = row.raw.resourceId;
         const autoState = resourceId ? autoStates[resourceId] : undefined;
-        // A manual hold keeps its original meaning; the projection only adds the
-        // automatic pause Core reports, never a state inferred from balance text.
+        // A manual hold keeps its original meaning; the projection only adds whether
+        // Core itself reported the provider as auto-paused.
         const autoStopped = row.raw.autoHeld === true || autoState?.state === 'auto_paused';
         const autoStateLabel = autoStopped
           ? joinAutoStateLabel(

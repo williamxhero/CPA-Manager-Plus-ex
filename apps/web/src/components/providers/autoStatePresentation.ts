@@ -38,7 +38,6 @@ export function getAutoStateReasonLabel(
   return key ? t(key) : reason.owner || reason.reason;
 }
 
-/** `暂停原因：上游余额不足 · 2026-11-23 15:26`, empty when no reason is published. */
 export function getAutoStatePauseText(
   t: Translate,
   reasons: ReadonlyArray<ProviderAutoStateReason> | undefined

@@ -81,14 +81,18 @@ const renderDetailText = (
   return text;
 };
 
-const renderDetailToggleCount = (
+const renderDetailSurface = (
   row: ProviderRow,
   autoState?: ProviderAutoState | null
-): number => {
+): { toggleCount: number; coolingSelectCount: number; text: string } => {
   const renderer = renderDetail(row, autoState);
-  const count = renderer.root.findAllByType(ToggleSwitch).length;
+  const surface = {
+    toggleCount: renderer.root.findAllByType(ToggleSwitch).length,
+    coolingSelectCount: renderer.root.findAllByType(CoolingPolicySelect).length,
+    text: getText(renderer.root),
+  };
   act(() => renderer.unmount());
-  return count;
+  return surface;
 };
 
 const buildOpenAIRow = (provider: OpenAIProviderConfig) =>
@@ -240,21 +244,22 @@ describe('ProviderDetailDrawer', () => {
       baseUrl: 'https://readonly.example/v1',
       apiKeyEntries: [{ apiKey: 'member-one' }],
     });
-    expect(
-      renderDetailToggleCount(row, {
-        resourceId: 'rid-readonly',
-        state: 'auto_paused',
-        reasons: [
-          {
-            owner: 'core.upstream-balance.v1',
-            reason: 'upstream_balance_exhausted',
-            observedAtMs: 1763970360000,
-            resourceId: 'rid-member-one',
-          },
-        ],
-        members: [{ resourceId: 'rid-member-one', state: 'paused', reasons: [] }],
-      })
-    ).toBe(renderDetailToggleCount(row));
+    const surface = renderDetailSurface(row, {
+      resourceId: 'rid-readonly',
+      state: 'auto_paused',
+      reasons: [
+        {
+          owner: 'core.upstream-balance.v1',
+          reason: 'upstream_balance_exhausted',
+          observedAtMs: 1763970360000,
+          resourceId: 'rid-member-one',
+        },
+      ],
+      members: [{ resourceId: 'rid-member-one', state: 'paused', reasons: [] }],
+    });
+    expect(surface.coolingSelectCount).toBe(1);
+    expect(surface.toggleCount).toBe(0);
+    expect(surface.text).toContain('ai_providers.auto_state_member_paused');
   });
 
   it.each([
