@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { OfficialBalancePanel } from '../OfficialBalancePanel';
 import type { OfficialBalancePanelProps } from '../OfficialBalancePanel';
 import type { OfficialBalanceAdapter } from '@/services/api/officialBalance';
+import type { ProviderAutoState } from '@/services/api/providerAutoState';
 import {
   getProviderPolicy,
   type ProviderPolicyBinding,
@@ -29,10 +30,16 @@ import styles from './ProviderDetailDrawer.module.scss';
 import { ProviderPolicyControl, type ProviderPolicyConnection } from '../ProviderPolicyControl';
 import { ProviderMoneySummary } from '../ProviderMoneySummary';
 import type { ProviderMoneyView } from '../useProviderMoneySummaries';
+import {
+  getAutoStateMemberStateLabel,
+  getAutoStatePauseText,
+} from '../autoStatePresentation';
 
 interface ProviderDetailDrawerProps {
   /** credential hides balance copy; balance keeps only the balance panel. */
   content?: 'all' | 'credential' | 'balance';
+  /** Read-only Core auto start/stop projection for this provider, if any. */
+  autoState?: ProviderAutoState | null;
   officialBalance?: OfficialBalancePanelProps;
   providerPolicy?: ProviderPolicyConnection;
   row: ProviderRow | null;
@@ -111,6 +118,7 @@ function DetailPolicyMoneySummary({
 
 export function ProviderDetailDrawer({
   content = 'all',
+  autoState,
   officialBalance,
   providerPolicy,
   row,
@@ -203,6 +211,37 @@ export function ProviderDetailDrawer({
               />
             </div>
           )}
+        </div>
+      </section>
+    );
+  };
+
+  const renderAutoStateMembers = () => {
+    if (!row) return null;
+    const members = autoState?.members ?? [];
+    if (members.length === 0) return null;
+
+    // Read-only: Core owns the pause, so the panel only reports each member.
+    return (
+      <section className={styles.section}>
+        <h4 className={styles.sectionTitle}>{t('ai_providers.auto_state_members_title')}</h4>
+        <div className={styles.keyEntryList}>
+          {members.map((member) => {
+            const pauseText = getAutoStatePauseText(t, member.reasons);
+            return (
+              <div
+                key={member.resourceId}
+                className={styles.keyEntryCard}
+                data-provider-auto-member-state={member.state}
+              >
+                <span className={styles.keyEntryKey}>{member.resourceId}</span>
+                <span className={styles.keyEntryWeight}>
+                  {getAutoStateMemberStateLabel(t, member.state)}
+                </span>
+                {pauseText && <span className={styles.keyEntryProxy}>{pauseText}</span>}
+              </div>
+            );
+          })}
         </div>
       </section>
     );
@@ -389,6 +428,7 @@ export function ProviderDetailDrawer({
         </section>
         )}
 
+        {showCredential && renderAutoStateMembers()}
         {showCredential && renderQuickSwitches()}
         {showCredential && renderCloak()}
         {showCredential && renderOpenAIKeys()}

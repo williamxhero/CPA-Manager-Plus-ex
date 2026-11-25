@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { OpenAIProviderConfig } from '@/types';
 import type { ProviderRecentUsageMap } from '../utils';
 import { CoolingPolicySelect } from '../CoolingPolicySelect';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import type { ProviderAutoState } from '@/services/api/providerAutoState';
 import { buildProviderRows, type ProviderRow } from '../ProviderTable/rowData';
 import { ProviderDetailDrawer } from './ProviderDetailDrawer';
 
@@ -39,13 +41,17 @@ vi.mock('@/components/ui/Drawer', () => ({
 const getText = (node: ReactTestInstance): string =>
   node.children.map((child) => (typeof child === 'string' ? child : getText(child))).join('');
 
-const renderDetailText = (row: ProviderRow): string => {
+const renderDetail = (
+  row: ProviderRow,
+  autoState?: ProviderAutoState | null
+): ReactTestRenderer => {
   let renderer!: ReactTestRenderer;
 
   act(() => {
     renderer = create(
       <ProviderDetailDrawer
         row={row}
+        autoState={autoState}
         open
         usageByProvider={new Map()}
         resolvedTheme="light"
@@ -62,9 +68,27 @@ const renderDetailText = (row: ProviderRow): string => {
     );
   });
 
+  return renderer;
+};
+
+const renderDetailText = (
+  row: ProviderRow,
+  autoState?: ProviderAutoState | null
+): string => {
+  const renderer = renderDetail(row, autoState);
   const text = getText(renderer.root);
   act(() => renderer.unmount());
   return text;
+};
+
+const renderDetailToggleCount = (
+  row: ProviderRow,
+  autoState?: ProviderAutoState | null
+): number => {
+  const renderer = renderDetail(row, autoState);
+  const count = renderer.root.findAllByType(ToggleSwitch).length;
+  act(() => renderer.unmount());
+  return count;
 };
 
 const buildOpenAIRow = (provider: OpenAIProviderConfig) =>
@@ -152,6 +176,85 @@ describe('ProviderDetailDrawer', () => {
     rows.forEach((row) => {
       expect(renderDetailText(row)).toContain(expectedWeights.get(row.kind));
     });
+  });
+
+  it('lists every projected member so a partially paused provider stays identifiable', () => {
+    const row = buildOpenAIRow({
+      name: 'Partial OpenAI',
+      resourceId: 'rid-group',
+      baseUrl: 'https://partial.example/v1',
+      apiKeyEntries: [{ apiKey: 'member-one' }, { apiKey: 'member-two' }],
+    });
+    const text = renderDetailText(row, {
+      resourceId: 'rid-group',
+      state: 'partially_auto_paused',
+      memberCount: 2,
+      pausedCount: 1,
+      reasons: [],
+      members: [
+        {
+          resourceId: 'rid-member-one',
+          state: 'paused',
+          reasons: [
+            {
+              owner: 'core.upstream-balance.v1',
+              reason: 'upstream_balance_exhausted',
+              observedAtMs: 1763970360000,
+              resourceId: 'rid-member-one',
+            },
+          ],
+        },
+        { resourceId: 'rid-member-two', state: 'available', reasons: [] },
+      ],
+    });
+    expect(text).toContain('ai_providers.auto_state_members_title');
+    expect(text).toContain('rid-member-one');
+    expect(text).toContain('rid-member-two');
+    expect(text).toContain('ai_providers.auto_state_member_paused');
+    expect(text).toContain('ai_providers.auto_state_member_available');
+    expect(text).toContain('ai_providers.auto_state_reason_upstream_balance_exhausted');
+  });
+
+  it('omits the member section when the projection publishes no members', () => {
+    const row = buildOpenAIRow({
+      name: 'Unprojected OpenAI',
+      resourceId: 'rid-unprojected',
+      baseUrl: 'https://unprojected.example/v1',
+      apiKeyEntries: [{ apiKey: 'member-one' }],
+    });
+    expect(renderDetailText(row)).not.toContain('ai_providers.auto_state_members_title');
+    expect(
+      renderDetailText(row, {
+        resourceId: 'rid-unprojected',
+        state: 'available',
+        reasons: [],
+        members: [],
+      })
+    ).not.toContain('ai_providers.auto_state_members_title');
+  });
+
+  it('keeps the auto state read-only by adding no switch', () => {
+    const row = buildOpenAIRow({
+      name: 'Readonly OpenAI',
+      resourceId: 'rid-readonly',
+      baseUrl: 'https://readonly.example/v1',
+      apiKeyEntries: [{ apiKey: 'member-one' }],
+    });
+    expect(
+      renderDetailToggleCount(row, {
+        resourceId: 'rid-readonly',
+        state: 'auto_paused',
+        reasons: [
+          {
+            owner: 'core.upstream-balance.v1',
+            reason: 'upstream_balance_exhausted',
+            observedAtMs: 1763970360000,
+            resourceId: 'rid-member-one',
+          },
+        ],
+        members: [{ resourceId: 'rid-member-one', state: 'paused', reasons: [] }],
+      })
+    ).toBe(renderDetailToggleCount(row));
   });
 
   it.each([
