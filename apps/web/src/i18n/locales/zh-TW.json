@@ -1722,6 +1722,7 @@
     "health_tip_available": "關鍵額度視窗仍有餘量。來源：{{detail}}",
     "health_tip_available_request": "最近一次有效請求成功，憑證目前可用。",
     "health_tip_raw": "暫無足夠訊號判斷狀態。當前：{{detail}}",
+    "auto_pause_badge_hint": "已自動暫停，恢復後自動解除。",
     "health_detail_cooldown": "恢復時間 {{recoverAt}}",
     "health_detail_unknown": "額度或狀態尚未確認",
     "health_detail_runtime": "執行中的帳號，未找到本地登入憑證",

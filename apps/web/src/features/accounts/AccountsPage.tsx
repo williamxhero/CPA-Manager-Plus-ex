@@ -45,6 +45,7 @@ import {
   IconKey,
   IconMoreVertical,
   IconPlus,
+  IconPause,
   IconPin,
   IconRefreshCw,
   IconRotateCcw,
@@ -179,6 +180,7 @@ import { buildAccountRecommendations } from '@/features/accounts/model/quotaReco
 import {
   buildAccountListItem,
   buildRecommendationBySelectionKey,
+  isAccountHealthAutoPaused,
   type AccountListHealthStatusKey,
 } from '@/features/accounts/model/accountListPresentation';
 import {
@@ -9647,7 +9649,8 @@ function AccountsPageInner({
           return `${label}: ${valueText}`;
         })
         .join('\n') || quotaEmptyLabel;
-    const healthTitle = t(
+    const healthAutoPaused = isAccountHealthAutoPaused(item.health.status);
+    const healthTooltip = t(
       item.health.tooltipKey,
       formatQuotaResetTooltipParams(
         item.health.tooltipParams,
@@ -9656,6 +9659,10 @@ function AccountsPageInner({
         item.health.cooldown?.recoverAtMs
       )
     );
+    // The window/reset explanation stays intact; the pause hint is appended to it.
+    const healthTitle = healthAutoPaused
+      ? `${healthTooltip} ${t('accounts.auto_pause_badge_hint')}`
+      : healthTooltip;
     const accountHistoryError = accountHistoryErrorsByRowKey.get(row.selectionKey) ?? '';
     const requestEvidence = resolveAccountRequestHealthEvidence(
       requestEvidenceBySelectionKey.get(row.selectionKey)
@@ -9681,6 +9688,7 @@ function AccountsPageInner({
       quotaEmptyLabel,
       quotaWindowTitle,
       healthTitle,
+      healthAutoPaused,
       accountHistoryError,
       overviewRecentStatus,
       recentStatusData,
@@ -9912,8 +9920,12 @@ function AccountsPageInner({
                       <span
                         className={`${styles.badge} ${getHealthStatusClass(ctx.item.health.status)}`}
                         title={ctx.healthTitle}
+                        data-account-health-auto-paused={ctx.healthAutoPaused ? 'true' : undefined}
                       >
                         {t(ctx.item.health.labelKey)}
+                        {ctx.healthAutoPaused ? (
+                          <IconPause size={12} className={styles.badgePauseGlyph} />
+                        ) : null}
                       </span>
                       <ToggleSwitch
                         checked={!row.disabled}
@@ -10435,8 +10447,12 @@ function AccountsPageInner({
                         <span
                           className={`${styles.badge} ${getHealthStatusClass(ctx.item.health.status)}`}
                           title={ctx.healthTitle}
+                          data-account-health-auto-paused={ctx.healthAutoPaused ? 'true' : undefined}
                         >
                           {t(ctx.item.health.labelKey)}
+                          {ctx.healthAutoPaused ? (
+                            <IconPause size={12} className={styles.badgePauseGlyph} />
+                          ) : null}
                         </span>
                       </div>
                       <div className={styles.accountHealthMetaRow}>

@@ -63,6 +63,20 @@ export type AccountListHealthStatusKey =
   | 'exception'
   | 'available'
   | 'raw';
+
+// Windows that have stepped out of serving requests: exhausted or cooling down.
+const AUTO_PAUSED_HEALTH_STATUSES = new Set<AccountListHealthStatusKey>([
+  'five_hour_exhausted',
+  'weekly_exhausted',
+  'monthly_exhausted',
+  'five_hour_cooldown',
+  'weekly_cooldown',
+  'monthly_cooldown',
+]);
+
+export const isAccountHealthAutoPaused = (status: AccountListHealthStatusKey): boolean =>
+  AUTO_PAUSED_HEALTH_STATUSES.has(status);
+
 export type AccountListHealthReasonTone = 'muted' | 'warning' | 'danger';
 
 type AccountListQuotaWindowKind = AccountQuotaWindowKind;

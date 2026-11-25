@@ -1752,6 +1752,7 @@
     "health_tip_available": "Known key quota windows still have remaining capacity. Source: {{detail}}",
     "health_tip_available_request": "The latest qualified request succeeded, so the credential is currently available.",
     "health_tip_raw": "There are not enough signals to determine status. Current: {{detail}}",
+    "auto_pause_badge_hint": "Auto-paused; resumes automatically once the window recovers.",
     "health_detail_cooldown": "Recovers at {{recoverAt}}",
     "health_detail_unknown": "Quota or status is not confirmed yet",
     "health_detail_runtime": "Runtime account without a local login credential",

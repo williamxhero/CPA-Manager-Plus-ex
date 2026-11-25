@@ -1750,6 +1750,7 @@
     "health_tip_available": "关键配额窗口仍有余量。来源：{{detail}}",
     "health_tip_available_request": "最近一次有效请求成功，凭证当前可用。",
     "health_tip_raw": "暂无足够信号判断状态。当前：{{detail}}",
+    "auto_pause_badge_hint": "已自动暂停，恢复后自动解除。",
     "health_detail_cooldown": "恢复时间 {{recoverAt}}",
     "health_detail_unknown": "额度或状态尚未确认",
     "health_detail_runtime": "运行中的账号，未找到本地登录凭证",

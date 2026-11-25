@@ -2464,6 +2464,15 @@
   color: var(--data-badge-neutral-text);
 }
 
+// Pause glyph inside a health badge: inherits the badge tone and scales with its font size.
+.badgePauseGlyph {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  margin-inline-start: 3px;
+  stroke-width: 2.4;
+}
+
 .statusStack {
   display: flex;
   align-items: flex-start;

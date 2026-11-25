@@ -4518,6 +4518,80 @@ describe('AccountsPage replacement flows', () => {
     ).toBe(false);
   });
 
+  it('marks exhausted and cooling health badges as auto-paused in table and grid layouts', async () => {
+    const pausedFile = makeCodexFile(
+      'auto-pause-weekly.codex.json',
+      'auth-1',
+      'auto-pause-weekly@example.com'
+    );
+    const healthyFile = makeCodexFile(
+      'auto-pause-available.codex.json',
+      'auth-2',
+      'auto-pause-available@example.com'
+    );
+    mocks.files = [pausedFile, healthyFile];
+    mocks.quotaState.codexQuota = buildCredentialScopedQuotaRecord(pausedFile, {
+      status: 'success',
+      windows: [
+        makeCodexQuotaWindow({
+          id: 'weekly',
+          usedPercent: 100,
+          resetLabel: 'later',
+          limitWindowSeconds: 604_800,
+        }),
+      ],
+      quotaInventoryObserved: true,
+    } satisfies CodexQuotaState);
+    installCodexQuotaStoreMutationMock();
+    const pausedSelectionKey = getAuthFileSelectionKey(pausedFile);
+    const healthySelectionKey = getAuthFileSelectionKey(healthyFile);
+
+    const findHealthBadges = (renderer: ReactTestRenderer, selectionKey: string) =>
+      findAccountCardByKey(renderer, selectionKey).findAll(
+        (node) =>
+          node.type === 'span' &&
+          typeof node.props.title === 'string' &&
+          node.props.title.includes('accounts.health_tip_')
+      );
+
+    const expectPausedBadge = (renderer: ReactTestRenderer) => {
+      const badges = findHealthBadges(renderer, pausedSelectionKey);
+      expect(badges).toHaveLength(1);
+      const badge = badges[0];
+      expect(badge.props['data-account-health-auto-paused']).toBe('true');
+      expect(readText(badge)).toContain('accounts.health_weekly_exhausted');
+      expect(badge.props.title).toContain('accounts.health_tip_weekly_exhausted');
+      expect(badge.props.title).toContain('accounts.auto_pause_badge_hint');
+      expect(
+        badge.findAll((node) => node.type === 'svg' && node.props['aria-hidden'] === 'true')
+      ).toHaveLength(1);
+    };
+
+    const expectNoPausedBadge = (renderer: ReactTestRenderer) => {
+      const badges = findHealthBadges(renderer, healthySelectionKey);
+      expect(badges).toHaveLength(1);
+      const badge = badges[0];
+      expect(badge.props['data-account-health-auto-paused']).toBeUndefined();
+      expect(badge.props.title).not.toContain('accounts.auto_pause_badge_hint');
+      expect(
+        badge.findAll((node) => node.type === 'svg' && node.props['aria-hidden'] === 'true')
+      ).toHaveLength(0);
+    };
+
+    mocks.location = { pathname: '/accounts', search: '?layout=table' };
+    const renderer = await renderAccountsPage();
+    expectPausedBadge(renderer);
+    expectNoPausedBadge(renderer);
+
+    mocks.location = { pathname: '/accounts', search: '?layout=grid' };
+    await act(async () => {
+      renderer.update(<AccountsPage />);
+      await Promise.resolve();
+    });
+    expectPausedBadge(renderer);
+    expectNoPausedBadge(renderer);
+  });
+
   it('resets omitted filters when the hash changes outside React Router navigation', async () => {
     const windowEvents = new EventTarget();
     const location = { hash: '#/accounts?provider=codex' };

@@ -3,7 +3,12 @@ import type { AuthFileItem } from '@/types';
 import type { QuotaCooldownInfo } from '@/services/api';
 import type { AuthFileCodexStatusSummary } from '@/features/authFiles/model/credentialStatus';
 import type { AccountRow } from './accountRows';
-import { buildAccountListItem, buildRecommendationBySelectionKey } from './accountListPresentation';
+import {
+  buildAccountListItem,
+  buildRecommendationBySelectionKey,
+  isAccountHealthAutoPaused,
+  type AccountListHealthStatusKey,
+} from './accountListPresentation';
 import { summarizeGroupedQuotaAvailability } from './accountQuotaSummary';
 import type { AccountRecommendation } from './quotaRecommendations';
 
@@ -1930,5 +1935,38 @@ describe('accountListPresentation', () => {
     expect(item.health.status).not.toBe('weekly_exhausted');
     expect(item.health.status).not.toBe('limited');
     expect(item.recommendation.hasRecommendation).toBe(false);
+  });
+});
+
+describe('isAccountHealthAutoPaused', () => {
+  const autoPausedStatuses: AccountListHealthStatusKey[] = [
+    'five_hour_exhausted',
+    'weekly_exhausted',
+    'monthly_exhausted',
+    'five_hour_cooldown',
+    'weekly_cooldown',
+    'monthly_cooldown',
+  ];
+
+  const notAutoPausedStatuses: AccountListHealthStatusKey[] = [
+    'available',
+    'limited',
+    'partial',
+    'disabled',
+    'reauth',
+    'exception',
+    'raw',
+  ];
+
+  it('reports every exhausted and cooling window as auto-paused', () => {
+    expect(autoPausedStatuses.filter((status) => isAccountHealthAutoPaused(status))).toEqual(
+      autoPausedStatuses
+    );
+  });
+
+  it('reports no other health status as auto-paused', () => {
+    expect(notAutoPausedStatuses.filter((status) => isAccountHealthAutoPaused(status))).toEqual(
+      []
+    );
   });
 });
