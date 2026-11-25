@@ -30,6 +30,7 @@ import (
 	monitoringsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/monitoring"
 	officialbalancesvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/officialbalance"
 	panelsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/panel"
+	providerautostatesvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providerautostate"
 	providergatesvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providergate"
 	providerkeyaliassvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providerkeyalias"
 	providerpolicysvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/providerpolicy"
@@ -72,17 +73,18 @@ type FullRefreshCoordinator interface {
 }
 
 type Context struct {
-	ProviderPolicyService   *providerpolicysvc.Service
-	ProviderGateService     *providergatesvc.Service
-	CredentialPolicyService *credentialpolicysvc.Service
-	ManagementQueryBudget   *managementquery.Budget
-	FullRefreshService      FullRefreshCoordinator
-	OfficialBalanceService  *officialbalancesvc.Service
-	CredentialQuotaService  *credentialquotasvc.Service
-	UpdateCheckService      *updatechecksvc.Service
-	Config                  config.Config
-	Store                   *store.Store
-	Collector               *collector.Manager
+	ProviderPolicyService    *providerpolicysvc.Service
+	ProviderGateService      *providergatesvc.Service
+	ProviderAutoStateService *providerautostatesvc.Service
+	CredentialPolicyService  *credentialpolicysvc.Service
+	ManagementQueryBudget    *managementquery.Budget
+	FullRefreshService       FullRefreshCoordinator
+	OfficialBalanceService   *officialbalancesvc.Service
+	CredentialQuotaService   *credentialquotasvc.Service
+	UpdateCheckService       *updatechecksvc.Service
+	Config                   config.Config
+	Store                    *store.Store
+	Collector                *collector.Manager
 
 	StartedAt int64
 	ServiceID string
@@ -212,25 +214,26 @@ func fromExisting(
 	}
 	credentialQuotaService := credentialquotasvc.New(st, identityService, credentialquotasvc.WithBudget(managementBudget))
 	out := &Context{
-		ProviderPolicyService:   providerpolicysvc.New(st, identityService, managerConfigService, officialBalanceService),
-		ProviderGateService:     providergatesvc.New(st, managerConfigService, identityService),
-		CredentialPolicyService: credentialpolicysvc.New(st, credentialQuotaService, managerConfigService),
-		ManagementQueryBudget:   managementBudget,
-		FullRefreshService:      fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget), fullrefreshsvc.WithClock(refreshClock)),
-		OfficialBalanceService:  officialBalanceService,
-		CredentialQuotaService:  credentialQuotaService,
-		UpdateCheckService:      updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
-		Config:                  cfg,
-		Store:                   st,
-		Collector:               collectorManager,
-		StartedAt:               startedAt,
-		ServiceID:               serviceID,
-		AdminAuthService:        adminauthsvc.New(cfg, st),
-		SetupService:            setupsvc.New(cfg, st, collectorService, managerConfigService, startedAt, serviceID),
-		ManagerConfigService:    managerConfigService,
-		CollectorService:        collectorService,
-		UsageService:            usageService,
-		DashboardService:        dashboardsvc.New(st, cfg.DashboardHourlyRollupEnabled),
+		ProviderPolicyService:    providerpolicysvc.New(st, identityService, managerConfigService, officialBalanceService),
+		ProviderGateService:      providergatesvc.New(st, managerConfigService, identityService),
+		ProviderAutoStateService: providerautostatesvc.New(managerConfigService),
+		CredentialPolicyService:  credentialpolicysvc.New(st, credentialQuotaService, managerConfigService),
+		ManagementQueryBudget:    managementBudget,
+		FullRefreshService:       fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget), fullrefreshsvc.WithClock(refreshClock)),
+		OfficialBalanceService:   officialBalanceService,
+		CredentialQuotaService:   credentialQuotaService,
+		UpdateCheckService:       updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
+		Config:                   cfg,
+		Store:                    st,
+		Collector:                collectorManager,
+		StartedAt:                startedAt,
+		ServiceID:                serviceID,
+		AdminAuthService:         adminauthsvc.New(cfg, st),
+		SetupService:             setupsvc.New(cfg, st, collectorService, managerConfigService, startedAt, serviceID),
+		ManagerConfigService:     managerConfigService,
+		CollectorService:         collectorService,
+		UsageService:             usageService,
+		DashboardService:         dashboardsvc.New(st, cfg.DashboardHourlyRollupEnabled),
 		CodexInspectionService: codexinspectionsvc.NewWithOptions(
 			st,
 			managerConfigService,

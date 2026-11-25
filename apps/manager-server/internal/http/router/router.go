@@ -19,6 +19,7 @@ import (
 	monitoringcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/monitoring"
 	officialbalancecontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/officialbalance"
 	panelcontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/panel"
+	providerautostatecontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/providerautostate"
 	providergatecontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/providergate"
 	providerkeyaliascontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/providerkeyalias"
 	providerpolicycontroller "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/http/controller/providerpolicy"
@@ -62,6 +63,8 @@ func New(appCtx *app.Context) http.Handler {
 	mux.HandleFunc("/usage-service/provider-policy/migration", providerPolicyHandler.HandleMigration)
 	providerGateHandler := &providergatecontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/provider-gate", providerGateHandler.Handle)
+	providerAutoStateHandler := &providerautostatecontroller.Handler{App: appCtx}
+	mux.HandleFunc("/usage-service/provider-auto-state", providerAutoStateHandler.Handle)
 	credentialPolicyHandler := &credentialpolicycontroller.Handler{App: appCtx}
 	mux.HandleFunc("/usage-service/credential-policy", credentialPolicyHandler.Handle)
 	runtimeControlsHandler := &runtimecontrolscontroller.Handler{App: appCtx}
