@@ -30,8 +30,9 @@ status or enforcement ACK.
 The positive **normal/protected** path is intentionally deferred until verified
 persistent instance/lifecycle identities and an independently owned, bound,
 versioned gate/consumer contract exist. Inventory, binding/version logic, actual
-routing/enforcement and full T01/Hermes acceptance remain open. Existing
-`CredentialAutoStartStopToggle` remains a policy editor, not an ACK.
+routing/enforcement and full T01/Hermes acceptance remain open. Credential-level
+automatic pause is always on, so the accounts surface only shows a read-only
+status expression; there is no per-credential policy editor left.
 
 ## Actual TDD and verification evidence (2026-10-25)
 
@@ -58,10 +59,12 @@ Each was followed by implementation and passing focused tests.
 Final green command:
 
 ```powershell
-npm --workspace apps/web run test -- src/features/accounts/AccountsPage.test.tsx src/components/providers/ProviderTable/ProviderTable.test.tsx src/components/ui/InfoTooltip.test.tsx src/features/aiProviders/AiProvidersPage.test.tsx src/services/api/usageService.resourceCapabilities.test.ts src/features/accounts/components/CredentialAutoStartStopToggle.test.tsx src/features/accounts/components/credentialAutoStartStopI18n.test.ts src/features/resourceProtection --config resource-capabilities.vitest.config.mjs --configLoader native
+npm --workspace apps/web run test -- src/features/accounts/AccountsPage.test.tsx src/components/providers/ProviderTable/ProviderTable.test.tsx src/components/ui/InfoTooltip.test.tsx src/features/aiProviders/AiProvidersPage.test.tsx src/services/api/usageService.resourceCapabilities.test.ts src/features/resourceProtection --config resource-capabilities.vitest.config.mjs --configLoader native
 ```
 
-Result: **8 files passed, 451 tests passed** (25.53 seconds). Coverage includes
+Result: **8 files passed, 451 tests passed** (25.53 seconds). The recorded command
+and count predate #94, which removed the two per-credential pause-switch test files
+from this list. Coverage includes
 loading/error/schema rejection, global-available rejection, explicit unconfigured
 integration, A-to-B-to-A, overlapping refreshes, unmount/remount, every scope input,
 secret-free descriptions, disabled rows, name copying, tooltip focus/click,
@@ -85,10 +88,11 @@ The coordinator reran the candidate using the repository's **standard Vite test
 configuration**, without the temporary worker configuration or CSS proxies:
 
 ```bash
-npm --workspace apps/web run test -- src/features/accounts/AccountsPage.test.tsx src/components/providers/ProviderTable/ProviderTable.test.tsx src/components/ui/InfoTooltip.test.tsx src/features/aiProviders/AiProvidersPage.test.tsx src/services/api/usageService.resourceCapabilities.test.ts src/features/accounts/components/CredentialAutoStartStopToggle.test.tsx src/features/accounts/components/credentialAutoStartStopI18n.test.ts src/features/resourceProtection
+npm --workspace apps/web run test -- src/features/accounts/AccountsPage.test.tsx src/components/providers/ProviderTable/ProviderTable.test.tsx src/components/ui/InfoTooltip.test.tsx src/features/aiProviders/AiProvidersPage.test.tsx src/services/api/usageService.resourceCapabilities.test.ts src/features/resourceProtection
 ```
 
-Result: **8 files passed, 451 tests passed** (30.74 seconds).
+Result: **8 files passed, 451 tests passed** (30.74 seconds). As above, the two
+per-credential pause-switch test paths were removed from the command by #94.
 
 ```bash
 npm run test:web

@@ -74,6 +74,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, svc.ErrInput) {
 		code, reason = 400, "invalid_policy"
 	}
+	if errors.Is(err, svc.ErrAutomaticPauseAlwaysOn) {
+		code, reason = 400, "automatic_pause_always_on"
+	}
 	if errors.Is(err, svc.ErrUnavailable) {
 		reason = "gate_contract_unavailable"
 		var unavailable *svc.UnavailableError

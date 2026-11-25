@@ -1,10 +1,6 @@
 import { refreshCredentialSource } from '@/services/api/fullRefresh';
 import { credentialQuotaRequest, type CredentialQuotaStatus } from '@/services/api/credentialQuota';
-import { CredentialAutoStartStopToggle } from '@/features/accounts/components/CredentialAutoStartStopToggle';
-import {
-  credentialHasRemainingQuota,
-  formatCredentialCredits,
-} from '@/features/accounts/model/accountQuotaSummary';
+import { formatCredentialCredits } from '@/features/accounts/model/accountQuotaSummary';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   KeyboardEvent,
@@ -18,7 +14,6 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
-import { useAccountCredentialMutationRevisionStore } from '@/stores/useAccountCredentialMutationRevisionStore';
 import { createWorkspaceConnectionState } from '@/stores/workspaceConnectionState';
 import { useWorkspaceConnectionRoute } from '@/hooks/useWorkspaceConnectionRoute';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/DropdownMenu';
@@ -179,8 +174,11 @@ import { buildAccountRecommendations } from '@/features/accounts/model/quotaReco
 import {
   buildAccountListItem,
   buildRecommendationBySelectionKey,
+  isAccountHealthAutoPaused,
   type AccountListHealthStatusKey,
 } from '@/features/accounts/model/accountListPresentation';
+import { AccountListHealthBadge } from '@/features/accounts/components/AccountListHealthBadge';
+import { useAccountAutomaticPause } from '@/features/accounts/hooks/useAccountAutomaticPause';
 import {
   buildAccountHistoryByRowKey,
   buildAccountHistoryTargetBatches,
@@ -1390,13 +1388,6 @@ function AccountsPageInner({
     [connectionFingerprint]
   );
   const [credentialListRevision, setCredentialListRevision] = useState(0);
-  const credentialQuotaRevision = useAccountCredentialMutationRevisionStore((state) =>
-    Object.values(state.events)
-      .filter(
-        (event) => event.connectionFingerprint === connectionFingerprint && event.kind !== 'quota'
-      )
-      .reduce((sum, event) => sum + event.revision, 0)
-  );
   const authFilesRequestScope = useMemo(
     () => ({ apiBase, managementKey }),
     [apiBase, managementKey]
@@ -1456,11 +1447,10 @@ function AccountsPageInner({
     requestScope: authFilesRequestScope,
     onCredentialMutation: handleCredentialMutation,
   });
-  const { forCredential: credentialProtection, refresh: refreshResourceProtection } =
-    useResourceProtection(
-      { ...featureAvailability, checking: featureAvailability.checking || loading },
-      files
-    );
+  const { refresh: refreshResourceProtection } = useResourceProtection(
+    { ...featureAvailability, checking: featureAvailability.checking || loading },
+    files
+  );
 
   const backendCredentialQuota = Boolean(featureAvailability.managerServiceAvailable);
   // While the panel probe is still running the embedded manager is the expected
@@ -1577,6 +1567,9 @@ function AccountsPageInner({
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(
     () => initialWorkspaceUrlState.current.account
   );
+  // Bumped only when a detail drawer open starts or ends, never on a tab switch:
+  // it is the identity of one open for the automatic pause read.
+  const [detailReadToken, setDetailReadToken] = useState(0);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>(
     () => initialWorkspaceUrlState.current.detailTab
@@ -4880,6 +4873,18 @@ function AccountsPageInner({
   const selectedRowIdentitySignature = selectedRow
     ? (accountHistoryIdentityByRowKey.get(selectedRow.selectionKey) ?? '')
     : '';
+  // One auth index is not a lease on one credential: a workspace refresh, a new
+  // login, or a different file at the same index all change the object behind
+  // it. This digest names the credential the drawer is showing, so the automatic
+  // pause read can follow a change instead of reusing the previous answer.
+  const selectedCredentialRevision = useMemo(() => {
+    if (!selectedRow) return '';
+    return JSON.stringify([
+      accountHistoryIdentityByRowKey.get(selectedRow.selectionKey) ?? '',
+      readAuthFileCredentialRefreshAtMs(selectedRow.raw) ?? 0,
+      readAuthFileUpdatedAtMs(selectedRow.raw) ?? 0,
+    ]);
+  }, [accountHistoryIdentityByRowKey, selectedRow]);
   const accountHistoryAutoContextKey = useMemo(
     () =>
       JSON.stringify({
@@ -5077,6 +5082,15 @@ function AccountsPageInner({
     [confirmConfigurationDiscard, handleDelete, selectedRowKey]
   );
   const hasSelectedAccountDetail = activeView === 'accounts' && Boolean(selectedRowKey);
+  // The detail drawer owns the automatic pause read: one read per open, repeated
+  // when the credential behind the open changes.
+  const automaticPauseRead = useAccountAutomaticPause(
+    featureAvailability.managerServiceBase,
+    managementKey,
+    hasSelectedAccountDetail ? selectedRow?.authIndex : undefined,
+    detailReadToken,
+    selectedCredentialRevision
+  );
   const needsInspectionSummary = canLoadInspectionSummary;
   const needsQuotaCooldowns =
     managerStorageAvailable &&
@@ -5743,6 +5757,9 @@ function AccountsPageInner({
         DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE
       );
       setSelectedRowKey(row.selectionKey);
+      if (row.selectionKey !== selectedRowKey) {
+        setDetailReadToken((token) => token + 1);
+      }
       setDetailTab(tab);
       if (searchValue !== location.search) {
         lastWorkspaceNavigationRef.current = searchValue;
@@ -5768,6 +5785,7 @@ function AccountsPageInner({
     detailAnchorRef.current = null;
     setDetailAnchor(null);
     setSelectedRowKey(null);
+    setDetailReadToken((token) => token + 1);
     setDetailTab('overview');
     const searchValue = writeAccountsWorkspaceUrlSearch(
       location.search,
@@ -5798,6 +5816,11 @@ function AccountsPageInner({
       setPageSize(next.pageSize);
       setAccountDisplayMode(next.accountDisplayMode);
       setLayoutMode(next.layoutMode);
+      // A drawer opened by navigation is a new open too, so it reads again rather
+      // than inheriting the answer of the open it replaced.
+      if (next.account !== selectedRowKeyRef.current) {
+        setDetailReadToken((token) => token + 1);
+      }
       setSelectedRowKey(next.account);
       setDetailTab(next.detailTab);
       setOauthExcludedEditorProvider(next.editor === 'excluded' ? next.editorProvider : null);
@@ -9220,21 +9243,6 @@ function AccountsPageInner({
     hideSideActions = false,
     isGridCard = false
   ) => {
-    const automaticSwitch = (
-      <CredentialAutoStartStopToggle
-        key={`${connectionFingerprint}:${row.selectionKey}`}
-        managerServiceBase={featureAvailability.managerServiceBase ?? ''}
-        managementKey={managementKey}
-        authIndex={row.authIndex || undefined}
-        hasQuota={
-          credentialHasRemainingQuota(row.quota) ||
-          buildQuotaDisplayWindows(row).some(
-            (window) => typeof window.remainingPercent === 'number' && window.remainingPercent > 0
-          )
-        }
-        revision={`${credentialQuotaRevision}:${managerConnectionFingerprint}:${JSON.stringify(credentialProtection(row.authIndex).binding ?? null)}`}
-      />
-    );
     const credentialRefreshInProgress =
       credentialRefreshing[getAuthFileSelectionKey(row.raw)] === true;
     const credentialRefreshButton =
@@ -9341,7 +9349,6 @@ function AccountsPageInner({
           <div className={styles.accountGridCardSecondaryActions}>
             {reauthButton}
             {deleteButton}
-            {automaticSwitch}
             {credentialRefreshButton}
             {downloadButton}
           </div>
@@ -9361,7 +9368,6 @@ function AccountsPageInner({
           {settingsButton}
           {downloadButton}
           {deleteButton}
-          {automaticSwitch}
           {credentialRefreshButton}
         </div>
         {!hideSideActions ? (
@@ -9647,7 +9653,8 @@ function AccountsPageInner({
           return `${label}: ${valueText}`;
         })
         .join('\n') || quotaEmptyLabel;
-    const healthTitle = t(
+    const healthAutoPaused = isAccountHealthAutoPaused(item.health.status);
+    const healthTooltip = t(
       item.health.tooltipKey,
       formatQuotaResetTooltipParams(
         item.health.tooltipParams,
@@ -9656,6 +9663,9 @@ function AccountsPageInner({
         item.health.cooldown?.recoverAtMs
       )
     );
+    const healthTitle = healthAutoPaused
+      ? `${healthTooltip} ${t('accounts.auto_pause_badge_hint')}`
+      : healthTooltip;
     const accountHistoryError = accountHistoryErrorsByRowKey.get(row.selectionKey) ?? '';
     const requestEvidence = resolveAccountRequestHealthEvidence(
       requestEvidenceBySelectionKey.get(row.selectionKey)
@@ -9681,6 +9691,7 @@ function AccountsPageInner({
       quotaEmptyLabel,
       quotaWindowTitle,
       healthTitle,
+      healthAutoPaused,
       accountHistoryError,
       overviewRecentStatus,
       recentStatusData,
@@ -9909,12 +9920,12 @@ function AccountsPageInner({
                       className={styles.accountGridCardHeaderRight}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <span
-                        className={`${styles.badge} ${getHealthStatusClass(ctx.item.health.status)}`}
+                      <AccountListHealthBadge
+                        statusClass={getHealthStatusClass(ctx.item.health.status)}
+                        labelKey={ctx.item.health.labelKey}
                         title={ctx.healthTitle}
-                      >
-                        {t(ctx.item.health.labelKey)}
-                      </span>
+                        autoPaused={ctx.healthAutoPaused}
+                      />
                       <ToggleSwitch
                         checked={!row.disabled}
                         onChange={(enabled) => void handleBatchStatus(enabled, [row])}
@@ -10432,12 +10443,12 @@ function AccountsPageInner({
 
                     <div className={styles.accountCardHealth}>
                       <div className={styles.accountCardLine}>
-                        <span
-                          className={`${styles.badge} ${getHealthStatusClass(ctx.item.health.status)}`}
+                        <AccountListHealthBadge
+                          statusClass={getHealthStatusClass(ctx.item.health.status)}
+                          labelKey={ctx.item.health.labelKey}
                           title={ctx.healthTitle}
-                        >
-                          {t(ctx.item.health.labelKey)}
-                        </span>
+                          autoPaused={ctx.healthAutoPaused}
+                        />
                       </div>
                       <div className={styles.accountHealthMetaRow}>
                         {editingPriorityState?.rowKey === row.selectionKey ? (
@@ -10814,6 +10825,7 @@ function AccountsPageInner({
           detailView={detailView}
           getHealthStatusClass={getHealthStatusClass}
           onSelectTab={(tab) => void openAccountDetail(selectedRow, tab)}
+          automaticPauseRead={automaticPauseRead}
         />
       );
     };

@@ -95,18 +95,6 @@ export interface AccountQuotaOverrides {
 
 export type AccountGroupedQuotaAvailabilityState = 'available' | 'partial' | 'exhausted';
 
-export function credentialCreditsRemain(quota: {
-  creditsUnlimited?: boolean | null;
-  creditsOverageLimitReached?: boolean | null;
-  creditsBalance?: string | null;
-}): boolean {
-  if (quota.creditsOverageLimitReached) return false;
-  if (quota.creditsUnlimited) return true;
-  if (typeof quota.creditsBalance !== 'string') return false;
-  const amount = Number(quota.creditsBalance);
-  return Number.isFinite(amount) && amount > 0;
-}
-
 export function formatCredentialCredits(quota: {
   creditsUnlimited?: boolean | null;
   creditsHasCredits?: boolean | null;
@@ -118,15 +106,6 @@ export function formatCredentialCredits(quota: {
   }
   if (quota.creditsHasCredits === false) return '0.00';
   return '—';
-}
-
-export function credentialHasRemainingQuota(quota: AccountQuotaSummary): boolean {
-  if (credentialCreditsRemain(quota)) return true;
-  if (quota.groupedAvailabilityState === 'exhausted' || quota.status === 'exhausted') return false;
-  if (quota.groupedAvailabilityState === 'available' || quota.groupedAvailabilityState === 'partial')
-    return true;
-  if (quota.status === 'ok' || quota.status === 'low') return true;
-  return typeof quota.remainingPercent === 'number' && quota.remainingPercent > 0;
 }
 
 /** Credits balance as a finite non-negative amount; unlimited → +Infinity. */

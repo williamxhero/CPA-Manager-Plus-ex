@@ -77,7 +77,13 @@ import { AccountModelsTab } from './components/accountDetail/AccountModelsTab';
 import { AccountOverviewTab } from './components/accountDetail/AccountOverviewTab';
 import { AccountQuotaTab } from './components/accountDetail/AccountQuotaTab';
 import { QuotaWindowCard } from './components/QuotaWindowCard';
-import { IconChartLine, IconRefreshCw, IconTrendingUp, IconUserRound } from '@/components/ui/icons';
+import {
+  IconChartLine,
+  IconPower,
+  IconRefreshCw,
+  IconTrendingUp,
+  IconUserRound,
+} from '@/components/ui/icons';
 import {
   formatQuotaResetTimestamp,
   formatQuotaResetDisplay,
@@ -915,20 +921,6 @@ vi.mock('@/features/oauth/CodexReauthDialog', () => ({
     mocks.lastCodexReauthProps = props;
     return props.open ? <div data-codex-reauth-open="true" /> : null;
   },
-}));
-
-// Isolate the credential-toolbar auto start/stop switch so this page suite does
-// not depend on the Manager account-processing-policy network lifecycle.
-// Its states and persistence wiring are covered by
-// CredentialAutoStartStopToggle.test.tsx.
-vi.mock('@/features/accounts/components/CredentialAutoStartStopToggle', () => ({
-  CredentialAutoStartStopToggle: (props: { managerServiceBase: string; managementKey: string }) => (
-    <span
-      data-credential-auto-start-stop-stub
-      data-manager-service-base={props.managerServiceBase}
-      data-management-key={props.managementKey}
-    />
-  ),
 }));
 
 vi.mock('@/services/api/apiCall', async (importOriginal) => {
@@ -4061,56 +4053,203 @@ describe('AccountsPage replacement flows', () => {
     expect(mocks.handleCredentialRefresh).not.toHaveBeenCalled();
   });
 
-  it('offers inline Codex credential refresh after auto start/stop', async () => {
-    const renderer = await renderAccountsPage();
-    const selectionKey = getAuthFileSelectionKey(mocks.files[0]);
-    const card = findAccountCardByKey(renderer, selectionKey);
-    const refreshButton = findAccountCardButtonByAriaLabel(
-      renderer,
-      selectionKey,
-      'auth_files.credential_refresh_button'
-    );
+  it.each(['table', 'grid'] as const)(
+    'keeps inline Codex credential refresh without a pause switch in the %s actions',
+    async (layout) => {
+      mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+      const renderer = await renderAccountsPage();
+      const selectionKey = getAuthFileSelectionKey(mocks.files[0]);
+      const card = findAccountCardByKey(renderer, selectionKey);
+      const refreshButton = findAccountCardButtonByAriaLabel(
+        renderer,
+        selectionKey,
+        'auth_files.credential_refresh_button'
+      );
 
-    expect(refreshButton.props.title).toBe('auth_files.credential_refresh_button');
-    expect(refreshButton.findAllByType(IconUserRound)).toHaveLength(1);
-    expect(refreshButton.findAllByType(IconRefreshCw)).toHaveLength(0);
-    const quickActions = card.findAll(
-      (node) =>
-        typeof node.props.className === 'string' &&
-        node.props.className.includes('accountQuickActionsGrid')
-    )[0];
-    expect(quickActions).toBeDefined();
-    const actionChildren = quickActions?.children ?? [];
-    const autoIndex = actionChildren.findIndex(
-      (child) =>
-        child !== null &&
-        typeof child === 'object' &&
-        'type' in child &&
-        typeof (child as ReactTestInstance).type === 'function' &&
-        ((child as ReactTestInstance).type as { name?: string }).name ===
-          'CredentialAutoStartStopToggle'
-    );
-    const refreshIndex = actionChildren.findIndex(
-      (child) =>
-        child !== null &&
-        typeof child === 'object' &&
-        'props' in child &&
-        (child as { props?: { 'aria-label'?: string } }).props?.['aria-label'] ===
-          'auth_files.credential_refresh_button'
-    );
-    expect(autoIndex).toBeGreaterThanOrEqual(0);
-    expect(refreshIndex).toBe(autoIndex + 1);
+      expect(refreshButton.props.title).toBe('auth_files.credential_refresh_button');
+      expect(refreshButton.findAllByType(IconUserRound)).toHaveLength(1);
+      expect(refreshButton.findAllByType(IconRefreshCw)).toHaveLength(0);
+
+      const actionAreas = card.findAll(
+        (node) =>
+          typeof node.props.className === 'string' &&
+          (node.props.className.includes('accountQuickActionsGrid') ||
+            node.props.className.includes('accountGridCardPrimaryActions') ||
+            node.props.className.includes('accountGridCardSecondaryActions'))
+      );
+      expect(actionAreas.length).toBeGreaterThan(0);
+      const actionButtons = actionAreas.flatMap((node) =>
+        node.findAll((child) => child.type === 'button')
+      );
+      expect(actionButtons.map((node) => node.props['aria-label']).sort()).toEqual(
+        [
+          'accounts.refresh_quota',
+          'accounts.detail_tab_config',
+          'auth_files.download_button',
+          'auth_files.delete_button',
+          'auth_files.credential_refresh_button',
+        ].sort()
+      );
+      expect(actionAreas.flatMap((node) => node.findAllByType(IconPower))).toHaveLength(0);
+      expect(
+        actionAreas.flatMap((node) =>
+          node.findAll((child) => child.props['aria-pressed'] !== undefined)
+        )
+      ).toHaveLength(0);
+
+      await act(async () => {
+        refreshButton.props.onClick();
+        await Promise.resolve();
+      });
+      expect(mocks.lastCodexReauthProps?.open).toBe(true);
+      expect(mocks.lastCodexReauthProps?.target).toMatchObject({
+        fileName: mocks.files[0].name,
+        account: mocks.files[0].account,
+      });
+      expect(mocks.handleCredentialRefresh).not.toHaveBeenCalled();
+    }
+  );
+
+  it('never requests per-credential pause intents while loading the page', async () => {
+    const requested: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      requested.push(String(url));
+      return Response.json({});
+    });
+
+    await renderAccountsPage();
+    await flushPromises();
+
+    expect(requested.filter((url) => url.includes('view=intents'))).toHaveLength(0);
+  });
+
+  it('reads the credential policy once when the overview opens, never while the list renders', async () => {
+    const requested: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      requested.push(String(url));
+      return Response.json({});
+    });
+    const policyReads = () =>
+      requested.filter((url) => url.includes('/usage-service/credential-policy?authIndex='));
+
+    const renderer = await renderAccountsPage();
+    await flushPromises();
+    expect(policyReads()).toHaveLength(0);
 
     await act(async () => {
-      refreshButton.props.onClick();
-      await Promise.resolve();
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
     });
-    expect(mocks.lastCodexReauthProps?.open).toBe(true);
-    expect(mocks.lastCodexReauthProps?.target).toMatchObject({
-      fileName: mocks.files[0].name,
-      account: mocks.files[0].account,
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
     });
-    expect(mocks.handleCredentialRefresh).not.toHaveBeenCalled();
+    await flushPromises();
+    expect(policyReads()).toEqual([
+      'http://manager.local:18317/usage-service/credential-policy?authIndex=auth-1',
+    ]);
+    expect(treeText(renderer)).toContain('accounts.detail_overview_auto_pause_state_unavailable');
+
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_quota').props.onClick();
+    });
+    await flushPromises();
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
+    });
+    await flushPromises();
+    expect(policyReads()).toEqual([
+      'http://manager.local:18317/usage-service/credential-policy?authIndex=auth-1',
+    ]);
+    expect(treeText(renderer)).toContain('accounts.detail_overview_auto_pause_state_unavailable');
+
+    await act(async () => {
+      renderer.root.findByType(Drawer).props.onClose();
+    });
+    await flushPromises();
+    expect(policyReads()).toHaveLength(1);
+
+    // A closed drawer owns nothing: reopening is a new read, and the tab switch
+    // inside that second open still must not read again.
+    await act(async () => {
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+    });
+    await flushPromises();
+    expect(policyReads()).toHaveLength(2);
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
+    });
+    await flushPromises();
+    expect(policyReads()).toHaveLength(2);
+    expect(treeText(renderer)).toContain('accounts.detail_overview_auto_pause_state_unavailable');
+  });
+
+  it('never shows a previous open policy answer after the drawer reopens', async () => {
+    const requested: string[] = [];
+    let paused = true;
+    vi.stubGlobal('fetch', async (url: string) => {
+      const target = String(url);
+      requested.push(target);
+      if (!target.includes('/usage-service/credential-policy?authIndex=')) {
+        return Response.json({});
+      }
+      return paused
+        ? Response.json({
+            subjectId: 'subject-1',
+            bindingCurrent: true,
+            enabled: true,
+            generation: 1,
+            state: 'armed',
+            reason: 'policy_enabled',
+            availability: { state: 'available', reason: 'current_source_gate_ready' },
+            applied: true,
+            operation: {
+              state: 'applied',
+              action: 'pause',
+              currentApplied: true,
+              receiptConfirmed: true,
+              reason: 'current_gate_confirmed',
+            },
+          })
+        : Response.json({
+            subjectId: 'subject-1',
+            bindingCurrent: true,
+            enabled: true,
+            generation: 1,
+            state: 'armed',
+            reason: 'policy_enabled',
+            availability: { state: 'available', reason: 'current_source_gate_ready' },
+            applied: false,
+          });
+    });
+    const policyReads = () =>
+      requested.filter((url) => url.includes('/usage-service/credential-policy?authIndex='));
+
+    const renderer = await renderAccountsPage();
+    await flushPromises();
+    await act(async () => {
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+    });
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
+    });
+    await flushPromises();
+    expect(treeText(renderer)).toContain('accounts.detail_overview_auto_pause_state_paused');
+
+    await act(async () => {
+      renderer.root.findByType(Drawer).props.onClose();
+    });
+    await flushPromises();
+
+    paused = false;
+    await act(async () => {
+      findSettingsButtonByName(renderer, 'codex.json').props.onClick();
+    });
+    await act(async () => {
+      findHostButtonByText(renderer, 'accounts.detail_tab_overview').props.onClick();
+    });
+    await flushPromises();
+    expect(policyReads()).toHaveLength(2);
+    expect(treeText(renderer)).toContain('accounts.detail_overview_auto_pause_state_active');
+    expect(treeText(renderer)).not.toContain('accounts.detail_overview_auto_pause_state_paused');
   });
 
   it('disables inline credential refresh while that credential is refreshing', async () => {
@@ -4516,6 +4655,98 @@ describe('AccountsPage replacement flows', () => {
     expect(
       renderer.root.findByProps({ 'aria-label': 'accounts.view_mode_grid' }).props['aria-pressed']
     ).toBe(false);
+  });
+
+  it('marks exhausted and cooling health badges as auto-paused in table and grid layouts', async () => {
+    const pausedFile = makeCodexFile(
+      'auto-pause-weekly.codex.json',
+      'auth-1',
+      'auto-pause-weekly@example.com'
+    );
+    const healthyFile = makeCodexFile(
+      'auto-pause-available.codex.json',
+      'auth-2',
+      'auto-pause-available@example.com'
+    );
+    mocks.files = [pausedFile, healthyFile];
+    mocks.quotaState.codexQuota = buildCredentialScopedQuotaRecord(pausedFile, {
+      status: 'success',
+      windows: [
+        makeCodexQuotaWindow({
+          id: 'weekly',
+          usedPercent: 100,
+          resetLabel: 'later',
+          limitWindowSeconds: 604_800,
+        }),
+      ],
+      quotaInventoryObserved: true,
+    } satisfies CodexQuotaState);
+    installCodexQuotaStoreMutationMock();
+    const pausedSelectionKey = getAuthFileSelectionKey(pausedFile);
+    const healthySelectionKey = getAuthFileSelectionKey(healthyFile);
+
+    const findHealthBadges = (renderer: ReactTestRenderer, selectionKey: string) =>
+      findAccountCardByKey(renderer, selectionKey).findAll(
+        (node) =>
+          node.type === 'span' &&
+          typeof node.props.title === 'string' &&
+          node.props.title.includes('accounts.health_tip_')
+      );
+
+    // The badge is a plain span, so its pause meaning travels as visually hidden
+    // text inside it instead of an aria-label on a roleless element.
+    const findHiddenHint = (badge: ReactTestInstance) =>
+      badge.findAll(
+        (node) =>
+          node.type === 'span' &&
+          typeof node.props.className === 'string' &&
+          node.props.className.includes('srOnly')
+      );
+
+    const expectPausedBadge = (renderer: ReactTestRenderer) => {
+      const badges = findHealthBadges(renderer, pausedSelectionKey);
+      expect(badges).toHaveLength(1);
+      const badge = badges[0];
+      expect(badge.props['data-account-health-auto-paused']).toBe('true');
+      expect(readText(badge)).toContain('accounts.health_weekly_exhausted');
+      expect(badge.props.title).toContain('accounts.health_tip_weekly_exhausted');
+      expect(badge.props.title).toContain('accounts.auto_pause_badge_hint');
+      expect(badge.props['aria-label']).toBeUndefined();
+      const hiddenHint = findHiddenHint(badge);
+      expect(hiddenHint).toHaveLength(1);
+      expect(readText(hiddenHint[0])).toContain('accounts.auto_pause_badge_hint');
+      expect(readText({ children: badge.props.children })).toContain('accounts.health_weekly_exhausted');
+      expect(
+        badge.findAll((node) => node.type === 'svg' && node.props['aria-hidden'] === 'true')
+      ).toHaveLength(1);
+    };
+
+    const expectNoPausedBadge = (renderer: ReactTestRenderer) => {
+      const badges = findHealthBadges(renderer, healthySelectionKey);
+      expect(badges).toHaveLength(1);
+      const badge = badges[0];
+      expect(badge.props['data-account-health-auto-paused']).toBeUndefined();
+      expect(badge.props['aria-label']).toBeUndefined();
+      expect(findHiddenHint(badge)).toHaveLength(0);
+      expect(readText(badge)).not.toContain('accounts.auto_pause_badge_hint');
+      expect(badge.props.title).not.toContain('accounts.auto_pause_badge_hint');
+      expect(
+        badge.findAll((node) => node.type === 'svg' && node.props['aria-hidden'] === 'true')
+      ).toHaveLength(0);
+    };
+
+    mocks.location = { pathname: '/accounts', search: '?layout=table' };
+    const renderer = await renderAccountsPage();
+    expectPausedBadge(renderer);
+    expectNoPausedBadge(renderer);
+
+    mocks.location = { pathname: '/accounts', search: '?layout=grid' };
+    await act(async () => {
+      renderer.update(<AccountsPage />);
+      await Promise.resolve();
+    });
+    expectPausedBadge(renderer);
+    expectNoPausedBadge(renderer);
   });
 
   it('resets omitted filters when the hash changes outside React Router navigation', async () => {
@@ -11594,6 +11825,7 @@ describe('AccountsPage replacement flows', () => {
       .map((node) => node.props['data-overview-section']);
     expect(overviewSectionNames).toEqual([
       'decision',
+      'automatic-pause',
       'recent-status',
       'capacity',
       'credential',
@@ -22377,20 +22609,6 @@ describe('AccountsPage replacement flows', () => {
     });
   });
 
-  it('renders each credential automatic control inside its row, never in the global toolbar', async () => {
-    const renderer = await renderAccountsPage();
-    const stub = renderer.root.findByProps({ 'data-credential-auto-start-stop-stub': true });
-    expect(stub.props['data-manager-service-base']).toBe('http://manager.local:18317');
-    expect(stub.props['data-management-key']).toBe('manager-key');
-    let current: ReactTestInstance | null = stub.parent;
-    let inCard = false;
-    while (current) {
-      expect(String(current.props.className ?? '')).not.toContain('batchActions');
-      if (current.props['data-account-card']) inCard = true;
-      current = current.parent;
-    }
-    expect(inCard).toBe(true);
-  });
   it.each(['table', 'grid'] as const)(
     'ticket93 removes actual outer duplicate nodes in %s',
     async (layout) => {
@@ -22409,9 +22627,6 @@ describe('AccountsPage replacement flows', () => {
           (n) => n.type === 'button' && n.props['aria-label'] === 'accounts.detail_tab_config'
         ).length
       ).toBeGreaterThan(0);
-      expect(
-        renderer.root.findAllByProps({ 'data-credential-auto-start-stop-stub': true })
-      ).toHaveLength(mocks.files.length);
     }
   );
 

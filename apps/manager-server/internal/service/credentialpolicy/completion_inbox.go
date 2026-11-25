@@ -126,16 +126,12 @@ func (s *Service) ProcessCompletions(ctx context.Context) error {
 						return err
 					}
 					if capture.PolicyDocument == "" {
-						reason = "policy_off"
+						reason = "no_policy_record"
 						continue
 					}
 					state, err := s.StoredStatus(ctx, capture.PolicyID)
 					if err != nil {
 						return err
-					}
-					if !state.Enabled {
-						reason = "policy_off"
-						continue
 					}
 					rows, err := s.Store.CredentialAssociationEvidenceForPolicy(ctx, capture.PolicyID)
 					if err != nil {

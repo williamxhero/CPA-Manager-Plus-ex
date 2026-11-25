@@ -169,14 +169,11 @@ func (s *Service) classifyCompletion(ctx context.Context, q cq.Query, status cq.
 		return Status{}, EvidenceDecision{}, err
 	}
 	if r.Document == "" {
-		return Status{}, noEvidence("policy_off"), nil
+		return Status{}, noEvidence("no_policy_record"), nil
 	}
 	state, err := s.StoredStatus(ctx, id)
 	if err != nil {
 		return Status{}, EvidenceDecision{}, err
-	}
-	if !state.Enabled {
-		return state, noEvidence("policy_off"), nil
 	}
 	body, err := json.Marshal(q)
 	if err != nil {
