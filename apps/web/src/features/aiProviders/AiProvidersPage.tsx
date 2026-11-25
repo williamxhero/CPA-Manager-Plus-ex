@@ -52,6 +52,11 @@ import {
   getProviderPolicyMigration,
   type ProviderPolicyMigrationStatus,
 } from '@/services/api/providerPolicy';
+import {
+  getProviderAutoState,
+  indexProviderAutoStates,
+  type ProviderAutoStateMap,
+} from '@/services/api/providerAutoState';
 import { useAuthStore, useConfigStore, useNotificationStore, useThemeStore } from '@/stores';
 import {
   CloakConfig,
@@ -168,6 +173,34 @@ export function AiProvidersPage() {
     featureAvailability.managerServiceBase,
     balanceManagementKey,
     providerPolicyRevision,
+  ]);
+  const [providerAutoStates, setProviderAutoStates] = useState<ProviderAutoStateMap>({});
+  const [autoStateRefreshToken, setAutoStateRefreshToken] = useState(0);
+  useEffect(() => {
+    if (
+      !featureAvailability.managerServiceAvailable ||
+      !featureAvailability.managerServiceBase ||
+      !balanceManagementKey
+    ) {
+      return;
+    }
+    const controller = new AbortController();
+    void getProviderAutoState(
+      featureAvailability.managerServiceBase,
+      balanceManagementKey,
+      controller.signal
+    ).then((projection) => {
+      // A failed read resolves to null on purpose: keep the last known icons
+      // instead of showing an error or flashing every provider available.
+      if (!projection || controller.signal.aborted) return;
+      setProviderAutoStates(indexProviderAutoStates(projection));
+    });
+    return () => controller.abort();
+  }, [
+    featureAvailability.managerServiceAvailable,
+    featureAvailability.managerServiceBase,
+    balanceManagementKey,
+    autoStateRefreshToken,
   ]);
   const [interactionsKeys, setInteractionsKeys] = useState<GeminiKeyConfig[]>([]);
   const [codexConfigs, setCodexConfigs] = useState<ProviderKeyConfig[]>([]);
@@ -344,6 +377,7 @@ export function AiProvidersPage() {
 
   const handleRecentRequestsRefresh = useCallback(async () => {
     void refreshResourceProtection();
+    setAutoStateRefreshToken((value) => value + 1);
     await Promise.all([
       refreshRecentRequests(),
       activeMutation.current ? undefined : loadConfigs(),
@@ -472,6 +506,10 @@ export function AiProvidersPage() {
     () => (detailRowKey ? (rows.find((row) => row.key === detailRowKey) ?? null) : null),
     [detailRowKey, rows]
   );
+  const detailAutoState = useMemo(() => {
+    const resourceId = detailRow?.raw.resourceId;
+    return resourceId ? providerAutoStates[resourceId] : undefined;
+  }, [detailRow, providerAutoStates]);
 
   const filtersActive = kindFilter !== 'all' || searchText.trim() !== '' || selectedModels.size > 0;
 
@@ -1888,6 +1926,7 @@ export function AiProvidersPage() {
           )}
           <Card>
             <ProviderTable
+              autoStates={providerAutoStates}
               moneyStatus={{
                 base: featureAvailability.managerServiceBase,
                 managementKey: balanceManagementKey,
@@ -1972,6 +2011,7 @@ export function AiProvidersPage() {
 
       <ProviderDetailDrawer
         content={detailContent}
+        autoState={detailAutoState}
         officialBalance={{ base: featureAvailability.managerServiceBase, managementKey: balanceManagementKey, binding: detailRow ? forProvider(detailRow, rows).binding : undefined, disabled: !featureAvailability.managerServiceAvailable }}
         providerPolicy={providerPolicyConnection}
         row={detailRow}

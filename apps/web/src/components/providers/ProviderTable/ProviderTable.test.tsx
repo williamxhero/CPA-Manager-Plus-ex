@@ -3,6 +3,7 @@ import { create, type ReactTestInstance, type ReactTestRenderer } from 'react-te
 import { describe, expect, it, vi } from 'vitest';
 import { Button } from '@/components/ui/Button';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import type { ProviderAutoStateMap } from '@/services/api/providerAutoState';
 import type { ProviderKeyConfig } from '@/types';
 import { buildRecentRequestCompositeKey } from '@/utils/recentRequests';
 import { ProviderStatusBar } from '../ProviderStatusBar';
@@ -156,6 +157,7 @@ describe('ProviderTable', () => {
       actionsDisabled?: boolean;
       toggleDisabled?: boolean;
       resourceProtection?: 'unknown' | 'unavailable' | 'identity_only' | 'unsupported_mode';
+      autoStates?: ProviderAutoStateMap;
     } = {}
   ) => {
     let renderer!: ReactTestRenderer;
@@ -164,6 +166,7 @@ describe('ProviderTable', () => {
         <ProviderTable
           rows={rows}
           resourceProtection={options.resourceProtection}
+          autoStates={options.autoStates}
           loading={false}
           actionsDisabled={options.actionsDisabled ?? false}
           toggleDisabled={options.toggleDisabled ?? false}
@@ -203,6 +206,134 @@ describe('ProviderTable', () => {
     expect(manual.props.checked).toBe(false);
     toggleSwitch(manual, true);
     expect(onToggle).toHaveBeenCalledWith(rows[0], true);
+    act(() => renderer.unmount());
+  });
+
+  it('shows a live auto-paused projection as stopped with its reason and time', () => {
+    const rows = buildProviderRows({ ...emptyInput, openai: [
+      { name: 'paused', resourceId: 'rid-paused', baseUrl: 'https://paused.example/v1', apiKeyEntries: [] },
+    ] });
+    const renderer = renderTable(rows, {}, {
+      autoStates: {
+        'rid-paused': {
+          resourceId: 'rid-paused',
+          state: 'auto_paused',
+          memberCount: 1,
+          pausedCount: 1,
+          reasons: [
+            {
+              owner: 'core.upstream-balance.v1',
+              reason: 'upstream_balance_exhausted',
+              observedAtMs: 1763970360000,
+              resourceId: 'rid-paused',
+            },
+          ],
+        },
+      },
+    });
+    const [row] = getRows(renderer);
+    const state = getAutoState(row);
+    expect(state.props['data-provider-auto-state']).toBe('stopped');
+    expect(state.props['aria-label']).toContain('ai_providers.auto_state_stopped_aria');
+    expect(state.props['aria-label']).toContain(
+      'ai_providers.auto_state_reason_upstream_balance_exhausted'
+    );
+    expect(state.props['aria-label']).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
+    expect(state.props.title).toBe(state.props['aria-label']);
+    act(() => renderer.unmount());
+  });
+
+  it('keeps missing, available and partially paused projections on the available icon', () => {
+    const rows = buildProviderRows({ ...emptyInput, openai: [
+      { name: 'missing', resourceId: 'rid-missing', baseUrl: 'https://missing.example/v1', apiKeyEntries: [] },
+      { name: 'available', resourceId: 'rid-available', baseUrl: 'https://available.example/v1', apiKeyEntries: [] },
+      { name: 'partial', resourceId: 'rid-partial', baseUrl: 'https://partial.example/v1', apiKeyEntries: [
+        { apiKey: 'member-one' },
+        { apiKey: 'member-two' },
+      ] },
+    ] });
+    const renderer = renderTable(rows, {}, {
+      autoStates: {
+        'rid-available': { resourceId: 'rid-available', state: 'available', memberCount: 1, pausedCount: 0 },
+        'rid-partial': {
+          resourceId: 'rid-partial',
+          state: 'partially_auto_paused',
+          memberCount: 2,
+          pausedCount: 1,
+          reasons: [
+            {
+              owner: 'core.upstream-balance.v1',
+              reason: 'upstream_balance_exhausted',
+              observedAtMs: 1763970360000,
+              resourceId: 'rid-member-one',
+            },
+          ],
+          members: [
+            {
+              resourceId: 'rid-member-one',
+              state: 'paused',
+              reasons: [
+                {
+                  owner: 'core.upstream-balance.v1',
+                  reason: 'upstream_balance_exhausted',
+                  observedAtMs: 1763970360000,
+                  resourceId: 'rid-member-one',
+                },
+              ],
+            },
+            { resourceId: 'rid-member-two', state: 'available', reasons: [] },
+          ],
+        },
+      },
+    });
+    const rendered = getRows(renderer);
+    expect(rendered).toHaveLength(3);
+    for (const row of rendered) {
+      expect(getAutoState(row).props).toMatchObject({
+        'data-provider-auto-state': 'available',
+        'aria-label': 'ai_providers.auto_state_available_aria',
+      });
+    }
+    act(() => renderer.unmount());
+  });
+
+  it('keeps the manual hold stopped when the projection reports the provider available', () => {
+    const rows = buildProviderRows({ ...emptyInput, openai: [
+      { name: 'held', resourceId: 'rid-held', baseUrl: 'https://held.example/v1', apiKeyEntries: [], autoHeld: true },
+    ] });
+    const renderer = renderTable(rows, {}, {
+      autoStates: { 'rid-held': { resourceId: 'rid-held', state: 'available' } },
+    });
+    expect(getAutoState(getRows(renderer)[0]).props).toMatchObject({
+      'data-provider-auto-state': 'stopped',
+      'aria-label': 'ai_providers.auto_state_stopped_aria',
+    });
+    act(() => renderer.unmount());
+  });
+
+  it('falls back to the raw owner when the pause reason has no known label', () => {
+    const rows = buildProviderRows({ ...emptyInput, openai: [
+      { name: 'unknown', resourceId: 'rid-unknown', baseUrl: 'https://unknown.example/v1', apiKeyEntries: [] },
+    ] });
+    const renderer = renderTable(rows, {}, {
+      autoStates: {
+        'rid-unknown': {
+          resourceId: 'rid-unknown',
+          state: 'auto_paused',
+          reasons: [
+            {
+              owner: 'core.custom-policy.v1',
+              reason: 'custom_pause',
+              observedAtMs: 1763970360000,
+              resourceId: 'rid-unknown',
+            },
+          ],
+        },
+      },
+    });
+    expect(getAutoState(getRows(renderer)[0]).props['aria-label']).toContain(
+      'core.custom-policy.v1'
+    );
     act(() => renderer.unmount());
   });
 

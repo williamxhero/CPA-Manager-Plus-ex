@@ -10,6 +10,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import type { ProviderAutoStateMap } from '@/services/api/providerAutoState';
 import {
   IconCheck,
   IconEye,
@@ -29,12 +30,15 @@ import {
 } from '../useProviderMoneySummaries';
 import { useOfficialBalanceList } from '../useOfficialBalanceList';
 import { ProviderStatusBar } from '../ProviderStatusBar';
+import { getAutoStatePauseText, joinAutoStateLabel } from '../autoStatePresentation';
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from './kindMeta';
 import type { ProviderRow } from './rowData';
 import styles from './ProviderTable.module.scss';
 
 interface ProviderTableProps {
   rows: ProviderRow[];
+  /** Read-only Core auto start/stop projection, indexed by provider resource id. */
+  autoStates?: ProviderAutoStateMap;
   moneyStatus?: ProviderMoneyStatusConfig;
   resourceProtection?: ResourceProtectionCapability;
   resourceProtectionForRow?: (row: ProviderRow) => ResourceProtectionEvidence;
@@ -191,6 +195,7 @@ function PriorityControl({ row, disabled, editLabel, onPriorityChange }: Priorit
 
 export function ProviderTable({
   rows,
+  autoStates = {},
   moneyStatus,
   loading,
   actionsDisabled,
@@ -249,12 +254,17 @@ export function ProviderTable({
 
       {rows.map((row) => {
         const kindLabel = PROVIDER_KIND_LABELS[row.kind];
-        const autoStopped = row.raw.autoHeld === true;
-        const autoStateLabel = t(
-          autoStopped
-            ? 'ai_providers.auto_state_stopped_aria'
-            : 'ai_providers.auto_state_available_aria'
-        );
+        const resourceId = row.raw.resourceId;
+        const autoState = resourceId ? autoStates[resourceId] : undefined;
+        // A manual hold keeps its original meaning; the projection only adds the
+        // automatic pause Core reports, never a state inferred from balance text.
+        const autoStopped = row.raw.autoHeld === true || autoState?.state === 'auto_paused';
+        const autoStateLabel = autoStopped
+          ? joinAutoStateLabel(
+              t('ai_providers.auto_state_stopped_aria'),
+              autoState?.state === 'auto_paused' ? getAutoStatePauseText(t, autoState.reasons) : ''
+            )
+          : t('ai_providers.auto_state_available_aria');
         return (
           <div
             key={row.key}
