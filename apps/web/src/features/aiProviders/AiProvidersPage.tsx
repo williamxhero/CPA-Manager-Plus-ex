@@ -176,6 +176,7 @@ export function AiProvidersPage() {
   ]);
   const [providerAutoStates, setProviderAutoStates] = useState<ProviderAutoStateMap>({});
   const [autoStateRefreshToken, setAutoStateRefreshToken] = useState(0);
+  const appliedAutoState = useRef<{ target: string; revision: number } | null>(null);
   useEffect(() => {
     if (
       !featureAvailability.managerServiceAvailable ||
@@ -184,15 +185,17 @@ export function AiProvidersPage() {
     ) {
       return;
     }
+    const target = `${featureAvailability.managerServiceBase}\u0000${balanceManagementKey}`;
     const controller = new AbortController();
     void getProviderAutoState(
       featureAvailability.managerServiceBase,
       balanceManagementKey,
       controller.signal
     ).then((projection) => {
-      // A failed read resolves to null on purpose: keep the last known icons
-      // instead of showing an error or flashing every provider available.
       if (!projection || controller.signal.aborted) return;
+      const applied = appliedAutoState.current;
+      if (applied && applied.target === target && applied.revision === projection.revision) return;
+      appliedAutoState.current = { target, revision: projection.revision };
       setProviderAutoStates(indexProviderAutoStates(projection));
     });
     return () => controller.abort();

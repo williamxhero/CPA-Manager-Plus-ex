@@ -61,8 +61,7 @@ func New(connection *managerconfigsvc.Service) *Service {
 	return &Service{connection: connection, timeout: 15 * time.Second}
 }
 
-// Read performs exactly one authenticated GET against the saved connection. It
-// writes nothing, retries nothing, follows no redirect, and caches no result.
+// Read returns Core's automatic-pause projection for the saved connection.
 func (s *Service) Read(ctx context.Context) (Projection, error) {
 	if s == nil || s.connection == nil {
 		return Projection{}, &Failure{KindUnreachable, "connection_unconfigured"}
@@ -122,12 +121,7 @@ func coreErrorReason(body io.Reader) string {
 }
 
 func decode(data []byte) (Projection, error) {
-	var envelope struct {
-		Version   int             `json:"version"`
-		Ready     json.RawMessage `json:"ready"`
-		Revision  json.RawMessage `json:"revision"`
-		Providers json.RawMessage `json:"providers"`
-	}
+	var envelope Projection
 	if json.Unmarshal(data, &envelope) != nil {
 		return Projection{}, &Failure{KindInvalid, "invalid_json"}
 	}
