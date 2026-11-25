@@ -1463,7 +1463,7 @@
     "auto_state_available_aria": "Авто вкл/выкл: доступен",
     "auto_state_stopped_aria": "Авто вкл/выкл: авто-остановлен",
     "auto_state_pause_reason": "Причина паузы",
-    "auto_state_reason_upstream_balance_exhausted": "Исчерпан баланс вышестоящего провайдера",
+    "auto_state_reason_upstream_balance_exhausted": "Баланс вышестоящего провайдера исчерпан",
     "auto_state_members_title": "Участники авто вкл/выкл",
     "auto_state_member_paused": "Приостановлен",
     "auto_state_member_available": "Доступен",

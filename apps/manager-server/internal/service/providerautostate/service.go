@@ -132,9 +132,17 @@ func decode(data []byte) (Projection, error) {
 	if string(ready) != "true" && string(ready) != "false" {
 		return Projection{}, &Failure{KindInvalid, "ready_missing"}
 	}
+	// "Not ready" is an upstream fault. Forwarding it would let the panel read a
+	// stale page as if Core had cleared every automatic pause.
+	if string(ready) != "true" {
+		return Projection{}, &Failure{KindInvalid, "ready_not_true"}
+	}
 	providers := bytes.TrimSpace(envelope.Providers)
 	if len(providers) == 0 || providers[0] != '[' {
 		return Projection{}, &Failure{KindInvalid, "providers_missing"}
+	}
+	if reason := validateProviders(providers); reason != "" {
+		return Projection{}, &Failure{KindInvalid, reason}
 	}
 	return Projection{
 		Version:   envelope.Version,
@@ -142,4 +150,60 @@ func decode(data []byte) (Projection, error) {
 		Revision:  bytes.TrimSpace(envelope.Revision),
 		Providers: providers,
 	}, nil
+}
+
+// Provider states Core may publish. Anything else would reach the panel as an
+// unrecognised state and silently render as available.
+var (
+	validProviderStates = map[string]bool{"available": true, "auto_paused": true, "partially_auto_paused": true}
+	validMemberStates   = map[string]bool{"paused": true, "available": true}
+)
+
+// validateProviders rejects a projection whose members the panel could only
+// guess at. It returns the specific reason, or "" when the projection is
+// readable end to end.
+func validateProviders(providers json.RawMessage) string {
+	var entries []json.RawMessage
+	if json.Unmarshal(providers, &entries) != nil {
+		return "providers_missing"
+	}
+	for _, entry := range entries {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(entry, &fields) != nil {
+			return "provider_resource_id_missing"
+		}
+		if strings.TrimSpace(stringField(fields["resourceId"])) == "" {
+			return "provider_resource_id_missing"
+		}
+		if !validProviderStates[stringField(fields["state"])] {
+			return "provider_state_invalid"
+		}
+		members, present := fields["members"]
+		if !present || bytes.Equal(bytes.TrimSpace(members), []byte("null")) {
+			continue
+		}
+		var entries []json.RawMessage
+		if json.Unmarshal(members, &entries) != nil {
+			return "member_state_invalid"
+		}
+		for _, member := range entries {
+			var memberFields map[string]json.RawMessage
+			if json.Unmarshal(member, &memberFields) != nil {
+				return "member_state_invalid"
+			}
+			if !validMemberStates[stringField(memberFields["state"])] {
+				return "member_state_invalid"
+			}
+		}
+	}
+	return ""
+}
+
+// stringField reads a JSON string field, treating any other shape as absent.
+func stringField(raw json.RawMessage) string {
+	var value string
+	if len(raw) == 0 || json.Unmarshal(raw, &value) != nil {
+		return ""
+	}
+	return value
 }

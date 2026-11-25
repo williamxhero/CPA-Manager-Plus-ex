@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import {
+  autoStateDigest,
   getProviderAutoState,
   indexProviderAutoStates,
   parseProviderAutoState,
@@ -117,4 +118,77 @@ it('indexes the projection by provider resource id', () => {
   expect(Object.keys(index)).toEqual(['rid-group']);
   expect(index['rid-group'].state).toBe('partially_auto_paused');
   expect(indexProviderAutoStates(null)).toEqual({});
+});
+
+it('digests the projected content, not the revision Core happened to stamp', () => {
+  const sameContentLaterRevision = { ...projection, revision: 99 };
+  expect(autoStateDigest(parseProviderAutoState(sameContentLaterRevision))).toBe(
+    autoStateDigest(parseProviderAutoState(projection))
+  );
+
+  const resumed = {
+    ...projection,
+    providers: [
+      {
+        ...projection.providers[0],
+        state: 'available',
+        pausedCount: 0,
+        reasons: [],
+        members: [
+          { resourceId: 'rid-member-one', state: 'available', reasons: [] },
+          { resourceId: 'rid-member-two', state: 'available', reasons: [] },
+        ],
+      },
+    ],
+  };
+  expect(autoStateDigest(parseProviderAutoState(resumed))).not.toBe(
+    autoStateDigest(parseProviderAutoState(projection))
+  );
+});
+
+it('digests content independently of key order and irrelevant fields', () => {
+  const reordered = {
+    providers: [
+      {
+        state: 'partially_auto_paused',
+        pausedCount: 1,
+        memberCount: 2,
+        resourceId: 'rid-group',
+        ignoredUpstreamField: 'noise',
+        members: [
+          {
+            reasons: [
+              {
+                resourceId: 'rid-member-one',
+                observedAtMs: 1763970360000,
+                reason: 'upstream_balance_exhausted',
+                owner: 'core.upstream-balance.v1',
+              },
+            ],
+            state: 'paused',
+            resourceId: 'rid-member-one',
+          },
+          { reasons: [], state: 'available', resourceId: 'rid-member-two' },
+        ],
+        reasons: [
+          {
+            resourceId: 'rid-member-one',
+            observedAtMs: 1763970360000,
+            reason: 'upstream_balance_exhausted',
+            owner: 'core.upstream-balance.v1',
+          },
+        ],
+      },
+    ],
+    revision: 12,
+    ready: true,
+    version: 1,
+  };
+  expect(autoStateDigest(parseProviderAutoState(reordered))).toBe(
+    autoStateDigest(parseProviderAutoState(projection))
+  );
+});
+
+it('digests an unreadable projection as empty so a failure never looks like a clear state', () => {
+  expect(autoStateDigest(null)).toBe(autoStateDigest({ version: 1, ready: true, revision: 1, providers: [] }));
 });
