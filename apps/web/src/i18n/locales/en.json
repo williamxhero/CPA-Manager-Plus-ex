@@ -1456,6 +1456,7 @@
     "table_col_type": "Type",
     "table_col_identity": "Identity",
     "table_col_balance": "Balance",
+    "balance_exhausted_aria": "Balance exhausted",
     "table_col_models": "Models",
     "table_col_recent": "Recent Requests",
     "table_col_actions": "Actions",

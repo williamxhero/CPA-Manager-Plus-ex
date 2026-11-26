@@ -1434,6 +1434,7 @@
     "table_col_type": "Тип",
     "table_col_identity": "Идентификатор",
     "table_col_balance": "Баланс",
+    "balance_exhausted_aria": "Баланс исчерпан",
     "table_col_models": "Модели",
     "table_col_recent": "Недавние запросы",
     "table_col_actions": "Действия",

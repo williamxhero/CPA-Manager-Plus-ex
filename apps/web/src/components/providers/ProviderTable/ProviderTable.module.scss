@@ -1,8 +1,8 @@
 @use '@/styles/variables.scss' as *;
 @use '@/styles/mixins.scss' as *;
 
-// 类型 / 标识 / 余额 / 地址 / 模型 / 优先级 / 近期请求 / 启用 / 自动启停 / 操作
-$table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1fr) 96px 72px minmax(220px, 0.82fr) 68px 72px 112px;
+// 类型 / 标识 / 余额 / 地址 / 模型 / 优先级 / 近期请求 / 启用 / 操作
+$table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1fr) 96px 72px minmax(220px, 0.82fr) 68px 112px;
 
 @mixin provider-card-layout {
   @include narrow-laptop {
@@ -56,15 +56,15 @@ $table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1
   @include provider-card-layout {
     // 每行必须同列数，否则整段 grid-template-areas 会被浏览器丢弃，
     // 窄宽下控件会全部挤到同一块区域。
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      'type toggle auto'
-      'identity identity identity'
-      'balance balance balance'
-      'url url url'
-      'priority models models'
-      'recent recent recent'
-      'actions actions actions';
+      'type toggle'
+      'identity identity'
+      'balance balance'
+      'url url'
+      'priority models'
+      'recent recent'
+      'actions actions';
     column-gap: 10px;
     row-gap: 6px;
     padding: $spacing-md;
@@ -437,28 +437,6 @@ $table-columns: 92px minmax(132px, 0.72fr) minmax(120px, 0.46fr) minmax(180px, 1
   @include provider-card-layout {
     grid-area: toggle;
     justify-content: flex-end;
-  }
-}
-
-.cellAuto {
-  display: flex;
-  justify-content: flex-start;
-  cursor: default;
-
-  @include provider-card-layout {
-    grid-area: auto;
-    justify-content: flex-end;
-  }
-}
-
-.autoState {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-
-  svg {
-    display: block;
   }
 }
 

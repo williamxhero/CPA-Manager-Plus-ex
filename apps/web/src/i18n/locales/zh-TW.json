@@ -1428,6 +1428,7 @@
     "table_col_type": "類型",
     "table_col_identity": "標識",
     "table_col_balance": "餘額",
+    "balance_exhausted_aria": "餘額已耗盡",
     "table_col_models": "模型",
     "table_col_recent": "近期請求",
     "table_col_actions": "操作",

@@ -1934,7 +1934,6 @@ export function AiProvidersPage() {
           )}
           <Card>
             <ProviderTable
-              autoStates={providerAutoStates}
               moneyStatus={{
                 base: featureAvailability.managerServiceBase,
                 managementKey: balanceManagementKey,

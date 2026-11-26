@@ -1454,6 +1454,7 @@
     "table_col_type": "类型",
     "table_col_identity": "标识",
     "table_col_balance": "余额",
+    "balance_exhausted_aria": "余额已耗尽",
     "table_col_models": "模型",
     "table_col_recent": "近期请求",
     "table_col_actions": "操作",
