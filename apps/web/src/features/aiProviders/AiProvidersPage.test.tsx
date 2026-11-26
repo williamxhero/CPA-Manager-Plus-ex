@@ -1,6 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CoolingPolicy, GeminiKeyConfig, OpenAIProviderConfig, ProviderKeyConfig } from '@/types';
+import type { ProviderAutoState } from '@/services/api/providerAutoState';
 
 const mocks = vi.hoisted(() => ({
   config: {} as {
@@ -38,7 +39,7 @@ const mocks = vi.hoisted(() => ({
   },
   getProviderAutoState: vi.fn(),
   getProviderPolicyMigration: vi.fn(async () => null),
-  providerDetailAutoStates: [] as Array<Record<string, unknown> | undefined>,
+  providerDetailAutoStates: [] as Array<ProviderAutoState | null | undefined>,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -213,14 +214,14 @@ vi.mock('@/components/providers', async () => {
     }: {
       row: { raw: GeminiKeyConfig | ProviderKeyConfig } | null;
       open: boolean;
-      autoState?: { state?: string } | null;
+      autoState?: ProviderAutoState | null;
       onToggleDisableCooling: (
         row: { raw: GeminiKeyConfig | ProviderKeyConfig },
         policy: CoolingPolicy
       ) => void;
     }) => {
       if (!open || !row) return null;
-      mocks.providerDetailAutoStates.push(autoState as Record<string, unknown> | undefined);
+      mocks.providerDetailAutoStates.push(autoState);
       return (
         <div>
           <span data-current-policy>{policyFromOverride(row.raw.disableCooling)}</span>
@@ -711,10 +712,9 @@ describe('AiProvidersPage automatic start/stop projection', () => {
     ],
   });
 
-  const lastAutoStates = () =>
+  const lastAutoState = (): ProviderAutoState | null | undefined =>
     mocks.providerDetailAutoStates[mocks.providerDetailAutoStates.length - 1];
-  const appliedState = () =>
-    (lastAutoStates() as { state?: string } | undefined)?.state;
+  const appliedState = () => lastAutoState()?.state;
   const groupRow = {
     name: 'group',
     baseUrl: 'https://fixture.invalid',
@@ -796,14 +796,14 @@ describe('AiProvidersPage automatic start/stop projection', () => {
     mocks.getProviderAutoState.mockResolvedValueOnce(projection('auto_paused', 7));
     const view = await renderPage();
     await openDetail(view);
-    const applied = lastAutoStates();
+    const applied = lastAutoState();
     expect(appliedState()).toBe('auto_paused');
 
     mocks.getProviderAutoState.mockResolvedValueOnce(projection('auto_paused', 8));
     await refresh();
 
     expect(appliedState()).toBe('auto_paused');
-    expect(lastAutoStates()).toBe(applied);
+    expect(lastAutoState()).toBe(applied);
     act(() => view.unmount());
   });
 });

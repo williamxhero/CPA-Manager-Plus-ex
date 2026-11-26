@@ -1,24 +1,24 @@
 import { useTranslation } from 'react-i18next';
 import type { ProviderMoneyView } from './useProviderMoneySummaries';
-import { providerPolicyMoneyText } from './providerPolicyPresentation';
 import type { OfficialBalanceView } from './useOfficialBalanceList';
 import {
   classifyBalanceAmount,
   formatBalanceDisplay,
-  parseDisplayedBalanceAmount,
+  formatBalanceText,
+  type BalanceAmountClass,
 } from '@/utils/quota/formatBalanceAmount';
 import styles from './ProviderMoneySummary.module.scss';
 
 interface MoneyAmountLine {
   text: string;
-  total?: string;
+  amount?: string;
 }
 
-const TONE_CLASS: Record<string, string> = {
+const TONE_CLASS = {
   positive: styles.amountPositive,
   nonPositive: styles.amountNonPositive,
   unknown: '',
-};
+} satisfies Record<BalanceAmountClass, string>;
 
 /** The 16×16 pause glyph the paid-access list already uses for a stopped provider. */
 function PauseGlyph() {
@@ -35,8 +35,8 @@ function policyAmountLines(view?: ProviderMoneyView): MoneyAmountLine[] {
   const lines: MoneyAmountLine[] = [];
   for (const source of view?.data?.funding ?? []) {
     for (const balance of source.balances ?? []) {
-      const text = providerPolicyMoneyText(balance.currency, balance.total, '');
-      if (text) lines.push({ text, total: balance.total });
+      const text = formatBalanceText(balance.currency, balance.total);
+      if (text) lines.push({ text, amount: balance.total });
     }
   }
   return lines;
@@ -51,15 +51,10 @@ export function ProviderMoneySummary({
 }) {
   const { t } = useTranslation();
   const lines: MoneyAmountLine[] = official?.text
-    ? [
-        {
-          text: formatBalanceDisplay(official.text),
-          total: parseDisplayedBalanceAmount(official.text),
-        },
-      ]
+    ? [{ text: formatBalanceDisplay(official.text), amount: official.amount }]
     : policyAmountLines(view);
-  // Every known amount decides the tone; one positive source means money is left.
-  const tone = classifyBalanceAmount(lines.map((line) => line.total));
+  // Every known raw amount decides the tone; one positive source means money is left.
+  const tone = classifyBalanceAmount(lines.map((line) => line.amount));
   const pending = (official?.pending || view?.pending) && lines.length === 0;
   return (
     <div
@@ -73,7 +68,7 @@ export function ProviderMoneySummary({
         lines.map((line, index) => (
           <div
             key={`${index}:${line.text}`}
-            className={`${styles.amountLine} ${TONE_CLASS[tone] ?? ''}`.trim()}
+            className={`${styles.amountLine} ${TONE_CLASS[tone]}`.trim()}
             data-balance-tone={tone}
           >
             {line.text}

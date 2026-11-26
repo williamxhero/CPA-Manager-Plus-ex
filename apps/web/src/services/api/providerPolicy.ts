@@ -216,20 +216,6 @@ export function providerBindingKey(binding: BalanceBinding): string {
   ]);
 }
 
-interface PolicyChange {
-  base: string;
-  managementKey: string;
-  providerId: string;
-}
-const changeListeners = new Set<(change: PolicyChange) => void>();
-/** Read-side subscription point: list money summaries revalidate on a change. */
-export function subscribeProviderPolicyChanges(listener: (change: PolicyChange) => void) {
-  changeListeners.add(listener);
-  return () => {
-    changeListeners.delete(listener);
-  };
-}
-
 async function request(
   base: string,
   managementKey: string,

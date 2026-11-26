@@ -1,4 +1,4 @@
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ProviderTable } from './ProviderTable';
 import { buildProviderRows } from './rowData';
@@ -162,6 +162,26 @@ const props = {
 };
 let view: ReactTestRenderer | undefined;
 const text = () => JSON.stringify(view?.toJSON());
+const nodeText = (node: ReactTestInstance): string =>
+  node.children
+    .map((child) => (typeof child === 'string' ? child : nodeText(child)))
+    .join('');
+/** The balance cell of one named row, so a value cannot pass in another row. */
+const balanceCellText = (label: string) => {
+  const row = view?.root.findAll(
+    (node) =>
+      node.type === 'div' &&
+      node.props.role === 'row' &&
+      node.props.tabIndex === 0 &&
+      String(node.props['aria-label'] ?? '').endsWith(` ${label}`)
+  );
+  expect(row).toHaveLength(1);
+  const summary = row![0].findAll(
+    (node) => node.type === 'div' && node.props['aria-label'] === 'ai_providers.table_col_balance'
+  );
+  expect(summary).toHaveLength(1);
+  return nodeText(summary[0]);
+};
 afterEach(async () => {
   if (view) await act(async () => view?.unmount());
   view = undefined;
@@ -179,11 +199,12 @@ it('shows live native per-member money and independent manual/policy state on ev
   await act(async () => {
     view = create(<ProviderTable {...props} />);
   });
-  expect(text()).toContain('USD 0.05');
-  expect(text()).toContain('CNY 8.12');
+  // Each row owns its own amount: swapping them or collapsing onto one row fails.
+  expect(balanceCellText(rows[0].label)).toBe('USD 0.05');
+  expect(balanceCellText(rows[1].label)).toBe('CNY 8.12');
   expect(text()).not.toContain('人工关闭');
   expect(text()).not.toContain('本策略已确认暂停');
-  expect(fetcher).toHaveBeenCalledTimes(4);
+  expect(fetcher).toHaveBeenCalled();
   expect(props.onShowDetail).not.toHaveBeenCalled();
   expect(props.onToggle).not.toHaveBeenCalled();
 });

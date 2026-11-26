@@ -316,6 +316,21 @@ describe('ProviderTable', () => {
     act(() => renderer.unmount());
   });
 
+  it('classifies the raw official amount instead of its rounded display text', () => {
+    const rows = buildProviderRows({ ...emptyInput, openai: [
+      { name: 'dust', baseUrl: 'https://dust.example/v1', apiKeyEntries: [] },
+    ] });
+    officialViews[rows[0].key] = { text: 'USD 0.00', amount: '0.004' };
+    const renderer = renderTable(rows);
+
+    const [row] = getRows(renderer);
+    const [line] = balanceLines(row);
+    expect(line.props['data-balance-tone']).toBe('positive');
+    expect(getText(line)).toBe('USD 0.00');
+    expect(pauseGlyphs(row)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
   it('prefers any positive funding amount over the exhausted ones', () => {
     const rows = buildProviderRows({ ...emptyInput, openai: [
       { name: 'mixed', baseUrl: 'https://mixed.example/v1', apiKeyEntries: [] },
