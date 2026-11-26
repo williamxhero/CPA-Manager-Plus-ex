@@ -9245,23 +9245,25 @@ function AccountsPageInner({
   ) => {
     const credentialRefreshInProgress =
       credentialRefreshing[getAuthFileSelectionKey(row.raw)] === true;
-    const credentialRefreshButton =
-      !row.runtimeOnly && row.provider === CODEX_CONFIG.type ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          iconOnly
-          className={`${styles.accountIconButton} ${styles.accountIconButtonRefresh}`}
-          onClick={() => handleReauthAccount(row.raw)}
-          disabled={disableControls || configurationSaving || credentialRefreshInProgress}
-          loading={credentialRefreshInProgress}
-          title={t('auth_files.credential_refresh_button')}
-          aria-label={t('auth_files.credential_refresh_button')}
-        >
-          {!credentialRefreshInProgress ? <IconUserRound size={15} /> : null}
-        </Button>
-      ) : null;
-    const reauthButton = needsReauth ? (
+    // One re-login entry per row: Codex rows keep the standing credential button,
+    // so the conditional "recommend reauth" icon must not repeat the same action.
+    const standingReauthAvailable = !row.runtimeOnly && row.provider === CODEX_CONFIG.type;
+    const credentialRefreshButton = standingReauthAvailable ? (
+      <Button
+        variant="secondary"
+        size="sm"
+        iconOnly
+        className={`${styles.accountIconButton} ${styles.accountIconButtonRefresh}`}
+        onClick={() => handleReauthAccount(row.raw)}
+        disabled={disableControls || configurationSaving || credentialRefreshInProgress}
+        loading={credentialRefreshInProgress}
+        title={t('auth_files.credential_refresh_button')}
+        aria-label={t('auth_files.credential_refresh_button')}
+      >
+        {!credentialRefreshInProgress ? <IconUserRound size={15} /> : null}
+      </Button>
+    ) : null;
+    const reauthButton = needsReauth && !standingReauthAvailable ? (
       <Button
         variant="secondary"
         size="sm"

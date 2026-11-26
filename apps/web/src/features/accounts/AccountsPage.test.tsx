@@ -2511,7 +2511,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         selectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
 
@@ -2552,7 +2552,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         selectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles
@@ -2606,7 +2606,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         selectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -2679,7 +2679,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         selectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -2744,7 +2744,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         selectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -2823,7 +2823,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         selectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -2881,7 +2881,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         originalSelectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -2959,7 +2959,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         originalSelectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -3026,7 +3026,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         originalSelectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -3099,7 +3099,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         originalSelectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -3196,7 +3196,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         firstSelectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -3260,7 +3260,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         firstSelectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -3314,7 +3314,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         firstSelectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -3376,7 +3376,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         firstSelectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -3458,7 +3458,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         selectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -3505,7 +3505,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         selectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
@@ -3539,7 +3539,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         firstRenderer,
         selectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockRejectedValueOnce(new Error('temporary auth-file list failure'));
@@ -3579,7 +3579,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         selectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockRejectedValueOnce(new Error('temporary auth-file list failure'));
@@ -4107,6 +4107,39 @@ describe('AccountsPage replacement flows', () => {
         account: mocks.files[0].account,
       });
       expect(mocks.handleCredentialRefresh).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(['table', 'grid'] as const)(
+    'keeps exactly one re-login entry on a Codex row that needs reauthentication in the %s actions',
+    async (layout) => {
+      mocks.location = { pathname: '/accounts', search: `?layout=${layout}` };
+      const file = {
+        ...makeCodexFile('codex.json', 'auth-1', 'codex@example.com'),
+        status: 'error',
+        statusMessage: 'token_expired',
+        errorStatus: 401,
+        statusCode: 401,
+      } as AuthFileItem;
+      mocks.files = [file];
+      const selectionKey = getAuthFileSelectionKey(file);
+      const renderer = await renderAccountsPage();
+      const labels = findAccountCardByKey(renderer, selectionKey)
+        .findAll((node) => node.type === 'button')
+        .map((node) => node.props['aria-label']);
+
+      expect(labels).toContain('auth_files.credential_refresh_button');
+      expect(labels).not.toContain('accounts.recommend_action_reauth');
+
+      await act(async () => {
+        findAccountCardButtonByAriaLabel(
+          renderer,
+          selectionKey,
+          'auth_files.credential_refresh_button'
+        ).props.onClick();
+        await Promise.resolve();
+      });
+      expect(mocks.lastCodexReauthProps?.open).toBe(true);
     }
   );
 
@@ -7754,7 +7787,7 @@ describe('AccountsPage replacement flows', () => {
       findAccountCardButtonByAriaLabel(
         renderer,
         originalSelectionKey,
-        'accounts.recommend_action_reauth'
+        'auth_files.credential_refresh_button'
       ).props.onClick();
     });
     mocks.loadFiles.mockImplementationOnce(async () => {
