@@ -164,7 +164,9 @@ it('explains the unbound wording with the existing description on hover and to a
   );
   expect(wording).toHaveLength(1);
   expect(wording[0].props.title).toBe(locale.resource_protection.unbound_description);
-  expect(wording[0].props['aria-label']).toBe(locale.resource_protection.unbound_description);
+  expect(wording[0].props['aria-label']).toBe(
+    locale.resource_protection.unbound + ' ' + locale.resource_protection.unbound_description
+  );
   act(() => renderer.unmount());
 });
 

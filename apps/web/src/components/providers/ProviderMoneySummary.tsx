@@ -96,7 +96,7 @@ export function ProviderMoneySummary({
       ) : unbound ? (
         <span
           title={t('resource_protection.unbound_description')}
-          aria-label={t('resource_protection.unbound_description')}
+          aria-label={`${t('resource_protection.unbound')} ${t('resource_protection.unbound_description')}`}
         >
           {t('resource_protection.unbound')}
         </span>
