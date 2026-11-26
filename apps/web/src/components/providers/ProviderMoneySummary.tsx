@@ -94,7 +94,12 @@ export function ProviderMoneySummary({
           );
         })
       ) : unbound ? (
-        <span>{t('resource_protection.unbound')}</span>
+        <span
+          title={t('resource_protection.unbound_description')}
+          aria-label={t('resource_protection.unbound_description')}
+        >
+          {t('resource_protection.unbound')}
+        </span>
       ) : (
         <span>—</span>
       )}

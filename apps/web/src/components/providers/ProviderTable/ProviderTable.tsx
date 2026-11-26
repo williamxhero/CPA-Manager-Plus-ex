@@ -185,13 +185,11 @@ export function ProviderTable({
   const { t } = useTranslation();
   const money = useProviderMoneySummaries(rows, moneyStatus);
   const officialBalances = useOfficialBalanceList(rows, moneyStatus);
-  // A row is unbound only when the caller supplied resource-protection evidence for it and
-  // that evidence carries no host-signed binding. Without the probe there is no evidence to
-  // claim it, so the balance cell keeps its existing placeholder.
-  const isUnbound = (row: ProviderRow) => {
-    const evidence = resourceProtectionForRow?.(row);
-    return evidence !== undefined && evidence.binding === undefined;
-  };
+  // Only the evidence itself may say a row has no host-signed binding. The probe stays
+  // `unknown` until it settles and `unavailable` / `unsupported_mode` speak about the
+  // capability, not about this row, so those keep the existing placeholder instead of
+  // claiming the row is unbound.
+  const isUnbound = (row: ProviderRow) => resourceProtectionForRow?.(row).status === 'unbound';
   // Rounded balance text is display-only. Core alone owns funding holds.
   if (loading && rows.length === 0) {
     return <div className="hint">{t('common.loading')}</div>;
