@@ -169,6 +169,7 @@ function PriorityControl({ row, disabled, editLabel, onPriorityChange }: Priorit
 export function ProviderTable({
   rows,
   moneyStatus,
+  resourceProtectionForRow,
   loading,
   actionsDisabled,
   toggleDisabled,
@@ -184,6 +185,13 @@ export function ProviderTable({
   const { t } = useTranslation();
   const money = useProviderMoneySummaries(rows, moneyStatus);
   const officialBalances = useOfficialBalanceList(rows, moneyStatus);
+  // A row is unbound only when the caller supplied resource-protection evidence for it and
+  // that evidence carries no host-signed binding. Without the probe there is no evidence to
+  // claim it, so the balance cell keeps its existing placeholder.
+  const isUnbound = (row: ProviderRow) => {
+    const evidence = resourceProtectionForRow?.(row);
+    return evidence !== undefined && evidence.binding === undefined;
+  };
   // Rounded balance text is display-only. Core alone owns funding holds.
   if (loading && rows.length === 0) {
     return <div className="hint">{t('common.loading')}</div>;
@@ -273,7 +281,11 @@ export function ProviderTable({
                 (onShowBalance ?? onShowDetail)(row);
               }}
             >
-              <ProviderMoneySummary view={money[row.key]} official={officialBalances[row.key]} />
+              <ProviderMoneySummary
+                view={money[row.key]}
+                official={officialBalances[row.key]}
+                unbound={isUnbound(row)}
+              />
             </div>
 
             <div className={styles.cellUrl} role="cell" title={row.baseUrl || undefined}>
