@@ -22,16 +22,16 @@ export const PROVIDER_STATUS_CONSUMERS: readonly ProviderStatusConsumer[] = [
   {
     id: 'provider-table',
     surface: 'Provider table / narrow cards',
-    path: 'ProviderTable.tsx + ProviderPolicyControl + ProviderMoneySummary',
+    path: 'ProviderTable.tsx + ProviderMoneySummary',
     evidence: 'current_policy',
-    notes: 'Name-leading auto marker + policy switch; manual config toggle stays in its own cell',
+    notes: 'Name-leading auto marker + money summary; manual config toggle stays in its own cell',
   },
   {
     id: 'provider-detail',
     surface: 'Provider detail drawer',
     path: 'ProviderDetailDrawer.tsx',
     evidence: 'current_policy',
-    notes: 'Same providerPolicyPresentation lines as list',
+    notes: 'Read-only money text only; no provider money policy controls',
   },
   {
     id: 'health-check',
@@ -88,7 +88,7 @@ export const PROVIDER_STATUS_CONSUMERS: readonly ProviderStatusConsumer[] = [
     surface: 'Create / import post-state',
     path: 'Providers page after identity issued',
     evidence: 'post_identity',
-    notes: 'Reuse ProviderPolicyControl + presentation once binding exists; default OFF',
+    notes: 'Post-identity state; no provider money policy controls',
   },
 ] as const;
 

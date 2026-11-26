@@ -22,10 +22,46 @@ export function formatBalanceText(currency?: string, total?: string): string | u
 
 const DISPLAYED_BALANCE = /^([A-Z]{3}) (-?(?:0|[1-9]\d{0,59})(?:\.\d{1,30})?)$/;
 
+const DECIMAL_AMOUNT = /^(-?)(\d+)(?:\.(\d+))?$/;
+
+export type BalanceAmountClass = 'positive' | 'nonPositive' | 'unknown';
+
+/**
+ * Classifies decimal balance totals without floating point. Any known positive
+ * amount wins, every known amount at or below zero reads as non-positive, and
+ * input without a usable amount stays unknown. Missing, exponent, or malformed
+ * strings are unknown and never become `0`.
+ */
+export function classifyBalanceAmount(
+  totals: ReadonlyArray<string | undefined>
+): BalanceAmountClass {
+  let sawKnown = false;
+  for (const total of totals) {
+    if (typeof total !== 'string') continue;
+    const match = DECIMAL_AMOUNT.exec(total);
+    if (!match) continue;
+    sawKnown = true;
+    const [, sign, whole, fraction = ''] = match;
+    if (/^0+$/.test(`${whole}${fraction}`)) continue;
+    if (sign !== '-') return 'positive';
+  }
+  return sawKnown ? 'nonPositive' : 'unknown';
+}
+
+function matchDisplayedBalance(text: string): { currency: string; amount: string } | undefined {
+  const match = DISPLAYED_BALANCE.exec(text);
+  return match ? { currency: match[1], amount: match[2] } : undefined;
+}
+
+/** Decimal amount inside a displayed balance such as `USD -1.00`; `unlimited` has none. */
+export function parseDisplayedBalanceAmount(text: string): string | undefined {
+  return matchDisplayedBalance(text)?.amount;
+}
+
 export function formatBalanceDisplay(text: string): string {
   if (text === 'unlimited') return text;
-  const match = DISPLAYED_BALANCE.exec(text);
-  if (!match) return text;
-  const amount = formatBalanceAmount(match[2]);
-  return amount ? `${match[1]} ${amount}` : text;
+  const parsed = matchDisplayedBalance(text);
+  if (!parsed) return text;
+  const amount = formatBalanceAmount(parsed.amount);
+  return amount ? `${parsed.currency} ${amount}` : text;
 }

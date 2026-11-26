@@ -57,7 +57,3 @@ export function getAutoStateMemberStateLabel(
 ): string {
   return t(MEMBER_STATE_LABEL_KEYS[state]);
 }
-
-export function joinAutoStateLabel(headline: string, detail: string): string {
-  return detail ? `${headline} · ${detail}` : headline;
-}

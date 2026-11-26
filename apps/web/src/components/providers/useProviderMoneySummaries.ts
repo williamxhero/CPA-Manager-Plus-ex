@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   getProviderPolicy,
   providerBindingKey,
-  subscribeProviderPolicyChanges,
   type ProviderPolicyBinding,
   type ProviderPolicyStatus,
 } from '@/services/api/providerPolicy';
@@ -67,33 +66,6 @@ export function useProviderMoneySummaries(rows: ProviderRow[], config?: Provider
   const base = config?.base;
   const managementKey = config?.managementKey;
   const disabled = config?.disabled;
-  const [revision, setRevision] = useState(0);
-  useEffect(
-    () =>
-      subscribeProviderPolicyChanges((change) => {
-        if (
-          change.base !== base ||
-          change.managementKey !== managementKey ||
-          !bindings.some((row) => row.id === change.providerId)
-        )
-          return;
-        setView((previous) =>
-          previous.context !== context
-            ? previous
-            : {
-                context,
-                rows: Object.fromEntries(
-                  Object.entries(previous.rows).map(([id, value]) => [
-                    id,
-                    { ...value, failed: false, pending: true },
-                  ])
-                ),
-              }
-        );
-        setRevision((value) => value + 1);
-      }),
-    [context, bindings, base, managementKey]
-  );
   useEffect(() => {
     if (!base || !managementKey || disabled || bindings.length === 0) return;
     let mounted = true;
@@ -167,6 +139,6 @@ export function useProviderMoneySummaries(rows: ProviderRow[], config?: Provider
       clearTimeout(timer);
       active.forEach((controller) => controller.abort());
     };
-  }, [context, bindings, base, managementKey, disabled, revision]);
+  }, [context, bindings, base, managementKey, disabled]);
   return view.context === context ? view.rows : {};
 }

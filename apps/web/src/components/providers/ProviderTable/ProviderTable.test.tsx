@@ -1,13 +1,13 @@
 import { act } from 'react';
 import { create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Button } from '@/components/ui/Button';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import type { ProviderAutoStateMap } from '@/services/api/providerAutoState';
 import type { ProviderKeyConfig } from '@/types';
 import { buildRecentRequestCompositeKey } from '@/utils/recentRequests';
 import { ProviderStatusBar } from '../ProviderStatusBar';
 import type { ProviderRecentUsageMap } from '../utils';
+import type { ProviderMoneyView } from '../useProviderMoneySummaries';
 import { buildProviderRows, type ProviderRow } from './rowData';
 import { filterAndSortProviderRows } from './sort';
 import { ProviderTable } from './ProviderTable';
@@ -17,6 +17,41 @@ vi.mock('react-i18next', () => ({
     t: (key: string) => key,
   }),
 }));
+
+const { moneyViews, officialViews } = vi.hoisted(() => ({
+  moneyViews: {} as Record<string, unknown>,
+  officialViews: {} as Record<string, unknown>,
+}));
+
+vi.mock('../useProviderMoneySummaries', () => ({
+  useProviderMoneySummaries: (rows: ProviderRow[]) => {
+    const views: Record<string, ProviderMoneyView> = {};
+    for (const row of rows) {
+      const view = moneyViews[row.key] as ProviderMoneyView | undefined;
+      if (view) views[row.key] = view;
+    }
+    return views;
+  },
+}));
+
+vi.mock('../useOfficialBalanceList', () => ({
+  useOfficialBalanceList: (rows: ProviderRow[]) => {
+    const views: Record<string, unknown> = {};
+    for (const row of rows) {
+      const view = officialViews[row.key];
+      if (view) views[row.key] = view;
+    }
+    return views;
+  },
+  clearOfficialBalanceCachesForTests: () => undefined,
+}));
+
+const moneyView = (...balances: Array<[string, string]>): ProviderMoneyView =>
+  ({
+    data: {
+      funding: [{ balances: balances.map(([currency, total]) => ({ currency, total })) }],
+    },
+  }) as unknown as ProviderMoneyView;
 
 const emptyInput = {
   gemini: [],
@@ -95,13 +130,11 @@ const keyDownInput = (input: ReactTestInstance, key: string) => {
   });
 };
 
-const getAutoState = (row: ReactTestInstance) => {
-  const state = row.find(
-    (node) => node.type === 'span' && node.props['data-provider-auto-state'] !== undefined
-  );
-  if (!state) throw new Error('Auto state icon not found');
-  return state;
-};
+const balanceLines = (node: ReactTestInstance) =>
+  node.findAll((child) => child.type === 'div' && child.props['data-balance-tone'] !== undefined);
+
+const pauseGlyphs = (node: ReactTestInstance) =>
+  node.findAll((child) => child.props['data-balance-paused'] !== undefined);
 
 const getPriorityEditTrigger = (row: ReactTestInstance) => {
   const trigger = row
@@ -132,6 +165,11 @@ const openPriorityEditor = (renderer: ReactTestRenderer, rowIndex = 0) => {
 };
 
 describe('ProviderTable', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(moneyViews)) delete moneyViews[key];
+    for (const key of Object.keys(officialViews)) delete officialViews[key];
+  });
+
   const codexConfigs: ProviderKeyConfig[] = [
     { apiKey: 'low-key', baseUrl: 'https://low.example.com/v1', priority: 1 },
     {
@@ -157,7 +195,6 @@ describe('ProviderTable', () => {
       actionsDisabled?: boolean;
       toggleDisabled?: boolean;
       resourceProtection?: 'unknown' | 'unavailable' | 'identity_only' | 'unsupported_mode';
-      autoStates?: ProviderAutoStateMap;
     } = {}
   ) => {
     let renderer!: ReactTestRenderer;
@@ -166,7 +203,6 @@ describe('ProviderTable', () => {
         <ProviderTable
           rows={rows}
           resourceProtection={options.resourceProtection}
-          autoStates={options.autoStates}
           loading={false}
           actionsDisabled={options.actionsDisabled ?? false}
           toggleDisabled={options.toggleDisabled ?? false}
@@ -183,157 +219,157 @@ describe('ProviderTable', () => {
     return renderer;
   };
 
-  it('shows the automatic stop state as an icon without a browser switch and keeps manual disable independent', () => {
+  it('drops the automatic start/stop column from the header and every row', () => {
+    const rows = filterAndSortProviderRows(
+      buildProviderRows({ ...emptyInput, codex: codexConfigs })
+    );
+    const renderer = renderTable(rows);
+
+    const headers = renderer.root.findAll(
+      (node) => node.type === 'span' && node.props.role === 'columnheader'
+    );
+    expect(headers).toHaveLength(9);
+    expect(getText(renderer.root as unknown as ReactTestInstance)).not.toContain(
+      'ai_providers.auto_start_stop'
+    );
+
+    const renderedRows = getRows(renderer);
+    expect(renderedRows).toHaveLength(4);
+    for (const row of renderedRows) {
+      expect(
+        row.findAll((node) => node.props['data-provider-auto-state'] !== undefined)
+      ).toHaveLength(0);
+    }
+    act(() => renderer.unmount());
+  });
+
+  it('marks an exhausted balance red with the pause glyph and keeps the manual switch independent', () => {
     const rows = buildProviderRows({ ...emptyInput, openai: [
       { name: 'native', baseUrl: 'https://api.deepseek.com', apiKeyEntries: [], nativeFunding: true, autoHeld: true, disabled: true },
-      { name: 'legacy', baseUrl: 'https://synthetic.invalid', apiKeyEntries: [], disabled: false, nativeFunding: false },
     ] });
+    moneyViews[rows[0].key] = moneyView(['USD', '0.00']);
     const onToggle = vi.fn();
     const renderer = renderTable(rows, { onToggle });
-    const [native, legacy] = getRows(renderer);
-    expect(getAutoState(native).props).toMatchObject({
-      'data-provider-auto-state': 'stopped',
-      'aria-label': 'ai_providers.auto_state_stopped_aria',
-    });
-    expect(getAutoState(legacy).props).toMatchObject({
-      'data-provider-auto-state': 'available',
-      'aria-label': 'ai_providers.auto_state_available_aria',
-    });
-    for (const row of [native, legacy]) {
-      expect(row.findAll((node) => node.type === 'button' && node.props['aria-pressed'] !== undefined)).toHaveLength(0);
-    }
-    const manual = native.findByType(ToggleSwitch);
+    const [row] = getRows(renderer);
+
+    const [line] = balanceLines(row);
+    expect(line.props['data-balance-tone']).toBe('nonPositive');
+    expect(getText(line)).toBe('USD 0.00');
+    const glyphs = pauseGlyphs(row);
+    expect(glyphs).toHaveLength(1);
+    expect(glyphs[0].props['aria-label']).toBe('ai_providers.balance_exhausted_aria');
+
+    expect(
+      row.findAll((node) => node.type === 'button' && node.props['aria-pressed'] !== undefined)
+    ).toHaveLength(0);
+    const manual = row.findByType(ToggleSwitch);
     expect(manual.props.checked).toBe(false);
     toggleSwitch(manual, true);
     expect(onToggle).toHaveBeenCalledWith(rows[0], true);
     act(() => renderer.unmount());
   });
 
-  it('shows a live auto-paused projection as stopped with its reason and time', () => {
+  it('shows a positive balance in green without the pause glyph', () => {
     const rows = buildProviderRows({ ...emptyInput, openai: [
-      { name: 'paused', resourceId: 'rid-paused', baseUrl: 'https://paused.example/v1', apiKeyEntries: [] },
+      { name: 'positive', baseUrl: 'https://positive.example/v1', apiKeyEntries: [] },
     ] });
-    const renderer = renderTable(rows, {}, {
-      autoStates: {
-        'rid-paused': {
-          resourceId: 'rid-paused',
-          state: 'auto_paused',
-          memberCount: 1,
-          pausedCount: 1,
-          reasons: [
-            {
-              owner: 'core.upstream-balance.v1',
-              reason: 'upstream_balance_exhausted',
-              observedAtMs: 1763970360000,
-              resourceId: 'rid-paused',
-            },
-          ],
-        },
-      },
-    });
+    moneyViews[rows[0].key] = moneyView(['USD', '12.5']);
+    const renderer = renderTable(rows);
+
     const [row] = getRows(renderer);
-    const state = getAutoState(row);
-    expect(state.props['data-provider-auto-state']).toBe('stopped');
-    expect(state.props['aria-label']).toContain('ai_providers.auto_state_stopped_aria');
-    expect(state.props['aria-label']).toContain(
-      'ai_providers.auto_state_reason_upstream_balance_exhausted'
-    );
-    expect(state.props['aria-label']).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
-    expect(state.props.title).toBe(state.props['aria-label']);
+    const [line] = balanceLines(row);
+    expect(line.props['data-balance-tone']).toBe('positive');
+    expect(getText(line)).toBe('USD 12.50');
+    expect(pauseGlyphs(row)).toHaveLength(0);
     act(() => renderer.unmount());
   });
 
-  it('keeps missing, available and partially paused projections on the available icon', () => {
-    const rows = buildProviderRows({ ...emptyInput, openai: [
-      { name: 'missing', resourceId: 'rid-missing', baseUrl: 'https://missing.example/v1', apiKeyEntries: [] },
-      { name: 'available', resourceId: 'rid-available', baseUrl: 'https://available.example/v1', apiKeyEntries: [] },
-      { name: 'partial', resourceId: 'rid-partial', baseUrl: 'https://partial.example/v1', apiKeyEntries: [
-        { apiKey: 'member-one' },
-        { apiKey: 'member-two' },
-      ] },
-    ] });
-    const renderer = renderTable(rows, {}, {
-      autoStates: {
-        'rid-available': { resourceId: 'rid-available', state: 'available', memberCount: 1, pausedCount: 0 },
-        'rid-partial': {
-          resourceId: 'rid-partial',
-          state: 'partially_auto_paused',
-          memberCount: 2,
-          pausedCount: 1,
-          reasons: [
-            {
-              owner: 'core.upstream-balance.v1',
-              reason: 'upstream_balance_exhausted',
-              observedAtMs: 1763970360000,
-              resourceId: 'rid-member-one',
-            },
-          ],
-          members: [
-            {
-              resourceId: 'rid-member-one',
-              state: 'paused',
-              reasons: [
-                {
-                  owner: 'core.upstream-balance.v1',
-                  reason: 'upstream_balance_exhausted',
-                  observedAtMs: 1763970360000,
-                  resourceId: 'rid-member-one',
-                },
-              ],
-            },
-            { resourceId: 'rid-member-two', state: 'available', reasons: [] },
-          ],
-        },
-      },
-    });
-    const rendered = getRows(renderer);
-    expect(rendered).toHaveLength(3);
-    for (const row of rendered) {
-      expect(getAutoState(row).props).toMatchObject({
-        'data-provider-auto-state': 'available',
-        'aria-label': 'ai_providers.auto_state_available_aria',
-      });
+  it('keeps a row without any known amount neutral', () => {
+    const rows = buildProviderRows({ ...emptyInput, codex: codexConfigs });
+    const renderer = renderTable(rows);
+
+    for (const row of getRows(renderer)) {
+      expect(balanceLines(row)).toHaveLength(0);
+      expect(pauseGlyphs(row)).toHaveLength(0);
+      const summary = row.findAll(
+        (node) =>
+          node.type === 'div' && node.props['aria-label'] === 'ai_providers.table_col_balance'
+      );
+      expect(summary).toHaveLength(1);
+      expect(getText(summary[0])).toBe('—');
     }
     act(() => renderer.unmount());
   });
 
-  it('keeps the manual hold stopped when the projection reports the provider available', () => {
+  it('does not read an uncountable official balance as zero or positive', () => {
     const rows = buildProviderRows({ ...emptyInput, openai: [
-      { name: 'held', resourceId: 'rid-held', baseUrl: 'https://held.example/v1', apiKeyEntries: [], autoHeld: true },
+      { name: 'unlimited', baseUrl: 'https://unlimited.example/v1', apiKeyEntries: [] },
     ] });
-    const renderer = renderTable(rows, {}, {
-      autoStates: { 'rid-held': { resourceId: 'rid-held', state: 'available' } },
-    });
-    expect(getAutoState(getRows(renderer)[0]).props).toMatchObject({
-      'data-provider-auto-state': 'stopped',
-      'aria-label': 'ai_providers.auto_state_stopped_aria',
-    });
+    officialViews[rows[0].key] = { text: 'unlimited' };
+    const renderer = renderTable(rows);
+
+    const [row] = getRows(renderer);
+    const [line] = balanceLines(row);
+    expect(line.props['data-balance-tone']).toBe('unknown');
+    expect(getText(line)).toBe('unlimited');
+    expect(pauseGlyphs(row)).toHaveLength(0);
     act(() => renderer.unmount());
   });
 
-  it('falls back to the raw owner when the pause reason has no known label', () => {
+  it('classifies the raw official amount instead of its rounded display text', () => {
     const rows = buildProviderRows({ ...emptyInput, openai: [
-      { name: 'unknown', resourceId: 'rid-unknown', baseUrl: 'https://unknown.example/v1', apiKeyEntries: [] },
+      { name: 'dust', baseUrl: 'https://dust.example/v1', apiKeyEntries: [] },
     ] });
-    const renderer = renderTable(rows, {}, {
-      autoStates: {
-        'rid-unknown': {
-          resourceId: 'rid-unknown',
-          state: 'auto_paused',
-          reasons: [
-            {
-              owner: 'core.custom-policy.v1',
-              reason: 'custom_pause',
-              observedAtMs: 1763970360000,
-              resourceId: 'rid-unknown',
-            },
-          ],
-        },
-      },
-    });
-    expect(getAutoState(getRows(renderer)[0]).props['aria-label']).toContain(
-      'core.custom-policy.v1'
-    );
+    officialViews[rows[0].key] = { text: 'USD 0.00', amount: '0.004' };
+    const renderer = renderTable(rows);
+
+    const [row] = getRows(renderer);
+    const [line] = balanceLines(row);
+    expect(line.props['data-balance-tone']).toBe('positive');
+    expect(getText(line)).toBe('USD 0.00');
+    expect(pauseGlyphs(row)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('colours each funding amount by its own sign and pauses none while one is positive', () => {
+    const rows = buildProviderRows({ ...emptyInput, openai: [
+      { name: 'mixed', baseUrl: 'https://mixed.example/v1', apiKeyEntries: [] },
+    ] });
+    moneyViews[rows[0].key] = moneyView(['USD', '0'], ['CNY', '8.12']);
+    const renderer = renderTable(rows);
+
+    const [row] = getRows(renderer);
+    const lines = balanceLines(row);
+    expect(lines).toHaveLength(2);
+    expect(lines.map((line) => line.props['data-balance-tone'])).toEqual([
+      'nonPositive',
+      'positive',
+    ]);
+    expect(getText(lines[0])).toBe('USD 0.00');
+    expect(getText(lines[1])).toBe('CNY 8.12');
+    expect(pauseGlyphs(row)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('shows the only pause glyph after the amounts when none is positive', () => {
+    const rows = buildProviderRows({ ...emptyInput, openai: [
+      { name: 'exhausted', baseUrl: 'https://exhausted.example/v1', apiKeyEntries: [] },
+    ] });
+    moneyViews[rows[0].key] = moneyView(['USD', '0'], ['CNY', '-2.5']);
+    const renderer = renderTable(rows);
+
+    const [row] = getRows(renderer);
+    const lines = balanceLines(row);
+    expect(lines).toHaveLength(2);
+    expect(lines.map((line) => line.props['data-balance-tone'])).toEqual([
+      'nonPositive',
+      'nonPositive',
+    ]);
+    expect(getText(lines[0])).toBe('USD 0.00');
+    expect(getText(lines[1])).toBe('CNY -2.50');
+    const glyphs = pauseGlyphs(row);
+    expect(glyphs).toHaveLength(1);
+    expect(glyphs[0].props['aria-label']).toBe('ai_providers.balance_exhausted_aria');
     act(() => renderer.unmount());
   });
 

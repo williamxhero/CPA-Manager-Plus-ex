@@ -216,34 +216,16 @@ export function providerBindingKey(binding: BalanceBinding): string {
   ]);
 }
 
-interface PolicyChange {
-  base: string;
-  managementKey: string;
-  providerId: string;
-}
-const changeListeners = new Set<(change: PolicyChange) => void>();
-export function subscribeProviderPolicyChanges(listener: (change: PolicyChange) => void) {
-  changeListeners.add(listener);
-  return () => {
-    changeListeners.delete(listener);
-  };
-}
-function notifyPolicyChange(base: string, managementKey: string, providerId: string) {
-  changeListeners.forEach((listener) => listener({ base, managementKey, providerId }));
-}
-
 async function request(
   base: string,
   managementKey: string,
   binding: ProviderPolicyBinding,
-  signal?: AbortSignal,
-  update?: { expectedGeneration: number; enabled: boolean }
+  signal?: AbortSignal
 ): Promise<ProviderPolicyStatus> {
-  const query = update ? '' : `?providerId=${encodeURIComponent(binding.providerId)}`;
+  const query = `?providerId=${encodeURIComponent(binding.providerId)}`;
   const response = await fetch(`${base.replace(/\/$/, '')}/usage-service/provider-policy${query}`, {
-    method: update ? 'PUT' : 'GET',
-    headers: { Authorization: `Bearer ${managementKey}`, 'Content-Type': 'application/json' },
-    body: update ? JSON.stringify({ ...binding, ...update }) : undefined,
+    method: 'GET',
+    headers: { Authorization: `Bearer ${managementKey}` },
     signal,
     cache: 'no-store',
     redirect: 'error',
@@ -258,23 +240,6 @@ export const getProviderPolicy = (
   binding: ProviderPolicyBinding,
   signal?: AbortSignal
 ) => request(base, managementKey, binding, signal);
-
-export async function saveProviderPolicy(
-  base: string,
-  managementKey: string,
-  binding: ProviderPolicyBinding,
-  expectedGeneration: number,
-  enabled: boolean,
-  signal?: AbortSignal
-): Promise<ProviderPolicyStatus> {
-  try {
-    return await request(base, managementKey, binding, signal, { expectedGeneration, enabled });
-  } finally {
-    // An unacknowledged write can still have persisted. Revalidate only the
-    // matching connection/auth scope, including failed mutation attempts.
-    notifyPolicyChange(base, managementKey, binding.providerId);
-  }
-}
 
 export interface ProviderPolicyMigrationStatus {
   dialect: string;
@@ -313,37 +278,4 @@ export async function getProviderPolicyMigration(
     throw new ProviderPolicyRequestError(409);
   }
   return value as unknown as ProviderPolicyMigrationStatus;
-}
-
-export async function recoverProviderPolicy(
-  base: string,
-  managementKey: string,
-  binding: ProviderPolicyBinding,
-  expectedGeneration: number,
-  expectedGateGeneration: number,
-  sourceVersion: string,
-  signal?: AbortSignal
-): Promise<ProviderPolicyStatus> {
-  try {
-    const response = await fetch(
-      `${base.replace(/\/$/, '')}/usage-service/provider-policy/recover`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${managementKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...binding,
-          expectedGeneration,
-          expectedGateGeneration,
-          sourceVersion,
-        }),
-        signal,
-        cache: 'no-store',
-        redirect: 'error',
-      }
-    );
-    if (!response.ok) throw new ProviderPolicyRequestError(response.status);
-    return readStatus(await response.json(), binding);
-  } finally {
-    notifyPolicyChange(base, managementKey, binding.providerId);
-  }
 }

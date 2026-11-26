@@ -21,25 +21,30 @@ export function clearOfficialBalanceCachesForTests() {
 
 export interface OfficialBalanceView {
   text?: string;
+  /** Raw decimal behind `text`; absent when the source has no countable amount. */
+  amount?: string;
   pending?: boolean;
 }
 
-const money = (currency: string | undefined, total: string | undefined) =>
-  formatBalanceText(currency, total);
+interface ObservedMoney {
+  text: string;
+  amount?: string;
+}
 
-function observationText(obs?: BalanceObservation): string | undefined {
+function observationMoney(obs?: BalanceObservation): ObservedMoney | undefined {
   if (!obs || obs.queryStatus !== 'success') return undefined;
-  const wallet = money(obs.currency, obs.amountDecimal);
-  if (wallet) return wallet;
+  const decimal = obs.amountDecimal;
+  const wallet = formatBalanceText(obs.currency, decimal);
+  if (wallet && decimal) return { text: wallet, amount: decimal };
   const first = obs.balances?.[0];
-  const listed = money(first?.currency, first?.total);
-  if (listed) return listed;
-  if (obs.nativeQuota?.state === 'unlimited') return 'unlimited';
+  const listed = formatBalanceText(first?.currency, first?.total);
+  if (listed && first) return { text: listed, amount: first.total };
+  if (obs.nativeQuota?.state === 'unlimited') return { text: 'unlimited' };
   return undefined;
 }
 
-function statusText(status: OfficialBalanceStatus): string | undefined {
-  return observationText(status.lastSuccess) ?? observationText(status.attempt);
+function statusMoney(status: OfficialBalanceStatus): ObservedMoney | undefined {
+  return observationMoney(status.lastSuccess) ?? observationMoney(status.attempt);
 }
 
 function isOfficialStatus(value: unknown): value is OfficialBalanceStatus {
@@ -99,7 +104,12 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
       const queue = bindings;
       const collected = { ...cached?.views };
       const pending = { ...collected };
-      for (const row of queue) pending[row.key] = { text: collected[row.key]?.text, pending: true };
+      for (const row of queue)
+        pending[row.key] = {
+          text: collected[row.key]?.text,
+          amount: collected[row.key]?.amount,
+          pending: true,
+        };
       setViews({ context: balanceContext, values: pending });
       const publish = (key: string, view: OfficialBalanceView) => {
         collected[key] = view;
@@ -122,7 +132,7 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
             });
           });
           const query = `?binding=${encodeURIComponent(JSON.stringify(row.binding))}`;
-          let text: string | undefined;
+          let observed: ObservedMoney | undefined;
           try {
             const status = await Promise.race([
               officialBalanceRequest<OfficialBalanceStatus>(
@@ -135,14 +145,18 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
               ),
               canceled,
             ]);
-            text = isOfficialStatus(status) ? statusText(status) : undefined;
+            observed = isOfficialStatus(status) ? statusMoney(status) : undefined;
           } catch {
-            text = undefined;
+            observed = undefined;
           } finally {
             clearTimeout(timeout);
             active.delete(controller);
           }
-          if (mounted) publish(row.key, { text: text ?? cached?.views[row.key]?.text, pending: false });
+          if (mounted) {
+            // A failed read keeps the same connection's last observation visible.
+            const kept = observed ?? cached?.views[row.key];
+            publish(row.key, { text: kept?.text, amount: kept?.amount, pending: false });
+          }
         }
       };
       await Promise.all([worker(), worker()]);
@@ -177,20 +191,33 @@ export function useOfficialBalanceList(rows: ProviderRow[], config?: ProviderMon
           base, managementKey, undefined, undefined, controller.signal
         );
         if (!mounted || !Array.isArray(inventory.sources)) return;
-        const byResource = new Map<string, string>();
+        const byResource = new Map<string, ObservedMoney>();
         for (const source of inventory.sources) {
           if (!source.request?.official) continue;
-          const text = observationText(source.lastSuccess) ?? observationText(source.attempt);
-          if (!text) continue;
+          const observed = observationMoney(source.lastSuccess) ?? observationMoney(source.attempt);
+          if (!observed) continue;
           for (const target of source.targets ?? []) {
             if (target.resource_id && !byResource.has(target.resource_id))
-              byResource.set(target.resource_id, text);
+              byResource.set(target.resource_id, observed);
           }
         }
         const next: Record<string, OfficialBalanceView> = {};
         for (const [key, ids] of inventoryRows) {
-          const texts = [...new Set(ids.map((id) => byResource.get(id)).filter(Boolean))];
-          if (texts.length === 1) next[key] = { text: texts[0], pending: false };
+          const observed = ids.map((id) => byResource.get(id));
+          const texts = [...new Set(observed.map((item) => item?.text).filter(Boolean))];
+          if (texts.length !== 1) continue;
+          // Only carry a raw amount every member agrees on, so a rounded hint
+          // never decides the tone on its own.
+          const amounts = [
+            ...new Set(
+              observed.filter((item) => item?.text === texts[0]).map((item) => item?.amount)
+            ),
+          ];
+          const text = texts[0];
+          next[key] =
+            amounts.length === 1
+              ? { text, amount: amounts[0], pending: false }
+              : { text, pending: false };
         }
         officialInventoryCache.set(inventoryKey, { at: Date.now(), views: next });
         setInventoryViews({ context: inventoryContext, values: next });

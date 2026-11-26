@@ -1,6 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CoolingPolicy, GeminiKeyConfig, OpenAIProviderConfig, ProviderKeyConfig } from '@/types';
+import type { ProviderAutoState } from '@/services/api/providerAutoState';
 
 const mocks = vi.hoisted(() => ({
   config: {} as {
@@ -38,7 +39,7 @@ const mocks = vi.hoisted(() => ({
   },
   getProviderAutoState: vi.fn(),
   getProviderPolicyMigration: vi.fn(async () => null),
-  providerTableAutoStates: [] as Array<Record<string, unknown>>,
+  providerDetailAutoStates: [] as Array<ProviderAutoState | null | undefined>,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -195,13 +196,10 @@ vi.mock('@/components/providers', async () => {
     ProviderTable: ({
       rows,
       onShowDetail,
-      autoStates,
     }: {
       rows: Array<Record<string, unknown>>;
       onShowDetail: (row: Record<string, unknown>) => void;
-      autoStates: Record<string, unknown>;
     }) => {
-      mocks.providerTableAutoStates.push(autoStates);
       return rows[0] ? (
         <button type="button" data-open-detail onClick={() => onShowDetail(rows[0])}>
           {String(rows[0].label)}
@@ -211,16 +209,20 @@ vi.mock('@/components/providers', async () => {
     ProviderDetailDrawer: ({
       row,
       open,
+      autoState,
       onToggleDisableCooling,
     }: {
       row: { raw: GeminiKeyConfig | ProviderKeyConfig } | null;
       open: boolean;
+      autoState?: ProviderAutoState | null;
       onToggleDisableCooling: (
         row: { raw: GeminiKeyConfig | ProviderKeyConfig },
         policy: CoolingPolicy
       ) => void;
-    }) =>
-      open && row ? (
+    }) => {
+      if (!open || !row) return null;
+      mocks.providerDetailAutoStates.push(autoState);
+      return (
         <div>
           <span data-current-policy>{policyFromOverride(row.raw.disableCooling)}</span>
           {(['inherit', 'enabled', 'disabled'] as const).map((policy) => (
@@ -234,7 +236,8 @@ vi.mock('@/components/providers', async () => {
             </button>
           ))}
         </div>
-      ) : null,
+      );
+    },
     ProviderHealthCheckDrawer: () => null,
     GeminiEditDrawer: () => null,
     CodexEditDrawer: () => null,
@@ -709,13 +712,19 @@ describe('AiProvidersPage automatic start/stop projection', () => {
     ],
   });
 
-  const lastAutoStates = () =>
-    mocks.providerTableAutoStates[mocks.providerTableAutoStates.length - 1] ?? {};
-  const appliedState = () => (lastAutoStates() as { 'rid-group'?: { state?: string } })['rid-group']?.state;
+  const lastAutoState = (): ProviderAutoState | null | undefined =>
+    mocks.providerDetailAutoStates[mocks.providerDetailAutoStates.length - 1];
+  const appliedState = () => lastAutoState()?.state;
+  const groupRow = {
+    name: 'group',
+    baseUrl: 'https://fixture.invalid',
+    resourceId: 'rid-group',
+    apiKeyEntries: [{ apiKey: 'synthetic' }],
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.providerTableAutoStates.length = 0;
+    mocks.providerDetailAutoStates.length = 0;
     mocks.auth = {
       apiBase: 'http://core.example',
       managementKey: 'synthetic-key',
@@ -743,7 +752,7 @@ describe('AiProvidersPage automatic start/stop projection', () => {
     };
     mocks.getConfig.mockImplementation(async () => mocks.config);
     mocks.getVertexConfigs.mockImplementation(async () => mocks.config.vertexApiKeys);
-    mocks.getOpenAIProviders.mockResolvedValue([]);
+    mocks.getOpenAIProviders.mockResolvedValue([groupRow]);
   });
 
   afterEach(() => {
@@ -773,6 +782,7 @@ describe('AiProvidersPage automatic start/stop projection', () => {
   it('applies a refreshed projection whose providers changed at the same revision', async () => {
     mocks.getProviderAutoState.mockResolvedValueOnce(projection('available', 7));
     const view = await renderPage();
+    await openDetail(view);
     expect(appliedState()).toBe('available');
 
     mocks.getProviderAutoState.mockResolvedValueOnce(projection('auto_paused', 7));
@@ -785,14 +795,15 @@ describe('AiProvidersPage automatic start/stop projection', () => {
   it('keeps the applied state untouched when a refresh repeats the same content', async () => {
     mocks.getProviderAutoState.mockResolvedValueOnce(projection('auto_paused', 7));
     const view = await renderPage();
-    const applied = lastAutoStates();
+    await openDetail(view);
+    const applied = lastAutoState();
     expect(appliedState()).toBe('auto_paused');
 
     mocks.getProviderAutoState.mockResolvedValueOnce(projection('auto_paused', 8));
     await refresh();
 
     expect(appliedState()).toBe('auto_paused');
-    expect(lastAutoStates()).toBe(applied);
+    expect(lastAutoState()).toBe(applied);
     act(() => view.unmount());
   });
 });

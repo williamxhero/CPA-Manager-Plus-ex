@@ -10,7 +10,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import type { ProviderAutoStateMap } from '@/services/api/providerAutoState';
 import {
   IconCheck,
   IconEye,
@@ -22,7 +21,6 @@ import type {
   ResourceProtectionCapability,
   ResourceProtectionEvidence,
 } from '@/features/resourceProtection/resourceProtection';
-import type { ProviderPolicyConnection } from '../ProviderPolicyControl';
 import { ProviderMoneySummary } from '../ProviderMoneySummary';
 import {
   useProviderMoneySummaries,
@@ -30,19 +28,15 @@ import {
 } from '../useProviderMoneySummaries';
 import { useOfficialBalanceList } from '../useOfficialBalanceList';
 import { ProviderStatusBar } from '../ProviderStatusBar';
-import { getAutoStatePauseText, joinAutoStateLabel } from '../autoStatePresentation';
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from './kindMeta';
 import type { ProviderRow } from './rowData';
 import styles from './ProviderTable.module.scss';
 
 interface ProviderTableProps {
   rows: ProviderRow[];
-  /** Read-only Core auto start/stop projection, indexed by provider resource id. */
-  autoStates?: ProviderAutoStateMap;
   moneyStatus?: ProviderMoneyStatusConfig;
   resourceProtection?: ResourceProtectionCapability;
   resourceProtectionForRow?: (row: ProviderRow) => ResourceProtectionEvidence;
-  providerPolicyConnection?: ProviderPolicyConnection;
   loading: boolean;
   actionsDisabled: boolean;
   toggleDisabled: boolean;
@@ -62,27 +56,6 @@ const stopPropagation = (event: MouseEvent) => {
 
 const priorityToDraft = (priority: number | undefined) =>
   Number.isFinite(priority) ? String(Math.trunc(priority ?? 0)) : '';
-
-function AutoStateIcon({ stopped }: { stopped: boolean }) {
-  return stopped ? (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <circle cx="8" cy="8" r="8" fill="var(--danger-color, #ef4444)" />
-      <rect x="5" y="4.6" width="2.2" height="6.8" rx="1.1" fill="white" />
-      <rect x="8.8" y="4.6" width="2.2" height="6.8" rx="1.1" fill="white" />
-    </svg>
-  ) : (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <circle cx="8" cy="8" r="8" fill="var(--success-color, #22c55e)" />
-      <path
-        d="M4.5 8L7 10.5L11.5 6"
-        stroke="white"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 interface PriorityControlProps {
   row: ProviderRow;
@@ -195,7 +168,6 @@ function PriorityControl({ row, disabled, editLabel, onPriorityChange }: Priorit
 
 export function ProviderTable({
   rows,
-  autoStates = {},
   moneyStatus,
   loading,
   actionsDisabled,
@@ -246,7 +218,6 @@ export function ProviderTable({
           {t('ai_providers.table_col_recent')}
         </span>
         <span role="columnheader">{t('ai_providers.config_toggle_label')}</span>
-        <span role="columnheader">{t('ai_providers.auto_start_stop')}</span>
         <span role="columnheader" className={styles.cellActionsHeader}>
           {t('ai_providers.table_col_actions')}
         </span>
@@ -254,17 +225,6 @@ export function ProviderTable({
 
       {rows.map((row) => {
         const kindLabel = PROVIDER_KIND_LABELS[row.kind];
-        const resourceId = row.raw.resourceId;
-        const autoState = resourceId ? autoStates[resourceId] : undefined;
-        // A manual hold keeps its original meaning; the projection only adds whether
-        // Core itself reported the provider as auto-paused.
-        const autoStopped = row.raw.autoHeld === true || autoState?.state === 'auto_paused';
-        const autoStateLabel = autoStopped
-          ? joinAutoStateLabel(
-              t('ai_providers.auto_state_stopped_aria'),
-              autoState?.state === 'auto_paused' ? getAutoStatePauseText(t, autoState.reasons) : ''
-            )
-          : t('ai_providers.auto_state_available_aria');
         return (
           <div
             key={row.key}
@@ -370,18 +330,6 @@ export function ProviderTable({
                 disabled={toggleDisabled}
                 onChange={(value) => onToggle(row, value)}
               />
-            </div>
-
-            <div className={styles.cellAuto} role="cell" onClick={stopPropagation}>
-              <span
-                role="img"
-                className={styles.autoState}
-                aria-label={autoStateLabel}
-                title={autoStateLabel}
-                data-provider-auto-state={autoStopped ? 'stopped' : 'available'}
-              >
-                <AutoStateIcon stopped={autoStopped} />
-              </span>
             </div>
 
             <div className={styles.cellActions} role="cell" onClick={stopPropagation}>

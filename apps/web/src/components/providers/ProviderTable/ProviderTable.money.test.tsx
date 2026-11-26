@@ -1,9 +1,8 @@
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ProviderTable } from './ProviderTable';
 import { buildProviderRows } from './rowData';
 import type { BalanceBinding } from '@/services/api/officialBalance';
-import { saveProviderPolicy } from '@/services/api/providerPolicy';
 import { apiClient } from '@/services/api/client';
 import { beforeEach } from 'vitest';
 import { setRuntimeControlsForTests } from '@/utils/quota/runtimeControls';
@@ -163,6 +162,26 @@ const props = {
 };
 let view: ReactTestRenderer | undefined;
 const text = () => JSON.stringify(view?.toJSON());
+const nodeText = (node: ReactTestInstance): string =>
+  node.children
+    .map((child) => (typeof child === 'string' ? child : nodeText(child)))
+    .join('');
+/** The balance cell of one named row, so a value cannot pass in another row. */
+const balanceCellText = (label: string) => {
+  const row = view?.root.findAll(
+    (node) =>
+      node.type === 'div' &&
+      node.props.role === 'row' &&
+      node.props.tabIndex === 0 &&
+      String(node.props['aria-label'] ?? '').endsWith(` ${label}`)
+  );
+  expect(row).toHaveLength(1);
+  const summary = row![0].findAll(
+    (node) => node.type === 'div' && node.props['aria-label'] === 'ai_providers.table_col_balance'
+  );
+  expect(summary).toHaveLength(1);
+  return nodeText(summary[0]);
+};
 afterEach(async () => {
   if (view) await act(async () => view?.unmount());
   view = undefined;
@@ -180,12 +199,12 @@ it('shows live native per-member money and independent manual/policy state on ev
   await act(async () => {
     view = create(<ProviderTable {...props} />);
   });
-  expect(text()).toContain('USD 0.05');
-  expect(text()).toContain('CNY 8.12');
+  // Each row owns its own amount: swapping them or collapsing onto one row fails.
+  expect(balanceCellText(rows[0].label)).toBe('USD 0.05');
+  expect(balanceCellText(rows[1].label)).toBe('CNY 8.12');
   expect(text()).not.toContain('人工关闭');
   expect(text()).not.toContain('本策略已确认暂停');
-  expect(text()).not.toContain('provider_policy.unavailable');
-  expect(fetcher).toHaveBeenCalledTimes(4);
+  expect(fetcher).toHaveBeenCalled();
   expect(props.onShowDetail).not.toHaveBeenCalled();
   expect(props.onToggle).not.toHaveBeenCalled();
 });
@@ -417,51 +436,6 @@ it('queries neither unissued rows nor unavailable management service', async () 
     );
   });
   expect(fetcher).toHaveBeenCalledTimes(1);
-});
-
-it('invalidates reads overlapping a policy write and revalidates without reviving the old result', async () => {
-  vi.useFakeTimers();
-  let reads = 0;
-  let updated = false;
-  let release!: (r: Response) => void;
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (_url: string, init: RequestInit) => {
-      if (init.method === 'PUT') {
-        updated = true;
-        return Response.json({ ...status('A', 'KA'), enabled: false, funding: [] });
-      }
-      if (++reads === 2)
-        return new Promise<Response>((r) => {
-          release = r;
-        });
-      return Response.json({
-        ...status('A', 'KA'),
-        enabled: !updated,
-        funding: updated ? [] : status('A', 'KA').funding,
-      });
-    })
-  );
-  await act(async () => {
-    view = create(<ProviderTable {...props} rows={rows.slice(0, 1)} />);
-  });
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(15000);
-  });
-  await act(async () => {
-    await saveProviderPolicy(
-      props.moneyStatus.base,
-      'admin',
-      { ...binding('A', 'KA'), providerId: IDS.A },
-      1,
-      false,
-      new AbortController().signal
-    );
-  });
-  await act(async () => {
-    release(Response.json(status('A', 'KA')));
-  });
-  expect(text()).not.toContain('USD 0.05');
 });
 
 function observedOfficialBalance(url: string, amountDecimal: string, queryable: boolean) {

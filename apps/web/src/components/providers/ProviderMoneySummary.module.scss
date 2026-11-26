@@ -1,6 +1,37 @@
+@use '@/styles/variables.scss' as *;
+
 .summary {
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+.amountLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.amountPositive {
+  color: $success-color;
+}
+
+.amountNonPositive {
+  color: $error-color;
+}
+
+.pauseGlyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--danger-color, #ef4444);
+
+  svg {
+    display: block;
+  }
 }
