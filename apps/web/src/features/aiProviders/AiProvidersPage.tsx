@@ -17,7 +17,6 @@ import {
   OpenAIEditDrawer,
   PROVIDER_KIND_LABELS,
   ProviderDetailDrawer,
-  type ProviderPolicyConnection,
   ProviderHealthCheckDrawer,
   ProviderTable,
   ProviderToolbar,
@@ -132,8 +131,6 @@ export function AiProvidersPage() {
   const loading = !hasSnapshot && finishedBootstrap !== connectionScope;
   const balancesReady = useSyncExternalStore(subscribeRuntimeControls, runtimeBalancesReady, () => false);
   const [error, setError] = useState('');
-  const [providerPolicyRevision, setProviderPolicyRevision] = useState(0);
-  const handleProviderPolicyChanged = useCallback(() => setProviderPolicyRevision((value) => value + 1), []);
   const { status: resourceProtection, forProvider, refresh: refreshResourceProtection } =
     useResourceProtection(
       { ...featureAvailability, checking: featureAvailability.checking || loading },
@@ -141,13 +138,6 @@ export function AiProvidersPage() {
     );
 
   const [geminiKeys, setGeminiKeys] = useState<GeminiKeyConfig[]>([]);
-  const providerPolicyConnection: ProviderPolicyConnection = {
-    base: featureAvailability.managerServiceBase,
-    managementKey: balanceManagementKey,
-    disabled: !featureAvailability.managerServiceAvailable,
-    revision: providerPolicyRevision,
-    onChanged: handleProviderPolicyChanged,
-  };
   const [policyMigration, setPolicyMigration] = useState<ProviderPolicyMigrationStatus | null>(null);
   useEffect(() => {
     if (
@@ -173,7 +163,6 @@ export function AiProvidersPage() {
     featureAvailability.managerServiceAvailable,
     featureAvailability.managerServiceBase,
     balanceManagementKey,
-    providerPolicyRevision,
   ]);
   const [providerAutoStates, setProviderAutoStates] = useState<ProviderAutoStateMap>({});
   const [autoStateRefreshToken, setAutoStateRefreshToken] = useState(0);
@@ -1943,7 +1932,6 @@ export function AiProvidersPage() {
               }}
               resourceProtection={resourceProtection}
               resourceProtectionForRow={(row) => forProvider(row, rows)}
-              providerPolicyConnection={providerPolicyConnection}
               rows={balancesReady ? pagedRows : []}
               loading={loading || !balancesReady}
               actionsDisabled={actionsDisabled}
@@ -2020,7 +2008,6 @@ export function AiProvidersPage() {
         content={detailContent}
         autoState={detailAutoState}
         officialBalance={{ base: featureAvailability.managerServiceBase, managementKey: balanceManagementKey, binding: detailRow ? forProvider(detailRow, rows).binding : undefined, disabled: !featureAvailability.managerServiceAvailable }}
-        providerPolicy={providerPolicyConnection}
         row={detailRow}
         open={detailRowKey !== null}
         usageByProvider={usageByProvider}

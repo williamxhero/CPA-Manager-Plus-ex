@@ -1,13 +1,7 @@
-import { useEffect, useState } from 'react';
 import { OfficialBalancePanel } from '../OfficialBalancePanel';
 import type { OfficialBalancePanelProps } from '../OfficialBalancePanel';
 import type { OfficialBalanceAdapter } from '@/services/api/officialBalance';
 import type { ProviderAutoState } from '@/services/api/providerAutoState';
-import {
-  getProviderPolicy,
-  type ProviderPolicyBinding,
-  type ProviderPolicyStatus,
-} from '@/services/api/providerPolicy';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
@@ -27,9 +21,6 @@ import { getProviderKindIcon, PROVIDER_KIND_LABELS } from '../ProviderTable/kind
 import { coolingPolicyFromOverride, type CoolingPolicy } from '@/types';
 import type { ProviderRow } from '../ProviderTable/rowData';
 import styles from './ProviderDetailDrawer.module.scss';
-import { ProviderPolicyControl, type ProviderPolicyConnection } from '../ProviderPolicyControl';
-import { ProviderMoneySummary } from '../ProviderMoneySummary';
-import type { ProviderMoneyView } from '../useProviderMoneySummaries';
 import {
   getAutoStateMemberStateLabel,
   getAutoStatePauseText,
@@ -41,7 +32,6 @@ interface ProviderDetailDrawerProps {
   /** Read-only Core auto start/stop projection for this provider, if any. */
   autoState?: ProviderAutoState | null;
   officialBalance?: OfficialBalancePanelProps;
-  providerPolicy?: ProviderPolicyConnection;
   row: ProviderRow | null;
   open: boolean;
   usageByProvider: ProviderRecentUsageMap;
@@ -72,55 +62,10 @@ function FieldRow({ label, value }: FieldRowProps) {
   );
 }
 
-function DetailPolicyMoneySummary({
-  open,
-  connection,
-  providerId,
-  binding,
-}: {
-  open: boolean;
-  connection: ProviderPolicyConnection;
-  providerId: string;
-  binding: OfficialBalancePanelProps['binding'];
-}) {
-  const [view, setView] = useState<ProviderMoneyView>({ pending: true });
-  useEffect(() => {
-    if (!open || connection.disabled || !connection.base || !connection.managementKey || !binding) {
-      setView({ pending: false });
-      return;
-    }
-    const policyBinding: ProviderPolicyBinding = { ...binding, providerId };
-    if (policyBinding.targets[0]?.resource_id !== providerId) {
-      setView({ failed: true });
-      return;
-    }
-    const controller = new AbortController();
-    setView((previous) => ({ ...previous, pending: true, failed: false }));
-    void getProviderPolicy(connection.base, connection.managementKey, policyBinding, controller.signal)
-      .then((data: ProviderPolicyStatus) => {
-        if (!controller.signal.aborted) setView({ data });
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setView((previous) => ({ ...previous, failed: true, pending: false }));
-      });
-    return () => controller.abort();
-  }, [
-    open,
-    connection.base,
-    connection.managementKey,
-    connection.disabled,
-    connection.revision,
-    providerId,
-    binding,
-  ]);
-  return <ProviderMoneySummary view={view} />;
-}
-
 export function ProviderDetailDrawer({
   content = 'all',
   autoState,
   officialBalance,
-  providerPolicy,
   row,
   open,
   usageByProvider,
@@ -382,25 +327,6 @@ export function ProviderDetailDrawer({
             compatibleCandidate={compatibleCandidate}
             adapter={balanceAdapter}
           />
-        )}
-        {content === 'all' && providerPolicy && row && (
-          <section className={styles.section}>
-            <h4 className={styles.sectionTitle}>{t('provider_policy.title')}</h4>
-            <ProviderPolicyControl
-              row={row}
-              connection={providerPolicy}
-              binding={officialBalance?.binding}
-              disabled={!open}
-            />
-            {row.kind === 'openai' && officialBalance?.binding && row.raw.resourceId && (
-              <DetailPolicyMoneySummary
-                open={open}
-                connection={providerPolicy}
-                providerId={row.raw.resourceId}
-                binding={officialBalance.binding}
-              />
-            )}
-          </section>
         )}
         {showCredential && (
         <section className={styles.section}>

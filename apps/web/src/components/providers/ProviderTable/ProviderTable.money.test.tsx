@@ -3,7 +3,6 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { ProviderTable } from './ProviderTable';
 import { buildProviderRows } from './rowData';
 import type { BalanceBinding } from '@/services/api/officialBalance';
-import { saveProviderPolicy } from '@/services/api/providerPolicy';
 import { apiClient } from '@/services/api/client';
 import { beforeEach } from 'vitest';
 import { setRuntimeControlsForTests } from '@/utils/quota/runtimeControls';
@@ -184,7 +183,6 @@ it('shows live native per-member money and independent manual/policy state on ev
   expect(text()).toContain('CNY 8.12');
   expect(text()).not.toContain('人工关闭');
   expect(text()).not.toContain('本策略已确认暂停');
-  expect(text()).not.toContain('provider_policy.unavailable');
   expect(fetcher).toHaveBeenCalledTimes(4);
   expect(props.onShowDetail).not.toHaveBeenCalled();
   expect(props.onToggle).not.toHaveBeenCalled();
@@ -417,51 +415,6 @@ it('queries neither unissued rows nor unavailable management service', async () 
     );
   });
   expect(fetcher).toHaveBeenCalledTimes(1);
-});
-
-it('invalidates reads overlapping a policy write and revalidates without reviving the old result', async () => {
-  vi.useFakeTimers();
-  let reads = 0;
-  let updated = false;
-  let release!: (r: Response) => void;
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (_url: string, init: RequestInit) => {
-      if (init.method === 'PUT') {
-        updated = true;
-        return Response.json({ ...status('A', 'KA'), enabled: false, funding: [] });
-      }
-      if (++reads === 2)
-        return new Promise<Response>((r) => {
-          release = r;
-        });
-      return Response.json({
-        ...status('A', 'KA'),
-        enabled: !updated,
-        funding: updated ? [] : status('A', 'KA').funding,
-      });
-    })
-  );
-  await act(async () => {
-    view = create(<ProviderTable {...props} rows={rows.slice(0, 1)} />);
-  });
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(15000);
-  });
-  await act(async () => {
-    await saveProviderPolicy(
-      props.moneyStatus.base,
-      'admin',
-      { ...binding('A', 'KA'), providerId: IDS.A },
-      1,
-      false,
-      new AbortController().signal
-    );
-  });
-  await act(async () => {
-    release(Response.json(status('A', 'KA')));
-  });
-  expect(text()).not.toContain('USD 0.05');
 });
 
 function observedOfficialBalance(url: string, amountDecimal: string, queryable: boolean) {

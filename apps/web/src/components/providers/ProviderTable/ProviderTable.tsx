@@ -21,7 +21,6 @@ import type {
   ResourceProtectionCapability,
   ResourceProtectionEvidence,
 } from '@/features/resourceProtection/resourceProtection';
-import type { ProviderPolicyConnection } from '../ProviderPolicyControl';
 import { ProviderMoneySummary } from '../ProviderMoneySummary';
 import {
   useProviderMoneySummaries,
@@ -38,7 +37,6 @@ interface ProviderTableProps {
   moneyStatus?: ProviderMoneyStatusConfig;
   resourceProtection?: ResourceProtectionCapability;
   resourceProtectionForRow?: (row: ProviderRow) => ResourceProtectionEvidence;
-  providerPolicyConnection?: ProviderPolicyConnection;
   loading: boolean;
   actionsDisabled: boolean;
   toggleDisabled: boolean;
