@@ -52,15 +52,19 @@ func queryDeepInfra(ctx context.Context, t QueryTarget, credential string, n Net
 		return fail("parse_error", "RESPONSE_TOO_LARGE")
 	}
 
-	data, valid := checklistNumbers(body)
-	if !valid {
-		return fail("parse_error", "INVALID_BALANCE")
-	}
-	amount, ok := signedPrepaid(data["stripe_balance"], data["recent"])
+	amount, ok := parseDeepInfraBalance(body)
 	if !ok {
 		return fail("parse_error", "INVALID_BALANCE")
 	}
 	return deepInfraDisplay(out, amount)
+}
+
+func parseDeepInfraBalance(body []byte) (string, bool) {
+	data, valid := checklistNumbers(body)
+	if !valid {
+		return "", false
+	}
+	return signedPrepaid(data["stripe_balance"], data["recent"])
 }
 
 func deepInfraDisplay(out Observation, amount string) Observation {

@@ -45,7 +45,7 @@ func queryOpenAICompatUsage(ctx context.Context, t QueryTarget, credential strin
 	if len(body) > maxResponseBodySize {
 		return fail("parse_error", "RESPONSE_TOO_LARGE")
 	}
-	amount, ok := parseCompatUsageBalance(body)
+	amount, _, ok := parseCompatUsageBalance(body)
 	if !ok {
 		return fail("parse_error", "INVALID_BALANCE")
 	}
@@ -59,37 +59,31 @@ func queryOpenAICompatUsage(ctx context.Context, t QueryTarget, credential strin
 
 // Accept exactly one balance field: top-level `balance` or nested `data.balance`.
 // Reject both present, duplicates, non-finite tokens, HTML, and trailing junk.
-func parseCompatUsageBalance(body []byte) (string, bool) {
+func parseCompatUsageBalance(body []byte) (amount, field string, ok bool) {
 	fields, ok := checklistNumbers(body)
 	if !ok {
-		return "", false
+		return "", "", false
 	}
 	top, hasTop := fields["balance"]
 	dataRaw, hasData := fields["data"]
-	if hasTop && hasData {
-		nested, nestedOK := objectFields(dataRaw)
-		if nestedOK {
+	if hasTop {
+		if nested, valid := objectFields(dataRaw); valid {
 			if _, hasNested := nested["balance"]; hasNested {
-				return "", false
+				return "", "", false
 			}
 		}
-		return exactMoneyToken(top)
-	}
-	if hasTop {
-		return exactMoneyToken(top)
+		amount, ok = exactMoneyToken(top)
+		return amount, "balance", ok
 	}
 	if !hasData {
-		return "", false
+		return "", "", false
 	}
-	nested, nestedOK := objectFields(dataRaw)
-	if !nestedOK {
-		return "", false
+	nested, valid := objectFields(dataRaw)
+	if !valid {
+		return "", "", false
 	}
-	nestedBal, hasNested := nested["balance"]
-	if !hasNested {
-		return "", false
-	}
-	return exactMoneyToken(nestedBal)
+	amount, ok = exactMoneyToken(nested["balance"])
+	return amount, "data.balance", ok
 }
 
 func objectFields(raw json.RawMessage) (map[string]json.RawMessage, bool) {

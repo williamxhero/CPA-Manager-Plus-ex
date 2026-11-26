@@ -44,6 +44,8 @@ type Update struct {
 	Config
 	Secret      string `json:"secret"`
 	ClearSecret bool   `json:"clearSecret"`
+
+	matchInventory *rc.Negotiated // internal-only discovery provenance
 }
 type Status struct {
 	Config
@@ -304,7 +306,7 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 		}
 	}
 	inventory := s.Identity.Inventory(ctx)
-	if !verifyInventory(inventory, u.Binding) {
+	if !verifyInventory(inventory, u.Binding) || u.matchInventory != nil && !s.Identity.SameInventoryConnection(u.matchInventory, inventory) {
 		return Status{}, ErrIdentity
 	}
 	if u.Adapter == balance.VolcengineAccountBalanceV20220101 || u.Adapter == balance.AliyunPrepaidCashV20171214 {
@@ -332,12 +334,15 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	if old.Version != u.Version {
 		return Status{}, store.ErrBalanceConflict
 	}
-	var previous Config
+	var previous storedSource
 	if old.Config != "" && json.Unmarshal([]byte(old.Config), &previous) != nil {
 		return Status{}, ErrInput
 	}
+	if u.matchInventory != nil && old.Config != "" && !previous.AutomaticMatch {
+		return Status{}, ErrMatchManual
+	}
 	// A changed authority never silently carries a credential to a different target.
-	if old.Config != "" && !sameSourceAuthority(previous, u.Config) {
+	if old.Config != "" && !sameSourceAuthority(previous.Config, u.Config) {
 		u.ClearSecret = true
 	}
 	if strings.TrimSpace(u.Secret) != "" {
@@ -345,7 +350,7 @@ func (s *Service) Configure(ctx context.Context, u Update) (Status, error) {
 	}
 	u.Binding = canonical(u.Binding)
 	u.Version++
-	data, _ := json.Marshal(u.Config)
+	data, _ := json.Marshal(storedSource{Config: u.Config, AutomaticMatch: u.matchInventory != nil})
 	if err := s.Store.SaveOfficialBalance(ctx, store.OfficialBalanceRecord{ID: id, Config: string(data)}, u.Version-1, strings.TrimSpace(u.Secret), u.ClearSecret); err != nil {
 		return Status{}, err
 	}
