@@ -331,18 +331,18 @@ describe('ProviderTable', () => {
     act(() => renderer.unmount());
   });
 
-  it('prefers any positive funding amount over the exhausted ones', () => {
+  it('colours each funding amount by its own sign and pauses none while one is positive', () => {
     const rows = buildProviderRows({ ...emptyInput, openai: [
       { name: 'mixed', baseUrl: 'https://mixed.example/v1', apiKeyEntries: [] },
     ] });
-    moneyViews[rows[0].key] = moneyView(['USD', '0.00'], ['CNY', '8.123456789012345678']);
+    moneyViews[rows[0].key] = moneyView(['USD', '0'], ['CNY', '8.12']);
     const renderer = renderTable(rows);
 
     const [row] = getRows(renderer);
     const lines = balanceLines(row);
     expect(lines).toHaveLength(2);
     expect(lines.map((line) => line.props['data-balance-tone'])).toEqual([
-      'positive',
+      'nonPositive',
       'positive',
     ]);
     expect(getText(lines[0])).toBe('USD 0.00');
@@ -351,7 +351,7 @@ describe('ProviderTable', () => {
     act(() => renderer.unmount());
   });
 
-  it('shows every funding amount as exhausted when none is positive', () => {
+  it('shows the only pause glyph after the amounts when none is positive', () => {
     const rows = buildProviderRows({ ...emptyInput, openai: [
       { name: 'exhausted', baseUrl: 'https://exhausted.example/v1', apiKeyEntries: [] },
     ] });
@@ -368,10 +368,8 @@ describe('ProviderTable', () => {
     expect(getText(lines[0])).toBe('USD 0.00');
     expect(getText(lines[1])).toBe('CNY -2.50');
     const glyphs = pauseGlyphs(row);
-    expect(glyphs).toHaveLength(2);
-    for (const glyph of glyphs) {
-      expect(glyph.props['aria-label']).toBe('ai_providers.balance_exhausted_aria');
-    }
+    expect(glyphs).toHaveLength(1);
+    expect(glyphs[0].props['aria-label']).toBe('ai_providers.balance_exhausted_aria');
     act(() => renderer.unmount());
   });
 

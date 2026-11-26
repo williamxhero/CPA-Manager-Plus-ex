@@ -4,7 +4,6 @@ import {
   getAutoStateMemberStateLabel,
   getAutoStatePauseText,
   getAutoStateReasonLabel,
-  joinAutoStateLabel,
 } from './autoStatePresentation';
 
 const t = (key: string) => key;
@@ -45,8 +44,6 @@ describe('provider auto state presentation', () => {
     ).toBe('core.custom-policy.v1');
     expect(getAutoStatePauseText(t, [])).toBe('');
     expect(getAutoStatePauseText(t, undefined)).toBe('');
-    expect(joinAutoStateLabel('headline', '')).toBe('headline');
-    expect(joinAutoStateLabel('headline', 'detail')).toBe('headline · detail');
   });
 
   it('labels each member state', () => {

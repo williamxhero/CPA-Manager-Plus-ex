@@ -5,6 +5,11 @@ Saving a switch is not an inference acknowledgement. Administrative provider
 pauses, credential restrictions, manual disabled state and monetary ownership
 remain orthogonal. This document is not deployment or whole-SPEC acceptance.
 
+> Scope note: the web-side save/restore entry points for this policy were
+> retired in #96. The rest of this document therefore describes only the
+> backend and read-side contracts; web switch-save and readback behaviour
+> quoted below is historical and no longer reachable from the UI.
+
 ## Current proof boundary
 
 The first supported funding source is the official DeepSeek balance adapter.

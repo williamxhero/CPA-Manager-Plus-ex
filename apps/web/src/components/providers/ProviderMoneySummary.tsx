@@ -24,7 +24,7 @@ const TONE_CLASS = {
 function PauseGlyph() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <circle cx="8" cy="8" r="8" fill="var(--danger-color, #ef4444)" />
+      <circle cx="8" cy="8" r="8" fill="currentColor" />
       <rect x="5" y="4.6" width="2.2" height="6.8" rx="1.1" fill="white" />
       <rect x="8.8" y="4.6" width="2.2" height="6.8" rx="1.1" fill="white" />
     </svg>
@@ -53,8 +53,9 @@ export function ProviderMoneySummary({
   const lines: MoneyAmountLine[] = official?.text
     ? [{ text: formatBalanceDisplay(official.text), amount: official.amount }]
     : policyAmountLines(view);
-  // Every known raw amount decides the tone; one positive source means money is left.
-  const tone = classifyBalanceAmount(lines.map((line) => line.amount));
+  // Every known raw amount decides whether this cell is exhausted; one positive
+  // source means money is left, so no line carries the pause glyph.
+  const exhausted = classifyBalanceAmount(lines.map((line) => line.amount)) === 'nonPositive';
   const pending = (official?.pending || view?.pending) && lines.length === 0;
   return (
     <div
@@ -65,26 +66,30 @@ export function ProviderMoneySummary({
       {pending ? (
         <span>…</span>
       ) : lines.length > 0 ? (
-        lines.map((line, index) => (
-          <div
-            key={`${index}:${line.text}`}
-            className={`${styles.amountLine} ${TONE_CLASS[tone]}`.trim()}
-            data-balance-tone={tone}
-          >
-            {line.text}
-            {tone === 'nonPositive' && (
-              <span
-                className={styles.pauseGlyph}
-                role="img"
-                aria-label={t('ai_providers.balance_exhausted_aria')}
-                title={t('ai_providers.balance_exhausted_aria')}
-                data-balance-paused="true"
-              >
-                <PauseGlyph />
-              </span>
-            )}
-          </div>
-        ))
+        lines.map((line, index) => {
+          // Each line is coloured by its own sign, not by the cell-wide verdict.
+          const tone = classifyBalanceAmount([line.amount]);
+          return (
+            <div
+              key={`${index}:${line.text}`}
+              className={`${styles.amountLine} ${TONE_CLASS[tone]}`.trim()}
+              data-balance-tone={tone}
+            >
+              {line.text}
+              {exhausted && index === lines.length - 1 && (
+                <span
+                  className={styles.pauseGlyph}
+                  role="img"
+                  aria-label={t('ai_providers.balance_exhausted_aria')}
+                  title={t('ai_providers.balance_exhausted_aria')}
+                  data-balance-paused="true"
+                >
+                  <PauseGlyph />
+                </span>
+              )}
+            </div>
+          );
+        })
       ) : (
         <span>—</span>
       )}
