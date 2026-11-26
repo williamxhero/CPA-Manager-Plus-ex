@@ -44,6 +44,19 @@ func queryDeepSeek(ctx context.Context, t QueryTarget, credential string, n Netw
 	if len(body) > maxResponseBodySize {
 		return fail("parse_error", "RESPONSE_TOO_LARGE")
 	}
+	available, values := parseDeepSeekBalance(body)
+	if available == nil {
+		return fail("parse_error", "INVALID_BALANCE")
+	}
+	out.Available = available
+	out.Balances = values
+	out.Semantic = "account_wallet"
+	out.QueryStatus = "success"
+	out.ErrorCode = ""
+	return out
+}
+
+func parseDeepSeekBalance(body []byte) (*bool, []CurrencyBalance) {
 	var data struct {
 		Available *bool `json:"is_available"`
 		Balances  []struct {
@@ -54,21 +67,16 @@ func queryDeepSeek(ctx context.Context, t QueryTarget, credential string, n Netw
 		} `json:"balance_infos"`
 	}
 	if !newAPIUnambiguousJSON(body) || json.Unmarshal(body, &data) != nil || data.Available == nil || len(data.Balances) == 0 || len(data.Balances) > 32 {
-		return fail("parse_error", "INVALID_BALANCE")
+		return nil, nil
 	}
 	values := make([]CurrencyBalance, 0, len(data.Balances))
 	seen := map[string]bool{}
 	for _, b := range data.Balances {
 		if !currencyCode.MatchString(b.Currency) || seen[b.Currency] || b.Total == nil || b.Granted == nil || b.ToppedUp == nil || !money.MatchString(*b.Total) || !money.MatchString(*b.Granted) || !money.MatchString(*b.ToppedUp) {
-			return fail("parse_error", "INVALID_BALANCE")
+			return nil, nil
 		}
 		seen[b.Currency] = true
 		values = append(values, CurrencyBalance{b.Currency, *b.Total, *b.Granted, *b.ToppedUp})
 	}
-	out.Available = data.Available
-	out.Balances = values
-	out.Semantic = "account_wallet"
-	out.QueryStatus = "success"
-	out.ErrorCode = ""
-	return out
+	return data.Available, values
 }

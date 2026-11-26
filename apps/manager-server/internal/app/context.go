@@ -16,6 +16,7 @@ import (
 	adminauthsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/adminauth"
 	apikeyaliassvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/apikeyalias"
 	automationsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/automation"
+	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/balancematch"
 	bootstrapsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/bootstrap"
 	codexinspectionsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/codexinspection"
 	collectorsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/collector"
@@ -80,6 +81,7 @@ type Context struct {
 	ManagementQueryBudget    *managementquery.Budget
 	FullRefreshService       FullRefreshCoordinator
 	OfficialBalanceService   *officialbalancesvc.Service
+	BalanceMatcher           *balancematch.Matcher
 	CredentialQuotaService   *credentialquotasvc.Service
 	UpdateCheckService       *updatechecksvc.Service
 	Config                   config.Config
@@ -221,6 +223,7 @@ func fromExisting(
 		ManagementQueryBudget:    managementBudget,
 		FullRefreshService:       fullrefreshsvc.New(st, identityService, officialBalanceService, credentialQuotaService, fullrefreshsvc.WithBudget(managementBudget), fullrefreshsvc.WithClock(refreshClock)),
 		OfficialBalanceService:   officialBalanceService,
+		BalanceMatcher:           balancematch.New(officialBalanceService, balancematch.Options{}),
 		CredentialQuotaService:   credentialQuotaService,
 		UpdateCheckService:       updatechecksvc.New(st, buildinfo.Version, buildinfo.SourceCommit, os.Getenv("CPAMP_UPDATE_CHECK_ENABLED") != "false"),
 		Config:                   cfg,
