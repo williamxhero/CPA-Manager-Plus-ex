@@ -102,6 +102,9 @@ const BALANCE_PROTOCOL_OPTIONS: { value: OfficialBalanceAdapter; label: string }
   { value: 'newapi-browser-session-v1', label: 'NewAPI · 浏览器同站会话 · account_wallet' },
   { value: 'layso_billing_web_v1', label: 'LAYSO · 只读网页账户余额' },
 ];
+const DRAWER_SOURCE_OPTIONS = BALANCE_PROTOCOL_OPTIONS.filter(
+  ({ value }) => value === 'deepseek' || value === 'deepinfra' || value === 'openai-compat-usage-v1'
+);
 const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =>
   value === 'deepseek' ||
   value === 'deepinfra' ||
@@ -197,7 +200,7 @@ export function OfficialBalancePanel({
     context,
     adapter: undefined as OfficialBalanceAdapter | undefined,
     secret: '',
-    endpoint: '',
+    endpoint: undefined as string | undefined,
     permits: undefined as string | undefined,
     clear: false,
     newAPI: undefined as NewAPIConfig | undefined,
@@ -224,7 +227,7 @@ export function OfficialBalancePanel({
           context,
           adapter: undefined as OfficialBalanceAdapter | undefined,
           secret: '',
-          endpoint: '',
+          endpoint: undefined as string | undefined,
           permits: undefined as string | undefined,
           clear: false,
           newAPI: undefined as NewAPIConfig | undefined,
@@ -239,9 +242,18 @@ export function OfficialBalancePanel({
   const proposal = match?.status === 'matched' ? match : undefined;
   const registeredAdapter = isAdapter(data?.adapter) && data.endpoint ? data.adapter : undefined;
   const defaultAdapter = isAdapter(data?.adapter) ? data.adapter : compatibleCandidate ? '' : adapter;
+  // Manager will drop a stored secret on an authority-changing PUT. The compact
+  // drawer only saves first-time manual registrations; Manager arbitrates automatic apply.
+  const canRegister = data?.version === 0 && !registeredAdapter && !data.configured;
+  const suggested = !registeredAdapter && !edit.adapter ? proposal?.evidence : undefined;
   const selectedAdapter =
-    edit.adapter ?? (balanceDrawer ? registeredAdapter ?? proposal?.evidence.adapter ?? '' : defaultAdapter);
-  const canApplyMatch = !!proposal && !proposal.applied && !proposal.applyReason && !edit.adapter;
+    edit.adapter ?? (balanceDrawer ? (registeredAdapter ?? suggested?.adapter ?? '') : defaultAdapter);
+  const hasManualEdits = edit.adapter !== undefined || edit.endpoint !== undefined;
+  const canApplyMatch = !!proposal && !proposal.applied && !proposal.applyReason && !hasManualEdits;
+  const showDrawerSave =
+    canRegister &&
+    hasManualEdits &&
+    DRAWER_SOURCE_OPTIONS.some(({ value }) => value === selectedAdapter);
   const isNewAPI =
     selectedAdapter === 'newapi-user-self-v1' ||
     selectedAdapter === 'newapi-token-usage-v1' ||
@@ -308,13 +320,12 @@ export function OfficialBalancePanel({
     (data?.adapter === selectedAdapter ? data.newAPI : undefined) ??
     nativeContract(selectedAdapter);
   const conversion = contract.conversion;
-  const endpoint =
-    edit.endpoint ||
-    (data?.adapter === selectedAdapter ? data.endpoint : '') ||
-    (!edit.adapter && !registeredAdapter && proposal?.evidence.adapter === selectedAdapter
-      ? proposal.evidence.url
-      : '') ||
-    (selectedAdapter ? endpoints[selectedAdapter] : '');
+  const defaultEndpoint = selectedAdapter ? endpoints[selectedAdapter] : '';
+  const registeredEndpoint = registeredAdapter ? data?.endpoint : undefined;
+  const endpoint = balanceDrawer
+    ? (edit.endpoint ?? registeredEndpoint ?? suggested?.url ?? defaultEndpoint)
+    : edit.endpoint || (data?.adapter === selectedAdapter ? data.endpoint : '') || defaultEndpoint;
+  const canSaveDrawer = showDrawerSave && !!endpoint.trim() && !!edit.secret.trim();
   const usable = !!base && !!managementKey && !!binding?.targets?.length && !disabled && supported;
 
   useEffect(() => {
@@ -368,6 +379,7 @@ export function OfficialBalancePanel({
       !binding ||
       busy ||
       (action === 'apply-match' && !canApplyMatch) ||
+      (action === 'save' && balanceDrawer && !canSaveDrawer) ||
       (action !== 'reload' && (!data || readbackRequired || baselineRequired))
     )
       return;
@@ -447,7 +459,7 @@ export function OfficialBalancePanel({
               context,
               adapter: undefined as OfficialBalanceAdapter | undefined,
               secret: '',
-              endpoint: '',
+              endpoint: undefined,
               permits: undefined as string | undefined,
               clear: false,
               newAPI: undefined as NewAPIConfig | undefined,
@@ -532,34 +544,52 @@ export function OfficialBalancePanel({
             id={`${protocolLabelId}-select`}
             ariaLabelledBy={protocolLabelId}
             value={selectedAdapter}
-            disabled={!data || controlsDisabled}
+            disabled={!canRegister || controlsDisabled}
             fullWidth
             placeholder="手动选择已确认协议"
-            options={BALANCE_PROTOCOL_OPTIONS}
+            options={canRegister ? DRAWER_SOURCE_OPTIONS : BALANCE_PROTOCOL_OPTIONS}
             onChange={(next) => {
-              if (!isAdapter(next)) return;
-              setEditor({
-                ...edit,
-                adapter: next,
-                endpoint: '',
-                secret: '',
-                clear: false,
-                newAPI: undefined,
-                browserSession: undefined,
-                volcengine: undefined,
-                volcengineSecret: undefined,
-                aliyun: undefined,
-                aliyunSecret: undefined,
-                web: undefined,
-              });
+              if (!canRegister || !isAdapter(next) || next === selectedAdapter) return;
+              setEditor({ ...edit, adapter: next, endpoint: undefined, secret: '' });
             }}
           />
         </div>
-        {endpoint && (registeredAdapter || proposal) && (
+        {selectedAdapter && (
           <label className={styles.endpoint}>
             查询 HTTPS 地址
-            <input aria-label="查询 HTTPS 地址" value={endpoint} readOnly />
+            <input
+              aria-label="查询 HTTPS 地址"
+              type="url"
+              value={endpoint}
+              readOnly={!canRegister}
+              disabled={controlsDisabled}
+              onChange={(event) => {
+                if (canRegister) setEditor({ ...edit, endpoint: event.target.value });
+              }}
+            />
           </label>
+        )}
+        {showDrawerSave && (
+          <>
+            <label className={styles.endpoint}>
+              独立查询密钥
+              <input
+                aria-label="独立查询密钥"
+                type="password"
+                autoComplete="off"
+                value={edit.secret}
+                disabled={controlsDisabled}
+                onChange={(event) => setEditor({ ...edit, secret: event.target.value })}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={controlsDisabled || !canSaveDrawer}
+              onClick={() => void run('save')}
+            >
+              保存余额来源
+            </button>
+          </>
         )}
         {matching && <p role="status">正在自动匹配余额来源…</p>}
         {matchError && <p role="status">暂时无法自动匹配余额来源。</p>}

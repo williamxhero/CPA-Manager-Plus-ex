@@ -16,8 +16,9 @@ type hostLimiter struct {
 type hostLease struct {
 	host  string
 	token chan struct{}
+	mu    *sync.Mutex // the owning hostLimiter's mutex
 	refs  int
-	next  time.Time // touched only by the lease holder (or when refs == 0)
+	next  time.Time // guarded by mu
 }
 
 func (l *hostLimiter) acquire(ctx context.Context, host string) *hostLease {
@@ -33,7 +34,7 @@ func (l *hostLimiter) acquire(ctx context.Context, host string) *hostLease {
 	}
 	e := l.hosts[host]
 	if e == nil {
-		e = &hostLease{host: host, token: make(chan struct{}, 1)}
+		e = &hostLease{host: host, token: make(chan struct{}, 1), mu: &l.mu}
 		l.hosts[host] = e
 	}
 	e.refs++
@@ -62,7 +63,10 @@ func (l *hostLimiter) drop(e *hostLease) {
 }
 
 func (e *hostLease) wait(ctx context.Context, interval time.Duration) bool {
-	if delay := time.Until(e.next); delay > 0 {
+	e.mu.Lock()
+	delay := time.Until(e.next)
+	e.mu.Unlock()
+	if delay > 0 {
 		t := time.NewTimer(delay)
 		defer t.Stop()
 		select {
@@ -71,6 +75,8 @@ func (e *hostLease) wait(ctx context.Context, interval time.Duration) bool {
 			return false
 		}
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	if ctx.Err() != nil {
 		return false
 	}
