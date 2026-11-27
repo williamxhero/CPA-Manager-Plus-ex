@@ -211,10 +211,11 @@ export function OfficialBalancePanel({
   const pending = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const operationGeneration = generation.current;
-  const data = view.context === context ? view.data : undefined;
-  const busy = view.context === context && view.busy;
-  const readbackRequired = view.context === context && view.readbackRequired;
-  const baselineRequired = view.context === context && view.baselineRequired;
+  const viewIsCurrent = view.context === context;
+  const data = viewIsCurrent ? view.data : undefined;
+  const busy = viewIsCurrent && view.busy;
+  const readbackRequired = viewIsCurrent && view.readbackRequired;
+  const baselineRequired = viewIsCurrent && view.baselineRequired;
   const controlsDisabled = busy || readbackRequired || baselineRequired;
   const edit =
     editor.context === context
@@ -234,7 +235,7 @@ export function OfficialBalancePanel({
           web: undefined as WebBalanceSource | undefined,
           browserSession: undefined as BrowserSessionConfig | undefined,
         };
-  const match = view.context === context ? view.match : undefined;
+  const match = viewIsCurrent ? view.match : undefined;
   const proposal = match?.status === 'matched' ? match : undefined;
   const registeredAdapter = isAdapter(data?.adapter) && data.endpoint ? data.adapter : undefined;
   const defaultAdapter = isAdapter(data?.adapter) ? data.adapter : compatibleCandidate ? '' : adapter;
@@ -510,9 +511,9 @@ export function OfficialBalancePanel({
   };
 
   if (balanceDrawer) {
-    const matchError = view.context === context && view.matchError;
-    const matching = view.context === context && view.matching;
-    const error = view.context === context && view.error;
+    const matchError = viewIsCurrent && view.matchError;
+    const matching = viewIsCurrent && view.matching;
+    const error = viewIsCurrent && view.error;
     return (
       <section className={styles.balanceDrawer} aria-label="官方余额" aria-busy={busy || matching}>
         {!usable && <p role="status">需完整、已核实的来源身份，才能匹配余额来源。</p>}
@@ -622,7 +623,7 @@ export function OfficialBalancePanel({
               {formatDateTime(new Date(data.nextPeriodicCheckMs), i18n?.language)}
             </p>
           )}
-          {view.context === context && view.error && <p role="alert">{view.error}</p>}
+          {viewIsCurrent && view.error && <p role="alert">{view.error}</p>}
           {(readbackRequired || baselineRequired) && (
             <button type="button" disabled={busy} onClick={() => void run('reload')}>
               重试回读

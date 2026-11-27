@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"net/netip"
 	"net/url"
 	"strings"
@@ -174,7 +175,7 @@ func (m *Matcher) detect(ctx context.Context, baseURL, credential string) Result
 				if p.JSON {
 					e.Score += 20
 				}
-			} else if p.Status == 200 {
+			} else if p.Status == http.StatusOK {
 				e.Score = 20 // successful status alone is not usable
 			}
 		}

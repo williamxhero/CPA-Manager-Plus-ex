@@ -3,6 +3,7 @@ package officialbalance
 import (
 	"context"
 	"errors"
+	"slices"
 
 	rc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/resourcecapability"
 )
@@ -29,11 +30,8 @@ func (s *Service) ResolveMatchAccess(ctx context.Context, b Binding) (MatchAcces
 	}
 	var rows []rc.Row
 	for _, row := range before.Snapshot.Resources {
-		for _, t := range b.Targets {
-			if row.Target == t && row.Kind == "credential" {
-				rows = append(rows, row)
-				break
-			}
+		if row.Kind == "credential" && slices.Contains(b.Targets, row.Target) {
+			rows = append(rows, row)
 		}
 	}
 	base, secret, err := s.Identity.ReadBoundAPIKeyConfig(ctx, before, rows)
