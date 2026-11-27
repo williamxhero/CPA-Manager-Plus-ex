@@ -12,6 +12,7 @@ vi.mock('react-i18next', async () => {
   const locale = (await import('@/i18n/locales/zh-CN.json')).default;
   const dictionary: Record<string, string> = {
     'ai_providers.table_col_balance': locale.ai_providers.table_col_balance,
+    'ai_providers.money_summary_amount_unknown': locale.ai_providers.money_summary_amount_unknown,
     'ai_providers.balance_exhausted_aria': locale.ai_providers.balance_exhausted_aria,
     'resource_protection.unbound': locale.resource_protection.unbound,
     'resource_protection.unbound_description': locale.resource_protection.unbound_description,
@@ -170,17 +171,18 @@ it('explains the unbound wording with the existing description on hover and to a
   act(() => renderer.unmount());
 });
 
-it('keeps the placeholder while the probe has not settled', () => {
+it('labels the amount unknown while the capability probe has not settled', async () => {
   const renderer = renderTable(unknownEvidence);
   const cell = balanceCellText(renderer);
-  expect(cell).toBe('—');
+  expect(cell).toBe((await localePromise).ai_providers.money_summary_amount_unknown);
   act(() => renderer.unmount());
 });
 
-it('keeps the placeholder when the capability is unavailable or unsupported', () => {
+it('labels the amount unknown when the capability is unavailable or unsupported', async () => {
+  const unknown = (await localePromise).ai_providers.money_summary_amount_unknown;
   for (const status of ['unavailable', 'unsupported_mode'] as const) {
     const renderer = renderTable(() => ({ status }));
-    expect(balanceCellText(renderer)).toBe('—');
+    expect(balanceCellText(renderer)).toBe(unknown);
     act(() => renderer.unmount());
   }
 });

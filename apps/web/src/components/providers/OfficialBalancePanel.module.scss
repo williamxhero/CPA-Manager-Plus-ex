@@ -1,0 +1,15 @@
+.balanceDrawer {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.endpoint {
+  display: grid;
+  gap: 4px;
+
+  input {
+    min-width: 0;
+  }
+}

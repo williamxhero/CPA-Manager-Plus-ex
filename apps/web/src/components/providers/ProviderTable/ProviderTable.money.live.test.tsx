@@ -85,12 +85,12 @@ it.skipIf(!fixture)(
       expect(summaries).toHaveLength(2);
       const words = (i: number) =>
         summaries[i]
-          .findAll((n) => n.type === 'div')
+          .findAll((n) => n.type === 'div' || n.type === 'span')
           .flatMap((n) => n.children.filter((c) => typeof c === 'string'))
           .join(' ');
       expect(words(0)).toContain('USD 0.123456789012345678');
       expect(words(0)).not.toContain('陈旧');
-      expect(words(1)).toContain('—');
+      expect(words(1)).toBe('金额未知');
       expect(words(1)).not.toContain('USD');
       expect(words(0)).not.toContain('显式设置');
     } finally {

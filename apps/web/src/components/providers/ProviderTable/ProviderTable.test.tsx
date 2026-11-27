@@ -296,7 +296,7 @@ describe('ProviderTable', () => {
           node.type === 'div' && node.props['aria-label'] === 'ai_providers.table_col_balance'
       );
       expect(summary).toHaveLength(1);
-      expect(getText(summary[0])).toBe('—');
+      expect(getText(summary[0])).toBe('ai_providers.money_summary_amount_unknown');
     }
     act(() => renderer.unmount());
   });

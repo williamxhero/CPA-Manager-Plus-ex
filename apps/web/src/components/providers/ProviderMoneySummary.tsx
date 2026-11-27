@@ -101,7 +101,7 @@ export function ProviderMoneySummary({
           {t('resource_protection.unbound')}
         </span>
       ) : (
-        <span>—</span>
+        <span>{t('ai_providers.money_summary_amount_unknown')}</span>
       )}
     </div>
   );
