@@ -96,7 +96,20 @@ func New(appCtx *app.Context) http.Handler {
 	mux.HandleFunc("/apple-touch-icon.png", panelHandler.AppleTouchIcon)
 	mux.HandleFunc("/", rootHandler(appCtx, usageHandler, modelPriceHandler, apiKeyAliasHandler, providerKeyAliasHandler, accountActionHandler, codexInspectionHandler, dashboardHandler, monitoringHandler, quotaSnapshotHandler, managerConfigHandler, proxyHandler))
 
-	return middleware.Recovery(middleware.RequestLogger(mux))
+	pluginConfig := middleware.WithCORS(appCtx.Config, proxyHandler.V8PluginConfig)
+	// Check this write-capable route before ServeMux can redirect a rejected
+	// path to a canonical one (or echo its query in the Location header).
+	return middleware.Recovery(middleware.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if proxysvc.IsV8PluginConfigCandidate(r.URL.Path) {
+			if !proxysvc.IsCPAV8PluginConfigPath(r.URL) {
+				http.NotFound(w, r)
+				return
+			}
+			pluginConfig(w, r)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})))
 }
 
 func rootHandler(
