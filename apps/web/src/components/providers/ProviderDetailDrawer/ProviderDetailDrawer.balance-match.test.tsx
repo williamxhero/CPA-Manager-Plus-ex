@@ -101,10 +101,13 @@ const drawer = (open = true) => (
   />
 );
 const text = () => JSON.stringify(renderer?.toJSON());
-const protocol = () => renderer!.root.findByType(Select).props.value;
-const endpoint = () => renderer!.root.findByProps({ 'aria-label': '查询 HTTPS 地址' }).props.value;
-const applyButton = () =>
-  renderer!.root.findAllByType('button').find((button) => button.children.includes('应用自动匹配'));
+const protocolSelect = () => renderer!.root.findByType(Select);
+const endpointField = () => renderer!.root.findByProps({ 'aria-label': '查询 HTTPS 地址' });
+const protocol = () => protocolSelect().props.value;
+const endpoint = () => endpointField().props.value;
+const button = (label: string) =>
+  renderer!.root.findAllByType('button').find((node) => node.children.includes(label));
+const applyButton = () => button('应用自动匹配');
 const render = async (open = true) => {
   await act(async () => {
     renderer = create(drawer(open));
@@ -125,6 +128,7 @@ const routes = (
   readback = status
 ) => {
   const matchRequests: unknown[] = [];
+  const saves: unknown[] = [];
   let appliedOnce = false;
   const fetch = vi.fn(async (url: string, init: RequestInit) => {
     const parsed = new URL(url);
@@ -135,14 +139,20 @@ const routes = (
       appliedOnce = true;
       return Response.json(applied);
     }
-    if (parsed.pathname === '/usage-service/official-balance' && init.method === 'GET') {
-      expect(JSON.parse(parsed.searchParams.get('binding')!)).toEqual(binding);
-      return Response.json(appliedOnce ? readback : status);
+    if (parsed.pathname === '/usage-service/official-balance') {
+      if (init.method === 'GET') {
+        expect(JSON.parse(parsed.searchParams.get('binding')!)).toEqual(binding);
+        return Response.json(appliedOnce || saves.length ? readback : status);
+      }
+      if (init.method === 'PUT') {
+        saves.push(JSON.parse(String(init.body)));
+        return Response.json(readback);
+      }
     }
     throw new Error('unexpected balance request');
   });
   vi.stubGlobal('fetch', fetch);
-  return { fetch, matchRequests };
+  return { fetch, matchRequests, saves };
 };
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -167,7 +177,11 @@ it('prefills a match with safe evidence and applies using only the issued bindin
   await render();
   expect(matchRequests).toEqual([{ binding }]);
   expect(protocol()).toBe(evidence.adapter);
+  expect(protocolSelect().props.disabled).not.toBe(true);
   expect(endpoint()).toBe(evidence.url);
+  expect(endpointField().props.readOnly).not.toBe(true);
+  expect(endpointField().props.disabled).not.toBe(true);
+  expect(fetch.mock.calls.map(([, init]) => init.method)).toEqual(['GET', 'POST']);
   for (const label of [
     '自动匹配',
     '100%',
@@ -186,6 +200,46 @@ it('prefills a match with safe evidence and applies using only the issued bindin
   expect(fetch.mock.calls.map(([, init]) => init.method)).toEqual(['GET', 'POST', 'POST', 'GET']);
   expect(text()).toContain('已应用');
   expect(text()).not.toContain('SECRET-CANARY');
+});
+
+it('saves edited match fields only on explicit save and uses only the supplied query key', async () => {
+  const manualEndpoint = 'https://manual.example/user/balance';
+  const { fetch, matchRequests, saves } = routes(baseline, matched, undefined, {
+    ...registered,
+    endpoint: manualEndpoint,
+  });
+  await render();
+  expect(endpointField().props.onChange).toBeTypeOf('function');
+  act(() => endpointField().props.onChange({ target: { value: '' } }));
+  expect(endpoint()).toBe('');
+  expect(applyButton()).toBeUndefined();
+  act(() => protocolSelect().props.onChange('deepseek'));
+  act(() => endpointField().props.onChange({ target: { value: manualEndpoint } }));
+  expect(protocol()).toBe('deepseek');
+  expect(endpoint()).toBe(manualEndpoint);
+  expect(applyButton()).toBeUndefined();
+  expect(saves).toEqual([]);
+  expect(button('保存余额来源')?.props.disabled).toBe(true);
+
+  const key = renderer!.root.findByProps({ 'aria-label': '独立查询密钥' });
+  act(() => key.props.onChange({ target: { value: 'MANUAL-QUERY-KEY' } }));
+  const save = button('保存余额来源');
+  expect(save?.props.disabled).not.toBe(true);
+  await act(async () => save!.props.onClick());
+  expect(matchRequests).toEqual([{ binding }]);
+  expect(saves).toEqual([
+    expect.objectContaining({
+      ...binding,
+      version: 0,
+      adapter: 'deepseek',
+      endpoint: manualEndpoint,
+      secret: 'MANUAL-QUERY-KEY',
+      clearSecret: false,
+    }),
+  ]);
+  expect(fetch.mock.calls.map(([, init]) => init.method)).toEqual(['GET', 'POST', 'PUT', 'GET']);
+  expect(endpoint()).toBe(manualEndpoint);
+  expect(text()).not.toContain('MANUAL-QUERY-KEY');
 });
 
 it('shows unmatched candidates with their HTTP statuses and failure reasons', async () => {
@@ -264,17 +318,22 @@ it('does not match or replace a usable manual source', async () => {
 
 it('previews a stale source without overwriting it and honors Manager manual precedence on apply', async () => {
   const manual = { ...registered, stale: true };
-  const { fetch, matchRequests } = routes(manual, matched, {
+  const { fetch, matchRequests, saves } = routes(manual, matched, {
     ...matched,
     applyReason: 'manual_configuration',
   });
   await render();
   expect(protocol()).toBe(manual.adapter);
+  expect(protocolSelect().props.disabled).toBe(true);
   expect(endpoint()).toBe(manual.endpoint);
+  expect(endpointField().props.readOnly).toBe(true);
+  expect(button('保存余额来源')).toBeUndefined();
+  expect(fetch.mock.calls.map(([, init]) => init.method)).toEqual(['GET', 'POST']);
   expect(text()).toContain(evidence.url);
   await apply();
   expect(matchRequests).toEqual([{ binding }, { binding, apply: true }]);
   expect(fetch.mock.calls.map(([, init]) => init.method)).toEqual(['GET', 'POST', 'POST', 'GET']);
+  expect(saves).toEqual([]);
   expect(text()).toContain('保留手动配置');
   expect(protocol()).toBe(manual.adapter);
   expect(endpoint()).toBe(manual.endpoint);
