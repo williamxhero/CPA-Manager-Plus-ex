@@ -54,6 +54,14 @@ func (h *Handler) V8APIKeysConfig(w http.ResponseWriter, r *http.Request) {
 	h.App.ProxyService.ProxyV8APIKeysConfig(w, r, response.Error, response.MethodNotAllowed)
 }
 
+// V8PluginConfig forwards config reads and writes for verified Manager admins.
+func (h *Handler) V8PluginConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if middleware.AuthorizeAdmin(w, r, h.App.AdminAuthService) {
+		h.App.ProxyService.ProxyV8PluginConfig(w, r, response.Error, response.MethodNotAllowed)
+	}
+}
+
 // V8CodexReauth starts a targeted Core OAuth session for a verified Manager
 // admin, using the saved Core binding instead of the caller's credentials.
 func (h *Handler) V8CodexReauth(w http.ResponseWriter, r *http.Request) {

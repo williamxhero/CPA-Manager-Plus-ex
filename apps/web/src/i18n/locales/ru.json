@@ -1370,6 +1370,7 @@
     "openai_delete_title": "Удалить провайдера OpenAI",
     "openai_delete_confirm": "Удалить этого провайдера OpenAI?",
     "openai_keys_count": "Количество ключей",
+    "money_summary_amount_unknown": "Сумма неизвестна",
     "openai_models_count": "Количество моделей",
     "openai_test_title": "Тест подключения",
     "openai_test_hint": "Запросите /models с текущими настройками, чтобы проверить соединение ключа без расхода квоты модели.",

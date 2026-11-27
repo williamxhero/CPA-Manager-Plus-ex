@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -97,6 +98,7 @@ const cpaManagementPrefix = "/v0/management"
 // unreachable because the auth-file and config mutation guards in this package
 // only recognize their v0 paths.
 const cpaV8APIKeysConfigPath = "/v8/management/config/api-keys"
+const cpaV8PluginConfigPath = "/v8/management/config/plugins/configs"
 const cpaV8CodexReauthPath = "/v8/management/oauth/auth-url"
 const codexInviteOriginHeader = "X-Codex-Invite-Origin"
 const managementOriginJSONField = "management_origin"
@@ -212,6 +214,59 @@ func (s *Service) ProxyV8APIKeysConfig(w http.ResponseWriter, r *http.Request, w
 		return
 	}
 	s.proxyToSavedSetup(w, r, writeError, true, false)
+}
+
+// ProxyV8PluginConfig forwards only the config map and individual plugin configs.
+func (s *Service) ProxyV8PluginConfig(w http.ResponseWriter, r *http.Request, writeError func(http.ResponseWriter, int, error), methodNotAllowed func(http.ResponseWriter)) {
+	if !IsCPAV8PluginConfigPath(r.URL) {
+		writeError(w, http.StatusNotFound, errors.New("unknown plugin config path"))
+		return
+	}
+	switch r.Method {
+	case http.MethodGet, http.MethodPut, http.MethodDelete:
+	default:
+		methodNotAllowed(w)
+		return
+	}
+	setup, ok, err := s.resolveSetup(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, errors.New("could not resolve Core setup"))
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusPreconditionRequired, errors.New("usage service is not configured"))
+		return
+	}
+	target, err := url.Parse(setup.CPAUpstreamURL)
+	if err != nil || target.Host == "" || (target.Scheme != "http" && target.Scheme != "https") || target.User != nil || target.RawQuery != "" || target.ForceQuery || target.Fragment != "" {
+		writeError(w, http.StatusInternalServerError, errors.New("invalid Core upstream URL"))
+		return
+	}
+	proxy := httputil.ReverseProxy{
+		Rewrite: func(req *httputil.ProxyRequest) {
+			req.Out.URL.RawQuery = ""
+			req.Out.URL.ForceQuery = false
+			req.SetURL(target)
+			// Core needs the saved management key and these config headers,
+			// not caller authentication, cookies or query parameters.
+			headers := make(http.Header)
+			for _, name := range []string{"Content-Type", "If-Match"} {
+				for _, value := range req.Out.Header.Values(name) {
+					headers.Add(name, value)
+				}
+			}
+			headers.Set("Authorization", "Bearer "+setup.ManagementKey)
+			req.Out.Header = headers
+		},
+		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
+			writeError(w, http.StatusBadGateway, errors.New("Core plugin config request failed"))
+		},
+		ModifyResponse: func(res *http.Response) error {
+			res.Header.Del("Cache-Control") // The controller always sets no-store.
+			return nil
+		},
+	}
+	proxy.ServeHTTP(w, r)
 }
 
 // ProxyV8CodexReauth forwards only the panel's targeted Codex web
@@ -1664,6 +1719,26 @@ func IsCPAPluginResourcePath(path string) bool {
 // segment boundary, so siblings such as /config/api-keys-x are excluded.
 func IsCPAV8APIKeysConfigPath(path string) bool {
 	return path == cpaV8APIKeysConfigPath || strings.HasPrefix(path, cpaV8APIKeysConfigPath+"/")
+}
+
+// IsV8PluginConfigCandidate also identifies invalid variants that must not go
+// through ServeMux's path-cleaning redirects.
+func IsV8PluginConfigCandidate(requestPath string) bool {
+	cleaned := path.Clean(requestPath)
+	return strings.HasPrefix(requestPath, cpaV8PluginConfigPath) ||
+		cleaned == cpaV8PluginConfigPath || strings.HasPrefix(cleaned, cpaV8PluginConfigPath+"/")
+}
+
+// IsCPAV8PluginConfigPath allows the exact collection or one plain child key.
+func IsCPAV8PluginConfigPath(u *url.URL) bool {
+	if !isCanonicalRequestPath(u) || u.EscapedPath() != u.Path {
+		return false
+	}
+	if u.Path == cpaV8PluginConfigPath {
+		return true
+	}
+	child, ok := strings.CutPrefix(u.Path, cpaV8PluginConfigPath+"/")
+	return ok && child != "" && !strings.ContainsAny(child, "/\\%")
 }
 
 // IsCPAV8CodexReauthPath matches only the exact OAuth start path. Siblings such

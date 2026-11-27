@@ -45,9 +45,12 @@ function policyAmountLines(view?: ProviderMoneyView): MoneyAmountLine[] {
 export function ProviderMoneySummary({
   view,
   official,
+  unbound = false,
 }: {
   view?: ProviderMoneyView;
   official?: OfficialBalanceView;
+  /** Core issued no host-signed binding for this row, so no amount can be attributed to it. */
+  unbound?: boolean;
 }) {
   const { t } = useTranslation();
   const lines: MoneyAmountLine[] = official?.text
@@ -90,8 +93,15 @@ export function ProviderMoneySummary({
             </div>
           );
         })
+      ) : unbound ? (
+        <span
+          title={t('resource_protection.unbound_description')}
+          aria-label={`${t('resource_protection.unbound')} ${t('resource_protection.unbound_description')}`}
+        >
+          {t('resource_protection.unbound')}
+        </span>
       ) : (
-        <span>—</span>
+        <span>{t('ai_providers.money_summary_amount_unknown')}</span>
       )}
     </div>
   );

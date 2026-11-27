@@ -169,6 +169,7 @@ function PriorityControl({ row, disabled, editLabel, onPriorityChange }: Priorit
 export function ProviderTable({
   rows,
   moneyStatus,
+  resourceProtectionForRow,
   loading,
   actionsDisabled,
   toggleDisabled,
@@ -184,6 +185,11 @@ export function ProviderTable({
   const { t } = useTranslation();
   const money = useProviderMoneySummaries(rows, moneyStatus);
   const officialBalances = useOfficialBalanceList(rows, moneyStatus);
+  // Only the evidence itself may say a row has no host-signed binding. The probe stays
+  // `unknown` until it settles and `unavailable` / `unsupported_mode` speak about the
+  // capability, not about this row, so those keep the existing placeholder instead of
+  // claiming the row is unbound.
+  const isUnbound = (row: ProviderRow) => resourceProtectionForRow?.(row).status === 'unbound';
   // Rounded balance text is display-only. Core alone owns funding holds.
   if (loading && rows.length === 0) {
     return <div className="hint">{t('common.loading')}</div>;
@@ -273,7 +279,11 @@ export function ProviderTable({
                 (onShowBalance ?? onShowDetail)(row);
               }}
             >
-              <ProviderMoneySummary view={money[row.key]} official={officialBalances[row.key]} />
+              <ProviderMoneySummary
+                view={money[row.key]}
+                official={officialBalances[row.key]}
+                unbound={isUnbound(row)}
+              />
             </div>
 
             <div className={styles.cellUrl} role="cell" title={row.baseUrl || undefined}>

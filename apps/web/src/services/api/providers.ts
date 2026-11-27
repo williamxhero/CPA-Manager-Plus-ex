@@ -1369,15 +1369,16 @@ export const providersApi = {
     ]);
     checkConnection();
     return Array.isArray(funding)
-      ? joinOpenAIProviderConfig(hydrated, funding, (provider, current) =>
-          current.nativeFunding === undefined
-            ? provider
+      ? joinOpenAIProviderConfig(hydrated, funding, (provider, current) => ({
+          ...provider,
+          resourceId: current.resourceId,
+          ...(current.nativeFunding === undefined
+            ? {}
             : {
-                ...provider,
                 nativeFunding: current.nativeFunding,
                 autoHeld: current.autoHeld ?? provider.autoHeld,
-              }
-        )
+              }),
+        }))
       : hydrated;
   },
 

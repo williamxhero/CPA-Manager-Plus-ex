@@ -245,7 +245,7 @@ it('retains values while refreshing, marks failed reads unverified, and replaces
     await vi.advanceTimersByTimeAsync(15000);
   });
   expect(text()).not.toContain('USD 0.05');
-  expect(text()).toContain('—');
+  expect(balanceCellText('A')).toBe('金额未知');
 });
 
 it.each(['auth', 'base', 'binding', 'capability', 'page'])(
@@ -407,7 +407,7 @@ it('keeps missing and non-finite money unknown, stale funding visible and reject
   await act(async () => {
     view = create(<ProviderTable {...props} />);
   });
-  expect(text()).toContain('—');
+  expect(balanceCellText('A')).toBe('金额未知');
   expect(text()).not.toContain('USD 0');
   mismatch = true;
   await act(async () => {
@@ -427,7 +427,8 @@ it('queries neither unissued rows nor unavailable management service', async () 
       />
     );
   });
-  expect(text()).toContain('—');
+  expect(balanceCellText('A')).toBe('金额未知');
+  expect(balanceCellText('B')).toBe('金额未知');
   expect(fetcher).toHaveBeenCalledTimes(1);
   expect(String(fetcher.mock.calls[0][0])).toContain('/usage-service/full-refresh');
   await act(async () => {

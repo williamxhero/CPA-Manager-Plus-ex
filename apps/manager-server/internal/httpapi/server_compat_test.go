@@ -1526,6 +1526,94 @@ func TestServerCompatV8APIKeysConfigProxy(t *testing.T) {
 	}
 }
 
+func TestServerCompatV8PluginConfigProxy(t *testing.T) {
+	const path = "/v8/management/config/plugins/configs"
+	const coreKey = "test-core-management-key"
+	const queryCredential = "test-query-credential"
+	requests := make(chan *http.Request, 16)
+	bodies := make(chan string, 16)
+	cpa := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error("could not read Core request body")
+		}
+		requests <- r.Clone(context.Background())
+		bodies <- string(body)
+		w.Header().Set("ETag", `"v8-test"`)
+		_, _ = io.WriteString(w, `{"ok":true}`)
+	}))
+	t.Cleanup(cpa.Close)
+	cfg := testutil.NewConfig(t)
+	handler, _ := newCompatHandler(t, cfg, &store.Setup{
+		CPAUpstreamURL: cpa.URL, ManagementKey: coreKey, Queue: "usage", PopSide: "right",
+	})
+
+	for _, tc := range []struct {
+		name, method, target, key, body string
+		want                            int
+	}{
+		{name: "get collection", method: http.MethodGet, target: path, key: testutil.AdminKey, want: http.StatusOK},
+		{name: "get child", method: http.MethodGet, target: path + "/example", key: testutil.AdminKey, want: http.StatusOK},
+		{name: "put child", method: http.MethodPut, target: path + "/example", key: testutil.AdminKey, body: `{"enabled":false}`, want: http.StatusOK},
+		{name: "delete child", method: http.MethodDelete, target: path + "/example", key: testutil.AdminKey, want: http.StatusOK},
+		{name: "sibling prefix", method: http.MethodDelete, target: path + "-other/example", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "sibling key", method: http.MethodGet, target: "/v8/management/config/plugins/other", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "nested key", method: http.MethodPut, target: path + "/example/enabled", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "trailing slash", method: http.MethodDelete, target: path + "/", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "repeated slash", method: http.MethodDelete, target: path + "//example", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "dot traversal", method: http.MethodDelete, target: path + "/../other", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "dot traversal into route", method: http.MethodDelete, target: path + "-other/../configs/example", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "encoded traversal", method: http.MethodDelete, target: path + "/%2e%2e", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "double encoded traversal", method: http.MethodDelete, target: path + "/%252e%252e", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "encoded slash", method: http.MethodPut, target: path + "%2Fexample", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "backslash", method: http.MethodDelete, target: path + "/..%5cother", key: testutil.AdminKey, want: http.StatusNotFound},
+		{name: "missing admin", method: http.MethodDelete, target: path + "/example", want: http.StatusUnauthorized},
+		{name: "Core key is not admin", method: http.MethodPut, target: path + "/example", key: coreKey, want: http.StatusUnauthorized},
+		{name: "unsupported method", method: http.MethodPatch, target: path + "/example", key: testutil.AdminKey, want: http.StatusMethodNotAllowed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.target+"?credential="+queryCredential, strings.NewReader(tc.body))
+			if tc.key != "" {
+				req.Header.Set("Authorization", "Bearer "+tc.key)
+			}
+			req.Header.Set("Cookie", "session="+testutil.AdminKey)
+			req.Header.Set("X-Management-Key", testutil.AdminKey)
+			req.Header.Set("If-Match", `"v8-test"`)
+			req.Header.Set("Content-Type", "application/json")
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			if rr.Code != tc.want {
+				t.Errorf("status = %d, want %d", rr.Code, tc.want)
+			}
+			for _, secret := range []string{coreKey, testutil.AdminKey, queryCredential} {
+				if strings.Contains(rr.Body.String(), secret) || strings.Contains(fmt.Sprint(rr.Header()), secret) {
+					t.Error("response disclosed a credential")
+				}
+			}
+			select {
+			case got := <-requests:
+				body := <-bodies
+				if tc.want != http.StatusOK {
+					t.Fatal("rejected request reached Core")
+				}
+				if got.URL.Path != tc.target || got.Method != tc.method || body != tc.body {
+					t.Error("proxy changed the path, method or request body")
+				}
+				if got.Header.Get("Authorization") != "Bearer "+coreKey || got.Header.Get("Cookie") != "" || got.Header.Get("X-Management-Key") != "" || got.URL.RawQuery != "" {
+					t.Error("Core did not receive only its saved credential")
+				}
+				if got.Header.Get("If-Match") != `"v8-test"` || got.Header.Get("Content-Type") != "application/json" || rr.Header().Get("ETag") != `"v8-test"` {
+					t.Error("proxy did not preserve config request and response headers")
+				}
+			default:
+				if tc.want == http.StatusOK {
+					t.Error("allowed request did not reach Core")
+				}
+			}
+		})
+	}
+}
+
 func TestServerCompatV8CodexReauthProxy(t *testing.T) {
 	const path = "/v8/management/oauth/auth-url"
 	const validQuery = "provider=codex&is_webui=true&auth_index=0123456789abcdef"

@@ -1,5 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Select } from '@/components/ui/Select';
+import {
+  matchOfficialBalance,
+  type BalanceMatch,
+  type BalanceMatchEvidence,
+} from '@/services/api/officialBalanceMatch';
 import { useTranslation } from 'react-i18next';
 import { formatDateTime } from '@/utils/format';
 import {
@@ -23,6 +28,54 @@ import {
 import { AliyunBalanceFields, type AliyunBillingCredentials } from './AliyunBalanceFields';
 import { WebBalanceFields, WebBalanceObservation } from './WebBalanceFields';
 import { formatBalanceAmount } from '@/utils/quota/formatBalanceAmount';
+import styles from './OfficialBalancePanel.module.scss';
+
+function MatchEvidence({ evidence }: { evidence: BalanceMatchEvidence }) {
+  return (
+    <>
+      {evidence.source} · {evidence.host} · {evidence.url} ·{' '}
+      {evidence.status
+        ? `HTTP ${evidence.status}`
+        : evidence.source === 'fingerprint'
+          ? '未发出探测'
+          : '无 HTTP 响应'}
+      {` · 命中字段：${evidence.fields.join('、') || '无'}`}
+      {evidence.reason ? ` · ${evidence.reason}` : ''}
+    </>
+  );
+}
+
+async function readBalanceStatus(
+  base: string,
+  managementKey: string,
+  bindingJSON: string,
+  signal: AbortSignal,
+  balanceDrawer: boolean
+): Promise<OfficialBalanceStatus> {
+  const value = await officialBalanceRequest<OfficialBalanceStatus>(
+    base,
+    managementKey,
+    'GET',
+    `?binding=${encodeURIComponent(bindingJSON)}`,
+    undefined,
+    signal
+  );
+  if (!balanceDrawer) return value;
+  // The compact drawer has no credential editor and needs only public source metadata.
+  const { version, adapter, endpoint, configured, state, managerDirectQuery, stale } = value;
+  return {
+    ...(JSON.parse(bindingJSON) as BalanceBinding),
+    version,
+    adapter,
+    endpoint,
+    configured,
+    state,
+    managerDirectQuery,
+    coreQuery: false,
+    coreGate: false,
+    stale,
+  };
+}
 
 const shownAmount = (value?: string) =>
   typeof value === 'string' ? (formatBalanceAmount(value) ?? value) : value;
@@ -49,6 +102,9 @@ const BALANCE_PROTOCOL_OPTIONS: { value: OfficialBalanceAdapter; label: string }
   { value: 'newapi-browser-session-v1', label: 'NewAPI · 浏览器同站会话 · account_wallet' },
   { value: 'layso_billing_web_v1', label: 'LAYSO · 只读网页账户余额' },
 ];
+const DRAWER_SOURCE_OPTIONS = BALANCE_PROTOCOL_OPTIONS.filter(
+  ({ value }) => value === 'deepseek' || value === 'deepinfra' || value === 'openai-compat-usage-v1'
+);
 const isAdapter = (value: string | undefined): value is OfficialBalanceAdapter =>
   value === 'deepseek' ||
   value === 'deepinfra' ||
@@ -107,8 +163,8 @@ export interface OfficialBalancePanelProps {
   disabled?: boolean;
   supported?: boolean;
   compatibleCandidate?: boolean;
-  /** Balance drawer shows only the protocol select. */
-  protocolOnly?: boolean;
+  /** Only the paid-access balance drawer runs source discovery. */
+  balanceDrawer?: boolean;
 }
 
 export function OfficialBalancePanel({
@@ -119,14 +175,14 @@ export function OfficialBalancePanel({
   supported = true,
   adapter = 'deepseek',
   compatibleCandidate = false,
-  protocolOnly = false,
+  balanceDrawer = false,
 }: OfficialBalancePanelProps) {
   const protocolLabelId = useId();
   const { t, i18n } = useTranslation();
   const bindingJSON = JSON.stringify(binding);
   const context = useMemo(
-    () => ({ base, managementKey, bindingJSON, adapter, compatibleCandidate }),
-    [base, managementKey, bindingJSON, adapter, compatibleCandidate]
+    () => ({ base, bindingJSON, adapter, compatibleCandidate, balanceDrawer, disabled, supported }),
+    [base, managementKey, bindingJSON, adapter, compatibleCandidate, balanceDrawer, disabled, supported]
   );
   const current = useRef(context);
   const [view, setView] = useState<{
@@ -136,12 +192,15 @@ export function OfficialBalancePanel({
     busy?: boolean;
     readbackRequired?: boolean;
     baselineRequired?: boolean;
+    match?: BalanceMatch;
+    matching?: boolean;
+    matchError?: boolean;
   }>({ context });
   const [editor, setEditor] = useState({
     context,
     adapter: undefined as OfficialBalanceAdapter | undefined,
     secret: '',
-    endpoint: '',
+    endpoint: undefined as string | undefined,
     permits: undefined as string | undefined,
     clear: false,
     newAPI: undefined as NewAPIConfig | undefined,
@@ -155,10 +214,11 @@ export function OfficialBalancePanel({
   const pending = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const operationGeneration = generation.current;
-  const data = view.context === context ? view.data : undefined;
-  const busy = view.context === context && view.busy;
-  const readbackRequired = view.context === context && view.readbackRequired;
-  const baselineRequired = view.context === context && view.baselineRequired;
+  const viewIsCurrent = view.context === context;
+  const data = viewIsCurrent ? view.data : undefined;
+  const busy = viewIsCurrent && view.busy;
+  const readbackRequired = viewIsCurrent && view.readbackRequired;
+  const baselineRequired = viewIsCurrent && view.baselineRequired;
   const controlsDisabled = busy || readbackRequired || baselineRequired;
   const edit =
     editor.context === context
@@ -167,7 +227,7 @@ export function OfficialBalancePanel({
           context,
           adapter: undefined as OfficialBalanceAdapter | undefined,
           secret: '',
-          endpoint: '',
+          endpoint: undefined as string | undefined,
           permits: undefined as string | undefined,
           clear: false,
           newAPI: undefined as NewAPIConfig | undefined,
@@ -178,8 +238,22 @@ export function OfficialBalancePanel({
           web: undefined as WebBalanceSource | undefined,
           browserSession: undefined as BrowserSessionConfig | undefined,
         };
+  const match = viewIsCurrent ? view.match : undefined;
+  const proposal = match?.status === 'matched' ? match : undefined;
+  const registeredAdapter = isAdapter(data?.adapter) && data.endpoint ? data.adapter : undefined;
+  const defaultAdapter = isAdapter(data?.adapter) ? data.adapter : compatibleCandidate ? '' : adapter;
+  // Manager will drop a stored secret on an authority-changing PUT. The compact
+  // drawer only saves first-time manual registrations; Manager arbitrates automatic apply.
+  const canRegister = data?.version === 0 && !registeredAdapter && !data.configured;
+  const suggested = !registeredAdapter && !edit.adapter ? proposal?.evidence : undefined;
   const selectedAdapter =
-    edit.adapter ?? (isAdapter(data?.adapter) ? data.adapter : compatibleCandidate ? '' : adapter);
+    edit.adapter ?? (balanceDrawer ? (registeredAdapter ?? suggested?.adapter ?? '') : defaultAdapter);
+  const hasManualEdits = edit.adapter !== undefined || edit.endpoint !== undefined;
+  const canApplyMatch = !!proposal && !proposal.applied && !proposal.applyReason && !hasManualEdits;
+  const showDrawerSave =
+    canRegister &&
+    hasManualEdits &&
+    DRAWER_SOURCE_OPTIONS.some(({ value }) => value === selectedAdapter);
   const isNewAPI =
     selectedAdapter === 'newapi-user-self-v1' ||
     selectedAdapter === 'newapi-token-usage-v1' ||
@@ -246,49 +320,66 @@ export function OfficialBalancePanel({
     (data?.adapter === selectedAdapter ? data.newAPI : undefined) ??
     nativeContract(selectedAdapter);
   const conversion = contract.conversion;
-  const endpoint =
-    edit.endpoint ||
-    (data?.adapter === selectedAdapter ? data.endpoint : '') ||
-    (selectedAdapter ? endpoints[selectedAdapter] : '');
-  const usable = !!base && !!managementKey && !!binding && !disabled && supported;
+  const defaultEndpoint = selectedAdapter ? endpoints[selectedAdapter] : '';
+  const registeredEndpoint = registeredAdapter ? data?.endpoint : undefined;
+  const endpoint = balanceDrawer
+    ? (edit.endpoint ?? registeredEndpoint ?? suggested?.url ?? defaultEndpoint)
+    : edit.endpoint || (data?.adapter === selectedAdapter ? data.endpoint : '') || defaultEndpoint;
+  const canSaveDrawer = showDrawerSave && !!endpoint.trim() && !!edit.secret.trim();
+  const usable = !!base && !!managementKey && !!binding?.targets?.length && !disabled && supported;
 
   useEffect(() => {
     current.current = context;
     const operations = generation;
     const abort = new AbortController();
     pending.current = abort;
-    if (usable) {
-      officialBalanceRequest<OfficialBalanceStatus>(
-        base,
-        managementKey,
-        'GET',
-        `?binding=${encodeURIComponent(bindingJSON)}`,
-        undefined,
-        abort.signal
-      )
-        .then((value) => {
-          if (!abort.signal.aborted && current.current === context)
-            setView({ context, data: value });
-        })
-        .catch(() => {
-          if (!abort.signal.aborted && current.current === context)
-            setView({ context, error: 'balance_unavailable' });
-        });
-    }
+    const isCurrent = () => !abort.signal.aborted && current.current === context;
+    const load = async (serviceBase: string, key: string) => {
+      let value: OfficialBalanceStatus;
+      try {
+        value = await readBalanceStatus(serviceBase, key, bindingJSON, abort.signal, balanceDrawer);
+      } catch {
+        if (isCurrent()) setView({ context, error: 'balance_unavailable' });
+        return;
+      }
+      if (!isCurrent()) return;
+      const matching =
+        balanceDrawer &&
+        (!value.configured ||
+          !value.managerDirectQuery ||
+          value.stale ||
+          !['ready', 'success', 'running'].includes(value.state));
+      setView({ context, data: value, matching });
+      if (!matching) return;
+      try {
+        const suggestion = await matchOfficialBalance(
+          serviceBase,
+          key,
+          JSON.parse(bindingJSON) as BalanceBinding,
+          abort.signal
+        );
+        if (isCurrent()) setView({ context, data: value, match: suggestion });
+      } catch {
+        if (isCurrent()) setView({ context, data: value, matchError: true });
+      }
+    };
+    if (usable) void load(base, managementKey);
     return () => {
       operations.current++;
       abort.abort();
       pending.current?.abort();
     };
-  }, [context, usable, base, managementKey, bindingJSON]);
+  }, [context, usable, base, managementKey, bindingJSON, balanceDrawer]);
 
-  const run = async (action: 'save' | 'query' | 'reload') => {
+  const run = async (action: 'save' | 'query' | 'reload' | 'apply-match') => {
     if (
       current.current !== context ||
       generation.current !== operationGeneration ||
       !usable ||
       !binding ||
       busy ||
+      (action === 'apply-match' && !canApplyMatch) ||
+      (action === 'save' && balanceDrawer && !canSaveDrawer) ||
       (action !== 'reload' && (!data || readbackRequired || baselineRequired))
     )
       return;
@@ -299,8 +390,13 @@ export function OfficialBalancePanel({
     pending.current = abort;
     const previous = data;
     let saved = !!readbackRequired;
-    setView({ context, data: previous, busy: true, readbackRequired, baselineRequired });
+    let result = match;
+    setView({ context, data: previous, match, busy: true, readbackRequired, baselineRequired });
     try {
+      if (action === 'apply-match') {
+        result = await matchOfficialBalance(base, managementKey, binding, abort.signal, true);
+        saved = result.status === 'matched' && result.applied;
+      }
       if (action === 'save' && previous) {
         await officialBalanceRequest(
           base,
@@ -350,25 +446,20 @@ export function OfficialBalancePanel({
         );
         saved = true;
       }
-      if (action === 'save' || action === 'reload') {
+      if (action === 'save' || action === 'reload' || action === 'apply-match') {
         // The write succeeded, but only readback establishes the next editable baseline.
         if (current.current !== context || abort.signal.aborted) return;
-        const value = await officialBalanceRequest<OfficialBalanceStatus>(
-          base,
-          managementKey,
-          'GET',
-          `?binding=${encodeURIComponent(bindingJSON)}`,
-          undefined,
-          abort.signal
+        const value = await readBalanceStatus(
+          base, managementKey, bindingJSON, abort.signal, balanceDrawer
         );
         if (current.current === context && !abort.signal.aborted) {
-          setView({ context, data: value });
+          setView({ context, data: value, match: result });
           if (action === 'save' || readbackRequired || !previous)
             setEditor({
               context,
               adapter: undefined as OfficialBalanceAdapter | undefined,
               secret: '',
-              endpoint: '',
+              endpoint: undefined,
               permits: undefined as string | undefined,
               clear: false,
               newAPI: undefined as NewAPIConfig | undefined,
@@ -412,6 +503,7 @@ export function OfficialBalancePanel({
       if (current.current === context && !abort.signal.aborted)
         setView({
           context,
+          match: result,
           data: identityRejected
             ? undefined
             : saved && previous && (isWeb || previous.web)
@@ -430,9 +522,20 @@ export function OfficialBalancePanel({
     }
   };
 
-  if (protocolOnly) {
+  if (balanceDrawer) {
+    const matchError = viewIsCurrent && view.matchError;
+    const matching = viewIsCurrent && view.matching;
+    const error = viewIsCurrent && view.error;
     return (
-      <section aria-label="官方余额">
+      <section className={styles.balanceDrawer} aria-label="官方余额" aria-busy={busy || matching}>
+        {!usable && <p role="status">需完整、已核实的来源身份，才能匹配余额来源。</p>}
+        {usable && !data && !error && <p role="status">正在读取余额来源…</p>}
+        {error && <p role="alert">{error}</p>}
+        {(readbackRequired || baselineRequired) && (
+          <button type="button" disabled={busy} onClick={() => void run('reload')}>
+            重试回读
+          </button>
+        )}
         <div className="form-group">
           <label id={protocolLabelId} htmlFor={`${protocolLabelId}-select`}>
             官方余额协议
@@ -441,29 +544,91 @@ export function OfficialBalancePanel({
             id={`${protocolLabelId}-select`}
             ariaLabelledBy={protocolLabelId}
             value={selectedAdapter}
-            disabled={controlsDisabled}
+            disabled={!canRegister || controlsDisabled}
             fullWidth
             placeholder="手动选择已确认协议"
-            options={BALANCE_PROTOCOL_OPTIONS}
+            options={canRegister ? DRAWER_SOURCE_OPTIONS : BALANCE_PROTOCOL_OPTIONS}
             onChange={(next) => {
-              if (!isAdapter(next)) return;
-              setEditor({
-                ...edit,
-                adapter: next,
-                endpoint: '',
-                secret: '',
-                clear: false,
-                newAPI: undefined,
-                browserSession: undefined,
-                volcengine: undefined,
-                volcengineSecret: undefined,
-                aliyun: undefined,
-                aliyunSecret: undefined,
-                web: undefined,
-              });
+              if (!canRegister || !isAdapter(next) || next === selectedAdapter) return;
+              setEditor({ ...edit, adapter: next, endpoint: undefined, secret: '' });
             }}
           />
         </div>
+        {selectedAdapter && (
+          <label className={styles.endpoint}>
+            查询 HTTPS 地址
+            <input
+              aria-label="查询 HTTPS 地址"
+              type="url"
+              value={endpoint}
+              readOnly={!canRegister}
+              disabled={controlsDisabled}
+              onChange={(event) => {
+                if (canRegister) setEditor({ ...edit, endpoint: event.target.value });
+              }}
+            />
+          </label>
+        )}
+        {showDrawerSave && (
+          <>
+            <label className={styles.endpoint}>
+              独立查询密钥
+              <input
+                aria-label="独立查询密钥"
+                type="password"
+                autoComplete="off"
+                value={edit.secret}
+                disabled={controlsDisabled}
+                onChange={(event) => setEditor({ ...edit, secret: event.target.value })}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={controlsDisabled || !canSaveDrawer}
+              onClick={() => void run('save')}
+            >
+              保存余额来源
+            </button>
+          </>
+        )}
+        {matching && <p role="status">正在自动匹配余额来源…</p>}
+        {matchError && <p role="status">暂时无法自动匹配余额来源。</p>}
+        {match?.status === 'unmatched' && (
+          <div>
+            <p role="status">未匹配余额来源：{match.reason ?? '未找到可用候选'}</p>
+            {match.candidates.length > 0 ? (
+              <ul aria-label="探测候选">
+                {match.candidates.map((candidate) => (
+                  <li key={candidate.adapter}>
+                    {candidate.adapter} · <MatchEvidence evidence={candidate} />
+                    {!candidate.reason && ' · 未被选为余额来源'}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>没有可显示的探测候选。</p>
+            )}
+          </div>
+        )}
+        {proposal && (
+          <div>
+            <p role="status">
+              {`自动匹配 · 置信度 ${proposal.confidence}%`}
+              {proposal.applied && ' · 已应用'}
+              {proposal.applyReason === 'manual_configuration' && ' · 保留手动配置'}
+              {proposal.applyReason === 'credential_unavailable' && ' · 无可用的服务端凭据，未应用'}
+              {canApplyMatch && registeredAdapter && ' · 当前配置保持不变'}
+            </p>
+            <p>
+              <MatchEvidence evidence={proposal.evidence} />
+            </p>
+            {canApplyMatch && (
+              <button type="button" disabled={controlsDisabled} onClick={() => void run('apply-match')}>
+                应用自动匹配
+              </button>
+            )}
+          </div>
+        )}
       </section>
     );
   }
@@ -488,7 +653,7 @@ export function OfficialBalancePanel({
               {formatDateTime(new Date(data.nextPeriodicCheckMs), i18n?.language)}
             </p>
           )}
-          {view.context === context && view.error && <p role="alert">{view.error}</p>}
+          {viewIsCurrent && view.error && <p role="alert">{view.error}</p>}
           {(readbackRequired || baselineRequired) && (
             <button type="button" disabled={busy} onClick={() => void run('reload')}>
               重试回读

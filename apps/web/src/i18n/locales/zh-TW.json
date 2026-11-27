@@ -1364,6 +1364,7 @@
     "openai_delete_title": "刪除 OpenAI 供應商",
     "openai_delete_confirm": "確定要刪除這個 OpenAI 供應商嗎？",
     "openai_keys_count": "金鑰數量",
+    "money_summary_amount_unknown": "金額未知",
     "openai_models_count": "模型數量",
     "openai_test_title": "連通性測試",
     "openai_test_hint": "使用目前設定向 /models 請求，驗證金鑰連通性，不消耗模型額度。",

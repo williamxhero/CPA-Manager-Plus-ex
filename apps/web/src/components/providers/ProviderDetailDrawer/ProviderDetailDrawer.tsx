@@ -319,11 +319,11 @@ export function ProviderDetailDrawer({
     const showCredential = content !== 'balance';
     return (
       <>
-        {showBalance && officialBalance && (
+        {open && showBalance && officialBalance && (
           <OfficialBalancePanel
             {...officialBalance}
-            protocolOnly={content === 'balance'}
-            supported={balanceSupported || compatibleCandidate}
+            balanceDrawer={content === 'balance'}
+            supported={content === 'balance' || balanceSupported || compatibleCandidate}
             compatibleCandidate={compatibleCandidate}
             adapter={balanceAdapter}
           />

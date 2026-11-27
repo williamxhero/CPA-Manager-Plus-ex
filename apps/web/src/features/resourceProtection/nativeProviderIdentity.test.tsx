@@ -17,6 +17,7 @@ import {
 } from '@/features/aiProviders/AiProvidersOpenAIEditLayout';
 import { OpenAIEditDrawer } from '@/components/providers/ProviderEditDrawer/OpenAIEditDrawer';
 import { ProviderTable } from '@/components/providers/ProviderTable/ProviderTable';
+import type { BalanceBinding } from '@/services/api/officialBalance';
 import { buildProviderRows, type ProviderRow } from '@/components/providers/ProviderTable/rowData';
 import en from '@/i18n/locales/en.json';
 import { useResourceProtection } from './resourceProtection';
@@ -71,7 +72,7 @@ const catalog = () => ({
 let server: Server | undefined;
 let renderer: ReactTestRenderer | undefined;
 let base = '';
-function Harness({ rows }: { rows: ProviderRow[] }) {
+function Harness({ rows, readBalances }: { rows: ProviderRow[]; readBalances?: boolean }) {
   const protection = useResourceProtection(
     { checking: false, managerServiceAvailable: true, managerServiceBase: base },
     rows
@@ -83,6 +84,12 @@ function Harness({ rows }: { rows: ProviderRow[] }) {
       ))}
     <ProviderTable
       rows={rows}
+      moneyStatus={readBalances ? {
+        base,
+        managementKey: 'synthetic-panel-key',
+        bindingForRow: (row) => protection.forProvider(row, rows).binding,
+        bindingsSettled: protection.status !== 'unknown',
+      } : undefined}
       resourceProtection={protection.status === 'identity_only' ? 'unbound' : protection.status}
       resourceProtectionForRow={(row) => protection.forProvider(row, rows)}
       loading={false}
@@ -224,7 +231,11 @@ it('renders a native provider association only from its issued marker and curren
   expect(text(tooltip)).not.toMatch(/CANARY|synthetic-panel-key|synthetic.invalid/);
 });
 
-async function mountSourceFixture(native: Record<string, unknown[]>, summary: unknown) {
+async function mountSourceFixture(
+  native: Record<string, unknown[]>,
+  summary: unknown,
+  balanceFixture?: { v8: unknown[]; requests: { method?: string; url: string }[] }
+) {
   vi.stubGlobal('window', {
     location: { host: '127.0.0.1' },
     addEventListener: () => {},
@@ -244,6 +255,15 @@ async function mountSourceFixture(native: Record<string, unknown[]>, summary: un
     }
     if (req.url === '/v0/management/config') {
       res.writeHead(503).end('{}');
+      return;
+    }
+    if (balanceFixture && req.url === '/v8/management/config/api-keys/openai-compatibility') {
+      res.end(JSON.stringify(balanceFixture.v8));
+      return;
+    }
+    if (balanceFixture && req.url?.startsWith('/usage-service/official-balance')) {
+      balanceFixture.requests.push({ method: req.method, url: req.url });
+      res.end(JSON.stringify({ adapter: '', state: 'needs_configuration' }));
       return;
     }
     if (req.url?.startsWith('/v0/management/')) {
@@ -287,12 +307,66 @@ async function mountSourceFixture(native: Record<string, unknown[]>, summary: un
   await act(async () => {
     renderer = create(
       <I18nextProvider i18n={i18n}>
-        <Harness rows={rows} />
+        <Harness rows={rows} readBalances={!!balanceFixture} />
       </I18nextProvider>
     );
   });
   return { rows, i18n };
 }
+
+it('uses the v8 group ID to read exactly one official balance per OpenAI row, with all catalog members', async () => {
+  const uuid = (n: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12, '0')}`;
+  const summary = catalog();
+  const requests: { method?: string; url: string }[] = [];
+  const expected: BalanceBinding[] = [];
+  const groups = Array.from({ length: 4 }, (_, i) => {
+    const group = { ...target, resource_id: uuid(i + 1), membership_version: i + 2 };
+    const keys = [10, 20].map((n) => ({ ...target, resource_id: uuid(n + i) }));
+    const members = keys.map((key) => key.resource_id);
+    expected.push({ scope, targets: [group, ...keys] });
+    const catalogRow = { ...sourceRow(), family: 'openai-compatibility' };
+    return {
+      v0: {
+        name: `Synthetic ${i + 1}`,
+        'base-url': `https://provider-${i + 1}.example/v1`,
+        'api-key-entries': [...members].reverse().map((id, j) => ({
+          'api-key': `SYNTHETIC-KEY-${i}-${j}`,
+          'resource-id': id,
+        })),
+      },
+      id: group.resource_id,
+      resources: [
+        { ...catalogRow, ...group, kind: 'provider' as const, members },
+        ...keys.map((key) => ({ ...catalogRow, ...key, parent_id: group.resource_id })),
+      ],
+    };
+  });
+  summary.negotiated.snapshot.resources = groups.flatMap((group) => group.resources);
+  const { rows } = await mountSourceFixture(
+    { 'openai-compatibility': groups.map((group) => group.v0) },
+    summary,
+    {
+      v8: groups.map(({ v0, id }) => ({
+        name: v0.name, 'base-url': v0['base-url'], 'resource-id': id, keys: v0['api-key-entries'],
+      })),
+      requests,
+    }
+  );
+
+  expect(rows.map((row) => row.raw.resourceId).sort()).toEqual(groups.map((group) => group.id));
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(requests).toHaveLength(4);
+  });
+  const bindings = requests.map(({ method, url }) => {
+    expect(method).toBe('GET');
+    const parsed = new URL(url, base);
+    expect(parsed.pathname).toBe('/usage-service/official-balance');
+    return JSON.parse(parsed.searchParams.get('binding')!) as BalanceBinding;
+  });
+  expect(bindings.sort((a, b) => a.targets[0].resource_id.localeCompare(b.targets[0].resource_id)))
+    .toEqual(expected);
+});
 
 it('associates an OpenAI provider and every distinct member with their exact issued targets', async () => {
   const group = '66666666-6666-4666-8666-666666666666';
